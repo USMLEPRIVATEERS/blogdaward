@@ -16,10 +16,7 @@ const AUTHORIZED_CPFS = [
 
 const PAGE_FILES = [
     'Sobre_a_Ward_Academy.html',
-    'USMLE;Step_1;Guia_Completo.html',
     'Ferramentas_de_Estudo;Anki;Guia_Completo.html',
-    'Estrategias_de_Estudo;Cronogramas_Personalizados.html',
-    'Pesquisa_Cientifica;Guia_Completo.html',
     'Estagios_Internacionais;USA;Observerships;Mapa_de_Observerships.html',
 
 ];
