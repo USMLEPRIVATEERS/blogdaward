@@ -9,20 +9,20 @@ const AUTHORIZED_CPFS = [
 ];
 
 // ========================================
-// LISTA DE ARQUIVOS HTML
+// 📝 LISTA DE ARQUIVOS - ÚNICO LUGAR!
 // ========================================
-// IMPORTANTE: Adicione aqui TODOS os arquivos HTML da pasta pages/
-// Sempre que criar um novo arquivo HTML, adicione o nome dele nesta lista!
+// ⚠️ ATENÇÃO: Este é o ÚNICO lugar onde você adiciona páginas!
+// Não precisa editar mais nada - o resto é automático!
 
 const PAGE_FILES = [
     'Sobre_a_Ward_Academy.html',
     'USMLE;Step_1;Guia_Completo.html',
     'Ferramentas_de_Estudo;Anki;Guia_Completo.html',
     'Estrategias_de_Estudo;Cronogramas_Personalizados.html',
-    'Pesquisa_Cientifica;Guia_Completo.html',
-    'Estagios_Internacionais;USA;Observeships;Mapa_de_Observerships.html',
-    // Adicione novos arquivos aqui seguindo o mesmo formato:
-    // 'Nome_do_Arquivo.html',
+    'Pesquisa_Cientifica;Guia_Completo.html'
+    
+    // ➕ Adicione novos arquivos aqui:
+    // 'Novo_Arquivo.html',
     // 'Topico;Subtopico;Pagina.html',
 ];
 
@@ -183,22 +183,13 @@ function showWelcomeScreen() {
 // ========================================
 
 async function loadNavigationStructure() {
-    // ⚠️ IMPORTANTE: Sempre que adicionar novos arquivos HTML na pasta pages/,
-    // adicione o nome deles nesta lista abaixo!
-    const files = [
-        'Sobre_a_Ward_Academy.html',
-        'USMLE;Step_1;Guia_Completo.html',
-        'Ferramentas_de_Estudo;Anki;Guia_Completo.html',
-        'Estrategias_de_Estudo;Cronogramas_Personalizados.html',
-        'Pesquisa_Cientifica;Guia_Completo.html'
-    ];
-    
-    allPages = files;
-    navigationTree = buildNavigationTree(files);
+    // Usa a lista PAGE_FILES definida no topo do arquivo
+    allPages = PAGE_FILES;
+    navigationTree = buildNavigationTree(PAGE_FILES);
     renderNavigation();
     await buildSearchIndex();
     
-    console.log(`✅ ${files.length} páginas carregadas com sucesso!`);
+    console.log(`✅ ${PAGE_FILES.length} páginas carregadas com sucesso!`);
     
     // Mostrar tela de boas-vindas com sugestões aleatórias
     showWelcomeScreen();
