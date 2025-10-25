@@ -19,7 +19,8 @@ const PAGE_FILES = [
     'USMLE;Step_1;Guia_Completo.html',
     'Ferramentas_de_Estudo;Anki;Guia_Completo.html',
     'Estrategias_de_Estudo;Cronogramas_Personalizados.html',
-    'Pesquisa_Cientifica;Guia_Completo.html'
+    'Pesquisa_Cientifica;Guia_Completo.html',
+    'Estagios_Internacionais;USA;Observeships;Mapa_de_Observerships.html',
     
     // ➕ Adicione novos arquivos aqui:
     // 'Novo_Arquivo.html',
