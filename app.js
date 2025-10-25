@@ -18,6 +18,7 @@ const PAGE_FILES = [
     'Sobre_a_Ward_Academy.html',
     'Ferramentas_de_Estudo;Anki;Guia_Completo.html',
     'Estagios_Internacionais;USA;Observerships;Mapa_de_Observerships.html',
+    'Conteudos;Step_1;Boards_and_Beyond.html',
 
 ];
 
