@@ -20,10 +20,8 @@ const PAGE_FILES = [
     'Ferramentas_de_Estudo;Anki;Guia_Completo.html',
     'Estrategias_de_Estudo;Cronogramas_Personalizados.html',
     'Pesquisa_Cientifica;Guia_Completo.html',
-    
-    // ➕ Adicione novos arquivos aqui:
-    // 'Novo_Arquivo.html',
-    // 'Topico;Subtopico;Pagina.html',
+    'Estagios_Internacionais;USA;Observerships;Mapa_de_Observerships.html',
+
 ];
 
 // Estado da aplicação
