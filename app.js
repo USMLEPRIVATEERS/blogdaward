@@ -13,6 +13,7 @@ const PAGE_FILES = [
     'Templates;Deans_Letter.html',
     'Templates;Curriculum_Vitae.html',
     'Templates;Personal_Statement.html',
+    'Noticias;Vistos;Taxa_de_100.000_para_visto_H1B.html',
 ];
 
 // Estado da aplicação
