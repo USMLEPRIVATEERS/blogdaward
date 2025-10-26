@@ -6,13 +6,19 @@
 
 const PAGE_FILES = [
     'Sobre_a_Ward_Academy.html',
+    
     'Ferramentas_de_Estudo;Anki;Guia_Completo.html',
+    
+    'Estagios_Internacionais;USA;Observerships;Guia_de_Observerships.html',
     'Estagios_Internacionais;USA;Observerships;Mapa_de_Observerships.html',
+    
     'Conteudos;Step_1;Boards_and_Beyond.html',
+    
     'Templates;Letter_of_Intent.html',
     'Templates;Deans_Letter.html',
     'Templates;Curriculum_Vitae.html',
     'Templates;Personal_Statement.html',
+    
     'Noticias;Vistos;Taxa_de_100.000_para_visto_H1B.html',
 ];
 
