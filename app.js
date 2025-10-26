@@ -236,47 +236,53 @@ function renderNavigation() {
             icon.textContent = item.isLeaf ? '📄' : icons[Math.min(level, icons.length - 1)];
             
             const text = document.createElement('span');
+            text.className = 'nav-text';
             text.textContent = item.name;
             
             link.appendChild(icon);
             link.appendChild(text);
             
-            // Se tem filhos, adicionar toggle
+            // Se tem filhos, adicionar seta
             if (Object.keys(item.children).length > 0) {
-                const toggle = document.createElement('span');
-                toggle.className = 'nav-toggle';
-                toggle.textContent = '▶';
-                link.appendChild(toggle);
+                const arrow = document.createElement('span');
+                arrow.className = 'nav-arrow';
+                arrow.textContent = '▶';
+                link.appendChild(arrow);
                 
-                link.addEventListener('click', () => {
-                    const children = navItem.querySelector('.nav-children');
+                // Click para expandir/colapsar
+                link.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    this.classList.toggle('expanded');
+                    const children = this.parentElement.querySelector('.nav-children');
                     if (children) {
-                        children.classList.toggle('show');
-                        toggle.classList.toggle('expanded');
+                        children.style.display = children.style.display === 'none' ? 'block' : 'none';
                     }
                 });
-            } else if (item.file) {
-                // É uma folha, carregar conteúdo
-                link.addEventListener('click', () => {
+            } else {
+                // É uma folha (página), carregar ao clicar
+                link.addEventListener('click', function() {
                     loadPage(item.file);
                     
-                    // Atualizar active
+                    // Remover active de todos
                     document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-                    link.classList.add('active');
+                    
+                    // Adicionar active neste
+                    this.classList.add('active');
                     
                     // Fechar sidebar em mobile
                     if (window.innerWidth <= 768) {
-                        document.getElementById('sidebar').classList.remove('open');
+                        closeSidebar();
                     }
                 });
             }
             
             navItem.appendChild(link);
             
-            // Renderizar filhos
+            // Se tem filhos, renderizar recursivamente
             if (Object.keys(item.children).length > 0) {
                 const childrenContainer = document.createElement('div');
                 childrenContainer.className = 'nav-children';
+                childrenContainer.style.display = 'none';
                 renderLevel(item.children, childrenContainer, level + 1);
                 navItem.appendChild(childrenContainer);
             }
@@ -288,38 +294,25 @@ function renderNavigation() {
     renderLevel(navigationTree, nav);
 }
 
-// ========================================
-// CARREGAMENTO DE PÁGINAS
-// ========================================
-
-async function loadPage(filename) {
+async function loadPage(file) {
     try {
-        const response = await fetch(`pages/${filename}`);
+        const response = await fetch(`pages/${file}`);
         if (!response.ok) throw new Error('Página não encontrada');
         
         const html = await response.text();
+        
         const contentArea = document.getElementById('content-area');
-        
-        // Criar container para o conteúdo
-        const pageContent = document.createElement('div');
-        pageContent.className = 'page-content';
-        pageContent.innerHTML = html;
-        
-        // Limpar e adicionar novo conteúdo
-        contentArea.innerHTML = '';
-        contentArea.appendChild(pageContent);
-        
-        currentPage = filename;
-        
-        // Scroll para o topo
+        contentArea.innerHTML = `<div class="page-content">${html}</div>`;
         contentArea.scrollTop = 0;
         
+        currentPage = file;
     } catch (error) {
+        console.error('Erro ao carregar página:', error);
         const contentArea = document.getElementById('content-area');
         contentArea.innerHTML = `
-            <div class="page-content">
-                <h1>⚠️ Erro ao carregar conteúdo</h1>
-                <p>Não foi possível carregar esta página. Por favor, tente novamente ou entre em contato com o suporte.</p>
+            <div class="welcome-screen">
+                <h1>Erro ao Carregar 😕</h1>
+                <p class="welcome-subtitle">A página solicitada não foi encontrada</p>
             </div>
         `;
     }
@@ -439,6 +432,39 @@ function highlightSearchTerms(text, query) {
 }
 
 // ========================================
+// SIDEBAR CONTROLS
+// ========================================
+
+function openSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    const menuToggle = document.getElementById('menu-toggle');
+    
+    sidebar.classList.add('open');
+    overlay.classList.add('active');
+    menuToggle.classList.add('active');
+}
+
+function closeSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    const menuToggle = document.getElementById('menu-toggle');
+    
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+    menuToggle.classList.remove('active');
+}
+
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar.classList.contains('open')) {
+        closeSidebar();
+    } else {
+        openSidebar();
+    }
+}
+
+// ========================================
 // INICIALIZAÇÃO
 // ========================================
 
@@ -452,10 +478,14 @@ function initializePlatform() {
     document.getElementById('home-button').addEventListener('click', showWelcomeScreen);
     document.getElementById('home-btn').addEventListener('click', showWelcomeScreen);
     
-    // Toggle sidebar em mobile
-    document.getElementById('toggle-sidebar').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('open');
+    // Menu hambúrguer
+    document.getElementById('menu-toggle').addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleSidebar();
     });
+    
+    // Overlay - fechar sidebar ao clicar
+    document.getElementById('sidebar-overlay').addEventListener('click', closeSidebar);
     
     // Busca
     const searchInput = document.getElementById('search-input');
@@ -480,16 +510,32 @@ function initializePlatform() {
         searchInput.value = '';
     });
     
-    // Fechar sidebar ao clicar fora (mobile)
+    // Fechar sidebar ao clicar fora (apenas se estiver aberta)
     document.addEventListener('click', (e) => {
         const sidebar = document.getElementById('sidebar');
-        const toggleBtn = document.getElementById('toggle-sidebar');
+        const menuToggle = document.getElementById('menu-toggle');
+        const overlay = document.getElementById('sidebar-overlay');
         
-        if (window.innerWidth <= 768 && 
+        if (sidebar.classList.contains('open') && 
             !sidebar.contains(e.target) && 
-            !toggleBtn.contains(e.target) && 
-            sidebar.classList.contains('open')) {
-            sidebar.classList.remove('open');
+            !menuToggle.contains(e.target)) {
+            closeSidebar();
+        }
+    });
+    
+    // Fechar sidebar ao pressionar ESC
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar.classList.contains('open')) {
+                closeSidebar();
+            }
+            
+            const searchResults = document.getElementById('search-results');
+            if (searchResults.style.display === 'block') {
+                searchResults.style.display = 'none';
+                document.getElementById('search-input').value = '';
+            }
         }
     });
 }
