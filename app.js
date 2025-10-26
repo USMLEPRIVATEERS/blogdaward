@@ -19,7 +19,8 @@ const PAGE_FILES = [
     'Ferramentas_de_Estudo;Anki;Guia_Completo.html',
     'Estagios_Internacionais;USA;Observerships;Mapa_de_Observerships.html',
     'Conteudos;Step_1;Boards_and_Beyond.html',
-    'Templates;Letter_of_Intent.html'
+    'Templates;Letter_of_Intent.html',
+    'Templates;Deans_Letter.html',
 
 ];
 
