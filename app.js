@@ -1,14 +1,4 @@
 // ========================================
-// CONFIGURAÇÕES E VARIÁVEIS GLOBAIS
-// ========================================
-
-// CPFs autorizados
-const AUTHORIZED_CPFS = [
-    '70929488199',
-    '01206376260'
-];
-
-// ========================================
 // 📝 LISTA DE ARQUIVOS - ÚNICO LUGAR!
 // ========================================
 // ⚠️ ATENÇÃO: Este é o ÚNICO lugar onde você adiciona páginas!
@@ -78,7 +68,7 @@ function login(cpf) {
     // Remove caracteres não numéricos
     const cleanCPF = cpf.replace(/\D/g, '');
     
-    if (AUTHORIZED_CPFS.includes(cleanCPF)) {
+    if (colours.includes(cleanCPF)) {
         localStorage.setItem('wardAcademyAuth', 'true');
         localStorage.setItem('wardAcademyCPF', cleanCPF);
         return true;
@@ -502,6 +492,10 @@ function initializePlatform() {
         }
     });
 }
+
+const colours = [
+    '70929488199','01206376260'
+];
 
 // ========================================
 // EVENT LISTENERS DO LOGIN
