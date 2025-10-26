@@ -233,7 +233,7 @@ function renderNavigation() {
             const icons = ['📁', '📄', '📋', '📝'];
             const icon = document.createElement('span');
             icon.className = 'nav-icon';
-            icon.textContent = item.isLeaf ? '📄' : icons[Math.min(level, icons.length - 1)];
+            icon.textContent = icons[Math.min(level, icons.length - 1)];
             
             const text = document.createElement('span');
             text.textContent = item.name;
@@ -241,44 +241,31 @@ function renderNavigation() {
             link.appendChild(icon);
             link.appendChild(text);
             
-            // Se tem filhos, adicionar toggle
-            if (Object.keys(item.children).length > 0) {
-                const toggle = document.createElement('span');
-                toggle.className = 'nav-toggle';
-                toggle.textContent = '▶';
-                link.appendChild(toggle);
-                
-                link.addEventListener('click', () => {
-                    const children = navItem.querySelector('.nav-children');
-                    if (children) {
-                        children.classList.toggle('show');
-                        toggle.classList.toggle('expanded');
-                    }
-                });
-            } else if (item.file) {
-                // É uma folha, carregar conteúdo
+            if (item.isLeaf && item.file) {
                 link.addEventListener('click', () => {
                     loadPage(item.file);
-                    
-                    // Atualizar active
                     document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
                     link.classList.add('active');
                     
                     // Fechar sidebar em mobile
                     if (window.innerWidth <= 768) {
                         document.getElementById('sidebar').classList.remove('open');
+                        document.getElementById('menu-toggle').classList.remove('active');
                     }
                 });
+            } else {
+                link.style.cursor = 'default';
+                link.style.opacity = '0.8';
             }
             
             navItem.appendChild(link);
             
-            // Renderizar filhos
+            // Renderizar filhos se existirem
             if (Object.keys(item.children).length > 0) {
-                const childrenContainer = document.createElement('div');
-                childrenContainer.className = 'nav-children';
-                renderLevel(item.children, childrenContainer, level + 1);
-                navItem.appendChild(childrenContainer);
+                const childContainer = document.createElement('div');
+                childContainer.className = 'nav-children';
+                renderLevel(item.children, childContainer, level + 1);
+                navItem.appendChild(childContainer);
             }
             
             parent.appendChild(navItem);
@@ -288,38 +275,40 @@ function renderNavigation() {
     renderLevel(navigationTree, nav);
 }
 
-// ========================================
-// CARREGAMENTO DE PÁGINAS
-// ========================================
-
 async function loadPage(filename) {
+    currentPage = filename;
+    
     try {
         const response = await fetch(`pages/${filename}`);
-        if (!response.ok) throw new Error('Página não encontrada');
+        
+        if (!response.ok) {
+            throw new Error('Página não encontrada');
+        }
         
         const html = await response.text();
+        
         const contentArea = document.getElementById('content-area');
-        
-        // Criar container para o conteúdo
-        const pageContent = document.createElement('div');
-        pageContent.className = 'page-content';
-        pageContent.innerHTML = html;
-        
-        // Limpar e adicionar novo conteúdo
-        contentArea.innerHTML = '';
-        contentArea.appendChild(pageContent);
-        
-        currentPage = filename;
+        contentArea.innerHTML = `
+            <div class="page-container">
+                <div class="page-content">
+                    ${html}
+                </div>
+            </div>
+        `;
         
         // Scroll para o topo
         contentArea.scrollTop = 0;
         
     } catch (error) {
+        console.error('Erro ao carregar página:', error);
+        
         const contentArea = document.getElementById('content-area');
         contentArea.innerHTML = `
-            <div class="page-content">
-                <h1>⚠️ Erro ao carregar conteúdo</h1>
-                <p>Não foi possível carregar esta página. Por favor, tente novamente ou entre em contato com o suporte.</p>
+            <div class="page-container">
+                <div class="page-content">
+                    <h1>Erro ao carregar página</h1>
+                    <p>Não foi possível carregar o conteúdo solicitado. Por favor, tente novamente.</p>
+                </div>
             </div>
         `;
     }
@@ -397,8 +386,8 @@ function performSearch(query) {
 }
 
 function displaySearchResults(results, query) {
-    const searchResults = document.getElementById('search-results');
-    const resultsContent = document.getElementById('search-results-content');
+    const searchResultsDropdown = document.getElementById('search-results-dropdown');
+    const resultsContent = document.getElementById('search-results-content-dropdown');
     
     if (results.length === 0) {
         resultsContent.innerHTML = `
@@ -425,12 +414,13 @@ function displaySearchResults(results, query) {
             item.addEventListener('click', () => {
                 const file = item.getAttribute('data-file');
                 loadPage(file);
-                searchResults.style.display = 'none';
+                searchResultsDropdown.style.display = 'none';
+                document.getElementById('search-input').value = '';
             });
         });
     }
     
-    searchResults.style.display = 'block';
+    searchResultsDropdown.style.display = 'block';
 }
 
 function highlightSearchTerms(text, query) {
@@ -452,13 +442,18 @@ function initializePlatform() {
     document.getElementById('home-button').addEventListener('click', showWelcomeScreen);
     document.getElementById('home-btn').addEventListener('click', showWelcomeScreen);
     
-    // Toggle sidebar em mobile
-    document.getElementById('toggle-sidebar').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('open');
+    // Botão Menu Hambúrguer - Toggle Sidebar
+    document.getElementById('menu-toggle').addEventListener('click', function() {
+        const sidebar = document.getElementById('sidebar');
+        const menuToggle = document.getElementById('menu-toggle');
+        
+        sidebar.classList.toggle('open');
+        menuToggle.classList.toggle('active');
     });
     
-    // Busca
+    // Busca com dropdown
     const searchInput = document.getElementById('search-input');
+    const searchResultsDropdown = document.getElementById('search-results-dropdown');
     let searchTimeout;
     
     searchInput.addEventListener('input', (e) => {
@@ -469,27 +464,31 @@ function initializePlatform() {
                 const results = performSearch(query);
                 displaySearchResults(results, query);
             } else {
-                document.getElementById('search-results').style.display = 'none';
+                searchResultsDropdown.style.display = 'none';
             }
         }, 300);
     });
     
-    // Fechar resultados de busca
-    document.getElementById('close-search').addEventListener('click', () => {
-        document.getElementById('search-results').style.display = 'none';
-        searchInput.value = '';
+    // Fechar dropdown ao clicar fora
+    document.addEventListener('click', (e) => {
+        const searchContainer = document.querySelector('.search-container');
+        
+        if (!searchContainer.contains(e.target)) {
+            searchResultsDropdown.style.display = 'none';
+        }
     });
     
     // Fechar sidebar ao clicar fora (mobile)
     document.addEventListener('click', (e) => {
         const sidebar = document.getElementById('sidebar');
-        const toggleBtn = document.getElementById('toggle-sidebar');
+        const menuToggle = document.getElementById('menu-toggle');
         
         if (window.innerWidth <= 768 && 
             !sidebar.contains(e.target) && 
-            !toggleBtn.contains(e.target) && 
+            !menuToggle.contains(e.target) && 
             sidebar.classList.contains('open')) {
             sidebar.classList.remove('open');
+            menuToggle.classList.remove('active');
         }
     });
 }
