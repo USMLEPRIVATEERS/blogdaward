@@ -233,48 +233,49 @@ function renderNavigation() {
             const icons = ['📁', '📄', '📋', '📝'];
             const icon = document.createElement('span');
             icon.className = 'nav-icon';
-            icon.textContent = item.isLeaf ? '📄' : icons[Math.min(level, icons.length - 1)];
+            icon.textContent = item.isLeaf ? icons[Math.min(level + 1, icons.length - 1)] : icons[level];
             
             const text = document.createElement('span');
+            text.className = 'nav-text';
             text.textContent = item.name;
             
             link.appendChild(icon);
             link.appendChild(text);
             
-            // Se tem filhos, adicionar toggle
-            if (Object.keys(item.children).length > 0) {
-                const toggle = document.createElement('span');
-                toggle.className = 'nav-toggle';
-                toggle.textContent = '▶';
-                link.appendChild(toggle);
+            // Se tem filhos, adiciona seta
+            const hasChildren = Object.keys(item.children).length > 0;
+            if (hasChildren) {
+                const arrow = document.createElement('span');
+                arrow.className = 'nav-arrow';
+                arrow.textContent = '▶';
+                link.appendChild(arrow);
+            }
+            
+            // Event listener
+            link.addEventListener('click', async (e) => {
+                e.stopPropagation();
                 
-                link.addEventListener('click', () => {
-                    const children = navItem.querySelector('.nav-children');
-                    if (children) {
-                        children.classList.toggle('show');
-                        toggle.classList.toggle('expanded');
-                    }
-                });
-            } else if (item.file) {
-                // É uma folha, carregar conteúdo
-                link.addEventListener('click', () => {
-                    loadPage(item.file);
+                if (item.isLeaf && item.file) {
+                    // É uma página, carrega
+                    await loadPage(item.file);
                     
-                    // Atualizar active
+                    // Marca como ativo
                     document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
                     link.classList.add('active');
-                    
-                    // Fechar sidebar em mobile
-                    if (window.innerWidth <= 768) {
-                        document.getElementById('sidebar').classList.remove('open');
+                } else if (hasChildren) {
+                    // Tem filhos, expande/contrai
+                    link.classList.toggle('expanded');
+                    const childrenContainer = navItem.querySelector('.nav-children');
+                    if (childrenContainer) {
+                        childrenContainer.classList.toggle('show');
                     }
-                });
-            }
+                }
+            });
             
             navItem.appendChild(link);
             
-            // Renderizar filhos
-            if (Object.keys(item.children).length > 0) {
+            // Renderiza filhos se existirem
+            if (hasChildren) {
                 const childrenContainer = document.createElement('div');
                 childrenContainer.className = 'nav-children';
                 renderLevel(item.children, childrenContainer, level + 1);
@@ -300,26 +301,23 @@ async function loadPage(filename) {
         const html = await response.text();
         const contentArea = document.getElementById('content-area');
         
-        // Criar container para o conteúdo
-        const pageContent = document.createElement('div');
-        pageContent.className = 'page-content';
-        pageContent.innerHTML = html;
-        
-        // Limpar e adicionar novo conteúdo
-        contentArea.innerHTML = '';
-        contentArea.appendChild(pageContent);
+        contentArea.innerHTML = `<div class="page-content">${html}</div>`;
+        contentArea.scrollTop = 0;
         
         currentPage = filename;
         
-        // Scroll para o topo
-        contentArea.scrollTop = 0;
+        // Fechar sidebar em mobile
+        if (window.innerWidth <= 768) {
+            document.getElementById('sidebar').classList.remove('open');
+        }
         
     } catch (error) {
+        console.error('Erro ao carregar página:', error);
         const contentArea = document.getElementById('content-area');
         contentArea.innerHTML = `
             <div class="page-content">
-                <h1>⚠️ Erro ao carregar conteúdo</h1>
-                <p>Não foi possível carregar esta página. Por favor, tente novamente ou entre em contato com o suporte.</p>
+                <h1>Erro ao Carregar Página</h1>
+                <p>Não foi possível carregar o conteúdo solicitado. Por favor, tente novamente.</p>
             </div>
         `;
     }
@@ -452,8 +450,8 @@ function initializePlatform() {
     document.getElementById('home-button').addEventListener('click', showWelcomeScreen);
     document.getElementById('home-btn').addEventListener('click', showWelcomeScreen);
     
-    // Toggle sidebar em mobile
-    document.getElementById('toggle-sidebar').addEventListener('click', () => {
+    // Botão hambúrguer - toggle sidebar
+    document.getElementById('hamburger-btn').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('open');
     });
     
@@ -480,16 +478,24 @@ function initializePlatform() {
         searchInput.value = '';
     });
     
-    // Fechar sidebar ao clicar fora (mobile)
+    // Fechar sidebar ao clicar fora (mobile e desktop)
     document.addEventListener('click', (e) => {
         const sidebar = document.getElementById('sidebar');
-        const toggleBtn = document.getElementById('toggle-sidebar');
+        const hamburgerBtn = document.getElementById('hamburger-btn');
+        const searchResults = document.getElementById('search-results');
+        const searchContainer = document.querySelector('.search-container');
         
-        if (window.innerWidth <= 768 && 
-            !sidebar.contains(e.target) && 
-            !toggleBtn.contains(e.target) && 
+        // Fechar sidebar se clicar fora
+        if (!sidebar.contains(e.target) && 
+            !hamburgerBtn.contains(e.target) && 
             sidebar.classList.contains('open')) {
             sidebar.classList.remove('open');
+        }
+        
+        // Fechar resultados de busca se clicar fora
+        if (!searchContainer.contains(e.target) && 
+            searchResults.style.display === 'block') {
+            searchResults.style.display = 'none';
         }
     });
 }
