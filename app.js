@@ -21,7 +21,7 @@ const PAGE_FILES = [
     'Conteudos;Step_1;Boards_and_Beyond.html',
     'Templates;Letter_of_Intent.html',
     'Templates;Deans_Letter.html',
-
+    'Templates;Curriculum_Vitae.html',
 ];
 
 // Estado da aplicação
