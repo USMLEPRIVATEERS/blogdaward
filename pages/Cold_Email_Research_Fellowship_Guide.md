@@ -338,6 +338,4 @@ A Ward Academy está aqui para apoiá-lo em cada etapa dessa jornada. Se você t
 ### WARD ACADEMY
 *Mentoria Especializada em USMLE para Old Graduates*
 
-📧 contato@wardacademy.com.br  
-🌐 www.wardacademy.com.br  
 📱 @usmle.wardacademy
