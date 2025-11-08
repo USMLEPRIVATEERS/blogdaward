@@ -18,6 +18,7 @@ const PAGE_FILES = [
     'Templates;Deans_Letter.html',
     'Templates;Curriculum_Vitae.html',
     'Templates;Personal_Statement.html',
+    'Cold_Email_Research_Fellowship_Guide.html',
     
     'Noticias;Vistos;Taxa_de_100.000_para_visto_H1B.html',
 ];
