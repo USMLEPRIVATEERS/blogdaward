@@ -21,7 +21,6 @@ const PAGE_FILES = [
     'Templates;Cold_Email_Research_Fellowship_Guide.html',
 
     'Visto;PATHWAYS_DE_FLORIDA_E_EB-2_NIW.html',
-    'Visto;EB-2_NIW_PARA_OLD_GRADUATES.html',
     
     'Noticias;Vistos;Taxa_de_100.000_para_visto_H1B.html',
 ];
@@ -31,6 +30,33 @@ let currentPage = null;
 let navigationTree = null;
 let allPages = [];
 let searchIndex = [];
+
+// ========================================
+// THEME TOGGLE - DARK/LIGHT MODE
+// ========================================
+
+function initializeTheme() {
+    // Verifica se há preferência salva, senão usa light mode como padrão
+    const savedTheme = localStorage.getItem('wardAcademyTheme') || 'light';
+    setTheme(savedTheme);
+}
+
+function setTheme(theme) {
+    if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.getElementById('theme-icon').textContent = '☀️';
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+        document.getElementById('theme-icon').textContent = '🌙';
+    }
+    localStorage.setItem('wardAcademyTheme', theme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+}
 
 // ========================================
 // PROTEÇÃO CONTRA CÓPIA
@@ -486,19 +512,25 @@ function closeSidebar() {
 
 function initializePlatform() {
     loadNavigationStructure();
-    
+
+    // Inicializar tema
+    initializeTheme();
+
     // Event listeners
     document.getElementById('logout-btn').addEventListener('click', logout);
-    
+
     // Botão home - volta para tela inicial
     document.getElementById('home-button').addEventListener('click', showWelcomeScreen);
     document.getElementById('home-btn').addEventListener('click', showWelcomeScreen);
-    
+
     // Menu hambúrguer - toggle sidebar
     document.getElementById('hamburger-menu').addEventListener('click', toggleSidebar);
-    
+
     // Overlay - fechar sidebar
     document.getElementById('sidebar-overlay').addEventListener('click', closeSidebar);
+
+    // Theme toggle
+    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
     
     // Busca com dropdown
     const searchInput = document.getElementById('search-input');
@@ -583,6 +615,12 @@ document.getElementById('cpf-input').addEventListener('input', function(e) {
 // ========================================
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar tema desde o início (para tela de login também)
+    const savedTheme = localStorage.getItem('wardAcademyTheme') || 'light';
+    if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+
     if (checkAuth()) {
         showPlatform();
     } else {
