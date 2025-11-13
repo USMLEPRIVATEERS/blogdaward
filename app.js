@@ -19,6 +19,8 @@ const PAGE_FILES = [
     'Templates;Curriculum_Vitae.html',
     'Templates;Personal_Statement.html',
     'Templates;Cold_Email_Research_Fellowship_Guide.html',
+
+    'Visto;PATHWAYS_DE_FLORIDA_E_EB-2_NIW.html',
     
     'Noticias;Vistos;Taxa_de_100.000_para_visto_H1B.html',
 ];
