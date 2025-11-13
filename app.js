@@ -21,6 +21,7 @@ const PAGE_FILES = [
     'Templates;Cold_Email_Research_Fellowship_Guide.html',
 
     'Visto;PATHWAYS_DE_FLORIDA_E_EB-2_NIW.html',
+    'Visto;EB-2_NIW_PARA_OLD_GRADUATES.html',
     
     'Noticias;Vistos;Taxa_de_100.000_para_visto_H1B.html',
 ];
