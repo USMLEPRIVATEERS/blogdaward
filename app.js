@@ -12,6 +12,7 @@ const PAGE_FILES = [
     'Estagios_Internacionais;USA;Observerships;Guia_de_Observerships.html',
     'Estagios_Internacionais;USA;Observerships;Mapa_de_Observerships.html',
     
+    'Resumos;Step1;Cardio.html',
     'Conteudos;Step_1;Boards_and_Beyond.html',
     
     'Templates;Letter_of_Intent.html',
