@@ -271,7 +271,7 @@
             // Count today's check-ins
             const today = new Date().toISOString().split('T')[0];
             const { data: checkins } = await WardApp.db
-                .from('check_ins')
+                .from('daily_checkins')
                 .select('id')
                 .gte('created_at', today);
 
@@ -341,12 +341,14 @@
         async function loadStudentTimeline(studentId) {
             const container = document.getElementById('timeline-content');
 
-            // Load various data for timeline
-            const [landmarksRes, checkinsRes, messagesRes, delaysRes] = await Promise.all([
+            // Load various data for timeline (including diaries for Facebook-like social feed)
+            const [landmarksRes, checkinsRes, messagesRes, delaysRes, studyDiaryRes, uworldDiaryRes] = await Promise.all([
                 WardApp.db.from('landmarks').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(10),
-                WardApp.db.from('check_ins').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(10),
-                WardApp.db.from('mentor_messages').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(5),
-                WardApp.db.from('schedule_delays').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(5)
+                WardApp.db.from('daily_checkins').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(10),
+                WardApp.db.from('messages').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(5),
+                WardApp.db.from('schedule_delays').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(5),
+                WardApp.db.from('study_diary').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(10),
+                WardApp.db.from('uworld_diary').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(10)
             ]);
 
             // Combine and sort by date
@@ -355,8 +357,8 @@
             (landmarksRes.data || []).forEach(l => {
                 timeline.push({
                     type: 'landmark',
-                    date: l.completed_at || l.created_at,
-                    icon: l.completed ? '✅' : (l.urgent ? '🔴' : '📍'),
+                    date: l.completion_date || l.created_at,
+                    icon: l.completed ? '✅' : (l.is_urgent ? '🔴' : '📍'),
                     title: l.title,
                     subtitle: l.group_name,
                     completed: l.completed
@@ -364,12 +366,41 @@
             });
 
             (checkinsRes.data || []).forEach(c => {
+                const statusMap = { tranquilo: 'Tranquilo', preciso_ajuda: 'Precisa de Ajuda', parado: 'Parado' };
+                const iconMap = { tranquilo: '🟢', preciso_ajuda: '🟡', parado: '🔴' };
                 timeline.push({
                     type: 'checkin',
                     date: c.created_at,
-                    icon: c.status === 'on_track' ? '🟢' : (c.status === 'behind' ? '🟡' : '🔴'),
-                    title: 'Check-in: ' + (c.status === 'on_track' ? 'Em dia' : c.status === 'behind' ? 'Atrasado' : 'Parado'),
-                    subtitle: c.notes || ''
+                    icon: iconMap[c.status] || '🟡',
+                    title: 'Check-in: ' + (statusMap[c.status] || c.status),
+                    subtitle: c.message || ''
+                });
+            });
+
+            // Study Diary entries (Facebook-like posts)
+            (studyDiaryRes.data || []).forEach(d => {
+                timeline.push({
+                    type: 'study-diary',
+                    date: d.created_at,
+                    icon: '📔',
+                    title: 'Diario de Estudos',
+                    subtitle: d.content?.substring(0, 100) + (d.content?.length > 100 ? '...' : ''),
+                    fullContent: d.content
+                });
+            });
+
+            // UWorld Diary entries (Facebook-like posts)
+            (uworldDiaryRes.data || []).forEach(d => {
+                const acertos = d.questions_correct && d.questions_total
+                    ? Math.round((d.questions_correct / d.questions_total) * 100) + '%'
+                    : '';
+                timeline.push({
+                    type: 'uworld-diary',
+                    date: d.created_at,
+                    icon: '📊',
+                    title: `UWorld: ${d.questions_total || 0} questoes ${acertos ? '(' + acertos + ')' : ''}`,
+                    subtitle: d.system_name ? `System: ${d.system_name}` : (d.difficulties?.substring(0, 80) || ''),
+                    fullContent: d.difficulties
                 });
             });
 
@@ -448,7 +479,7 @@
         async function markCallComplete(landmarkId) {
             await WardApp.db
                 .from('landmarks')
-                .update({ completed: true, completed_at: new Date().toISOString() })
+                .update({ completed: true, completion_date: new Date().toISOString() })
                 .eq('id', landmarkId);
 
             WardApp.showToast('Call marcada como concluida!');
@@ -508,7 +539,7 @@
                 group_name: group,
                 title,
                 urgent,
-                order_index: 999
+                order_position: 999
             });
 
             closeModal('add-landmark-modal');
