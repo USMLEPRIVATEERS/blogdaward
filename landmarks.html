@@ -509,9 +509,20 @@
             userData = await WardApp.checkAuth();
             if (!userData) return;
 
-            // Check if viewing as another student
+            // Check if viewing as another student (URL param or localStorage)
             const urlParams = new URLSearchParams(window.location.search);
             viewingAsStudentId = urlParams.get('view_as');
+
+            // If not in URL, check localStorage (for maintaining context across navigation)
+            if (!viewingAsStudentId) {
+                const storedViewAs = localStorage.getItem('view_as_student');
+                if (storedViewAs) {
+                    try {
+                        const parsed = JSON.parse(storedViewAs);
+                        viewingAsStudentId = parsed.id;
+                    } catch(e) {}
+                }
+            }
 
             if (viewingAsStudentId) {
                 // Verify mentor is authorized to view this student
@@ -520,7 +531,8 @@
                     await setupViewingAsStudent(viewingAsStudentId);
                     targetUserId = parseInt(viewingAsStudentId);
                 } else {
-                    // Not a mentor, ignore view_as
+                    // Not a mentor, ignore view_as and clear storage
+                    localStorage.removeItem('view_as_student');
                     targetUserId = userData.id;
                 }
             } else {
@@ -532,7 +544,7 @@
                 .from('user_research_data')
                 .select('wants_research_ward')
                 .eq('user_id', targetUserId)
-                .single();
+                .maybeSingle();
 
             wantsResearch = researchData?.wants_research_ward === 'immediately' ||
                            researchData?.wants_research_ward === 'after_usmle';
