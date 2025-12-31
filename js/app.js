@@ -136,8 +136,9 @@ async function login(email, password) {
             return false;
         }
 
-        // Simple password check (in production, use proper hashing)
-        if (data.password_hash !== password) {
+        // Simple password check (supports both plain and hashed passwords)
+        const hashedPassword = btoa(password + '_ward_salt_2024');
+        if (data.password_hash !== password && data.password_hash !== hashedPassword) {
             hideLoading();
             showToast('Email ou senha incorretos', 'error');
             return false;
