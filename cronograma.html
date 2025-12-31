@@ -103,22 +103,30 @@
                     <span class="form-check-label">Ocultar concluidos</span>
                 </label>
             </div>
-            <div class="card-body schedule-wrapper">
-                <table class="schedule-table" id="schedule-table">
-                    <thead>
-                        <tr>
-                            <th class="col-system">System</th>
-                            <th class="col-category">Category</th>
-                            <th class="col-questions">Qtd</th>
-                            <th class="col-date">Inicio</th>
-                            <th class="col-date">Fim</th>
-                            <th class="col-check">OK</th>
-                        </tr>
-                    </thead>
-                    <tbody id="schedule-body">
-                        <!-- Filled by JS -->
-                    </tbody>
-                </table>
+            <div class="card-body">
+                <!-- Mobile Cards View -->
+                <div class="schedule-cards" id="schedule-cards">
+                    <!-- Filled by JS -->
+                </div>
+
+                <!-- Desktop Table View -->
+                <div class="schedule-wrapper">
+                    <table class="schedule-table" id="schedule-table">
+                        <thead>
+                            <tr>
+                                <th class="col-system">System</th>
+                                <th class="col-category">Category</th>
+                                <th class="col-questions">Qtd</th>
+                                <th class="col-date">Inicio</th>
+                                <th class="col-date">Fim</th>
+                                <th class="col-check">OK</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schedule-body">
+                            <!-- Filled by JS -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -184,6 +192,7 @@
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -495,10 +504,17 @@
 
         function renderScheduleTable(schedule) {
             const tbody = document.getElementById('schedule-body');
+            const cardsContainer = document.getElementById('schedule-cards');
             let currentSystem = '';
 
             // Filter based on hideCompleted setting
             const filteredSchedule = hideCompleted ? schedule.filter(s => !s.completed) : schedule;
+
+            const emptyMessage = `
+                <div style="text-align: center; padding: 2rem; color: var(--gray-500);">
+                    🎉 Todos os itens foram concluidos! Desmarque "Ocultar concluidos" para ver.
+                </div>
+            `;
 
             if (filteredSchedule.length === 0 && hideCompleted) {
                 tbody.innerHTML = `
@@ -508,6 +524,7 @@
                         </td>
                     </tr>
                 `;
+                cardsContainer.innerHTML = emptyMessage;
                 return;
             }
 
@@ -515,6 +532,7 @@
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
+            // Render table rows
             tbody.innerHTML = filteredSchedule.map(item => {
                 const showSystem = item.system !== currentSystem;
                 currentSystem = item.system;
@@ -555,6 +573,60 @@
                                 onchange="toggleComplete(${item.id}, this.checked)">
                         </td>
                     </tr>
+                `;
+            }).join('');
+
+            // Render cards for mobile
+            cardsContainer.innerHTML = filteredSchedule.map(item => {
+                // Format dates
+                const startDate = item.start_date ? WardApp.formatDate(item.start_date) : '-';
+                const endDate = item.end_date ? WardApp.formatDate(item.end_date) : '-';
+
+                // Check if overdue
+                const isOverdue = item.end_date && !item.completed && new Date(item.end_date) < new Date();
+
+                // Check if current (being studied now)
+                let isCurrent = false;
+                if (item.start_date && item.end_date && !item.completed) {
+                    const start = new Date(item.start_date);
+                    const end = new Date(item.end_date);
+                    start.setHours(0, 0, 0, 0);
+                    end.setHours(23, 59, 59, 999);
+                    isCurrent = start <= today && today <= end;
+                }
+
+                const cardClass = item.completed ? 'completed' :
+                                  isCurrent ? 'current' :
+                                  isOverdue ? 'overdue' : '';
+
+                return `
+                    <div class="schedule-card-item ${cardClass}">
+                        <div class="schedule-card-header">
+                            <div class="schedule-card-title">
+                                <div class="schedule-card-system">${item.system}</div>
+                                <div class="schedule-card-category">${item.category}</div>
+                            </div>
+                            <input type="checkbox"
+                                class="schedule-card-checkbox"
+                                ${item.completed ? 'checked' : ''}
+                                data-id="${item.id}"
+                                onchange="toggleComplete(${item.id}, this.checked)">
+                        </div>
+                        <div class="schedule-card-meta">
+                            <div class="schedule-card-meta-item">
+                                <div class="schedule-card-meta-label">Questões</div>
+                                <div class="schedule-card-meta-value">${item.questions || '-'}</div>
+                            </div>
+                            <div class="schedule-card-meta-item">
+                                <div class="schedule-card-meta-label">Início</div>
+                                <div class="schedule-card-meta-value">${startDate}</div>
+                            </div>
+                            <div class="schedule-card-meta-item">
+                                <div class="schedule-card-meta-label">Fim</div>
+                                <div class="schedule-card-meta-value">${endDate}</div>
+                            </div>
+                        </div>
+                    </div>
                 `;
             }).join('');
         }
@@ -631,18 +703,40 @@
                 return;
             }
 
-            const csv = 'System\tCategory\tQuestoes\tTerminei\n' +
-                scheduleData.map(s =>
-                    `${s.system}\t${s.category}\t${s.questions}\t${s.completed ? 'TRUE' : 'FALSE'}`
-                ).join('\n');
+            // Prepare data for Excel
+            const excelData = scheduleData.map(s => ({
+                'System': s.system,
+                'Category': s.category,
+                'Questões': s.questions || '',
+                'Início': s.start_date ? WardApp.formatDate(s.start_date) : '',
+                'Fim': s.end_date ? WardApp.formatDate(s.end_date) : '',
+                'Concluído': s.completed ? 'Sim' : 'Não'
+            }));
 
-            const blob = new Blob([csv], { type: 'text/tab-separated-values' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'cronograma.tsv';
-            a.click();
-            URL.revokeObjectURL(url);
+            // Create workbook and worksheet
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(excelData);
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 30 }, // System
+                { wch: 35 }, // Category
+                { wch: 10 }, // Questões
+                { wch: 12 }, // Início
+                { wch: 12 }, // Fim
+                { wch: 10 }  // Concluído
+            ];
+
+            // Add worksheet to workbook
+            XLSX.utils.book_append_sheet(wb, ws, 'Cronograma');
+
+            // Generate filename with date
+            const today = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+            const filename = `cronograma_${today}.xlsx`;
+
+            // Save file
+            XLSX.writeFile(wb, filename);
+            WardApp.showToast('Cronograma exportado com sucesso!');
         }
 
         function openModal(id) {
@@ -655,7 +749,106 @@
     </script>
 
     <style>
-        /* Schedule Table Mobile-First Styles */
+        /* Schedule Cards - Mobile View */
+        .schedule-cards {
+            display: none;
+        }
+
+        .schedule-card-item {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .schedule-card-item.completed {
+            background: #f0fdf4;
+            border-color: #86efac;
+        }
+
+        .schedule-card-item.current {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border: 2px solid #22c55e;
+            border-left: 4px solid #22c55e;
+        }
+
+        .schedule-card-item.overdue {
+            background: #fef2f2;
+            border-color: #fca5a5;
+        }
+
+        .schedule-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+        }
+
+        .schedule-card-title {
+            flex: 1;
+        }
+
+        .schedule-card-system {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: var(--gray-500);
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .schedule-card-category {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .schedule-card-meta {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--gray-600);
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .schedule-card-meta-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .schedule-card-meta-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            color: var(--gray-500);
+            margin-bottom: 0.15rem;
+        }
+
+        .schedule-card-meta-value {
+            font-weight: 600;
+            color: var(--gray-900);
+        }
+
+        .schedule-card-checkbox {
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            accent-color: #22c55e;
+            margin-left: 0.5rem;
+            flex-shrink: 0;
+        }
+
+        .schedule-card-item.completed .schedule-card-category,
+        .schedule-card-item.completed .schedule-card-meta-value {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+
+        /* Schedule Table - Desktop View */
         .schedule-wrapper {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
@@ -669,7 +862,7 @@
 
         .schedule-table th,
         .schedule-table td {
-            padding: 0.5rem 0.35rem;
+            padding: 0.75rem 0.5rem;
             text-align: left;
             border-bottom: 1px solid var(--gray-200);
             vertical-align: middle;
@@ -682,14 +875,31 @@
             text-transform: uppercase;
             position: sticky;
             top: 0;
+            white-space: nowrap;
         }
 
         /* Column widths */
-        .col-system { min-width: 60px; max-width: 80px; }
-        .col-category { min-width: 100px; }
-        .col-questions { width: 40px; text-align: center; }
-        .col-date { width: 50px; text-align: center; font-size: 0.75rem; }
-        .col-check { width: 35px; text-align: center; }
+        .col-system {
+            width: 20%;
+            max-width: 200px;
+        }
+        .col-category {
+            width: 30%;
+            min-width: 150px;
+        }
+        .col-questions {
+            width: 10%;
+            text-align: center;
+        }
+        .col-date {
+            width: 15%;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .col-check {
+            width: 5%;
+            text-align: center;
+        }
 
         /* Row states */
         .row-completed {
@@ -715,62 +925,38 @@
             width: 20px;
             height: 20px;
             cursor: pointer;
-            accent-color: var(--primary-color);
+            accent-color: #22c55e;
         }
 
-        /* Mobile optimizations */
-        @media (max-width: 600px) {
+        /* Responsive breakpoints */
+        @media (max-width: 768px) {
+            /* Hide table, show cards on mobile */
             .schedule-table {
-                font-size: 0.8rem;
-            }
-
-            .schedule-table th,
-            .schedule-table td {
-                padding: 0.4rem 0.25rem;
-            }
-
-            .col-system {
-                min-width: 50px;
-                max-width: 60px;
-                font-size: 0.7rem;
-            }
-
-            .col-category {
-                min-width: 80px;
-            }
-
-            .col-questions {
-                width: 30px;
-                font-size: 0.7rem;
-            }
-
-            .col-date {
-                width: 45px;
-                font-size: 0.65rem;
-            }
-
-            .col-check {
-                width: 30px;
-            }
-
-            .schedule-checkbox {
-                width: 18px;
-                height: 18px;
-            }
-
-            .schedule-table th {
-                font-size: 0.65rem;
-            }
-        }
-
-        /* Very small screens */
-        @media (max-width: 400px) {
-            .col-system {
                 display: none;
             }
+            .schedule-cards {
+                display: block;
+            }
 
-            .schedule-table th:first-child,
-            .schedule-table td:first-child {
+            /* Adjust button group on mobile */
+            .btn-group {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .btn-group .btn {
+                width: 100%;
+                margin-bottom: 0.5rem;
+            }
+        }
+
+        @media (min-width: 769px) {
+            /* Show table, hide cards on desktop */
+            .schedule-table {
+                display: table;
+            }
+            .schedule-cards {
                 display: none;
             }
         }
