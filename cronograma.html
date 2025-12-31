@@ -44,6 +44,26 @@
             </div>
         </div>
 
+        <!-- Current Study Highlight -->
+        <div id="current-study-card" class="card mb-4" style="display: none; border: 2px solid #22c55e;">
+            <div class="card-header" style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: white;">
+                📚 O que voce deveria estar estudando agora
+            </div>
+            <div class="card-body">
+                <div id="current-study-content">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Delay Alert -->
+        <div id="delay-alert" class="alert alert-danger mb-4" style="display: none;">
+            <span class="alert-icon">⚠️</span>
+            <div class="alert-content">
+                <strong>Atencao:</strong> <span id="delay-alert-text">Voce tem itens anteriores nao concluidos!</span>
+            </div>
+        </div>
+
         <!-- Progress Overview -->
         <div class="card mb-4">
             <div class="card-body">
@@ -72,9 +92,15 @@
 
         <!-- Schedule Table -->
         <div id="schedule-container" class="card">
-            <div class="card-header">
-                <span>Cronograma de First Pass</span>
-                <span class="text-muted" id="last-update"></span>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                <div>
+                    <span>Cronograma de First Pass</span>
+                    <span class="text-muted" id="last-update"></span>
+                </div>
+                <label class="form-check" style="margin: 0; font-size: 0.85rem;">
+                    <input type="checkbox" id="hide-completed-toggle" onchange="toggleHideCompleted()">
+                    <span class="form-check-label">Ocultar concluidos</span>
+                </label>
             </div>
             <div class="card-body schedule-wrapper">
                 <table class="schedule-table" id="schedule-table">
@@ -146,6 +172,16 @@
         <button class="btn btn-sm btn-secondary" onclick="exitViewAs()">Voltar para minha conta</button>
     </div>
 
+    <style>
+        .row-current {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+            border-left: 4px solid #22c55e;
+        }
+        .row-current td {
+            font-weight: 600;
+        }
+    </style>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/app.js"></script>
     <script>
@@ -153,6 +189,7 @@
         let scheduleData = [];
         let viewingAsStudentId = null;
         let targetUserId = null; // The user whose schedule we're viewing
+        let hideCompleted = false;
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
@@ -268,15 +305,198 @@
                     'Ultima atualizacao: ' + WardApp.formatDate(schedule[0].updated_at);
             }
 
+            // Render current study highlight
+            renderCurrentStudy(schedule);
+
             // Render table
             renderScheduleTable(schedule);
+        }
+
+        function renderCurrentStudy(schedule) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            // Find current items (based on start_date <= today <= end_date)
+            const currentItems = schedule.filter(item => {
+                if (!item.start_date || !item.end_date) return false;
+                const start = new Date(item.start_date);
+                const end = new Date(item.end_date);
+                start.setHours(0, 0, 0, 0);
+                end.setHours(23, 59, 59, 999);
+                return start <= today && today <= end && !item.completed;
+            });
+
+            // Check for delays (incomplete items with end_date before any current item's start_date)
+            let hasDelays = false;
+            let delayCount = 0;
+
+            if (currentItems.length > 0) {
+                const firstCurrentStart = new Date(currentItems[0].start_date);
+                const overdueItems = schedule.filter(item => {
+                    if (!item.end_date || item.completed) return false;
+                    const end = new Date(item.end_date);
+                    return end < firstCurrentStart;
+                });
+                hasDelays = overdueItems.length > 0;
+                delayCount = overdueItems.length;
+            } else {
+                // Check for any overdue items
+                const overdueItems = schedule.filter(item => {
+                    if (!item.end_date || item.completed) return false;
+                    const end = new Date(item.end_date);
+                    end.setHours(23, 59, 59, 999);
+                    return end < today;
+                });
+                hasDelays = overdueItems.length > 0;
+                delayCount = overdueItems.length;
+            }
+
+            // Show delay alert if needed
+            const delayAlert = document.getElementById('delay-alert');
+            if (hasDelays) {
+                delayAlert.style.display = 'flex';
+                document.getElementById('delay-alert-text').textContent =
+                    `Voce tem ${delayCount} ${delayCount === 1 ? 'item anterior nao concluido' : 'itens anteriores nao concluidos'}! Os mentores serao notificados.`;
+            } else {
+                delayAlert.style.display = 'none';
+            }
+
+            // Show current study card
+            const currentCard = document.getElementById('current-study-card');
+            const contentDiv = document.getElementById('current-study-content');
+
+            if (currentItems.length === 0) {
+                // Check for next upcoming item
+                const upcomingItems = schedule.filter(item => {
+                    if (!item.start_date || item.completed) return false;
+                    const start = new Date(item.start_date);
+                    start.setHours(0, 0, 0, 0);
+                    return start > today;
+                }).sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+
+                if (upcomingItems.length > 0) {
+                    const next = upcomingItems[0];
+                    currentCard.style.display = 'block';
+                    currentCard.style.borderColor = '#3b82f6';
+                    currentCard.querySelector('.card-header').style.background = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
+                    currentCard.querySelector('.card-header').innerHTML = '📅 Proximo estudo';
+
+                    contentDiv.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                            <div>
+                                <h3 style="margin: 0 0 0.5rem 0;">${next.system}: ${next.category}</h3>
+                                <p class="text-muted" style="margin: 0;">
+                                    <strong>Inicio:</strong> ${WardApp.formatDate(next.start_date)} |
+                                    <strong>Fim:</strong> ${WardApp.formatDate(next.end_date)} |
+                                    <strong>Questoes:</strong> ${next.questions || '-'}
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    currentCard.style.display = 'none';
+                }
+            } else {
+                currentCard.style.display = 'block';
+                currentCard.style.borderColor = '#22c55e';
+                currentCard.querySelector('.card-header').style.background = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
+                currentCard.querySelector('.card-header').innerHTML = '📚 O que voce deveria estar estudando agora';
+
+                contentDiv.innerHTML = currentItems.map(item => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid #e5e7eb;">
+                        <div style="flex: 1;">
+                            <h3 style="margin: 0 0 0.5rem 0;">${item.system}: ${item.category}</h3>
+                            <p class="text-muted" style="margin: 0; font-size: 0.9rem;">
+                                <strong>Inicio:</strong> ${WardApp.formatDate(item.start_date)} |
+                                <strong>Fim:</strong> ${WardApp.formatDate(item.end_date)} |
+                                <strong>Questoes:</strong> ${item.questions || '-'}
+                            </p>
+                        </div>
+                        <button class="btn btn-success" onclick="markCurrentComplete(${item.id}, ${hasDelays})">
+                            ✅ Marcar como Concluido
+                        </button>
+                    </div>
+                `).join('');
+            }
+        }
+
+        async function markCurrentComplete(itemId, hasDelays) {
+            if (hasDelays) {
+                const proceed = confirm(
+                    '⚠️ ATENÇÃO: Você tem itens anteriores não concluídos!\n\n' +
+                    'Isso indica que você pode estar atrasado no cronograma. ' +
+                    'Os mentores serão notificados sobre este atraso.\n\n' +
+                    'Deseja continuar e marcar este item como concluído?'
+                );
+                if (!proceed) return;
+
+                // Notify mentors about the delay
+                await notifyMentorsAboutDelay();
+            }
+
+            await toggleComplete(itemId, true);
+        }
+
+        async function notifyMentorsAboutDelay() {
+            // Create a delay signal automatically
+            const overdueItems = scheduleData.filter(item => {
+                if (!item.end_date || item.completed) return false;
+                const end = new Date(item.end_date);
+                const today = new Date();
+                return end < today;
+            });
+
+            if (overdueItems.length > 0) {
+                const reason = `Atraso automatico detectado: ${overdueItems.length} ${overdueItems.length === 1 ? 'item' : 'itens'} nao ${overdueItems.length === 1 ? 'concluido' : 'concluidos'} antes do prazo.`;
+
+                // Check if similar delay was already signaled today
+                const today = new Date().toISOString().split('T')[0];
+                const { data: existingDelay } = await WardApp.db
+                    .from('schedule_delays')
+                    .select('id')
+                    .eq('user_id', targetUserId)
+                    .gte('created_at', today)
+                    .maybeSingle();
+
+                if (!existingDelay) {
+                    await WardApp.db.from('schedule_delays').insert({
+                        user_id: targetUserId,
+                        start_date: overdueItems[0].end_date,
+                        end_date: new Date().toISOString().split('T')[0],
+                        reason
+                    });
+                }
+            }
+        }
+
+        function toggleHideCompleted() {
+            hideCompleted = document.getElementById('hide-completed-toggle').checked;
+            renderScheduleTable(scheduleData);
         }
 
         function renderScheduleTable(schedule) {
             const tbody = document.getElementById('schedule-body');
             let currentSystem = '';
 
-            tbody.innerHTML = schedule.map(item => {
+            // Filter based on hideCompleted setting
+            const filteredSchedule = hideCompleted ? schedule.filter(s => !s.completed) : schedule;
+
+            if (filteredSchedule.length === 0 && hideCompleted) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 2rem; color: var(--gray-500);">
+                            🎉 Todos os itens foram concluidos! Desmarque "Ocultar concluidos" para ver.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            // Check if item is current (should be studied today)
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            tbody.innerHTML = filteredSchedule.map(item => {
                 const showSystem = item.system !== currentSystem;
                 currentSystem = item.system;
 
@@ -286,7 +506,20 @@
 
                 // Check if overdue
                 const isOverdue = item.end_date && !item.completed && new Date(item.end_date) < new Date();
-                const rowClass = item.completed ? 'row-completed' : (isOverdue ? 'row-overdue' : '');
+
+                // Check if current (being studied now)
+                let isCurrent = false;
+                if (item.start_date && item.end_date && !item.completed) {
+                    const start = new Date(item.start_date);
+                    const end = new Date(item.end_date);
+                    start.setHours(0, 0, 0, 0);
+                    end.setHours(23, 59, 59, 999);
+                    isCurrent = start <= today && today <= end;
+                }
+
+                const rowClass = item.completed ? 'row-completed' :
+                                 isCurrent ? 'row-current' :
+                                 isOverdue ? 'row-overdue' : '';
 
                 return `
                     <tr class="${rowClass}">

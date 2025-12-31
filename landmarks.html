@@ -179,12 +179,16 @@
 
     <!-- New Custom Landmark Modal -->
     <div id="new-landmark-modal" class="modal-overlay">
-        <div class="modal" style="max-width: 500px;">
+        <div class="modal" style="max-width: 550px;">
             <div class="modal-header">
-                <h3 class="modal-title">➕ Novo Evento</h3>
+                <h3 class="modal-title" id="new-landmark-modal-title">➕ Novo Evento</h3>
                 <button class="modal-close" onclick="closeModal('new-landmark-modal')">&times;</button>
             </div>
             <div class="modal-body">
+                <input type="hidden" id="new-landmark-preselected-mentor">
+                <input type="hidden" id="new-landmark-preselected-date">
+                <input type="hidden" id="new-landmark-preselected-time">
+
                 <div class="form-group">
                     <label class="form-label">Titulo do Evento *</label>
                     <input type="text" id="new-landmark-title" class="form-input" placeholder="Ex: Chamada extra - Revisao de Cardio">
@@ -202,6 +206,40 @@
                         <option value="extras" selected>Extras</option>
                     </select>
                 </div>
+
+                <!-- Scheduling Section -->
+                <div class="form-group" id="new-landmark-schedule-section">
+                    <label class="form-check">
+                        <input type="checkbox" id="new-landmark-schedule" onchange="toggleNewLandmarkSchedule()">
+                        <span class="form-check-label">📅 Agendar chamada com mentor</span>
+                    </label>
+                </div>
+
+                <div id="new-landmark-schedule-fields" style="display: none; background: var(--gray-50); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <p class="text-muted mb-2" style="font-size: 0.8rem;">⏰ Horarios no fuso de Brasilia (formato 24h)</p>
+
+                    <div class="form-group">
+                        <label class="form-label">Mentor *</label>
+                        <select id="new-landmark-mentor" class="form-input" onchange="loadNewLandmarkMentorSlots()">
+                            <option value="">Selecione o mentor...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Data *</label>
+                        <select id="new-landmark-schedule-date" class="form-input" onchange="loadNewLandmarkTimeSlots()">
+                            <option value="">Selecione uma data...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Horario *</label>
+                        <select id="new-landmark-schedule-time" class="form-input">
+                            <option value="">Selecione um horario...</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label class="form-check">
                         <input type="checkbox" id="new-landmark-completed" onchange="toggleNewCompletionDate()">
@@ -222,6 +260,53 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('new-landmark-modal')">Cancelar</button>
                 <button class="btn btn-primary" onclick="createNewLandmark()">Criar Evento</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Extra Call Modal (replaces prompt) -->
+    <div id="extra-call-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">📞 <span id="extra-call-modal-title">Chamada Extra</span></h3>
+                <button class="modal-close" onclick="closeModal('extra-call-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="extra-call-mentor-key">
+
+                <div class="form-group">
+                    <label class="form-label">Tema da Chamada *</label>
+                    <input type="text" id="extra-call-topic" class="form-input" placeholder="Ex: Revisao de Cardio, Duvidas sobre Anki...">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="extra-call-schedule-now" onchange="toggleExtraCallSchedule()">
+                        <span class="form-check-label">📅 Agendar horario agora</span>
+                    </label>
+                </div>
+
+                <div id="extra-call-schedule-fields" style="display: none; background: var(--gray-50); padding: 1rem; border-radius: 8px;">
+                    <p class="text-muted mb-2" style="font-size: 0.8rem;">⏰ Horarios no fuso de Brasilia (formato 24h)</p>
+
+                    <div class="form-group">
+                        <label class="form-label">Data *</label>
+                        <select id="extra-call-date" class="form-input" onchange="loadExtraCallTimeSlots()">
+                            <option value="">Selecione uma data...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Horario *</label>
+                        <select id="extra-call-time" class="form-input">
+                            <option value="">Selecione um horario...</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('extra-call-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="createExtraCall()">Criar Chamada</button>
             </div>
         </div>
     </div>
@@ -937,24 +1022,240 @@
             loadLandmarks();
         }
 
-        async function addExtraCall(mentor) {
-            const title = prompt('Qual o tema da chamada extra?');
-            if (!title) return;
+        async function addExtraCall(mentorKey) {
+            // Open the extra call modal instead of using prompt
+            const mentorName = mentorKey === 'iria' ? 'Dra. Iria' : 'Marcos';
+            document.getElementById('extra-call-modal-title').textContent = `Chamada Extra com ${mentorName}`;
+            document.getElementById('extra-call-mentor-key').value = mentorKey;
+            document.getElementById('extra-call-topic').value = '';
+            document.getElementById('extra-call-schedule-now').checked = false;
+            document.getElementById('extra-call-schedule-fields').style.display = 'none';
 
-            const mentorName = mentor === 'iria' ? 'Dra. Iria' : 'Marcos';
+            // Pre-load the mentor's available dates
+            await loadExtraCallDates(mentorKey);
 
-            await WardApp.db.from('landmarks').insert({
-                user_id: targetUserId,
-                landmark_type: `call_extra_${mentor}`,
-                title: `Chamada Extra - ${mentorName}: ${title}`,
-                completed: false,
-                is_urgent: false,
-                notes: [],
-                order_position: 999,
-                group_name: 'extras'
+            openModal('extra-call-modal');
+        }
+
+        async function loadExtraCallDates(mentorKey) {
+            const mentor = mentorsData[mentorKey];
+            if (!mentor) {
+                // Load mentors if not already loaded
+                const { data: mentors } = await WardApp.db
+                    .from('users')
+                    .select('id, full_name, role')
+                    .ilike('role', 'mentor_%');
+
+                mentorsData = {};
+                (mentors || []).forEach(m => {
+                    if (m.role === 'mentor_iria') mentorsData['iria'] = m;
+                    else if (m.role === 'mentor_marcos') mentorsData['marcos'] = m;
+                    else if (m.role === 'mentor_guilherme') mentorsData['guilherme'] = m;
+                });
+            }
+
+            const mentorData = mentorsData[mentorKey];
+            if (!mentorData) return;
+
+            // Load mentor settings
+            const { data: settings } = await WardApp.db
+                .from('mentor_settings')
+                .select('min_days_ahead')
+                .eq('mentor_id', mentorData.id)
+                .maybeSingle();
+
+            const minDays = settings?.min_days_ahead ?? 2;
+            const today = new Date();
+
+            // Load availability
+            const { data: regularSlots } = await WardApp.db
+                .from('mentor_availability_regular')
+                .select('*')
+                .eq('mentor_id', mentorData.id)
+                .eq('is_active', true);
+
+            const { data: specificDates } = await WardApp.db
+                .from('mentor_availability_specific')
+                .select('*')
+                .eq('mentor_id', mentorData.id)
+                .gte('available_date', today.toISOString().split('T')[0]);
+
+            // Generate available dates
+            const dates = [];
+            for (let i = minDays; i <= 30; i++) {
+                const date = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
+                const dateStr = date.toISOString().split('T')[0];
+                const dayOfWeek = date.getDay();
+
+                // Check unavailability
+                const isUnavailable = (specificDates || []).some(s =>
+                    s.available_date === dateStr && s.is_unavailable
+                );
+                if (isUnavailable) continue;
+
+                // Check availability
+                const hasRegular = (regularSlots || []).some(s => s.day_of_week === dayOfWeek);
+                const hasSpecific = (specificDates || []).some(s =>
+                    s.available_date === dateStr && !s.is_unavailable
+                );
+
+                if (hasRegular || hasSpecific) {
+                    dates.push({
+                        date: dateStr,
+                        display: `${WardApp.formatDate(dateStr)} (${dayNames[dayOfWeek]})`
+                    });
+                }
+            }
+
+            const dateSelect = document.getElementById('extra-call-date');
+            dateSelect.innerHTML = '<option value="">Selecione uma data...</option>' +
+                dates.map(d => `<option value="${d.date}">${d.display}</option>`).join('');
+
+            document.getElementById('extra-call-time').innerHTML = '<option value="">Selecione um horario...</option>';
+        }
+
+        function toggleExtraCallSchedule() {
+            const checked = document.getElementById('extra-call-schedule-now').checked;
+            document.getElementById('extra-call-schedule-fields').style.display = checked ? 'block' : 'none';
+        }
+
+        async function loadExtraCallTimeSlots() {
+            const mentorKey = document.getElementById('extra-call-mentor-key').value;
+            const date = document.getElementById('extra-call-date').value;
+            if (!mentorKey || !date) return;
+
+            const mentor = mentorsData[mentorKey];
+            if (!mentor) return;
+
+            const dayOfWeek = new Date(date + 'T12:00:00').getDay();
+
+            // Load slots
+            const { data: regularSlots } = await WardApp.db
+                .from('mentor_availability_regular')
+                .select('*')
+                .eq('mentor_id', mentor.id)
+                .eq('day_of_week', dayOfWeek)
+                .eq('is_active', true);
+
+            const { data: specificSlots } = await WardApp.db
+                .from('mentor_availability_specific')
+                .select('*')
+                .eq('mentor_id', mentor.id)
+                .eq('available_date', date)
+                .eq('is_unavailable', false);
+
+            // Load booked
+            const { data: booked } = await WardApp.db
+                .from('scheduled_calls')
+                .select('scheduled_time')
+                .eq('mentor_id', mentor.id)
+                .eq('scheduled_date', date)
+                .eq('status', 'scheduled');
+
+            const bookedTimes = (booked || []).map(c => c.scheduled_time.substring(0, 5));
+
+            // Generate slots
+            const slots = [];
+            [...(regularSlots || []), ...(specificSlots || [])].forEach(slot => {
+                const duration = slot.duration_minutes || 60;
+                let current = timeToMinutes(slot.start_time);
+                const end = timeToMinutes(slot.end_time);
+
+                while (current + duration <= end) {
+                    const timeStr = minutesToTime(current);
+                    if (!bookedTimes.includes(timeStr)) {
+                        slots.push(timeStr);
+                    }
+                    current += duration;
+                }
             });
 
-            WardApp.showToast('Chamada extra adicionada!');
+            const uniqueSlots = [...new Set(slots)].sort();
+            const timeSelect = document.getElementById('extra-call-time');
+
+            if (uniqueSlots.length === 0) {
+                timeSelect.innerHTML = '<option value="">Nenhum horario disponivel</option>';
+            } else {
+                timeSelect.innerHTML = '<option value="">Selecione um horario...</option>' +
+                    uniqueSlots.map(t => `<option value="${t}">${t}</option>`).join('');
+            }
+        }
+
+        async function createExtraCall() {
+            const mentorKey = document.getElementById('extra-call-mentor-key').value;
+            const topic = document.getElementById('extra-call-topic').value.trim();
+            const scheduleNow = document.getElementById('extra-call-schedule-now').checked;
+
+            if (!topic) {
+                WardApp.showToast('Digite o tema da chamada', 'warning');
+                return;
+            }
+
+            const mentorName = mentorKey === 'iria' ? 'Dra. Iria' : 'Marcos';
+            const mentor = mentorsData[mentorKey];
+
+            // Create landmark
+            const { data: newLandmark, error: lmError } = await WardApp.db
+                .from('landmarks')
+                .insert({
+                    user_id: targetUserId,
+                    landmark_type: `call_extra_${mentorKey}`,
+                    title: `Chamada Extra - ${mentorName}: ${topic}`,
+                    completed: false,
+                    is_urgent: false,
+                    notes: [],
+                    order_position: 999,
+                    group_name: 'extras'
+                })
+                .select()
+                .single();
+
+            if (lmError) {
+                console.error('Error creating landmark:', lmError);
+                WardApp.showToast('Erro ao criar chamada', 'error');
+                return;
+            }
+
+            // Schedule if requested
+            if (scheduleNow && mentor) {
+                const date = document.getElementById('extra-call-date').value;
+                const time = document.getElementById('extra-call-time').value;
+
+                if (date && time) {
+                    // Check availability
+                    const { data: existing } = await WardApp.db
+                        .from('scheduled_calls')
+                        .select('id')
+                        .eq('mentor_id', mentor.id)
+                        .eq('scheduled_date', date)
+                        .eq('scheduled_time', time)
+                        .eq('status', 'scheduled')
+                        .maybeSingle();
+
+                    if (!existing) {
+                        await WardApp.db
+                            .from('scheduled_calls')
+                            .insert({
+                                landmark_id: newLandmark.id,
+                                student_id: targetUserId,
+                                mentor_id: mentor.id,
+                                scheduled_date: date,
+                                scheduled_time: time,
+                                status: 'scheduled'
+                            });
+
+                        WardApp.showToast(`Chamada criada e agendada para ${WardApp.formatDate(date)} às ${time}!`);
+                    } else {
+                        WardApp.showToast('Chamada criada! (Horário já reservado, agende depois)', 'warning');
+                    }
+                } else {
+                    WardApp.showToast('Chamada extra criada!');
+                }
+            } else {
+                WardApp.showToast('Chamada extra criada!');
+            }
+
+            closeModal('extra-call-modal');
             loadLandmarks();
         }
 
@@ -1097,14 +1398,184 @@
         }
 
         // New Landmark Functions
-        function openNewLandmarkModal() {
+        async function openNewLandmarkModal(preselectedMentorId = null, preselectedDate = null, preselectedTime = null) {
+            document.getElementById('new-landmark-modal-title').textContent = '➕ Novo Evento';
             document.getElementById('new-landmark-title').value = '';
             document.getElementById('new-landmark-group').value = 'extras';
             document.getElementById('new-landmark-completed').checked = false;
             document.getElementById('new-landmark-urgent').checked = false;
             document.getElementById('new-landmark-date').value = new Date().toISOString().split('T')[0];
             document.getElementById('new-completion-date-group').style.display = 'none';
+
+            // Reset preselection hidden fields
+            document.getElementById('new-landmark-preselected-mentor').value = preselectedMentorId || '';
+            document.getElementById('new-landmark-preselected-date').value = preselectedDate || '';
+            document.getElementById('new-landmark-preselected-time').value = preselectedTime || '';
+
+            // Schedule section
+            const hasPreselection = preselectedMentorId && preselectedDate && preselectedTime;
+            document.getElementById('new-landmark-schedule').checked = hasPreselection;
+            document.getElementById('new-landmark-schedule-fields').style.display = hasPreselection ? 'block' : 'none';
+
+            // Load mentors for dropdown
+            const { data: mentors } = await WardApp.db
+                .from('users')
+                .select('id, full_name, role')
+                .ilike('role', 'mentor_%');
+
+            const mentorSelect = document.getElementById('new-landmark-mentor');
+            mentorSelect.innerHTML = '<option value="">Selecione o mentor...</option>' +
+                (mentors || []).filter(m => m.role !== 'mentor_guilherme').map(m =>
+                    `<option value="${m.id}">${m.full_name || m.role}</option>`
+                ).join('');
+
+            // If preselected, set values
+            if (hasPreselection) {
+                mentorSelect.value = preselectedMentorId;
+
+                // Find mentor name for title suggestion
+                const mentor = mentors.find(m => m.id == preselectedMentorId);
+                const mentorName = mentor?.full_name || 'Mentor';
+                document.getElementById('new-landmark-title').placeholder = `Ex: Chamada extra com ${mentorName}`;
+
+                await loadNewLandmarkMentorSlots();
+
+                // Set preselected date
+                const dateSelect = document.getElementById('new-landmark-schedule-date');
+                const dateOption = Array.from(dateSelect.options).find(o => o.value === preselectedDate);
+                if (dateOption) {
+                    dateSelect.value = preselectedDate;
+                    await loadNewLandmarkTimeSlots();
+
+                    // Set preselected time
+                    document.getElementById('new-landmark-schedule-time').value = preselectedTime;
+                }
+            } else {
+                document.getElementById('new-landmark-schedule-date').innerHTML = '<option value="">Selecione uma data...</option>';
+                document.getElementById('new-landmark-schedule-time').innerHTML = '<option value="">Selecione um horario...</option>';
+            }
+
             openModal('new-landmark-modal');
+        }
+
+        function toggleNewLandmarkSchedule() {
+            const checked = document.getElementById('new-landmark-schedule').checked;
+            document.getElementById('new-landmark-schedule-fields').style.display = checked ? 'block' : 'none';
+        }
+
+        async function loadNewLandmarkMentorSlots() {
+            const mentorId = document.getElementById('new-landmark-mentor').value;
+            if (!mentorId) return;
+
+            // Load mentor settings
+            const { data: settings } = await WardApp.db
+                .from('mentor_settings')
+                .select('min_days_ahead')
+                .eq('mentor_id', mentorId)
+                .maybeSingle();
+
+            const minDays = settings?.min_days_ahead ?? 2;
+            const today = new Date();
+
+            // Load availability
+            const { data: regularSlots } = await WardApp.db
+                .from('mentor_availability_regular')
+                .select('*')
+                .eq('mentor_id', mentorId)
+                .eq('is_active', true);
+
+            const { data: specificDates } = await WardApp.db
+                .from('mentor_availability_specific')
+                .select('*')
+                .eq('mentor_id', mentorId)
+                .gte('available_date', today.toISOString().split('T')[0]);
+
+            // Generate available dates
+            const dates = [];
+            for (let i = minDays; i <= 30; i++) {
+                const date = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
+                const dateStr = date.toISOString().split('T')[0];
+                const dayOfWeek = date.getDay();
+
+                const isUnavailable = (specificDates || []).some(s =>
+                    s.available_date === dateStr && s.is_unavailable
+                );
+                if (isUnavailable) continue;
+
+                const hasRegular = (regularSlots || []).some(s => s.day_of_week === dayOfWeek);
+                const hasSpecific = (specificDates || []).some(s =>
+                    s.available_date === dateStr && !s.is_unavailable
+                );
+
+                if (hasRegular || hasSpecific) {
+                    dates.push({
+                        date: dateStr,
+                        display: `${WardApp.formatDate(dateStr)} (${dayNames[dayOfWeek]})`
+                    });
+                }
+            }
+
+            const dateSelect = document.getElementById('new-landmark-schedule-date');
+            dateSelect.innerHTML = '<option value="">Selecione uma data...</option>' +
+                dates.map(d => `<option value="${d.date}">${d.display}</option>`).join('');
+
+            document.getElementById('new-landmark-schedule-time').innerHTML = '<option value="">Selecione um horario...</option>';
+        }
+
+        async function loadNewLandmarkTimeSlots() {
+            const mentorId = document.getElementById('new-landmark-mentor').value;
+            const date = document.getElementById('new-landmark-schedule-date').value;
+            if (!mentorId || !date) return;
+
+            const dayOfWeek = new Date(date + 'T12:00:00').getDay();
+
+            const { data: regularSlots } = await WardApp.db
+                .from('mentor_availability_regular')
+                .select('*')
+                .eq('mentor_id', mentorId)
+                .eq('day_of_week', dayOfWeek)
+                .eq('is_active', true);
+
+            const { data: specificSlots } = await WardApp.db
+                .from('mentor_availability_specific')
+                .select('*')
+                .eq('mentor_id', mentorId)
+                .eq('available_date', date)
+                .eq('is_unavailable', false);
+
+            const { data: booked } = await WardApp.db
+                .from('scheduled_calls')
+                .select('scheduled_time')
+                .eq('mentor_id', mentorId)
+                .eq('scheduled_date', date)
+                .eq('status', 'scheduled');
+
+            const bookedTimes = (booked || []).map(c => c.scheduled_time.substring(0, 5));
+
+            const slots = [];
+            [...(regularSlots || []), ...(specificSlots || [])].forEach(slot => {
+                const duration = slot.duration_minutes || 60;
+                let current = timeToMinutes(slot.start_time);
+                const end = timeToMinutes(slot.end_time);
+
+                while (current + duration <= end) {
+                    const timeStr = minutesToTime(current);
+                    if (!bookedTimes.includes(timeStr)) {
+                        slots.push(timeStr);
+                    }
+                    current += duration;
+                }
+            });
+
+            const uniqueSlots = [...new Set(slots)].sort();
+            const timeSelect = document.getElementById('new-landmark-schedule-time');
+
+            if (uniqueSlots.length === 0) {
+                timeSelect.innerHTML = '<option value="">Nenhum horario disponivel</option>';
+            } else {
+                timeSelect.innerHTML = '<option value="">Selecione um horario...</option>' +
+                    uniqueSlots.map(t => `<option value="${t}">${t}</option>`).join('');
+            }
         }
 
         function toggleNewCompletionDate() {
@@ -1120,8 +1591,19 @@
             const completionDate = document.getElementById('new-landmark-date').value;
             const urgent = document.getElementById('new-landmark-urgent').checked;
 
+            // Scheduling fields
+            const wantsSchedule = document.getElementById('new-landmark-schedule').checked;
+            const mentorId = document.getElementById('new-landmark-mentor').value;
+            const scheduleDate = document.getElementById('new-landmark-schedule-date').value;
+            const scheduleTime = document.getElementById('new-landmark-schedule-time').value;
+
             if (!title) {
                 WardApp.showToast('O titulo e obrigatorio', 'warning');
+                return;
+            }
+
+            if (wantsSchedule && (!mentorId || !scheduleDate || !scheduleTime)) {
+                WardApp.showToast('Preencha mentor, data e horario para agendar', 'warning');
                 return;
             }
 
@@ -1140,10 +1622,52 @@
                 newLandmark.completion_date = new Date(completionDate).toISOString();
             }
 
-            await WardApp.db.from('landmarks').insert(newLandmark);
+            // Insert landmark
+            const { data: createdLandmark, error: lmError } = await WardApp.db
+                .from('landmarks')
+                .insert(newLandmark)
+                .select()
+                .single();
+
+            if (lmError) {
+                console.error('Error creating landmark:', lmError);
+                WardApp.showToast('Erro ao criar evento', 'error');
+                return;
+            }
+
+            // Schedule call if requested
+            if (wantsSchedule && createdLandmark) {
+                // Check if slot is still available
+                const { data: existing } = await WardApp.db
+                    .from('scheduled_calls')
+                    .select('id')
+                    .eq('mentor_id', mentorId)
+                    .eq('scheduled_date', scheduleDate)
+                    .eq('scheduled_time', scheduleTime)
+                    .eq('status', 'scheduled')
+                    .maybeSingle();
+
+                if (existing) {
+                    WardApp.showToast('Evento criado! (Horário já reservado, agende depois)', 'warning');
+                } else {
+                    await WardApp.db
+                        .from('scheduled_calls')
+                        .insert({
+                            landmark_id: createdLandmark.id,
+                            student_id: targetUserId,
+                            mentor_id: mentorId,
+                            scheduled_date: scheduleDate,
+                            scheduled_time: scheduleTime,
+                            status: 'scheduled'
+                        });
+
+                    WardApp.showToast(`Evento criado e agendado para ${WardApp.formatDate(scheduleDate)} às ${scheduleTime}!`);
+                }
+            } else {
+                WardApp.showToast('Evento criado com sucesso!');
+            }
 
             closeModal('new-landmark-modal');
-            WardApp.showToast('Evento criado com sucesso!');
             loadLandmarks();
         }
 
@@ -1314,6 +1838,7 @@
             } else {
                 html += `<p class="mb-3" style="font-size: 0.85rem; color: var(--gray-600);">
                     Mostrando ${allSlots.length} horarios disponiveis a partir de ${minDaysAhead} dias
+                    <br><span style="font-size: 0.75rem;">⏰ Horarios no fuso de Brasilia (formato 24h)</span>
                 </p>`;
                 html += '<div class="availability-slots-list">';
 
@@ -1597,12 +2122,12 @@
             WardApp.showToast('Chamada agendada com sucesso!');
         }
 
-        // Schedule from clicking on an availability slot (creates extra call)
+        // Schedule from clicking on an availability slot - opens the new landmark modal
         async function scheduleFromSlot(mentorId, date, startTime, endTime) {
             // Close availability modal
             closeModal('availability-modal');
 
-            // Get mentor name for the landmark title
+            // Get mentor name for the modal title
             let mentorName = 'Mentor';
             for (const [key, m] of Object.entries(mentorsData)) {
                 if (m.id == mentorId) {
@@ -1611,67 +2136,16 @@
                 }
             }
 
-            // Ask for call topic
-            const topic = prompt('Qual o tema da chamada extra?');
-            if (!topic) return;
+            // Open new landmark modal with preselected schedule values
+            await openNewLandmarkModal(mentorId, date, startTime);
 
-            // Create the extra call landmark
-            const { data: newLandmark, error: lmError } = await WardApp.db
-                .from('landmarks')
-                .insert({
-                    user_id: targetUserId,
-                    landmark_type: 'call_extra_' + Date.now(),
-                    title: `Chamada Extra - ${mentorName}: ${topic}`,
-                    completed: false,
-                    is_urgent: false,
-                    notes: [],
-                    order_position: 999,
-                    group_name: 'extras'
-                })
-                .select()
-                .single();
+            // Update modal title to indicate scheduled slot
+            document.getElementById('new-landmark-modal-title').textContent =
+                `➕ Novo Evento - ${WardApp.formatDate(date)} às ${startTime}`;
 
-            if (lmError) {
-                console.error('Error creating landmark:', lmError);
-                WardApp.showToast('Erro ao criar chamada', 'error');
-                return;
-            }
-
-            // Check if slot is still available
-            const { data: existing } = await WardApp.db
-                .from('scheduled_calls')
-                .select('id')
-                .eq('mentor_id', mentorId)
-                .eq('scheduled_date', date)
-                .eq('scheduled_time', startTime)
-                .eq('status', 'scheduled')
-                .maybeSingle();
-
-            if (existing) {
-                WardApp.showToast('Este horario ja foi reservado. Escolha outro.', 'error');
-                return;
-            }
-
-            // Schedule the call
-            const { error } = await WardApp.db
-                .from('scheduled_calls')
-                .insert({
-                    landmark_id: newLandmark.id,
-                    student_id: targetUserId,
-                    mentor_id: mentorId,
-                    scheduled_date: date,
-                    scheduled_time: startTime,
-                    status: 'scheduled'
-                });
-
-            if (error) {
-                console.error('Error scheduling:', error);
-                WardApp.showToast('Erro ao agendar', 'error');
-                return;
-            }
-
-            WardApp.showToast(`Chamada agendada para ${WardApp.formatDate(date)} às ${startTime}!`);
-            loadLandmarks();
+            // Set suggested title
+            document.getElementById('new-landmark-title').placeholder =
+                `Ex: Chamada com ${mentorName} - Tema`;
         }
     </script>
 </body>
