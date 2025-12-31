@@ -208,6 +208,89 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="../js/app.js"></script>
     <script>
+        // Load saved data on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            const data = await WardApp.loadQuestionnaireData(10);
+            if (data) {
+                // Did clerkship
+                if (data.did_clerkship !== undefined) {
+                    document.querySelector(`input[name="did_clerkship"][value="${data.did_clerkship}"]`).checked = true;
+                }
+
+                // Did observership
+                if (data.did_observership !== undefined) {
+                    const radioVal = data.did_observership ? 'true' : 'false';
+                    document.querySelector(`input[name="did_observership"][value="${radioVal}"]`).checked = true;
+                    if (data.did_observership) {
+                        document.getElementById('past-observers-section').classList.add('visible');
+                    }
+                }
+
+                // Load past observerships
+                if (data.past_observerships) {
+                    try {
+                        const pastObs = JSON.parse(data.past_observerships);
+                        if (pastObs.length > 0) {
+                            document.getElementById('past_observer_count').value = pastObs.length;
+                            updateObserverCards('past', pastObs.length);
+
+                            const cards = document.querySelectorAll('.observer-card[data-type="past"]');
+                            pastObs.forEach((obs, i) => {
+                                if (cards[i]) {
+                                    cards[i].querySelector('.obs-institution').value = obs.institution || '';
+                                    cards[i].querySelector('.obs-specialty').value = obs.specialty || '';
+                                    if (obs.year) cards[i].querySelector('.obs-year').value = obs.year;
+                                    if (obs.approximate_cost) cards[i].querySelector('.obs-cost').value = obs.approximate_cost;
+                                    if (obs.comments) cards[i].querySelector('.obs-comments').value = obs.comments;
+                                    if (obs.location_type) {
+                                        const locRadio = cards[i].querySelector(`.obs-location[value="${obs.location_type}"]`);
+                                        if (locRadio) locRadio.checked = true;
+                                    }
+                                    if (obs.got_recommendation_letter !== undefined) {
+                                        const letterRadio = cards[i].querySelector(`.obs-letter[value="${obs.got_recommendation_letter}"]`);
+                                        if (letterRadio) letterRadio.checked = true;
+                                    }
+                                }
+                            });
+                        }
+                    } catch (e) { console.error('Error loading past observerships:', e); }
+                }
+
+                // Plans more
+                if (data.plans_more_observerships !== undefined) {
+                    const radioVal = data.plans_more_observerships ? 'true' : 'false';
+                    document.querySelector(`input[name="plans_more"][value="${radioVal}"]`).checked = true;
+                    if (data.plans_more_observerships) {
+                        document.getElementById('future-observers-section').classList.add('visible');
+                    }
+                }
+
+                // Load future observerships
+                if (data.future_observerships) {
+                    try {
+                        const futureObs = JSON.parse(data.future_observerships);
+                        if (futureObs.length > 0) {
+                            document.getElementById('future_observer_count').value = futureObs.length;
+                            updateObserverCards('future', futureObs.length);
+
+                            const cards = document.querySelectorAll('.observer-card[data-type="future"]');
+                            futureObs.forEach((obs, i) => {
+                                if (cards[i]) {
+                                    cards[i].querySelector('.obs-institution').value = obs.institution || '';
+                                    cards[i].querySelector('.obs-specialty').value = obs.specialty || '';
+                                    if (obs.when_planned) cards[i].querySelector('.obs-when').value = obs.when_planned;
+                                    if (obs.location_type) {
+                                        const locRadio = cards[i].querySelector(`.obs-location[value="${obs.location_type}"]`);
+                                        if (locRadio) locRadio.checked = true;
+                                    }
+                                }
+                            });
+                        }
+                    } catch (e) { console.error('Error loading future observerships:', e); }
+                }
+            }
+        });
+
         // Conditional: did observership
         document.querySelectorAll('input[name="did_observership"]').forEach(radio => {
             radio.addEventListener('change', function() {

@@ -1072,6 +1072,42 @@
         let difficulties = {};
         let currentDifficultyCategory = null;
 
+        // Load saved data on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            const savedData = await WardApp.loadQuestionnaireData(4);
+            if (savedData && savedData.completed_categories) {
+                try {
+                    const categories = JSON.parse(savedData.completed_categories);
+                    categories.forEach(cat => {
+                        // Check the category checkbox
+                        const checkbox = document.querySelector(
+                            `.category-checkbox[data-system="${cat.system}"][data-category="${cat.category}"]`
+                        );
+                        if (checkbox) {
+                            checkbox.checked = true;
+                        }
+
+                        // Load difficulty notes
+                        if (cat.difficulty_notes) {
+                            difficulties[cat.category] = cat.difficulty_notes;
+                            const sosBtn = document.querySelector(`.sos-btn[data-category="${cat.category}"]`);
+                            if (sosBtn) sosBtn.classList.add('active');
+                        }
+                    });
+
+                    // Update system checkboxes if all categories are checked
+                    document.querySelectorAll('.system-checkbox').forEach(sysCheckbox => {
+                        const system = sysCheckbox.dataset.system;
+                        const allCats = document.querySelectorAll(`.category-checkbox[data-system="${system}"]`);
+                        const checkedCats = document.querySelectorAll(`.category-checkbox[data-system="${system}"]:checked`);
+                        sysCheckbox.checked = allCats.length === checkedCats.length && allCats.length > 0;
+                    });
+                } catch (e) {
+                    console.error('Error loading saved categories:', e);
+                }
+            }
+        });
+
         // System checkbox - check all categories
         document.querySelectorAll('.system-checkbox').forEach(checkbox => {
             checkbox.addEventListener('change', function() {
