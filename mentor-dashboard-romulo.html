@@ -192,7 +192,7 @@
 
         async function loadData() {
             // Load projects
-            const { data: projects } = await supabase
+            const { data: projects } = await WardApp.db
                 .from('research_projects')
                 .select('*, tasks:research_tasks(*)')
                 .order('created_at', { ascending: false });
@@ -200,7 +200,7 @@
             allProjects = projects || [];
 
             // Load students
-            const { data: students } = await supabase
+            const { data: students } = await WardApp.db
                 .from('users')
                 .select('id, full_name, email')
                 .eq('role', 'aluno')
@@ -209,7 +209,7 @@
             allStudents = students || [];
 
             // Load research questionnaire data (steps 7, 8, 9)
-            const { data: questionnaireData } = await supabase
+            const { data: questionnaireData } = await WardApp.db
                 .from('questionnaire_data')
                 .select('*')
                 .in('step', [7, 8, 9]);
@@ -363,9 +363,9 @@
         }
 
         async function loadResearchCalls() {
-            const { data: calls } = await supabase
+            const { data: calls } = await WardApp.db
                 .from('landmarks')
-                .select('*, user:users(full_name)')
+                .select('*, user:users!landmarks_user_id_fkey(name, full_name)')
                 .eq('group_name', 'research')
                 .eq('completed', false)
                 .order('urgent', { ascending: false });
@@ -390,7 +390,7 @@
         }
 
         async function markCallComplete(landmarkId) {
-            await supabase
+            await WardApp.db
                 .from('landmarks')
                 .update({ completed: true, completed_at: new Date().toISOString() })
                 .eq('id', landmarkId);
@@ -423,7 +423,7 @@
             if (!participants.includes(selectedStudentId)) {
                 participants.push(selectedStudentId);
 
-                await supabase
+                await WardApp.db
                     .from('research_projects')
                     .update({ participants })
                     .eq('id', projectId);

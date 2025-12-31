@@ -231,7 +231,7 @@
         });
 
         async function loadStudents() {
-            const { data: students, error } = await supabase
+            const { data: students, error } = await WardApp.db
                 .from('users')
                 .select('*')
                 .eq('role', 'aluno')
@@ -251,7 +251,7 @@
             document.getElementById('total-students').textContent = allStudents.length;
 
             // Count pending calls (landmarks not completed)
-            const { data: pendingCalls } = await supabase
+            const { data: pendingCalls } = await WardApp.db
                 .from('landmarks')
                 .select('id')
                 .eq('completed', false)
@@ -260,7 +260,7 @@
             document.getElementById('pending-calls').textContent = pendingCalls?.length || 0;
 
             // Count urgent landmarks
-            const { data: urgentLandmarks } = await supabase
+            const { data: urgentLandmarks } = await WardApp.db
                 .from('landmarks')
                 .select('id')
                 .eq('urgent', true)
@@ -270,7 +270,7 @@
 
             // Count today's check-ins
             const today = new Date().toISOString().split('T')[0];
-            const { data: checkins } = await supabase
+            const { data: checkins } = await WardApp.db
                 .from('check_ins')
                 .select('id')
                 .gte('created_at', today);
@@ -320,7 +320,7 @@
             document.getElementById('questionnaire-fill').style.width = questionnaireProgress + '%';
 
             // Load schedule progress
-            const { data: scheduleData } = await supabase
+            const { data: scheduleData } = await WardApp.db
                 .from('schedules')
                 .select('completed')
                 .eq('user_id', studentId);
@@ -414,11 +414,11 @@
         }
 
         async function loadPendingCalls() {
-            const { data: pendingCalls, error } = await supabase
+            const { data: pendingCalls, error } = await WardApp.db
                 .from('landmarks')
                 .select(`
                     *,
-                    user:users(full_name, email)
+                    user:users!landmarks_user_id_fkey(full_name, email)
                 `)
                 .eq('completed', false)
                 .or('group_name.eq.first_round,group_name.eq.second_round,group_name.eq.system_calls')
@@ -446,7 +446,7 @@
         }
 
         async function markCallComplete(landmarkId) {
-            await supabase
+            await WardApp.db
                 .from('landmarks')
                 .update({ completed: true, completed_at: new Date().toISOString() })
                 .eq('id', landmarkId);
