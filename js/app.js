@@ -200,36 +200,58 @@ async function saveQuestionnaireProgress(step, data) {
     if (!user) return false;
 
     try {
-        const tableName = getTableNameForStep(step);
-        if (!tableName) return false;
-
-        // Check if record exists
-        const { data: existing } = await supabaseClient
-            .from(tableName)
-            .select('user_id')
+        // Use questionnaire_data table with step number and data as JSONB
+        // Check if record exists for this user and step
+        const { data: existing, error: checkError } = await supabaseClient
+            .from('questionnaire_data')
+            .select('id')
             .eq('user_id', user.id)
-            .single();
+            .eq('step', step)
+            .maybeSingle();
+
+        if (checkError && checkError.code !== 'PGRST116') {
+            console.error('Check error:', checkError);
+        }
 
         if (existing) {
             // Update existing record
             const { error } = await supabaseClient
-                .from(tableName)
-                .update(data)
-                .eq('user_id', user.id);
+                .from('questionnaire_data')
+                .update({ data: data, updated_at: new Date().toISOString() })
+                .eq('user_id', user.id)
+                .eq('step', step);
 
             if (error) throw error;
         } else {
             // Insert new record
             const { error } = await supabaseClient
-                .from(tableName)
-                .insert({ user_id: user.id, ...data });
+                .from('questionnaire_data')
+                .insert({
+                    user_id: user.id,
+                    step: step,
+                    data: data
+                });
 
             if (error) throw error;
         }
 
-        // Update questionnaire progress
+        // Update questionnaire progress on user record
         await updateQuestionnaireProgress(user.id, step);
 
+        // Also update full_name on users table if step 1
+        if (step === 1 && data.full_name) {
+            await supabaseClient
+                .from('users')
+                .update({ full_name: data.full_name })
+                .eq('id', user.id);
+
+            // Update local storage
+            const storedUser = JSON.parse(localStorage.getItem('ward_user') || '{}');
+            storedUser.full_name = data.full_name;
+            localStorage.setItem('ward_user', JSON.stringify(storedUser));
+        }
+
+        showToast('Dados salvos com sucesso!', 'success');
         return true;
     } catch (err) {
         console.error('Save error:', err);
@@ -296,17 +318,20 @@ async function loadQuestionnaireData(step) {
     if (!user) return null;
 
     try {
-        const tableName = getTableNameForStep(step);
-        if (!tableName) return null;
-
         const { data, error } = await supabaseClient
-            .from(tableName)
-            .select('*')
+            .from('questionnaire_data')
+            .select('data')
             .eq('user_id', user.id)
-            .single();
+            .eq('step', step)
+            .maybeSingle();
 
-        if (error && error.code !== 'PGRST116') throw error;
-        return data;
+        if (error && error.code !== 'PGRST116') {
+            console.error('Load error:', error);
+            return null;
+        }
+
+        // Return the data JSONB field contents
+        return data?.data || null;
     } catch (err) {
         console.error('Load data error:', err);
         return null;

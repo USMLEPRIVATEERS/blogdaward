@@ -84,9 +84,12 @@
 
             <!-- Right Column: Timeline View -->
             <div class="card">
-                <div class="card-header">
-                    <span>📋 Timeline do Aluno</span>
-                    <span id="selected-student-name" class="text-muted"></span>
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span>📋 Timeline do Aluno</span>
+                        <span id="selected-student-name" class="text-muted" style="margin-left: 0.5rem; font-weight: 600; color: var(--primary-color);"></span>
+                    </div>
+                    <button id="close-student-btn" class="btn-close-student" onclick="closeStudentPanel()" style="display: none;" title="Fechar">✕</button>
                 </div>
                 <div class="card-body">
                     <div id="no-student-selected" class="empty-state">
@@ -426,6 +429,9 @@
             }
         }
 
+        // Store landmark counts per student per mentor
+        let studentLandmarkCounts = {};
+
         async function loadStudents() {
             const { data: students, error } = await WardApp.db
                 .from('users')
@@ -439,6 +445,29 @@
             }
 
             allStudents = students || [];
+
+            // Load all landmarks to count per mentor per student
+            const { data: allLandmarks } = await WardApp.db
+                .from('landmarks')
+                .select('user_id, title, completed')
+                .eq('completed', false);
+
+            // Count pending landmarks per student per mentor
+            studentLandmarkCounts = {};
+            (allLandmarks || []).forEach(lm => {
+                if (!studentLandmarkCounts[lm.user_id]) {
+                    studentLandmarkCounts[lm.user_id] = { iria: 0, guilherme: 0, marcos: 0 };
+                }
+                const title = lm.title.toLowerCase();
+                if (title.includes('iria')) {
+                    studentLandmarkCounts[lm.user_id].iria++;
+                } else if (title.includes('guilherme')) {
+                    studentLandmarkCounts[lm.user_id].guilherme++;
+                } else if (title.includes('marcos')) {
+                    studentLandmarkCounts[lm.user_id].marcos++;
+                }
+            });
+
             updateStats();
             renderStudents();
         }
@@ -488,6 +517,19 @@
             container.innerHTML = students.map(student => {
                 const isSelected = selectedStudent?.id === student.id;
                 const status = student.questionnaire_completed ? '✅' : '⏳';
+                const counts = studentLandmarkCounts[student.id] || { iria: 0, guilherme: 0, marcos: 0 };
+
+                // Build mentor badges (only show if count > 0)
+                let badges = '';
+                if (counts.iria > 0) {
+                    badges += `<span class="mentor-badge iria" title="Calls pendentes com Dra. Iria">👩‍⚕️${counts.iria}</span>`;
+                }
+                if (counts.guilherme > 0) {
+                    badges += `<span class="mentor-badge guilherme" title="Calls pendentes com Guilherme">🃏${counts.guilherme}</span>`;
+                }
+                if (counts.marcos > 0) {
+                    badges += `<span class="mentor-badge marcos" title="Calls pendentes com Marcos">🛠️${counts.marcos}</span>`;
+                }
 
                 return `
                     <div class="student-item ${isSelected ? 'selected' : ''}" onclick="selectStudent(${student.id})">
@@ -495,6 +537,7 @@
                         <div class="student-info">
                             <div class="student-name">${student.full_name || 'Sem nome'}</div>
                             <div class="student-email">${student.email}</div>
+                            ${badges ? `<div class="student-badges">${badges}</div>` : ''}
                         </div>
                         <div class="student-status">${status}</div>
                     </div>
@@ -502,13 +545,29 @@
             }).join('');
         }
 
+        function closeStudentPanel() {
+            selectedStudent = null;
+            document.getElementById('no-student-selected').style.display = 'flex';
+            document.getElementById('student-timeline').style.display = 'none';
+            document.getElementById('selected-student-name').textContent = '';
+            document.getElementById('close-student-btn').style.display = 'none';
+            renderStudents();
+        }
+
         async function selectStudent(studentId) {
+            // Toggle off if clicking the same student
+            if (selectedStudent?.id === studentId) {
+                closeStudentPanel();
+                return;
+            }
+
             selectedStudent = allStudents.find(s => s.id === studentId);
             if (!selectedStudent) return;
 
             document.getElementById('no-student-selected').style.display = 'none';
             document.getElementById('student-timeline').style.display = 'block';
             document.getElementById('selected-student-name').textContent = selectedStudent.full_name;
+            document.getElementById('close-student-btn').style.display = 'block';
 
             // Update progress bars
             const questionnaireProgress = selectedStudent.questionnaire_step ? Math.round((selectedStudent.questionnaire_step / 11) * 100) : 0;
@@ -1345,6 +1404,59 @@
         .student-email {
             font-size: 0.75rem;
             color: var(--gray-500);
+        }
+
+        .student-badges {
+            display: flex;
+            gap: 0.35rem;
+            margin-top: 0.25rem;
+            flex-wrap: wrap;
+        }
+
+        .mentor-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.15rem;
+            padding: 0.15rem 0.4rem;
+            font-size: 0.65rem;
+            font-weight: 600;
+            border-radius: 10px;
+            background: var(--gray-100);
+        }
+
+        .mentor-badge.iria {
+            background: #fce7f3;
+            color: #9d174d;
+        }
+
+        .mentor-badge.guilherme {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .mentor-badge.marcos {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .btn-close-student {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: var(--gray-100);
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1rem;
+            color: var(--gray-500);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .btn-close-student:hover {
+            background: var(--gray-200);
+            color: var(--gray-700);
         }
 
         .quick-actions {
