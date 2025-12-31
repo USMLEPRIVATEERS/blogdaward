@@ -162,22 +162,13 @@
                     <span class="dashboard-card-title">Ativacoes Opcionais</span>
                 </div>
 
-                <div class="mb-3">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="toggle-study-diary">
-                        <span class="toggle-slider"></span>
-                        <span>Diario de Estudos</span>
-                    </label>
-                    <p class="form-hint">Registre seu progresso diario - 250 caracteres</p>
-                </div>
-
                 <div>
                     <label class="toggle-switch">
-                        <input type="checkbox" id="toggle-uworld-diary">
+                        <input type="checkbox" id="toggle-diaries">
                         <span class="toggle-slider"></span>
-                        <span>Diario do UWorld</span>
+                        <span>Ativar Diarios</span>
                     </label>
-                    <p class="form-hint">Acompanhe suas questoes e performance</p>
+                    <p class="form-hint">Ativa ambos: Diario de Estudos e Diario do UWorld</p>
                 </div>
             </div>
 
@@ -517,22 +508,31 @@
         });
 
         // Toggle handlers
-        function loadToggleStates() {
-            const studyDiary = localStorage.getItem('study_diary_enabled') === 'true';
-            const uworldDiary = localStorage.getItem('uworld_diary_enabled') === 'true';
+        async function loadToggleStates() {
+            // Load from database
+            const { data: userPrefs } = await WardApp.db
+                .from('users')
+                .select('diaries_enabled')
+                .eq('id', userData.id)
+                .single();
 
-            document.getElementById('toggle-study-diary').checked = studyDiary;
-            document.getElementById('toggle-uworld-diary').checked = uworldDiary;
+            const diariesEnabled = userPrefs?.diaries_enabled || false;
+
+            // Update UI
+            document.getElementById('toggle-diaries').checked = diariesEnabled;
+
+            // Also sync to localStorage for compatibility with diary pages
+            localStorage.setItem('study_diary_enabled', diariesEnabled);
+            localStorage.setItem('uworld_diary_enabled', diariesEnabled);
 
             updateDiaryLink();
         }
 
         function updateDiaryLink() {
-            const studyDiary = localStorage.getItem('study_diary_enabled') === 'true';
-            const uworldDiary = localStorage.getItem('uworld_diary_enabled') === 'true';
+            const diariesEnabled = localStorage.getItem('study_diary_enabled') === 'true';
             const diaryLink = document.getElementById('nav-diary');
 
-            if (studyDiary || uworldDiary) {
+            if (diariesEnabled) {
                 diaryLink.style.display = 'block';
             } else {
                 diaryLink.style.display = 'none';
@@ -541,30 +541,34 @@
 
         function openDiaryPage(event) {
             event.preventDefault();
-            const studyDiary = localStorage.getItem('study_diary_enabled') === 'true';
-            const uworldDiary = localStorage.getItem('uworld_diary_enabled') === 'true';
 
-            if (studyDiary && uworldDiary) {
-                // Both enabled, show options
-                const choice = confirm('Você tem dois diários ativos.\n\nClique em OK para Diário de Estudos\nClique em Cancelar para Diário do UWorld');
-                window.location.href = choice ? 'diary-study.html' : 'diary-uworld.html';
-            } else if (studyDiary) {
-                window.location.href = 'diary-study.html';
-            } else if (uworldDiary) {
-                window.location.href = 'diary-uworld.html';
-            }
+            // Show options to choose which diary to open
+            const choice = confirm('Escolha qual diário abrir:\n\nClique em OK para Diário de Estudos\nClique em Cancelar para Diário do UWorld');
+            window.location.href = choice ? 'diary-study.html' : 'diary-uworld.html';
         }
 
-        document.getElementById('toggle-study-diary').addEventListener('change', function() {
-            localStorage.setItem('study_diary_enabled', this.checked);
-            updateDiaryLink();
-            WardApp.showToast(this.checked ? 'Diario de Estudos ativado' : 'Diario de Estudos desativado');
-        });
+        document.getElementById('toggle-diaries').addEventListener('change', async function() {
+            const enabled = this.checked;
 
-        document.getElementById('toggle-uworld-diary').addEventListener('change', function() {
-            localStorage.setItem('uworld_diary_enabled', this.checked);
+            // Save to database
+            const { error } = await WardApp.db
+                .from('users')
+                .update({ diaries_enabled: enabled })
+                .eq('id', userData.id);
+
+            if (error) {
+                console.error('Error updating diaries preference:', error);
+                WardApp.showToast('Erro ao salvar preferência', 'error');
+                this.checked = !enabled; // Revert checkbox
+                return;
+            }
+
+            // Update localStorage for compatibility
+            localStorage.setItem('study_diary_enabled', enabled);
+            localStorage.setItem('uworld_diary_enabled', enabled);
+
             updateDiaryLink();
-            WardApp.showToast(this.checked ? 'Diario UWorld ativado' : 'Diario UWorld desativado');
+            WardApp.showToast(enabled ? 'Diários ativados!' : 'Diários desativados');
         });
 
         // Check-in functions
