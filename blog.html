@@ -210,10 +210,30 @@
                 }
             }
 
-            // Attach author to each post
+            // Get actual comment counts for each post
+            const postIds = posts.map(p => p.id);
+            let commentCounts = {};
+
+            if (postIds.length > 0) {
+                // Count comments for each post
+                const { data: comments } = await WardApp.db
+                    .from('blog_comments')
+                    .select('post_id')
+                    .in('post_id', postIds)
+                    .eq('is_deleted', false);
+
+                if (comments) {
+                    comments.forEach(c => {
+                        commentCounts[c.post_id] = (commentCounts[c.post_id] || 0) + 1;
+                    });
+                }
+            }
+
+            // Attach author and actual comment count to each post
             const postsWithAuthors = posts.map(p => ({
                 ...p,
-                author: usersMap[p.user_id] || { name: 'Desconhecido', role: 'aluno' }
+                author: usersMap[p.user_id] || { name: 'Desconhecido', role: 'aluno' },
+                comments_count: commentCounts[p.id] || 0
             }));
 
             document.getElementById('loading-posts').style.display = 'none';
@@ -525,8 +545,9 @@
         async function deleteComment(commentId, postId) {
             if (!confirm('Tem certeza que deseja excluir este comentario?')) return;
 
+            // Hard delete - remove from database
             const { error } = await WardApp.db.from('blog_comments')
-                .update({ is_deleted: true })
+                .delete()
                 .eq('id', commentId);
 
             if (error) {
@@ -534,9 +555,6 @@
                 WardApp.showToast('Erro ao excluir comentario', 'error');
                 return;
             }
-
-            // Update comment count by counting actual comments
-            await updateCommentCount(postId);
 
             WardApp.showToast('Comentario excluido!');
             await loadComments(postId);
@@ -686,14 +704,26 @@
         async function deletePost(postId) {
             if (!confirm('Tem certeza que deseja excluir este post?')) return;
 
-            // Soft delete
-            await WardApp.db.from('blog_posts')
-                .update({
-                    is_deleted: true,
-                    deleted_by: userData.id,
-                    deleted_at: new Date().toISOString()
-                })
+            // First delete all comments for this post
+            await WardApp.db.from('blog_comments')
+                .delete()
+                .eq('post_id', postId);
+
+            // Delete all reactions for this post
+            await WardApp.db.from('blog_reactions')
+                .delete()
+                .eq('post_id', postId);
+
+            // Hard delete - remove post from database
+            const { error } = await WardApp.db.from('blog_posts')
+                .delete()
                 .eq('id', postId);
+
+            if (error) {
+                console.error('Error deleting post:', error);
+                WardApp.showToast('Erro ao excluir post', 'error');
+                return;
+            }
 
             closeModal('view-post-modal');
             WardApp.showToast('Post excluido!');

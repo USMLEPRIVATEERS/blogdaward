@@ -74,14 +74,16 @@
                 <span>Cronograma de First Pass</span>
                 <span class="text-muted" id="last-update"></span>
             </div>
-            <div class="card-body" style="overflow-x: auto;">
+            <div class="card-body schedule-wrapper">
                 <table class="schedule-table" id="schedule-table">
                     <thead>
                         <tr>
-                            <th>System</th>
-                            <th>Category</th>
-                            <th>Questoes</th>
-                            <th>Terminei</th>
+                            <th class="col-system">System</th>
+                            <th class="col-category">Category</th>
+                            <th class="col-questions">Qtd</th>
+                            <th class="col-date">Inicio</th>
+                            <th class="col-date">Fim</th>
+                            <th class="col-check">OK</th>
                         </tr>
                     </thead>
                     <tbody id="schedule-body">
@@ -193,12 +195,22 @@
                 const showSystem = item.system !== currentSystem;
                 currentSystem = item.system;
 
+                // Format dates
+                const startDate = item.start_date ? formatShortDate(item.start_date) : '-';
+                const endDate = item.end_date ? formatShortDate(item.end_date) : '-';
+
+                // Check if overdue
+                const isOverdue = item.end_date && !item.completed && new Date(item.end_date) < new Date();
+                const rowClass = item.completed ? 'row-completed' : (isOverdue ? 'row-overdue' : '');
+
                 return `
-                    <tr class="${item.completed ? 'bg-light' : ''}">
-                        <td>${showSystem ? item.system : ''}</td>
-                        <td>${item.category}</td>
-                        <td>${item.questions}</td>
-                        <td>
+                    <tr class="${rowClass}">
+                        <td class="col-system">${showSystem ? item.system : ''}</td>
+                        <td class="col-category">${item.category}</td>
+                        <td class="col-questions">${item.questions || '-'}</td>
+                        <td class="col-date">${startDate}</td>
+                        <td class="col-date">${endDate}</td>
+                        <td class="col-check">
                             <input type="checkbox"
                                 class="schedule-checkbox"
                                 ${item.completed ? 'checked' : ''}
@@ -208,6 +220,13 @@
                     </tr>
                 `;
             }).join('');
+        }
+
+        function formatShortDate(dateString) {
+            const date = new Date(dateString);
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            return `${day}/${month}`;
         }
 
         async function toggleComplete(id, completed) {
@@ -297,5 +316,127 @@
             document.getElementById(id).classList.remove('active');
         }
     </script>
+
+    <style>
+        /* Schedule Table Mobile-First Styles */
+        .schedule-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .schedule-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .schedule-table th,
+        .schedule-table td {
+            padding: 0.5rem 0.35rem;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+            vertical-align: middle;
+        }
+
+        .schedule-table th {
+            background: var(--gray-100);
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            position: sticky;
+            top: 0;
+        }
+
+        /* Column widths */
+        .col-system { min-width: 60px; max-width: 80px; }
+        .col-category { min-width: 100px; }
+        .col-questions { width: 40px; text-align: center; }
+        .col-date { width: 50px; text-align: center; font-size: 0.75rem; }
+        .col-check { width: 35px; text-align: center; }
+
+        /* Row states */
+        .row-completed {
+            background: #f0fdf4;
+        }
+
+        .row-completed td {
+            color: #15803d;
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+
+        .row-overdue {
+            background: #fef2f2;
+        }
+
+        .row-overdue td {
+            color: #dc2626;
+        }
+
+        /* Checkbox styling */
+        .schedule-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 600px) {
+            .schedule-table {
+                font-size: 0.8rem;
+            }
+
+            .schedule-table th,
+            .schedule-table td {
+                padding: 0.4rem 0.25rem;
+            }
+
+            .col-system {
+                min-width: 50px;
+                max-width: 60px;
+                font-size: 0.7rem;
+            }
+
+            .col-category {
+                min-width: 80px;
+            }
+
+            .col-questions {
+                width: 30px;
+                font-size: 0.7rem;
+            }
+
+            .col-date {
+                width: 45px;
+                font-size: 0.65rem;
+            }
+
+            .col-check {
+                width: 30px;
+            }
+
+            .schedule-checkbox {
+                width: 18px;
+                height: 18px;
+            }
+
+            .schedule-table th {
+                font-size: 0.65rem;
+            }
+        }
+
+        /* Very small screens */
+        @media (max-width: 400px) {
+            .col-system {
+                display: none;
+            }
+
+            .schedule-table th:first-child,
+            .schedule-table td:first-child {
+                display: none;
+            }
+        }
+    </style>
 </body>
 </html>
