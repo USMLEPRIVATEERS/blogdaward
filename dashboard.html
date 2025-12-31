@@ -290,6 +290,7 @@
     <script>
         let userData = null;
         let viewingAsStudent = null;
+        let targetUserId = null; // The user ID to load data for (student's ID when viewing as student)
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
@@ -319,6 +320,7 @@
 
                     if (student) {
                         viewingAsStudent = student;
+                        targetUserId = student.id; // Set target to student's ID
                         userData = { ...userData, ...student, originalMentor: viewAsData };
 
                         // Ensure localStorage has the data (for persistence across navigation)
@@ -337,7 +339,13 @@
                 } else {
                     // Not a mentor, clear the storage
                     localStorage.removeItem('view_as_student');
+                    targetUserId = userData.id;
                 }
+            }
+
+            // If targetUserId is not set, use current user's ID
+            if (!targetUserId) {
+                targetUserId = userData.id;
             }
 
             // Update user name
@@ -404,15 +412,20 @@
         }
 
         async function loadMessages() {
-            const { data: messages } = await WardApp.db
-                .from('messages')
-                .select('*, sender:users!messages_created_by_fkey(name, full_name)')
-                .eq('user_id', userData.id)
+            // Query mentor_messages table (where mentors send messages to students)
+            const { data: messages, error } = await WardApp.db
+                .from('mentor_messages')
+                .select('*, mentor:users!mentor_messages_mentor_id_fkey(full_name, email)')
+                .eq('user_id', targetUserId)
                 .eq('is_read', false)
                 .order('created_at', { ascending: false })
-                .limit(5);
+                .limit(10);
 
             const container = document.getElementById('messages-list');
+
+            if (error) {
+                console.error('Error loading messages:', error);
+            }
 
             if (!messages || messages.length === 0) {
                 container.innerHTML = '<div class="empty-state"><p class="text-muted">Nenhum recado no momento</p></div>';
@@ -422,10 +435,10 @@
             container.innerHTML = messages.map(msg => `
                 <div class="message-item" data-id="${msg.id}">
                     <div class="message-header">
-                        <span class="message-author">📌 ${msg.users?.name || 'Mentor'}</span>
+                        <span class="message-author">📌 ${msg.mentor?.full_name || 'Mentor'}</span>
                         <span class="message-date">${WardApp.formatDate(msg.created_at)}</span>
                     </div>
-                    <p class="message-content">${msg.message}</p>
+                    <p class="message-content">${msg.content}</p>
                     <button class="btn btn-sm btn-outline" onclick="markAsRead(${msg.id})">
                         ✓ Marcar como lido
                     </button>
@@ -435,7 +448,7 @@
 
         async function markAsRead(messageId) {
             await WardApp.db
-                .from('messages')
+                .from('mentor_messages')
                 .update({ is_read: true })
                 .eq('id', messageId);
 

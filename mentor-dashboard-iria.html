@@ -153,13 +153,27 @@
             </div>
         </div>
 
-        <!-- Pending Calls Section -->
+        <!-- Pending Scheduled Calls Section - Only students who booked with this mentor -->
         <div class="card mt-4">
             <div class="card-header">
-                📞 Calls Pendentes (Todas)
+                📞 Calls Agendadas Pendentes
+                <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Alunos que selecionaram horario)</span>
             </div>
             <div class="card-body">
                 <div id="pending-calls-list" class="pending-calls-grid">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- All Pending Landmarks Section - Students who haven't scheduled yet -->
+        <div class="card mt-4">
+            <div class="card-header">
+                📋 Falta Agendar com os Alunos
+                <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Todos os landmarks pendentes)</span>
+            </div>
+            <div class="card-body">
+                <div id="pending-landmarks-list" class="pending-calls-grid">
                     <!-- Filled by JS -->
                 </div>
             </div>
@@ -376,6 +390,7 @@
             await loadStudents();
             await ensureAllStudentsHaveLandmarks();
             await loadPendingCalls();
+            await loadPendingLandmarks();
             await loadGlobalFeed();
         });
 
@@ -979,8 +994,64 @@
         }
 
         async function loadPendingCalls() {
-            // Load pending landmarks for Iria (all her calls that are not completed)
-            const { data: pendingCalls, error } = await WardApp.db
+            // Load ONLY scheduled calls where students have booked with this mentor
+            const { data: scheduledCalls, error } = await WardApp.db
+                .from('scheduled_calls')
+                .select('*, landmark:landmarks(*), student:users!scheduled_calls_student_id_fkey(id, full_name, email)')
+                .eq('mentor_id', userData.id)
+                .eq('status', 'scheduled')
+                .order('scheduled_date', { ascending: true })
+                .order('scheduled_time', { ascending: true });
+
+            const container = document.getElementById('pending-calls-list');
+
+            if (error) {
+                console.error('Error loading scheduled calls:', error);
+                container.innerHTML = '<p class="text-muted">Erro ao carregar calls agendadas</p>';
+                return;
+            }
+
+            if (!scheduledCalls || scheduledCalls.length === 0) {
+                container.innerHTML = '<p class="text-muted">Nenhum aluno agendou horario ainda</p>';
+                return;
+            }
+
+            const groupNames = {
+                'setup': 'Setup',
+                'first-round': '1a Rodada',
+                'second-round': '2a Rodada',
+                'system-calls': 'System',
+                'research': 'Pesquisa',
+                'second-pass': 'Second Pass',
+                'dedicated': 'Dedicated',
+                'extras': 'Extra'
+            };
+
+            container.innerHTML = scheduledCalls.map(call => {
+                const student = call.student || {};
+                const landmark = call.landmark || {};
+                const isUrgent = landmark.is_urgent;
+                const dateStr = WardApp.formatDate(call.scheduled_date);
+                const timeStr = call.scheduled_time?.substring(0, 5) || '';
+
+                return `
+                    <div class="pending-call-card ${isUrgent ? 'urgent' : ''}" style="border-left-color: #10b981;">
+                        <div class="call-icon">📅</div>
+                        <div class="call-info">
+                            <div class="call-title">${landmark.title || 'Chamada agendada'}</div>
+                            <div class="call-student">${student.full_name || student.email || 'Aluno'}</div>
+                            <div class="call-group" style="color: #10b981; font-weight: 500;">${dateStr} às ${timeStr}</div>
+                            <div class="call-group">${groupNames[landmark.group_name] || landmark.group_name || ''}</div>
+                        </div>
+                        <button class="btn btn-sm btn-primary" onclick="markScheduledCallComplete(${call.id}, ${landmark.id})">✓</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function loadPendingLandmarks() {
+            // Load ALL pending landmarks for Iria (calls not yet completed, regardless of scheduling)
+            const { data: pendingLandmarks, error } = await WardApp.db
                 .from('landmarks')
                 .select('*')
                 .eq('completed', false)
@@ -988,50 +1059,66 @@
                 .order('is_urgent', { ascending: false })
                 .order('created_at', { ascending: true });
 
-            const container = document.getElementById('pending-calls-list');
+            const container = document.getElementById('pending-landmarks-list');
 
             if (error) {
-                console.error('Error loading pending calls:', error);
-                container.innerHTML = '<p class="text-muted">Erro ao carregar calls</p>';
+                console.error('Error loading pending landmarks:', error);
+                container.innerHTML = '<p class="text-muted">Erro ao carregar landmarks</p>';
                 return;
             }
 
-            if (!pendingCalls || pendingCalls.length === 0) {
-                container.innerHTML = '<p class="text-muted">Nenhuma call pendente!</p>';
+            if (!pendingLandmarks || pendingLandmarks.length === 0) {
+                container.innerHTML = '<p class="text-muted">Nenhum landmark pendente!</p>';
                 return;
             }
 
-            // Get user info for each pending call
-            const userIds = [...new Set(pendingCalls.map(c => c.user_id))];
+            // Get user info for each pending landmark
+            const userIds = [...new Set(pendingLandmarks.map(c => c.user_id))];
             const { data: users } = await WardApp.db
                 .from('users')
                 .select('id, full_name, email')
                 .in('id', userIds);
 
+            // Check which landmarks have scheduled calls
+            const landmarkIds = pendingLandmarks.map(l => l.id);
+            const { data: scheduledLandmarks } = await WardApp.db
+                .from('scheduled_calls')
+                .select('landmark_id')
+                .in('landmark_id', landmarkIds)
+                .eq('status', 'scheduled');
+
+            const scheduledLandmarkIds = new Set((scheduledLandmarks || []).map(s => s.landmark_id));
+
             const userMap = {};
             (users || []).forEach(u => userMap[u.id] = u);
 
-            container.innerHTML = pendingCalls.map(call => {
-                const user = userMap[call.user_id] || {};
-                const groupNames = {
-                    'setup': 'Setup',
-                    'first-round': '1a Rodada',
-                    'second-round': '2a Rodada',
-                    'system-calls': 'System',
-                    'research': 'Pesquisa',
-                    'second-pass': 'Second Pass',
-                    'dedicated': 'Dedicated',
-                    'extras': 'Extra'
-                };
+            const groupNames = {
+                'setup': 'Setup',
+                'first-round': '1a Rodada',
+                'second-round': '2a Rodada',
+                'system-calls': 'System',
+                'research': 'Pesquisa',
+                'second-pass': 'Second Pass',
+                'dedicated': 'Dedicated',
+                'extras': 'Extra'
+            };
+
+            container.innerHTML = pendingLandmarks.map(landmark => {
+                const user = userMap[landmark.user_id] || {};
+                const isScheduled = scheduledLandmarkIds.has(landmark.id);
+                const statusIcon = isScheduled ? '📅' : (landmark.is_urgent ? '🔴' : '⏳');
+                const statusClass = isScheduled ? 'scheduled' : (landmark.is_urgent ? 'urgent' : '');
+                const statusText = isScheduled ? '<span style="color: #10b981; font-size: 0.7rem;">Ja agendado</span>' : '';
+
                 return `
-                    <div class="pending-call-card ${call.is_urgent ? 'urgent' : ''}">
-                        <div class="call-icon">${call.is_urgent ? '🔴' : '📞'}</div>
+                    <div class="pending-call-card ${statusClass}">
+                        <div class="call-icon">${statusIcon}</div>
                         <div class="call-info">
-                            <div class="call-title">${call.title}</div>
-                            <div class="call-student">${user.full_name || user.email || 'Aluno'}</div>
-                            <div class="call-group">${groupNames[call.group_name] || call.group_name}</div>
+                            <div class="call-title">${landmark.title}</div>
+                            <div class="call-student">${user.full_name || user.email || 'Aluno'} ${statusText}</div>
+                            <div class="call-group">${groupNames[landmark.group_name] || landmark.group_name}</div>
                         </div>
-                        <button class="btn btn-sm btn-primary" onclick="markCallComplete(${call.id})">✓</button>
+                        <button class="btn btn-sm btn-primary" onclick="markCallComplete(${landmark.id})">✓</button>
                     </div>
                 `;
             }).join('');
@@ -1045,6 +1132,32 @@
 
             WardApp.showToast('Call marcada como concluida!');
             await loadPendingCalls();
+            await loadPendingLandmarks();
+            await updateStats();
+
+            if (selectedStudent) {
+                await loadStudentTimeline(selectedStudent.id);
+            }
+        }
+
+        async function markScheduledCallComplete(callId, landmarkId) {
+            // Mark the scheduled call as completed
+            await WardApp.db
+                .from('scheduled_calls')
+                .update({ status: 'completed' })
+                .eq('id', callId);
+
+            // Also mark the landmark as completed
+            if (landmarkId) {
+                await WardApp.db
+                    .from('landmarks')
+                    .update({ completed: true, completion_date: new Date().toISOString() })
+                    .eq('id', landmarkId);
+            }
+
+            WardApp.showToast('Chamada concluida com sucesso!');
+            await loadPendingCalls();
+            await loadPendingLandmarks();
             await updateStats();
 
             if (selectedStudent) {
@@ -1112,8 +1225,8 @@
 
         function viewStudentProfile() {
             if (!selectedStudent) return;
-            // Open student profile in new tab or modal
-            window.open(`profile.html?user_id=${selectedStudent.id}`, '_blank');
+            // Open student profile with view_as parameter so it shows the student's profile
+            window.open(`profile.html?view_as=${selectedStudent.id}`, '_blank');
         }
 
         function viewAsStudent() {
@@ -1563,6 +1676,11 @@
         .pending-call-card.urgent {
             background: #fef2f2;
             border-left-color: #ef4444;
+        }
+
+        .pending-call-card.scheduled {
+            background: #ecfdf5;
+            border-left-color: #10b981;
         }
 
         .call-icon {
