@@ -1101,13 +1101,16 @@
                 .from('mentor_availability_specific')
                 .select('*')
                 .eq('mentor_id', mentorData.id)
-                .gte('available_date', today.toISOString().split('T')[0]);
+                .gte('available_date', WardApp.getTodayString());
 
             // Generate available dates
             const dates = [];
             for (let i = minDays; i <= 30; i++) {
                 const date = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
-                const dateStr = date.toISOString().split('T')[0];
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
                 const dayOfWeek = date.getDay();
 
                 // Check unavailability
@@ -1290,7 +1293,7 @@
             const dateGroup = document.getElementById('edit-completion-date-group');
             dateGroup.style.display = completed ? 'block' : 'none';
             if (completed && !document.getElementById('edit-landmark-date').value) {
-                document.getElementById('edit-landmark-date').value = new Date().toISOString().split('T')[0];
+                document.getElementById('edit-landmark-date').value = WardApp.getTodayString();
             }
         }
 
@@ -1318,11 +1321,11 @@
 
             // Set completion date
             if (landmark.completed && landmark.completion_date) {
-                document.getElementById('edit-landmark-date').value = landmark.completion_date.split('T')[0];
+                document.getElementById('edit-landmark-date').value = WardApp.formatDateInput(landmark.completion_date);
                 document.getElementById('edit-completion-date-group').style.display = 'block';
             } else {
                 document.getElementById('edit-completion-date-group').style.display = 'none';
-                document.getElementById('edit-landmark-date').value = new Date().toISOString().split('T')[0];
+                document.getElementById('edit-landmark-date').value = WardApp.getTodayString();
             }
 
             // Show existing notes
@@ -1427,7 +1430,7 @@
             document.getElementById('new-landmark-group').value = 'extras';
             document.getElementById('new-landmark-completed').checked = false;
             document.getElementById('new-landmark-urgent').checked = false;
-            document.getElementById('new-landmark-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('new-landmark-date').value = WardApp.getTodayString();
             document.getElementById('new-completion-date-group').style.display = 'none';
 
             // Reset preselection hidden fields
@@ -1511,13 +1514,16 @@
                 .from('mentor_availability_specific')
                 .select('*')
                 .eq('mentor_id', mentorId)
-                .gte('available_date', today.toISOString().split('T')[0]);
+                .gte('available_date', WardApp.getTodayString());
 
             // Generate available dates
             const dates = [];
             for (let i = minDays; i <= 30; i++) {
                 const date = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
-                const dateStr = date.toISOString().split('T')[0];
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
                 const dayOfWeek = date.getDay();
 
                 const isUnavailable = (specificDates || []).some(s =>
@@ -1763,8 +1769,15 @@
             const minDate = new Date(today.getTime() + minDaysAhead * 24 * 60 * 60 * 1000);
             const maxDate = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-            const minDateStr = minDate.toISOString().split('T')[0];
-            const maxDateStr = maxDate.toISOString().split('T')[0];
+            const minYear = minDate.getFullYear();
+            const minMonth = String(minDate.getMonth() + 1).padStart(2, '0');
+            const minDay = String(minDate.getDate()).padStart(2, '0');
+            const minDateStr = `${minYear}-${minMonth}-${minDay}`;
+
+            const maxYear = maxDate.getFullYear();
+            const maxMonth = String(maxDate.getMonth() + 1).padStart(2, '0');
+            const maxDay = String(maxDate.getDate()).padStart(2, '0');
+            const maxDateStr = `${maxYear}-${maxMonth}-${maxDay}`;
 
             // Load specific dates
             const { data: specificDates } = await WardApp.db
@@ -1795,7 +1808,10 @@
             const allSlots = [];
 
             for (let d = new Date(minDate); d <= maxDate; d.setDate(d.getDate() + 1)) {
-                const dateStr = d.toISOString().split('T')[0];
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
                 const dayOfWeek = d.getDay();
 
                 // Skip unavailable specific dates
@@ -1975,10 +1991,14 @@
 
             for (let i = 1; i <= 14; i++) {
                 const date = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
                 dates.push({
-                    date: date.toISOString().split('T')[0],
+                    date: dateStr,
                     dayOfWeek: date.getDay(),
-                    display: WardApp.formatDate(date.toISOString().split('T')[0]) + ' (' + dayNames[date.getDay()] + ')'
+                    display: WardApp.formatDate(dateStr) + ' (' + dayNames[date.getDay()] + ')'
                 });
             }
 
@@ -1994,7 +2014,7 @@
                 .from('mentor_availability_specific')
                 .select('*')
                 .eq('mentor_id', mentorId)
-                .gte('available_date', today.toISOString().split('T')[0]);
+                .gte('available_date', WardApp.getTodayString());
 
             // Filter dates where mentor is available
             const availableDates = dates.filter(d => {

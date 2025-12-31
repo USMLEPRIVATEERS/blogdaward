@@ -73,25 +73,76 @@ function hideLoading() {
     }
 }
 
-// Format date to Brazilian format
+// Format date to Brazilian format (DD/MM/YYYY)
+// Handles date strings without timezone conversion issues
 function formatDate(date) {
     if (!date) return '';
+
+    // If it's a YYYY-MM-DD string, parse directly without timezone conversion
+    const dateStr = typeof date === 'string' ? date : date.toString();
+    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+    if (match) {
+        const [_, year, month, day] = match;
+        return `${day}/${month}/${year}`;
+    }
+
+    // Fallback for other formats
     const d = new Date(date);
     return d.toLocaleDateString('pt-BR');
 }
 
-// Format date to input format
+// Format date to input format (YYYY-MM-DD)
+// Returns date string without timezone conversion
 function formatDateInput(date) {
     if (!date) return '';
+
+    // If already in YYYY-MM-DD format, return as is
+    const dateStr = typeof date === 'string' ? date : date.toString();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return dateStr;
+    }
+
+    // If it's an ISO string, extract date part
+    if (dateStr.includes('T')) {
+        return dateStr.split('T')[0];
+    }
+
+    // Fallback
     const d = new Date(date);
-    return d.toISOString().split('T')[0];
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+// Get today's date in YYYY-MM-DD format (local timezone)
+function getTodayString() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+// Parse date string to Date object in local timezone
+// Avoids timezone issues by treating YYYY-MM-DD as local date
+function parseLocalDate(dateStr) {
+    if (!dateStr) return null;
+    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+        const [_, year, month, day] = match;
+        return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    }
+    return new Date(dateStr);
 }
 
 // Calculate days remaining
 function daysRemaining(deadline) {
-    const today = new Date();
-    const deadlineDate = new Date(deadline);
-    const diffTime = deadlineDate - today;
+    const today = getTodayString();
+    const todayDate = parseLocalDate(today);
+    const deadlineDate = parseLocalDate(deadline);
+    const diffTime = deadlineDate - todayDate;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
 }
@@ -1449,5 +1500,8 @@ window.WardApp = {
     closeModal,
     initDragAndDrop,
     formatDate,
+    formatDateInput,
+    getTodayString,
+    parseLocalDate,
     daysRemaining
 };
