@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Cronograma</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <div class="logo">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </div>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="dashboard.html" class="nav-link">Dashboard</a>
+                <a href="cronograma.html" class="nav-link active">Cronograma</a>
+                <a href="links.html" class="nav-link">Links</a>
+                <a href="blog.html" class="nav-link">Blog</a>
+                <a href="pesquisa.html" class="nav-link">Pesquisa</a>
+            </nav>
+            <div class="nav-user">
+                <a href="profile.html" class="user-menu-btn">
+                    <span>👤</span>
+                    <span class="user-name">Perfil</span>
+                </a>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
+            <h1>📅 Cronograma de Estudos</h1>
+            <div class="btn-group">
+                <button class="btn btn-outline" onclick="openModal('delay-modal')">⚠️ Sinalizar Atraso</button>
+                <button class="btn btn-outline" onclick="exportSchedule()">📥 Exportar</button>
+            </div>
+        </div>
+
+        <!-- Progress Overview -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="progress-container">
+                    <div class="progress-header">
+                        <span class="progress-title">Progresso Total</span>
+                        <span class="progress-text" id="progress-text">0/0 categories (0%)</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Schedule Status -->
+        <div id="no-schedule" class="card" style="display: none;">
+            <div class="card-body text-center p-4">
+                <div class="empty-state">
+                    <div class="empty-state-icon">⏳</div>
+                    <h3 class="empty-state-title">Seu cronograma esta sendo preparado</h3>
+                    <p class="text-muted">Aguarde a atualizacao pelos mentores em breve!</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Schedule Table -->
+        <div id="schedule-container" class="card">
+            <div class="card-header">
+                <span>Cronograma de First Pass</span>
+                <span class="text-muted" id="last-update"></span>
+            </div>
+            <div class="card-body" style="overflow-x: auto;">
+                <table class="schedule-table" id="schedule-table">
+                    <thead>
+                        <tr>
+                            <th>System</th>
+                            <th>Category</th>
+                            <th>Questoes</th>
+                            <th>Terminei</th>
+                        </tr>
+                    </thead>
+                    <tbody id="schedule-body">
+                        <!-- Filled by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Delay History (for mentors) -->
+        <div id="delay-history" class="card mt-4" style="display: none;">
+            <div class="card-header">
+                ⚠️ Historico de Atrasos
+            </div>
+            <div class="card-body" id="delay-list">
+                <!-- Filled by JS -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Delay Modal -->
+    <div id="delay-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">⚠️ Sinalizar Atraso</h3>
+                <button class="modal-close" onclick="closeModal('delay-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <div class="form-group">
+                        <label class="form-label" for="delay-start">Inicio do Atraso</label>
+                        <input type="date" id="delay-start" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="delay-end">Fim do Atraso</label>
+                        <input type="date" id="delay-end" class="form-input">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="delay-reason">Motivo (opcional)</label>
+                    <textarea id="delay-reason" class="form-textarea" rows="3"
+                        placeholder="Descreva o motivo do atraso..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('delay-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="signalDelay()">Sinalizar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let scheduleData = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            await loadSchedule();
+            await loadDelays();
+        });
+
+        async function loadSchedule() {
+            const { data: schedule, error } = await supabase
+                .from('schedules')
+                .select('*')
+                .eq('user_id', userData.id)
+                .order('id', { ascending: true });
+
+            if (error || !schedule || schedule.length === 0) {
+                document.getElementById('no-schedule').style.display = 'block';
+                document.getElementById('schedule-container').style.display = 'none';
+                return;
+            }
+
+            scheduleData = schedule;
+            document.getElementById('no-schedule').style.display = 'none';
+            document.getElementById('schedule-container').style.display = 'block';
+
+            // Calculate progress
+            const total = schedule.length;
+            const completed = schedule.filter(s => s.completed).length;
+            const percent = Math.round((completed / total) * 100);
+
+            document.getElementById('progress-text').textContent = `${completed}/${total} categories (${percent}%)`;
+            document.getElementById('progress-fill').style.width = percent + '%';
+
+            // Last update
+            if (schedule[0]?.updated_at) {
+                document.getElementById('last-update').textContent =
+                    'Ultima atualizacao: ' + WardApp.formatDate(schedule[0].updated_at);
+            }
+
+            // Render table
+            renderScheduleTable(schedule);
+        }
+
+        function renderScheduleTable(schedule) {
+            const tbody = document.getElementById('schedule-body');
+            let currentSystem = '';
+
+            tbody.innerHTML = schedule.map(item => {
+                const showSystem = item.system !== currentSystem;
+                currentSystem = item.system;
+
+                return `
+                    <tr class="${item.completed ? 'bg-light' : ''}">
+                        <td>${showSystem ? item.system : ''}</td>
+                        <td>${item.category}</td>
+                        <td>${item.questions}</td>
+                        <td>
+                            <input type="checkbox"
+                                class="schedule-checkbox"
+                                ${item.completed ? 'checked' : ''}
+                                data-id="${item.id}"
+                                onchange="toggleComplete(${item.id}, this.checked)">
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function toggleComplete(id, completed) {
+            await supabase
+                .from('schedules')
+                .update({
+                    completed,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id);
+
+            // Reload to update progress
+            await loadSchedule();
+        }
+
+        async function loadDelays() {
+            const { data: delays } = await supabase
+                .from('schedule_delays')
+                .select('*')
+                .eq('user_id', userData.id)
+                .order('created_at', { ascending: false });
+
+            if (delays && delays.length > 0) {
+                document.getElementById('delay-history').style.display = 'block';
+                document.getElementById('delay-list').innerHTML = delays.map(d => `
+                    <div class="message-item">
+                        <div class="message-header">
+                            <span class="text-danger">⚠️ Atraso sinalizado</span>
+                            <span class="message-date">${WardApp.formatDate(d.created_at)}</span>
+                        </div>
+                        <p class="message-content">
+                            <strong>Periodo:</strong> ${WardApp.formatDate(d.start_date)} - ${WardApp.formatDate(d.end_date)}
+                            ${d.reason ? `<br><strong>Motivo:</strong> ${d.reason}` : ''}
+                        </p>
+                    </div>
+                `).join('');
+            }
+        }
+
+        async function signalDelay() {
+            const startDate = document.getElementById('delay-start').value;
+            const endDate = document.getElementById('delay-end').value;
+            const reason = document.getElementById('delay-reason').value;
+
+            if (!startDate || !endDate) {
+                WardApp.showToast('Preencha as datas', 'warning');
+                return;
+            }
+
+            await supabase.from('schedule_delays').insert({
+                user_id: userData.id,
+                start_date: startDate,
+                end_date: endDate,
+                reason
+            });
+
+            closeModal('delay-modal');
+            WardApp.showToast('Atraso sinalizado com sucesso!');
+            await loadDelays();
+        }
+
+        function exportSchedule() {
+            if (!scheduleData.length) {
+                WardApp.showToast('Nenhum cronograma para exportar', 'warning');
+                return;
+            }
+
+            const csv = 'System\tCategory\tQuestoes\tTerminei\n' +
+                scheduleData.map(s =>
+                    `${s.system}\t${s.category}\t${s.questions}\t${s.completed ? 'TRUE' : 'FALSE'}`
+                ).join('\n');
+
+            const blob = new Blob([csv], { type: 'text/tab-separated-values' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'cronograma.tsv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+    </script>
+</body>
+</html>

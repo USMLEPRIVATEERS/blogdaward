@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Pesquisa</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <div class="logo">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </div>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="dashboard.html" class="nav-link">Dashboard</a>
+                <a href="cronograma.html" class="nav-link">Cronograma</a>
+                <a href="links.html" class="nav-link">Links</a>
+                <a href="blog.html" class="nav-link">Blog</a>
+                <a href="pesquisa.html" class="nav-link active">Pesquisa</a>
+            </nav>
+            <div class="nav-user">
+                <a href="profile.html" class="user-menu-btn">
+                    <span>👤</span>
+                    <span class="user-name">Perfil</span>
+                </a>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
+            <h1>🔬 Projetos de Pesquisa</h1>
+            <div id="mentor-actions" class="btn-group" style="display: none;">
+                <button class="btn btn-primary" onclick="openModal('new-project-modal')">+ Novo Projeto</button>
+            </div>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="stats-grid mb-4">
+            <div class="stat-card">
+                <div class="stat-icon">📋</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="total-projects">0</span>
+                    <span class="stat-label">Projetos Totais</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🔄</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="active-projects">0</span>
+                    <span class="stat-label">Em Andamento</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">✅</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="completed-projects">0</span>
+                    <span class="stat-label">Concluidos</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Projects List -->
+        <div id="projects-container">
+            <!-- Filled by JS -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="no-projects" class="card" style="display: none;">
+            <div class="card-body text-center p-4">
+                <div class="empty-state">
+                    <div class="empty-state-icon">🔬</div>
+                    <h3 class="empty-state-title">Nenhum projeto de pesquisa</h3>
+                    <p class="text-muted">Aguarde ser adicionado a um projeto pelos mentores.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- New Project Modal (Mentors only) -->
+    <div id="new-project-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">➕ Novo Projeto de Pesquisa</h3>
+                <button class="modal-close" onclick="closeModal('new-project-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="project-title">Titulo do Projeto *</label>
+                    <input type="text" id="project-title" class="form-input" placeholder="Nome do projeto">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="project-description">Descricao</label>
+                    <textarea id="project-description" class="form-textarea" rows="3" placeholder="Descricao do projeto..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="project-participants">Participantes</label>
+                    <select id="project-participants" class="form-input" multiple size="5">
+                        <!-- Filled by JS -->
+                    </select>
+                    <span class="form-hint">Segure Ctrl para selecionar multiplos</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('new-project-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="createProject()">Criar Projeto</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Project Modal -->
+    <div id="view-project-modal" class="modal-overlay">
+        <div class="modal modal-xl">
+            <div class="modal-header">
+                <h3 class="modal-title" id="view-project-title"></h3>
+                <button class="modal-close" onclick="closeModal('view-project-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3" id="view-project-description"></p>
+
+                <!-- Progress -->
+                <div class="progress-container mb-4">
+                    <div class="progress-header">
+                        <span class="progress-title">Progresso do Projeto</span>
+                        <span class="progress-text" id="project-progress-text">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="project-progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Participants -->
+                <div class="mb-4" id="participants-section">
+                    <h4 class="mb-2">👥 Participantes</h4>
+                    <div id="participants-list" class="participants-grid">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <!-- Tasks List -->
+                <div class="mb-4">
+                    <div class="d-flex justify-between align-center mb-2">
+                        <h4>📋 Tarefas</h4>
+                        <button class="btn btn-sm btn-outline" onclick="openAddTaskModal()" id="add-task-btn" style="display: none;">+ Adicionar Tarefa</button>
+                    </div>
+                    <div id="tasks-list" class="tasks-list">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" id="project-modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('view-project-modal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Task Modal -->
+    <div id="add-task-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">➕ Nova Tarefa</h3>
+                <button class="modal-close" onclick="closeModal('add-task-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="task-project-id">
+                <div class="form-group">
+                    <label class="form-label" for="task-title">Titulo da Tarefa *</label>
+                    <input type="text" id="task-title" class="form-input" placeholder="Nome da tarefa">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-stage">Estagio</label>
+                    <select id="task-stage" class="form-input">
+                        <option value="nova_tarefa">Nova tarefa</option>
+                        <option value="testando_ideia">Testando ideia</option>
+                        <option value="encontrando_estudos">Encontrando estudos</option>
+                        <option value="estrategia_busca">Estrategia de busca</option>
+                        <option value="validando_ideia">Validando ideia</option>
+                        <option value="escrever_protocolo">Escrever protocolo</option>
+                        <option value="exportar_databases">Exportar de databases</option>
+                        <option value="desduplicar">Desduplicar</option>
+                        <option value="revisores_1_2">Revisores 1 e 2</option>
+                        <option value="revisor_3">Revisor 3</option>
+                        <option value="baixando_pdfs">Baixando PDFs</option>
+                        <option value="leitura_completa">Leitura completa</option>
+                        <option value="prisma_flow">PRISMA Flow Diagram</option>
+                        <option value="tabela_pico">Tabela PICO</option>
+                        <option value="extracao_dados">Extracao de dados</option>
+                        <option value="analise_estatistica">Analise estatistica padrao</option>
+                        <option value="analises_adicionais">Analises estatisticas adicionais</option>
+                        <option value="risco_vies_1_2">Risco de vies revisores 1 e 2</option>
+                        <option value="risco_vies_3">Risco de vies revisor 3</option>
+                        <option value="graficos_desfechos">Graficos de desfechos</option>
+                        <option value="graficos_vieses">Graficos de vieses</option>
+                        <option value="grade">GRADE</option>
+                        <option value="submeter_prospero">Submeter ao PROSPERO</option>
+                        <option value="escrever_abstract">Escrever Abstract</option>
+                        <option value="submeter_congresso">Submeter para congresso</option>
+                        <option value="escrever_introduction">Escrever Introduction</option>
+                        <option value="escrever_methods">Escrever Methods</option>
+                        <option value="escrever_results">Escrever Results</option>
+                        <option value="escrever_discussion">Escrever Discussion</option>
+                        <option value="escrever_conclusion">Escrever Conclusion</option>
+                        <option value="escrever_limitations">Escrever Limitations</option>
+                        <option value="escrever_references">Escrever References</option>
+                        <option value="encontrar_revistas">Encontrar revistas</option>
+                        <option value="escrever_cover_letter">Escrever Cover Letter</option>
+                        <option value="submeter_revista">Submeter para revista</option>
+                        <option value="responder_revisores">Responder revisores</option>
+                        <option value="escrever_rebuttal">Escrever Rebuttal Letter</option>
+                        <option value="ultimos_ajustes">Ultimos ajustes</option>
+                        <option value="tarefa_concluida">Tarefa concluida</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-assignee">Responsavel</label>
+                    <select id="task-assignee" class="form-input">
+                        <!-- Filled by JS -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-deadline">Prazo</label>
+                    <input type="date" id="task-deadline" class="form-input">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('add-task-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="createTask()">Criar Tarefa</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Task Modal -->
+    <div id="edit-task-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">✏️ Editar Tarefa</h3>
+                <button class="modal-close" onclick="closeModal('edit-task-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-task-id">
+                <div class="form-group">
+                    <label class="form-label" for="edit-task-title">Titulo da Tarefa *</label>
+                    <input type="text" id="edit-task-title" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-task-stage">Estagio</label>
+                    <select id="edit-task-stage" class="form-input">
+                        <option value="nova_tarefa">Nova tarefa</option>
+                        <option value="testando_ideia">Testando ideia</option>
+                        <option value="encontrando_estudos">Encontrando estudos</option>
+                        <option value="estrategia_busca">Estrategia de busca</option>
+                        <option value="validando_ideia">Validando ideia</option>
+                        <option value="escrever_protocolo">Escrever protocolo</option>
+                        <option value="exportar_databases">Exportar de databases</option>
+                        <option value="desduplicar">Desduplicar</option>
+                        <option value="revisores_1_2">Revisores 1 e 2</option>
+                        <option value="revisor_3">Revisor 3</option>
+                        <option value="baixando_pdfs">Baixando PDFs</option>
+                        <option value="leitura_completa">Leitura completa</option>
+                        <option value="prisma_flow">PRISMA Flow Diagram</option>
+                        <option value="tabela_pico">Tabela PICO</option>
+                        <option value="extracao_dados">Extracao de dados</option>
+                        <option value="analise_estatistica">Analise estatistica padrao</option>
+                        <option value="analises_adicionais">Analises estatisticas adicionais</option>
+                        <option value="risco_vies_1_2">Risco de vies revisores 1 e 2</option>
+                        <option value="risco_vies_3">Risco de vies revisor 3</option>
+                        <option value="graficos_desfechos">Graficos de desfechos</option>
+                        <option value="graficos_vieses">Graficos de vieses</option>
+                        <option value="grade">GRADE</option>
+                        <option value="submeter_prospero">Submeter ao PROSPERO</option>
+                        <option value="escrever_abstract">Escrever Abstract</option>
+                        <option value="submeter_congresso">Submeter para congresso</option>
+                        <option value="escrever_introduction">Escrever Introduction</option>
+                        <option value="escrever_methods">Escrever Methods</option>
+                        <option value="escrever_results">Escrever Results</option>
+                        <option value="escrever_discussion">Escrever Discussion</option>
+                        <option value="escrever_conclusion">Escrever Conclusion</option>
+                        <option value="escrever_limitations">Escrever Limitations</option>
+                        <option value="escrever_references">Escrever References</option>
+                        <option value="encontrar_revistas">Encontrar revistas</option>
+                        <option value="escrever_cover_letter">Escrever Cover Letter</option>
+                        <option value="submeter_revista">Submeter para revista</option>
+                        <option value="responder_revisores">Responder revisores</option>
+                        <option value="escrever_rebuttal">Escrever Rebuttal Letter</option>
+                        <option value="ultimos_ajustes">Ultimos ajustes</option>
+                        <option value="tarefa_concluida">Tarefa concluida</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-task-assignee">Responsavel</label>
+                    <select id="edit-task-assignee" class="form-input">
+                        <!-- Filled by JS -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-task-deadline">Prazo</label>
+                    <input type="date" id="edit-task-deadline" class="form-input">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="deleteTask()">Excluir</button>
+                <button class="btn btn-secondary" onclick="closeModal('edit-task-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="updateTask()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let allProjects = [];
+        let allUsers = [];
+        let currentProject = null;
+        let isMentor = false;
+
+        const stageLabels = {
+            nova_tarefa: 'Nova tarefa',
+            testando_ideia: 'Testando ideia',
+            encontrando_estudos: 'Encontrando estudos',
+            estrategia_busca: 'Estrategia de busca',
+            validando_ideia: 'Validando ideia',
+            escrever_protocolo: 'Escrever protocolo',
+            exportar_databases: 'Exportar de databases',
+            desduplicar: 'Desduplicar',
+            revisores_1_2: 'Revisores 1 e 2',
+            revisor_3: 'Revisor 3',
+            baixando_pdfs: 'Baixando PDFs',
+            leitura_completa: 'Leitura completa',
+            prisma_flow: 'PRISMA Flow Diagram',
+            tabela_pico: 'Tabela PICO',
+            extracao_dados: 'Extracao de dados',
+            analise_estatistica: 'Analise estatistica padrao',
+            analises_adicionais: 'Analises estatisticas adicionais',
+            risco_vies_1_2: 'Risco de vies revisores 1 e 2',
+            risco_vies_3: 'Risco de vies revisor 3',
+            graficos_desfechos: 'Graficos de desfechos',
+            graficos_vieses: 'Graficos de vieses',
+            grade: 'GRADE',
+            submeter_prospero: 'Submeter ao PROSPERO',
+            escrever_abstract: 'Escrever Abstract',
+            submeter_congresso: 'Submeter para congresso',
+            escrever_introduction: 'Escrever Introduction',
+            escrever_methods: 'Escrever Methods',
+            escrever_results: 'Escrever Results',
+            escrever_discussion: 'Escrever Discussion',
+            escrever_conclusion: 'Escrever Conclusion',
+            escrever_limitations: 'Escrever Limitations',
+            escrever_references: 'Escrever References',
+            encontrar_revistas: 'Encontrar revistas',
+            escrever_cover_letter: 'Escrever Cover Letter',
+            submeter_revista: 'Submeter para revista',
+            responder_revisores: 'Responder revisores',
+            escrever_rebuttal: 'Escrever Rebuttal Letter',
+            ultimos_ajustes: 'Ultimos ajustes',
+            tarefa_concluida: 'Tarefa concluida'
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            isMentor = userData.role && userData.role.startsWith('mentor_');
+
+            if (isMentor) {
+                document.getElementById('mentor-actions').style.display = 'flex';
+                await loadAllUsers();
+            }
+
+            await loadProjects();
+        });
+
+        async function loadAllUsers() {
+            const { data: users } = await supabase
+                .from('users')
+                .select('id, full_name, email')
+                .eq('role', 'aluno')
+                .order('full_name');
+
+            allUsers = users || [];
+
+            const select = document.getElementById('project-participants');
+            select.innerHTML = allUsers.map(u => `<option value="${u.id}">${u.full_name} (${u.email})</option>`).join('');
+        }
+
+        async function loadProjects() {
+            let query = supabase
+                .from('research_projects')
+                .select(`
+                    *,
+                    tasks:research_tasks(*)
+                `)
+                .order('created_at', { ascending: false });
+
+            // If not mentor, only show projects where user is a participant
+            if (!isMentor) {
+                query = query.contains('participants', [userData.id]);
+            }
+
+            const { data: projects, error } = await query;
+
+            if (error) {
+                console.error('Error loading projects:', error);
+                return;
+            }
+
+            allProjects = projects || [];
+            updateStats();
+            renderProjects();
+        }
+
+        function updateStats() {
+            const total = allProjects.length;
+            const completed = allProjects.filter(p => p.status === 'completed').length;
+            const active = total - completed;
+
+            document.getElementById('total-projects').textContent = total;
+            document.getElementById('active-projects').textContent = active;
+            document.getElementById('completed-projects').textContent = completed;
+        }
+
+        function renderProjects() {
+            const container = document.getElementById('projects-container');
+            const noProjects = document.getElementById('no-projects');
+
+            if (allProjects.length === 0) {
+                container.innerHTML = '';
+                noProjects.style.display = 'block';
+                return;
+            }
+
+            noProjects.style.display = 'none';
+
+            container.innerHTML = allProjects.map(project => {
+                const tasks = project.tasks || [];
+                const completedTasks = tasks.filter(t => t.stage === 'tarefa_concluida').length;
+                const progress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+
+                return `
+                    <div class="project-card" onclick="viewProject(${project.id})">
+                        <div class="project-header">
+                            <h3 class="project-title">${project.title}</h3>
+                            <span class="project-status ${project.status === 'completed' ? 'status-completed' : 'status-active'}">
+                                ${project.status === 'completed' ? '✅ Concluido' : '🔄 Em andamento'}
+                            </span>
+                        </div>
+                        ${project.description ? `<p class="project-description">${project.description}</p>` : ''}
+                        <div class="progress-container">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progress}%"></div>
+                            </div>
+                            <span class="progress-text">${progress}%</span>
+                        </div>
+                        <div class="project-footer">
+                            <span>📋 ${tasks.length} tarefas</span>
+                            <span>👥 ${project.participants?.length || 0} participantes</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function viewProject(projectId) {
+            currentProject = allProjects.find(p => p.id === projectId);
+            if (!currentProject) return;
+
+            document.getElementById('view-project-title').textContent = currentProject.title;
+            document.getElementById('view-project-description').textContent = currentProject.description || '';
+
+            // Calculate progress
+            const tasks = currentProject.tasks || [];
+            const completedTasks = tasks.filter(t => t.stage === 'tarefa_concluida').length;
+            const progress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+
+            document.getElementById('project-progress-text').textContent = `${progress}%`;
+            document.getElementById('project-progress-fill').style.width = `${progress}%`;
+
+            // Load participants
+            await loadParticipants();
+
+            // Render tasks
+            renderTasks(tasks);
+
+            // Show add task button for mentors
+            if (isMentor) {
+                document.getElementById('add-task-btn').style.display = 'block';
+            }
+
+            openModal('view-project-modal');
+        }
+
+        async function loadParticipants() {
+            const participantIds = currentProject.participants || [];
+            if (participantIds.length === 0) {
+                document.getElementById('participants-list').innerHTML = '<p class="text-muted">Nenhum participante</p>';
+                return;
+            }
+
+            const { data: participants } = await supabase
+                .from('users')
+                .select('id, full_name, email')
+                .in('id', participantIds);
+
+            document.getElementById('participants-list').innerHTML = (participants || []).map(p => `
+                <div class="participant-chip">
+                    <span class="participant-avatar">👤</span>
+                    <span>${p.full_name}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderTasks(tasks) {
+            const container = document.getElementById('tasks-list');
+
+            if (!tasks || tasks.length === 0) {
+                container.innerHTML = '<p class="text-muted">Nenhuma tarefa ainda</p>';
+                return;
+            }
+
+            // Sort by stage order
+            const stageOrder = Object.keys(stageLabels);
+            tasks.sort((a, b) => {
+                if (a.stage === 'tarefa_concluida' && b.stage !== 'tarefa_concluida') return 1;
+                if (b.stage === 'tarefa_concluida' && a.stage !== 'tarefa_concluida') return -1;
+                return stageOrder.indexOf(a.stage) - stageOrder.indexOf(b.stage);
+            });
+
+            container.innerHTML = tasks.map(task => {
+                const isCompleted = task.stage === 'tarefa_concluida';
+                const isOverdue = task.deadline && new Date(task.deadline) < new Date() && !isCompleted;
+
+                return `
+                    <div class="task-item ${isCompleted ? 'completed' : ''} ${isOverdue ? 'overdue' : ''}" onclick="editTask(${task.id})">
+                        <div class="task-checkbox">
+                            <input type="checkbox" ${isCompleted ? 'checked' : ''} onclick="event.stopPropagation(); toggleTaskComplete(${task.id}, this.checked)">
+                        </div>
+                        <div class="task-info">
+                            <div class="task-title">${task.title}</div>
+                            <div class="task-meta">
+                                <span class="task-stage">${stageLabels[task.stage] || task.stage}</span>
+                                ${task.deadline ? `<span class="task-deadline ${isOverdue ? 'text-danger' : ''}">📅 ${WardApp.formatDate(task.deadline)}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function toggleTaskComplete(taskId, completed) {
+            const newStage = completed ? 'tarefa_concluida' : 'nova_tarefa';
+
+            await supabase
+                .from('research_tasks')
+                .update({ stage: newStage, updated_at: new Date().toISOString() })
+                .eq('id', taskId);
+
+            // Reload project
+            await loadProjects();
+            if (currentProject) {
+                currentProject = allProjects.find(p => p.id === currentProject.id);
+                viewProject(currentProject.id);
+            }
+        }
+
+        function openAddTaskModal() {
+            document.getElementById('task-project-id').value = currentProject.id;
+            document.getElementById('task-title').value = '';
+            document.getElementById('task-stage').value = 'nova_tarefa';
+            document.getElementById('task-deadline').value = '';
+
+            // Fill assignee dropdown
+            const assigneeSelect = document.getElementById('task-assignee');
+            const participantIds = currentProject.participants || [];
+            assigneeSelect.innerHTML = '<option value="">Nenhum</option>' +
+                allUsers.filter(u => participantIds.includes(u.id)).map(u => `<option value="${u.id}">${u.full_name}</option>`).join('');
+
+            openModal('add-task-modal');
+        }
+
+        async function createTask() {
+            const projectId = document.getElementById('task-project-id').value;
+            const title = document.getElementById('task-title').value.trim();
+            const stage = document.getElementById('task-stage').value;
+            const assignee = document.getElementById('task-assignee').value || null;
+            const deadline = document.getElementById('task-deadline').value || null;
+
+            if (!title) {
+                WardApp.showToast('Preencha o titulo da tarefa', 'warning');
+                return;
+            }
+
+            const { error } = await supabase.from('research_tasks').insert({
+                project_id: projectId,
+                title,
+                stage,
+                assigned_to: assignee,
+                deadline
+            });
+
+            if (error) {
+                WardApp.showToast('Erro ao criar tarefa', 'error');
+                return;
+            }
+
+            closeModal('add-task-modal');
+            WardApp.showToast('Tarefa criada!');
+
+            await loadProjects();
+            currentProject = allProjects.find(p => p.id == projectId);
+            viewProject(currentProject.id);
+        }
+
+        function editTask(taskId) {
+            if (!isMentor) return;
+
+            const task = currentProject.tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            document.getElementById('edit-task-id').value = taskId;
+            document.getElementById('edit-task-title').value = task.title;
+            document.getElementById('edit-task-stage').value = task.stage;
+            document.getElementById('edit-task-deadline').value = task.deadline || '';
+
+            // Fill assignee dropdown
+            const assigneeSelect = document.getElementById('edit-task-assignee');
+            const participantIds = currentProject.participants || [];
+            assigneeSelect.innerHTML = '<option value="">Nenhum</option>' +
+                allUsers.filter(u => participantIds.includes(u.id)).map(u =>
+                    `<option value="${u.id}" ${task.assigned_to === u.id ? 'selected' : ''}>${u.full_name}</option>`
+                ).join('');
+
+            openModal('edit-task-modal');
+        }
+
+        async function updateTask() {
+            const id = document.getElementById('edit-task-id').value;
+            const title = document.getElementById('edit-task-title').value.trim();
+            const stage = document.getElementById('edit-task-stage').value;
+            const assignee = document.getElementById('edit-task-assignee').value || null;
+            const deadline = document.getElementById('edit-task-deadline').value || null;
+
+            if (!title) {
+                WardApp.showToast('Preencha o titulo', 'warning');
+                return;
+            }
+
+            const { error } = await supabase
+                .from('research_tasks')
+                .update({ title, stage, assigned_to: assignee, deadline, updated_at: new Date().toISOString() })
+                .eq('id', id);
+
+            if (error) {
+                WardApp.showToast('Erro ao atualizar tarefa', 'error');
+                return;
+            }
+
+            closeModal('edit-task-modal');
+            WardApp.showToast('Tarefa atualizada!');
+
+            await loadProjects();
+            currentProject = allProjects.find(p => p.id === currentProject.id);
+            viewProject(currentProject.id);
+        }
+
+        async function deleteTask() {
+            if (!confirm('Excluir esta tarefa?')) return;
+
+            const id = document.getElementById('edit-task-id').value;
+
+            const { error } = await supabase.from('research_tasks').delete().eq('id', id);
+
+            if (error) {
+                WardApp.showToast('Erro ao excluir', 'error');
+                return;
+            }
+
+            closeModal('edit-task-modal');
+            WardApp.showToast('Tarefa excluida');
+
+            await loadProjects();
+            currentProject = allProjects.find(p => p.id === currentProject.id);
+            viewProject(currentProject.id);
+        }
+
+        async function createProject() {
+            const title = document.getElementById('project-title').value.trim();
+            const description = document.getElementById('project-description').value.trim();
+            const participantSelect = document.getElementById('project-participants');
+            const participants = Array.from(participantSelect.selectedOptions).map(o => o.value);
+
+            if (!title) {
+                WardApp.showToast('Preencha o titulo do projeto', 'warning');
+                return;
+            }
+
+            const { error } = await supabase.from('research_projects').insert({
+                title,
+                description,
+                participants,
+                status: 'active',
+                created_by: userData.id
+            });
+
+            if (error) {
+                WardApp.showToast('Erro ao criar projeto', 'error');
+                return;
+            }
+
+            closeModal('new-project-modal');
+            document.getElementById('project-title').value = '';
+            document.getElementById('project-description').value = '';
+
+            WardApp.showToast('Projeto criado!');
+            await loadProjects();
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+    </script>
+
+    <style>
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .stat-icon {
+            font-size: 2rem;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--gray-500);
+        }
+
+        .project-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .project-card:hover {
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary-color);
+        }
+
+        .project-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+        }
+
+        .project-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .project-status {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: var(--radius-sm);
+        }
+
+        .status-active {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-completed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .project-description {
+            color: var(--gray-600);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .project-footer {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 1rem;
+            font-size: 0.875rem;
+            color: var(--gray-500);
+        }
+
+        .participants-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .participant-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--gray-100);
+            padding: 0.5rem 0.75rem;
+            border-radius: var(--radius-full);
+            font-size: 0.875rem;
+        }
+
+        .tasks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .task-item:hover {
+            background: var(--gray-100);
+        }
+
+        .task-item.completed {
+            opacity: 0.6;
+        }
+
+        .task-item.completed .task-title {
+            text-decoration: line-through;
+        }
+
+        .task-item.overdue {
+            border-left: 3px solid var(--danger);
+        }
+
+        .task-info {
+            flex: 1;
+        }
+
+        .task-title {
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .task-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.8rem;
+            color: var(--gray-500);
+        }
+
+        .task-stage {
+            background: var(--gray-200);
+            padding: 0.125rem 0.5rem;
+            border-radius: var(--radius-sm);
+        }
+
+        .modal-xl {
+            max-width: 900px;
+        }
+    </style>
+</body>
+</html>

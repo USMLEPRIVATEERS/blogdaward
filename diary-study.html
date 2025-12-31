@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Diario de Estudos</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <div class="logo">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </div>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="dashboard.html" class="nav-link">Dashboard</a>
+                <a href="cronograma.html" class="nav-link">Cronograma</a>
+                <a href="links.html" class="nav-link">Links</a>
+                <a href="blog.html" class="nav-link">Blog</a>
+                <a href="pesquisa.html" class="nav-link">Pesquisa</a>
+                <a href="diary-study.html" class="nav-link active">Diario</a>
+            </nav>
+            <div class="nav-user">
+                <a href="profile.html" class="user-menu-btn">
+                    <span>👤</span>
+                    <span class="user-name">Perfil</span>
+                </a>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
+            <h1>📓 Diario de Estudos</h1>
+            <div class="btn-group">
+                <a href="diary-uworld.html" class="btn btn-outline">📊 Diario UWorld</a>
+                <button class="btn btn-primary" onclick="openModal('new-entry-modal')">+ Nova Entrada</button>
+            </div>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="stats-grid mb-4">
+            <div class="stat-card">
+                <div class="stat-icon">📅</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="total-entries">0</span>
+                    <span class="stat-label">Entradas</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⏱️</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="total-hours">0h</span>
+                    <span class="stat-label">Horas Totais</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📈</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="avg-hours">0h</span>
+                    <span class="stat-label">Media/Dia</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🔥</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="streak-days">0</span>
+                    <span class="stat-label">Dias Seguidos</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calendar Heatmap -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <span>📅 Atividade do Mes</span>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline" onclick="changeMonth(-1)">←</button>
+                    <span id="current-month" class="mx-2"></span>
+                    <button class="btn btn-sm btn-outline" onclick="changeMonth(1)">→</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="calendar-container" class="calendar-grid">
+                    <!-- Filled by JS -->
+                </div>
+                <div class="calendar-legend">
+                    <span>Menos</span>
+                    <div class="legend-box" style="background: var(--gray-100)"></div>
+                    <div class="legend-box" style="background: #fed7aa"></div>
+                    <div class="legend-box" style="background: #fdba74"></div>
+                    <div class="legend-box" style="background: #fb923c"></div>
+                    <div class="legend-box" style="background: var(--primary-color)"></div>
+                    <span>Mais</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Entries List -->
+        <div class="card">
+            <div class="card-header">
+                <span>📝 Entradas Recentes</span>
+            </div>
+            <div class="card-body">
+                <div id="entries-list" class="entries-list">
+                    <!-- Filled by JS -->
+                </div>
+                <div id="no-entries" class="empty-state" style="display: none;">
+                    <div class="empty-state-icon">📓</div>
+                    <h3 class="empty-state-title">Nenhuma entrada ainda</h3>
+                    <p class="text-muted">Comece registrando seu estudo de hoje!</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- New Entry Modal -->
+    <div id="new-entry-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">➕ Nova Entrada</h3>
+                <button class="modal-close" onclick="closeModal('new-entry-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="entry-date">Data *</label>
+                    <input type="date" id="entry-date" class="form-input">
+                </div>
+                <div class="input-group">
+                    <div class="form-group">
+                        <label class="form-label" for="entry-hours">Horas de Estudo *</label>
+                        <input type="number" id="entry-hours" class="form-input" min="0" max="24" step="0.5" placeholder="Ex: 4">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="entry-mood">Como se sentiu?</label>
+                        <select id="entry-mood" class="form-input">
+                            <option value="">Selecione...</option>
+                            <option value="great">😊 Otimo</option>
+                            <option value="good">🙂 Bom</option>
+                            <option value="neutral">😐 Normal</option>
+                            <option value="tired">😴 Cansado</option>
+                            <option value="stressed">😰 Estressado</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="entry-topics">Topicos Estudados</label>
+                    <input type="text" id="entry-topics" class="form-input" placeholder="Ex: Cardio, Neuro, Pharmacology">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="entry-notes">Anotacoes</label>
+                    <textarea id="entry-notes" class="form-textarea" rows="4" placeholder="O que estudou? O que aprendeu? Dificuldades?"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Recursos Usados</label>
+                    <div class="checkbox-grid">
+                        <label class="form-check">
+                            <input type="checkbox" name="resources" value="uworld">
+                            <span class="form-check-label">UWorld</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" name="resources" value="anki">
+                            <span class="form-check-label">Anki</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" name="resources" value="amboss">
+                            <span class="form-check-label">Amboss</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" name="resources" value="boards_beyond">
+                            <span class="form-check-label">B&B</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" name="resources" value="pathoma">
+                            <span class="form-check-label">Pathoma</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" name="resources" value="sketchy">
+                            <span class="form-check-label">Sketchy</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" name="resources" value="first_aid">
+                            <span class="form-check-label">First Aid</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" name="resources" value="other">
+                            <span class="form-check-label">Outro</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('new-entry-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveEntry()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Entry Modal -->
+    <div id="edit-entry-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">✏️ Editar Entrada</h3>
+                <button class="modal-close" onclick="closeModal('edit-entry-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-entry-id">
+                <div class="form-group">
+                    <label class="form-label" for="edit-entry-date">Data *</label>
+                    <input type="date" id="edit-entry-date" class="form-input">
+                </div>
+                <div class="input-group">
+                    <div class="form-group">
+                        <label class="form-label" for="edit-entry-hours">Horas de Estudo *</label>
+                        <input type="number" id="edit-entry-hours" class="form-input" min="0" max="24" step="0.5">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="edit-entry-mood">Como se sentiu?</label>
+                        <select id="edit-entry-mood" class="form-input">
+                            <option value="">Selecione...</option>
+                            <option value="great">😊 Otimo</option>
+                            <option value="good">🙂 Bom</option>
+                            <option value="neutral">😐 Normal</option>
+                            <option value="tired">😴 Cansado</option>
+                            <option value="stressed">😰 Estressado</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-entry-topics">Topicos Estudados</label>
+                    <input type="text" id="edit-entry-topics" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-entry-notes">Anotacoes</label>
+                    <textarea id="edit-entry-notes" class="form-textarea" rows="4"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Recursos Usados</label>
+                    <div class="checkbox-grid" id="edit-resources-grid">
+                        <label class="form-check">
+                            <input type="checkbox" name="edit-resources" value="uworld">
+                            <span class="form-check-label">UWorld</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" name="edit-resources" value="anki">
+                            <span class="form-check-label">Anki</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" name="edit-resources" value="amboss">
+                            <span class="form-check-label">Amboss</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" name="edit-resources" value="boards_beyond">
+                            <span class="form-check-label">B&B</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" name="edit-resources" value="pathoma">
+                            <span class="form-check-label">Pathoma</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" name="edit-resources" value="sketchy">
+                            <span class="form-check-label">Sketchy</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" name="edit-resources" value="first_aid">
+                            <span class="form-check-label">First Aid</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" name="edit-resources" value="other">
+                            <span class="form-check-label">Outro</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="deleteEntry()">Excluir</button>
+                <button class="btn btn-secondary" onclick="closeModal('edit-entry-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="updateEntry()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let allEntries = [];
+        let currentDate = new Date();
+
+        const moodEmojis = {
+            great: '😊',
+            good: '🙂',
+            neutral: '😐',
+            tired: '😴',
+            stressed: '😰'
+        };
+
+        const monthNames = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
+            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Check if diary is enabled
+            if (!userData.study_diary_enabled) {
+                window.location.href = 'dashboard.html';
+                return;
+            }
+
+            // Set default date to today
+            document.getElementById('entry-date').value = new Date().toISOString().split('T')[0];
+
+            await loadEntries();
+        });
+
+        async function loadEntries() {
+            const { data: entries, error } = await supabase
+                .from('study_diary')
+                .select('*')
+                .eq('user_id', userData.id)
+                .order('entry_date', { ascending: false });
+
+            if (error) {
+                console.error('Error loading entries:', error);
+                return;
+            }
+
+            allEntries = entries || [];
+            updateStats();
+            renderCalendar();
+            renderEntries();
+        }
+
+        function updateStats() {
+            const total = allEntries.length;
+            const totalHours = allEntries.reduce((sum, e) => sum + (e.hours || 0), 0);
+            const avgHours = total > 0 ? (totalHours / total).toFixed(1) : 0;
+
+            // Calculate streak
+            let streak = 0;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const sortedDates = allEntries
+                .map(e => new Date(e.entry_date))
+                .sort((a, b) => b - a);
+
+            if (sortedDates.length > 0) {
+                let checkDate = new Date(today);
+                for (let i = 0; i < sortedDates.length; i++) {
+                    const entryDate = new Date(sortedDates[i]);
+                    entryDate.setHours(0, 0, 0, 0);
+
+                    const diffDays = Math.floor((checkDate - entryDate) / (1000 * 60 * 60 * 24));
+
+                    if (diffDays === 0 || diffDays === 1) {
+                        streak++;
+                        checkDate = entryDate;
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            document.getElementById('total-entries').textContent = total;
+            document.getElementById('total-hours').textContent = totalHours.toFixed(1) + 'h';
+            document.getElementById('avg-hours').textContent = avgHours + 'h';
+            document.getElementById('streak-days').textContent = streak;
+        }
+
+        function changeMonth(delta) {
+            currentDate.setMonth(currentDate.getMonth() + delta);
+            renderCalendar();
+        }
+
+        function renderCalendar() {
+            const container = document.getElementById('calendar-container');
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+
+            document.getElementById('current-month').textContent = `${monthNames[month]} ${year}`;
+
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const daysInMonth = lastDay.getDate();
+
+            // Get entries for this month
+            const monthEntries = {};
+            allEntries.forEach(entry => {
+                const entryDate = new Date(entry.entry_date);
+                if (entryDate.getFullYear() === year && entryDate.getMonth() === month) {
+                    const day = entryDate.getDate();
+                    monthEntries[day] = entry.hours || 0;
+                }
+            });
+
+            // Build calendar
+            let html = '<div class="calendar-header">';
+            ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'].forEach(d => {
+                html += `<div class="calendar-day-name">${d}</div>`;
+            });
+            html += '</div><div class="calendar-days">';
+
+            // Empty cells for days before first day
+            for (let i = 0; i < firstDay.getDay(); i++) {
+                html += '<div class="calendar-day empty"></div>';
+            }
+
+            // Days of month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const hours = monthEntries[day] || 0;
+                let intensity = 0;
+                if (hours > 0) intensity = 1;
+                if (hours >= 2) intensity = 2;
+                if (hours >= 4) intensity = 3;
+                if (hours >= 6) intensity = 4;
+
+                const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
+
+                html += `
+                    <div class="calendar-day intensity-${intensity} ${isToday ? 'today' : ''}"
+                         onclick="viewDay(${year}, ${month}, ${day})"
+                         title="${hours}h de estudo">
+                        ${day}
+                    </div>
+                `;
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function viewDay(year, month, day) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const entry = allEntries.find(e => e.entry_date === dateStr);
+
+            if (entry) {
+                editEntry(entry.id);
+            } else {
+                document.getElementById('entry-date').value = dateStr;
+                openModal('new-entry-modal');
+            }
+        }
+
+        function renderEntries() {
+            const container = document.getElementById('entries-list');
+            const noEntries = document.getElementById('no-entries');
+
+            if (allEntries.length === 0) {
+                container.innerHTML = '';
+                noEntries.style.display = 'block';
+                return;
+            }
+
+            noEntries.style.display = 'none';
+
+            container.innerHTML = allEntries.slice(0, 20).map(entry => {
+                const resources = entry.resources || [];
+                return `
+                    <div class="entry-item" onclick="editEntry(${entry.id})">
+                        <div class="entry-date">
+                            <div class="entry-day">${new Date(entry.entry_date).getDate()}</div>
+                            <div class="entry-month">${monthNames[new Date(entry.entry_date).getMonth()].substring(0, 3)}</div>
+                        </div>
+                        <div class="entry-content">
+                            <div class="entry-header">
+                                <span class="entry-hours">⏱️ ${entry.hours}h de estudo</span>
+                                ${entry.mood ? `<span class="entry-mood">${moodEmojis[entry.mood]}</span>` : ''}
+                            </div>
+                            ${entry.topics ? `<div class="entry-topics">${entry.topics}</div>` : ''}
+                            ${entry.notes ? `<p class="entry-notes">${entry.notes.substring(0, 100)}${entry.notes.length > 100 ? '...' : ''}</p>` : ''}
+                            ${resources.length > 0 ? `
+                                <div class="entry-resources">
+                                    ${resources.map(r => `<span class="resource-tag">${r}</span>`).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function saveEntry() {
+            const date = document.getElementById('entry-date').value;
+            const hours = parseFloat(document.getElementById('entry-hours').value);
+            const mood = document.getElementById('entry-mood').value;
+            const topics = document.getElementById('entry-topics').value.trim();
+            const notes = document.getElementById('entry-notes').value.trim();
+            const resources = Array.from(document.querySelectorAll('input[name="resources"]:checked')).map(c => c.value);
+
+            if (!date || isNaN(hours)) {
+                WardApp.showToast('Preencha a data e horas', 'warning');
+                return;
+            }
+
+            // Check if entry exists for this date
+            const existing = allEntries.find(e => e.entry_date === date);
+            if (existing) {
+                WardApp.showToast('Ja existe uma entrada para esta data. Edite a existente.', 'warning');
+                return;
+            }
+
+            const { error } = await supabase.from('study_diary').insert({
+                user_id: userData.id,
+                entry_date: date,
+                hours,
+                mood: mood || null,
+                topics: topics || null,
+                notes: notes || null,
+                resources
+            });
+
+            if (error) {
+                WardApp.showToast('Erro ao salvar entrada', 'error');
+                return;
+            }
+
+            closeModal('new-entry-modal');
+            document.getElementById('entry-hours').value = '';
+            document.getElementById('entry-mood').value = '';
+            document.getElementById('entry-topics').value = '';
+            document.getElementById('entry-notes').value = '';
+            document.querySelectorAll('input[name="resources"]').forEach(c => c.checked = false);
+
+            WardApp.showToast('Entrada salva!');
+            await loadEntries();
+        }
+
+        function editEntry(id) {
+            const entry = allEntries.find(e => e.id === id);
+            if (!entry) return;
+
+            document.getElementById('edit-entry-id').value = id;
+            document.getElementById('edit-entry-date').value = entry.entry_date;
+            document.getElementById('edit-entry-hours').value = entry.hours;
+            document.getElementById('edit-entry-mood').value = entry.mood || '';
+            document.getElementById('edit-entry-topics').value = entry.topics || '';
+            document.getElementById('edit-entry-notes').value = entry.notes || '';
+
+            // Set resources checkboxes
+            document.querySelectorAll('input[name="edit-resources"]').forEach(c => {
+                c.checked = (entry.resources || []).includes(c.value);
+            });
+
+            openModal('edit-entry-modal');
+        }
+
+        async function updateEntry() {
+            const id = document.getElementById('edit-entry-id').value;
+            const date = document.getElementById('edit-entry-date').value;
+            const hours = parseFloat(document.getElementById('edit-entry-hours').value);
+            const mood = document.getElementById('edit-entry-mood').value;
+            const topics = document.getElementById('edit-entry-topics').value.trim();
+            const notes = document.getElementById('edit-entry-notes').value.trim();
+            const resources = Array.from(document.querySelectorAll('input[name="edit-resources"]:checked')).map(c => c.value);
+
+            if (!date || isNaN(hours)) {
+                WardApp.showToast('Preencha a data e horas', 'warning');
+                return;
+            }
+
+            const { error } = await supabase
+                .from('study_diary')
+                .update({
+                    entry_date: date,
+                    hours,
+                    mood: mood || null,
+                    topics: topics || null,
+                    notes: notes || null,
+                    resources,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id);
+
+            if (error) {
+                WardApp.showToast('Erro ao atualizar', 'error');
+                return;
+            }
+
+            closeModal('edit-entry-modal');
+            WardApp.showToast('Entrada atualizada!');
+            await loadEntries();
+        }
+
+        async function deleteEntry() {
+            if (!confirm('Excluir esta entrada?')) return;
+
+            const id = document.getElementById('edit-entry-id').value;
+
+            const { error } = await supabase.from('study_diary').delete().eq('id', id);
+
+            if (error) {
+                WardApp.showToast('Erro ao excluir', 'error');
+                return;
+            }
+
+            closeModal('edit-entry-modal');
+            WardApp.showToast('Entrada excluida');
+            await loadEntries();
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+    </script>
+
+    <style>
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .stat-icon {
+            font-size: 1.5rem;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--gray-500);
+        }
+
+        .calendar-grid {
+            width: 100%;
+        }
+
+        .calendar-header {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .calendar-day-name {
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            padding: 0.5rem;
+        }
+
+        .calendar-days {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.25rem;
+        }
+
+        .calendar-day {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .calendar-day:not(.empty):hover {
+            transform: scale(1.1);
+        }
+
+        .calendar-day.empty {
+            cursor: default;
+        }
+
+        .calendar-day.today {
+            border: 2px solid var(--primary-color);
+            font-weight: 600;
+        }
+
+        .calendar-day.intensity-0 { background: var(--gray-100); }
+        .calendar-day.intensity-1 { background: #fed7aa; }
+        .calendar-day.intensity-2 { background: #fdba74; }
+        .calendar-day.intensity-3 { background: #fb923c; }
+        .calendar-day.intensity-4 { background: var(--primary-color); color: white; }
+
+        .calendar-legend {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.25rem;
+            margin-top: 1rem;
+            font-size: 0.75rem;
+            color: var(--gray-500);
+        }
+
+        .legend-box {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        .entries-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .entry-item {
+            display: flex;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .entry-item:hover {
+            background: var(--gray-100);
+        }
+
+        .entry-date {
+            text-align: center;
+            min-width: 50px;
+        }
+
+        .entry-day {
+            font-size: 1.5rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .entry-month {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            text-transform: uppercase;
+        }
+
+        .entry-content {
+            flex: 1;
+        }
+
+        .entry-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .entry-hours {
+            font-weight: 600;
+        }
+
+        .entry-mood {
+            font-size: 1.25rem;
+        }
+
+        .entry-topics {
+            font-size: 0.9rem;
+            color: var(--primary-color);
+            margin-bottom: 0.25rem;
+        }
+
+        .entry-notes {
+            font-size: 0.875rem;
+            color: var(--gray-600);
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .entry-resources {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            margin-top: 0.5rem;
+        }
+
+        .resource-tag {
+            font-size: 0.7rem;
+            background: var(--gray-200);
+            padding: 0.125rem 0.5rem;
+            border-radius: var(--radius-sm);
+        }
+
+        .checkbox-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 0.5rem;
+        }
+    </style>
+</body>
+</html>

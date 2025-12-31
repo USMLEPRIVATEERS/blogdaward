@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Blog</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <div class="logo">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </div>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="dashboard.html" class="nav-link">Dashboard</a>
+                <a href="cronograma.html" class="nav-link">Cronograma</a>
+                <a href="links.html" class="nav-link">Links</a>
+                <a href="blog.html" class="nav-link active">Blog</a>
+                <a href="pesquisa.html" class="nav-link">Pesquisa</a>
+            </nav>
+            <div class="nav-user">
+                <a href="profile.html" class="user-menu-btn">
+                    <span>👤</span>
+                    <span class="user-name">Perfil</span>
+                </a>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
+            <h1>📝 Blog</h1>
+            <div id="mentor-actions" class="btn-group" style="display: none;">
+                <button class="btn btn-primary" onclick="openModal('new-post-modal')">+ Novo Post</button>
+            </div>
+        </div>
+
+        <!-- Pinned Posts -->
+        <div id="pinned-posts" class="mb-4" style="display: none;">
+            <h3 class="mb-2">📌 Posts Fixados</h3>
+            <div id="pinned-container" class="posts-grid">
+                <!-- Filled by JS -->
+            </div>
+        </div>
+
+        <!-- All Posts -->
+        <div id="posts-container" class="posts-list">
+            <!-- Filled by JS -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="no-posts" class="card" style="display: none;">
+            <div class="card-body text-center p-4">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📝</div>
+                    <h3 class="empty-state-title">Nenhum post ainda</h3>
+                    <p class="text-muted">Aguarde novidades dos mentores!</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- New Post Modal -->
+    <div id="new-post-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">✍️ Novo Post</h3>
+                <button class="modal-close" onclick="closeModal('new-post-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="post-title">Titulo *</label>
+                    <input type="text" id="post-title" class="form-input" placeholder="Titulo do post">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="post-content">Conteudo *</label>
+                    <textarea id="post-content" class="form-textarea" rows="10" placeholder="Escreva seu post aqui..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="post-pinned">
+                        <span class="form-check-label">📌 Fixar post</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('new-post-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="createPost()">Publicar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Post Modal -->
+    <div id="view-post-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title" id="view-post-title"></h3>
+                <button class="modal-close" onclick="closeModal('view-post-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="post-meta mb-3" id="view-post-meta"></div>
+                <div class="post-content" id="view-post-content"></div>
+
+                <!-- Comments Section -->
+                <div class="comments-section mt-4">
+                    <h4 class="mb-3">💬 Comentarios</h4>
+                    <div id="comments-list" class="comments-list">
+                        <!-- Filled by JS -->
+                    </div>
+                    <div class="comment-form mt-3">
+                        <input type="hidden" id="current-post-id">
+                        <div class="form-group">
+                            <textarea id="new-comment" class="form-textarea" rows="2" placeholder="Escreva um comentario..."></textarea>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="addComment()">Comentar</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" id="post-actions">
+                <!-- Mentor actions filled by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Post Modal -->
+    <div id="edit-post-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">✏️ Editar Post</h3>
+                <button class="modal-close" onclick="closeModal('edit-post-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-post-id">
+                <div class="form-group">
+                    <label class="form-label" for="edit-post-title">Titulo *</label>
+                    <input type="text" id="edit-post-title" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-post-content">Conteudo *</label>
+                    <textarea id="edit-post-content" class="form-textarea" rows="10"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="edit-post-pinned">
+                        <span class="form-check-label">📌 Fixar post</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="deletePost()">Excluir</button>
+                <button class="btn btn-secondary" onclick="closeModal('edit-post-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="updatePost()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let allPosts = [];
+        let isMentor = false;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            isMentor = userData.role && userData.role.startsWith('mentor_');
+
+            if (isMentor) {
+                document.getElementById('mentor-actions').style.display = 'flex';
+            }
+
+            await loadPosts();
+        });
+
+        async function loadPosts() {
+            const { data: posts, error } = await supabase
+                .from('blog_posts')
+                .select(`
+                    *,
+                    author:users!blog_posts_author_id_fkey(full_name)
+                `)
+                .order('pinned', { ascending: false })
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error loading posts:', error);
+                return;
+            }
+
+            allPosts = posts || [];
+            renderPosts();
+        }
+
+        function renderPosts() {
+            const pinnedSection = document.getElementById('pinned-posts');
+            const pinnedContainer = document.getElementById('pinned-container');
+            const postsContainer = document.getElementById('posts-container');
+            const noPosts = document.getElementById('no-posts');
+
+            const pinned = allPosts.filter(p => p.pinned);
+            const regular = allPosts.filter(p => !p.pinned);
+
+            if (allPosts.length === 0) {
+                pinnedSection.style.display = 'none';
+                postsContainer.innerHTML = '';
+                noPosts.style.display = 'block';
+                return;
+            }
+
+            noPosts.style.display = 'none';
+
+            // Pinned posts
+            if (pinned.length > 0) {
+                pinnedSection.style.display = 'block';
+                pinnedContainer.innerHTML = pinned.map(post => renderPostCard(post, true)).join('');
+            } else {
+                pinnedSection.style.display = 'none';
+            }
+
+            // Regular posts
+            postsContainer.innerHTML = regular.map(post => renderPostCard(post, false)).join('');
+        }
+
+        function renderPostCard(post, isPinned) {
+            const excerpt = post.content.length > 200 ? post.content.substring(0, 200) + '...' : post.content;
+            const authorName = post.author?.full_name || 'Mentor';
+
+            return `
+                <div class="post-card ${isPinned ? 'pinned' : ''}" onclick="viewPost(${post.id})">
+                    ${isPinned ? '<span class="post-pin">📌</span>' : ''}
+                    <h3 class="post-title">${post.title}</h3>
+                    <p class="post-excerpt">${excerpt}</p>
+                    <div class="post-footer">
+                        <span class="post-author">👤 ${authorName}</span>
+                        <span class="post-date">${WardApp.formatDate(post.created_at)}</span>
+                        <span class="post-stats">
+                            ❤️ ${post.likes_count || 0} · 💬 ${post.comments_count || 0}
+                        </span>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function viewPost(postId) {
+            const post = allPosts.find(p => p.id === postId);
+            if (!post) return;
+
+            document.getElementById('current-post-id').value = postId;
+            document.getElementById('view-post-title').textContent = post.title;
+            document.getElementById('view-post-meta').innerHTML = `
+                <span>👤 ${post.author?.full_name || 'Mentor'}</span> ·
+                <span>${WardApp.formatDate(post.created_at)}</span> ·
+                <span>❤️ ${post.likes_count || 0} curtidas</span>
+            `;
+            document.getElementById('view-post-content').innerHTML = post.content.replace(/\n/g, '<br>');
+
+            // Load comments
+            await loadComments(postId);
+
+            // Post actions
+            const actionsHtml = [];
+
+            // Check if user already liked
+            const { data: existingLike } = await supabase
+                .from('blog_likes')
+                .select('id')
+                .eq('post_id', postId)
+                .eq('user_id', userData.id)
+                .single();
+
+            if (existingLike) {
+                actionsHtml.push(`<button class="btn btn-secondary" onclick="unlikePost(${postId})">💔 Descurtir</button>`);
+            } else {
+                actionsHtml.push(`<button class="btn btn-primary" onclick="likePost(${postId})">❤️ Curtir</button>`);
+            }
+
+            if (isMentor) {
+                actionsHtml.push(`<button class="btn btn-outline" onclick="openEditPost(${postId})">✏️ Editar</button>`);
+            }
+
+            document.getElementById('post-actions').innerHTML = actionsHtml.join('');
+
+            openModal('view-post-modal');
+        }
+
+        async function loadComments(postId) {
+            const { data: comments, error } = await supabase
+                .from('blog_comments')
+                .select(`
+                    *,
+                    author:users!blog_comments_user_id_fkey(full_name)
+                `)
+                .eq('post_id', postId)
+                .order('created_at', { ascending: true });
+
+            const commentsList = document.getElementById('comments-list');
+
+            if (!comments || comments.length === 0) {
+                commentsList.innerHTML = '<p class="text-muted">Nenhum comentario ainda. Seja o primeiro!</p>';
+                return;
+            }
+
+            commentsList.innerHTML = comments.map(comment => `
+                <div class="comment-item">
+                    <div class="comment-header">
+                        <span class="comment-author">👤 ${comment.author?.full_name || 'Usuario'}</span>
+                        <span class="comment-date">${WardApp.formatDate(comment.created_at)}</span>
+                    </div>
+                    <p class="comment-content">${comment.content}</p>
+                </div>
+            `).join('');
+        }
+
+        async function addComment() {
+            const postId = document.getElementById('current-post-id').value;
+            const content = document.getElementById('new-comment').value.trim();
+
+            if (!content) {
+                WardApp.showToast('Escreva um comentario', 'warning');
+                return;
+            }
+
+            const { error } = await supabase.from('blog_comments').insert({
+                post_id: postId,
+                user_id: userData.id,
+                content
+            });
+
+            if (error) {
+                WardApp.showToast('Erro ao adicionar comentario', 'error');
+                return;
+            }
+
+            // Update comment count
+            const post = allPosts.find(p => p.id == postId);
+            if (post) {
+                await supabase
+                    .from('blog_posts')
+                    .update({ comments_count: (post.comments_count || 0) + 1 })
+                    .eq('id', postId);
+            }
+
+            document.getElementById('new-comment').value = '';
+            WardApp.showToast('Comentario adicionado!');
+            await loadComments(postId);
+            await loadPosts();
+        }
+
+        async function likePost(postId) {
+            const { error } = await supabase.from('blog_likes').insert({
+                post_id: postId,
+                user_id: userData.id
+            });
+
+            if (error) {
+                WardApp.showToast('Erro ao curtir post', 'error');
+                return;
+            }
+
+            // Update like count
+            const post = allPosts.find(p => p.id === postId);
+            if (post) {
+                await supabase
+                    .from('blog_posts')
+                    .update({ likes_count: (post.likes_count || 0) + 1 })
+                    .eq('id', postId);
+            }
+
+            WardApp.showToast('Post curtido!');
+            closeModal('view-post-modal');
+            await loadPosts();
+        }
+
+        async function unlikePost(postId) {
+            const { error } = await supabase
+                .from('blog_likes')
+                .delete()
+                .eq('post_id', postId)
+                .eq('user_id', userData.id);
+
+            if (error) {
+                WardApp.showToast('Erro ao descurtir', 'error');
+                return;
+            }
+
+            // Update like count
+            const post = allPosts.find(p => p.id === postId);
+            if (post) {
+                await supabase
+                    .from('blog_posts')
+                    .update({ likes_count: Math.max((post.likes_count || 1) - 1, 0) })
+                    .eq('id', postId);
+            }
+
+            WardApp.showToast('Curtida removida');
+            closeModal('view-post-modal');
+            await loadPosts();
+        }
+
+        async function createPost() {
+            const title = document.getElementById('post-title').value.trim();
+            const content = document.getElementById('post-content').value.trim();
+            const pinned = document.getElementById('post-pinned').checked;
+
+            if (!title || !content) {
+                WardApp.showToast('Preencha todos os campos', 'warning');
+                return;
+            }
+
+            const { error } = await supabase.from('blog_posts').insert({
+                title,
+                content,
+                pinned,
+                author_id: userData.id,
+                likes_count: 0,
+                comments_count: 0
+            });
+
+            if (error) {
+                WardApp.showToast('Erro ao criar post', 'error');
+                return;
+            }
+
+            closeModal('new-post-modal');
+            document.getElementById('post-title').value = '';
+            document.getElementById('post-content').value = '';
+            document.getElementById('post-pinned').checked = false;
+
+            WardApp.showToast('Post publicado!');
+            await loadPosts();
+        }
+
+        function openEditPost(postId) {
+            closeModal('view-post-modal');
+
+            const post = allPosts.find(p => p.id === postId);
+            if (!post) return;
+
+            document.getElementById('edit-post-id').value = postId;
+            document.getElementById('edit-post-title').value = post.title;
+            document.getElementById('edit-post-content').value = post.content;
+            document.getElementById('edit-post-pinned').checked = post.pinned;
+
+            openModal('edit-post-modal');
+        }
+
+        async function updatePost() {
+            const id = document.getElementById('edit-post-id').value;
+            const title = document.getElementById('edit-post-title').value.trim();
+            const content = document.getElementById('edit-post-content').value.trim();
+            const pinned = document.getElementById('edit-post-pinned').checked;
+
+            if (!title || !content) {
+                WardApp.showToast('Preencha todos os campos', 'warning');
+                return;
+            }
+
+            const { error } = await supabase
+                .from('blog_posts')
+                .update({ title, content, pinned, updated_at: new Date().toISOString() })
+                .eq('id', id);
+
+            if (error) {
+                WardApp.showToast('Erro ao atualizar post', 'error');
+                return;
+            }
+
+            closeModal('edit-post-modal');
+            WardApp.showToast('Post atualizado!');
+            await loadPosts();
+        }
+
+        async function deletePost() {
+            if (!confirm('Tem certeza que deseja excluir este post?')) return;
+
+            const id = document.getElementById('edit-post-id').value;
+
+            // Delete comments first
+            await supabase.from('blog_comments').delete().eq('post_id', id);
+            await supabase.from('blog_likes').delete().eq('post_id', id);
+
+            const { error } = await supabase.from('blog_posts').delete().eq('id', id);
+
+            if (error) {
+                WardApp.showToast('Erro ao excluir post', 'error');
+                return;
+            }
+
+            closeModal('edit-post-modal');
+            WardApp.showToast('Post excluido!');
+            await loadPosts();
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+    </script>
+
+    <style>
+        .posts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .posts-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .post-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        .post-card:hover {
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary-color);
+        }
+
+        .post-card.pinned {
+            border-color: var(--primary-color);
+            background: linear-gradient(135deg, #fff 0%, #fff5f0 100%);
+        }
+
+        .post-pin {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+        }
+
+        .post-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-dark);
+        }
+
+        .post-excerpt {
+            color: var(--gray-600);
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .post-footer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            font-size: 0.875rem;
+            color: var(--gray-500);
+        }
+
+        .post-meta {
+            color: var(--gray-500);
+            font-size: 0.9rem;
+        }
+
+        .post-content {
+            line-height: 1.8;
+            font-size: 1rem;
+        }
+
+        .comments-section {
+            border-top: 1px solid var(--gray-200);
+            padding-top: 1.5rem;
+        }
+
+        .comments-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .comment-item {
+            background: var(--gray-100);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .comment-author {
+            font-weight: 500;
+        }
+
+        .comment-date {
+            color: var(--gray-500);
+        }
+
+        .comment-content {
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .modal-lg {
+            max-width: 700px;
+        }
+    </style>
+</body>
+</html>
