@@ -239,9 +239,10 @@
 
         async function loadLinks() {
             const { data: links, error } = await WardApp.db
-                .from('links')
+                .from('links_repository')
                 .select('*')
-                .order('pinned', { ascending: false })
+                .eq('is_active', true)
+                .order('is_featured', { ascending: false })
                 .order('created_at', { ascending: false });
 
             if (error) {
@@ -286,8 +287,8 @@
             noLinks.style.display = 'none';
 
             container.innerHTML = links.map(link => `
-                <div class="link-card ${link.pinned ? 'pinned' : ''}">
-                    ${link.pinned ? '<span class="link-pin">📌</span>' : ''}
+                <div class="link-card ${link.is_featured ? 'pinned' : ''}">
+                    ${link.is_featured ? '<span class="link-pin">📌</span>' : ''}
                     <div class="link-category">${categoryLabels[link.category] || link.category}</div>
                     <h3 class="link-title">${link.title}</h3>
                     ${link.description ? `<p class="link-description">${link.description}</p>` : ''}
@@ -311,13 +312,13 @@
                 return;
             }
 
-            const { error } = await WardApp.db.from('links').insert({
+            const { error } = await WardApp.db.from('links_repository').insert({
                 title,
                 url,
                 description,
                 category,
-                pinned,
-                created_by: userData.id
+                is_featured: pinned,
+                added_by: userData.id
             });
 
             if (error) {
@@ -345,7 +346,7 @@
             document.getElementById('edit-link-url').value = link.url;
             document.getElementById('edit-link-description').value = link.description || '';
             document.getElementById('edit-link-category').value = link.category;
-            document.getElementById('edit-link-pinned').checked = link.pinned;
+            document.getElementById('edit-link-pinned').checked = link.is_featured;
 
             openModal('edit-link-modal');
         }
@@ -364,8 +365,8 @@
             }
 
             const { error } = await WardApp.db
-                .from('links')
-                .update({ title, url, description, category, pinned })
+                .from('links_repository')
+                .update({ title, url, description, category, is_featured: pinned })
                 .eq('id', id);
 
             if (error) {
@@ -384,8 +385,8 @@
             const id = document.getElementById('edit-link-id').value;
 
             const { error } = await WardApp.db
-                .from('links')
-                .delete()
+                .from('links_repository')
+                .update({ is_active: false })
                 .eq('id', id);
 
             if (error) {
