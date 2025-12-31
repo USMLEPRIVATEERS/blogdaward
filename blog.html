@@ -184,13 +184,13 @@
         });
 
         async function loadPosts() {
-            const { data: posts, error } = await supabase
+            const { data: posts, error } = await WardApp.db
                 .from('blog_posts')
                 .select(`
                     *,
-                    author:users!blog_posts_author_id_fkey(full_name)
+                    author:users(name, full_name)
                 `)
-                .order('pinned', { ascending: false })
+                .order('is_pinned', { ascending: false })
                 .order('created_at', { ascending: false });
 
             if (error) {
@@ -295,11 +295,11 @@
         }
 
         async function loadComments(postId) {
-            const { data: comments, error } = await supabase
+            const { data: comments, error } = await WardApp.db
                 .from('blog_comments')
                 .select(`
                     *,
-                    author:users!blog_comments_user_id_fkey(full_name)
+                    author:users(name, full_name)
                 `)
                 .eq('post_id', postId)
                 .order('created_at', { ascending: true });
@@ -331,7 +331,7 @@
                 return;
             }
 
-            const { error } = await supabase.from('blog_comments').insert({
+            const { error } = await WardApp.db.from('blog_comments').insert({
                 post_id: postId,
                 user_id: userData.id,
                 content
@@ -358,7 +358,7 @@
         }
 
         async function likePost(postId) {
-            const { error } = await supabase.from('blog_likes').insert({
+            const { error } = await WardApp.db.from('blog_likes').insert({
                 post_id: postId,
                 user_id: userData.id
             });
@@ -418,7 +418,7 @@
                 return;
             }
 
-            const { error } = await supabase.from('blog_posts').insert({
+            const { error } = await WardApp.db.from('blog_posts').insert({
                 title,
                 content,
                 pinned,
@@ -487,10 +487,10 @@
             const id = document.getElementById('edit-post-id').value;
 
             // Delete comments first
-            await supabase.from('blog_comments').delete().eq('post_id', id);
-            await supabase.from('blog_likes').delete().eq('post_id', id);
+            await WardApp.db.from('blog_comments').delete().eq('post_id', id);
+            await WardApp.db.from('blog_likes').delete().eq('post_id', id);
 
-            const { error } = await supabase.from('blog_posts').delete().eq('id', id);
+            const { error } = await WardApp.db.from('blog_posts').delete().eq('id', id);
 
             if (error) {
                 WardApp.showToast('Erro ao excluir post', 'error');

@@ -1347,9 +1347,9 @@ window.WardApp = {
     daysRemaining
 };
 
-// Also expose supabase globally for backward compatibility
-Object.defineProperty(window, 'supabase', {
-    get() {
-        return getSupabaseClient();
-    }
-});
+// Expose supabase client globally for pages that use supabase.from() directly
+// Note: We can't use Object.defineProperty because CDN's supabase is non-configurable
+// So we just assign directly after initialization
+if (supabaseClient) {
+    window.supabase = supabaseClient;
+}
