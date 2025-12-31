@@ -296,7 +296,7 @@ Cardiovascular	Heart failure	30
                 .from('schedules')
                 .select('*')
                 .eq('user_id', studentId)
-                .order('order_position', { ascending: true });
+                .order('id', { ascending: true });
 
             scheduleData = schedule || [];
             renderSchedule();
@@ -343,9 +343,9 @@ Cardiovascular	Heart failure	30
 
             tbody.innerHTML = scheduleData.map(item => `
                 <tr class="${item.completed ? 'completed-row' : ''}">
-                    <td>${item.system_name || '-'}</td>
+                    <td>${item.system || '-'}</td>
                     <td>${item.category || '-'}</td>
-                    <td>${item.questions_count || '-'}</td>
+                    <td>${item.questions || '-'}</td>
                     <td>${item.start_date ? WardApp.formatDate(item.start_date) : '-'}</td>
                     <td>${item.end_date ? WardApp.formatDate(item.end_date) : '-'}</td>
                     <td class="text-center">
@@ -389,16 +389,39 @@ Cardiovascular	Heart failure	30
             const lines = data.split('\n').filter(l => l.trim());
             const items = [];
 
-            for (let i = 0; i < lines.length; i++) {
+            // Helper to convert DD/MM/YYYY to YYYY-MM-DD
+            function parseDate(dateStr) {
+                if (!dateStr) return null;
+                const parts = dateStr.trim().split('/');
+                if (parts.length === 3) {
+                    const [day, month, year] = parts;
+                    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                }
+                return null;
+            }
+
+            // Skip header if present (check if first line contains "System" or "Category")
+            let startIndex = 0;
+            if (lines.length > 0 && (lines[0].includes('System') || lines[0].includes('Category'))) {
+                startIndex = 1;
+            }
+
+            for (let i = startIndex; i < lines.length; i++) {
                 const cols = lines[i].split('\t');
                 if (cols.length >= 2) {
+                    const questionsValue = parseInt(cols[2]) || null;
+                    const startDate = parseDate(cols[3]);
+                    const endDate = parseDate(cols[4]);
+                    const isCompleted = cols[5]?.trim().toUpperCase() === 'TRUE';
+
                     items.push({
                         user_id: selectedStudentId,
-                        system_name: cols[0]?.trim() || '',
+                        system: cols[0]?.trim() || '',
                         category: cols[1]?.trim() || '',
-                        questions_count: parseInt(cols[2]) || null,
-                        completed: false,
-                        order_position: i
+                        questions: questionsValue,
+                        start_date: startDate,
+                        end_date: endDate,
+                        completed: isCompleted
                     });
                 }
             }
@@ -469,13 +492,12 @@ Cardiovascular	Heart failure	30
                 .from('schedules')
                 .insert({
                     user_id: selectedStudentId,
-                    system_name: system,
+                    system: system,
                     category: category,
-                    questions_count: questions,
+                    questions: questions,
                     start_date: startDate,
                     end_date: endDate,
-                    completed: false,
-                    order_position: scheduleData.length
+                    completed: false
                 });
 
             if (error) {
@@ -493,9 +515,9 @@ Cardiovascular	Heart failure	30
             if (!item) return;
 
             document.getElementById('edit-item-id').value = itemId;
-            document.getElementById('edit-item-system').value = item.system_name || '';
+            document.getElementById('edit-item-system').value = item.system || '';
             document.getElementById('edit-item-category').value = item.category || '';
-            document.getElementById('edit-item-questions').value = item.questions_count || '';
+            document.getElementById('edit-item-questions').value = item.questions || '';
             document.getElementById('edit-item-start-date').value = item.start_date || '';
             document.getElementById('edit-item-end-date').value = item.end_date || '';
             document.getElementById('edit-item-completed').checked = item.completed || false;
@@ -519,9 +541,9 @@ Cardiovascular	Heart failure	30
             await WardApp.db
                 .from('schedules')
                 .update({
-                    system_name: system,
+                    system: system,
                     category: category,
-                    questions_count: questions,
+                    questions: questions,
                     start_date: startDate,
                     end_date: endDate,
                     completed: completed,
