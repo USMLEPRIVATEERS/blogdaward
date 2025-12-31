@@ -1227,7 +1227,7 @@ async function updateLandmarkOrder() {
         const landmarkId = item.dataset.id;
         if (landmarkId) {
             updates.push(
-                supabase
+                supabaseClient
                     .from('landmarks')
                     .update({ order_position: index })
                     .eq('id', landmarkId)
