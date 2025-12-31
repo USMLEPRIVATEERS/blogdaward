@@ -447,132 +447,111 @@
         async function loadAllData() {
             WardApp.showLoading();
 
-            // Load basic data
-            const { data: basicData } = await WardApp.db
-                .from('user_basic_data')
-                .select('*')
-                .eq('user_id', userData.id)
-                .single();
+            // Load all questionnaire data at once
+            const { data: allData } = await WardApp.db
+                .from('questionnaire_data')
+                .select('step, data')
+                .eq('user_id', userData.id);
 
-            if (basicData) {
-                document.getElementById('full_name').value = basicData.full_name || '';
-                document.getElementById('email').value = userData.email || '';
-                document.getElementById('cpf').value = basicData.cpf || '';
-                document.getElementById('orcid').value = basicData.orcid || '';
-                document.getElementById('address_line1').value = basicData.address_line1 || '';
-                document.getElementById('address_line2').value = basicData.address_line2 || '';
-                document.getElementById('city').value = basicData.city || '';
-                document.getElementById('state').value = basicData.state || '';
-                document.getElementById('zip_code').value = basicData.zip_code || '';
-                document.getElementById('country').value = basicData.country || '';
-                document.getElementById('graduation_date').value = basicData.graduation_date || '';
-                document.getElementById('medical_school').value = basicData.medical_school || '';
-                document.getElementById('current_institution').value = basicData.current_institution || '';
-                document.getElementById('current_specialty').value = basicData.current_specialty || '';
-                document.getElementById('intended_specialty_usa').value = basicData.intended_specialty_usa || '';
-            }
+            // Create a map of step -> data
+            const stepData = {};
+            (allData || []).forEach(item => {
+                stepData[item.step] = item.data || {};
+            });
 
-            // Load USMLE data
-            const { data: usmleData } = await WardApp.db
-                .from('user_usmle_data')
-                .select('*')
-                .eq('user_id', userData.id)
-                .single();
+            // Step 1: Basic data
+            const basicData = stepData[1] || {};
+            document.getElementById('full_name').value = basicData.full_name || userData.full_name || '';
+            document.getElementById('email').value = userData.email || '';
+            document.getElementById('cpf').value = basicData.cpf || '';
+            document.getElementById('orcid').value = basicData.orcid || '';
+            document.getElementById('address_line1').value = basicData.address_line1 || '';
+            document.getElementById('address_line2').value = basicData.address_line2 || '';
+            document.getElementById('city').value = basicData.city || '';
+            document.getElementById('state').value = basicData.state || '';
+            document.getElementById('zip_code').value = basicData.zip_code || '';
+            document.getElementById('country').value = basicData.country || '';
+            document.getElementById('graduation_date').value = basicData.graduation_date || '';
+            document.getElementById('medical_school').value = basicData.medical_school || '';
+            document.getElementById('current_institution').value = basicData.current_institution || '';
+            document.getElementById('current_specialty').value = basicData.current_specialty || '';
+            document.getElementById('intended_specialty_usa').value = basicData.intended_specialty_usa || '';
 
-            if (usmleData) {
-                document.getElementById('pathway').value = usmleData.pathway || 'traditional';
-                document.getElementById('has_visa').value = String(usmleData.has_visa);
-                document.getElementById('visa_type').value = usmleData.visa_type || '';
-                document.getElementById('current_stage').value = usmleData.current_stage || '';
-                document.getElementById('next_exam').value = usmleData.next_exam || '';
-                document.getElementById('next_exam_date').value = usmleData.next_exam_date || '';
-                document.getElementById('first_pass_months').value = usmleData.first_pass_months || 6;
-                document.getElementById('second_pass_months').value = usmleData.second_pass_months || 2;
-                document.getElementById('dedicated_months').value = usmleData.dedicated_months || 1;
-            }
+            // Step 2: USMLE data
+            const usmleData = stepData[2] || {};
+            document.getElementById('pathway').value = usmleData.pathway || 'traditional';
+            document.getElementById('has_visa').value = String(usmleData.has_visa || false);
+            document.getElementById('visa_type').value = usmleData.visa_type || '';
+            document.getElementById('current_stage').value = usmleData.current_stage || '';
+            document.getElementById('next_exam').value = usmleData.next_exam || '';
+            document.getElementById('next_exam_date').value = usmleData.next_exam_date || '';
+            document.getElementById('first_pass_months').value = usmleData.first_pass_months || 6;
+            document.getElementById('second_pass_months').value = usmleData.second_pass_months || 2;
+            document.getElementById('dedicated_months').value = usmleData.dedicated_months || 1;
 
-            // Load UWorld data
-            const { data: uworldData } = await WardApp.db
-                .from('user_uworld_data')
-                .select('*')
-                .eq('user_id', userData.id)
-                .single();
+            // Step 3 & 4: UWorld data
+            const uworldData = stepData[3] || stepData[4] || {};
+            document.getElementById('uworld_purchased').value = String(uworldData.purchased || false);
+            document.getElementById('uworld_activated').value = String(uworldData.activated || false);
+            document.getElementById('uworld_expiration').value = uworldData.expiration_date || '';
+            document.getElementById('questions_done').value = uworldData.questions_done || '';
+            document.getElementById('overall_percentage').value = uworldData.overall_percentage || '';
 
-            if (uworldData) {
-                document.getElementById('uworld_purchased').value = String(uworldData.purchased);
-                document.getElementById('uworld_activated').value = String(uworldData.activated);
-                document.getElementById('uworld_expiration').value = uworldData.expiration_date || '';
-                document.getElementById('questions_done').value = uworldData.questions_done || '';
-                document.getElementById('overall_percentage').value = uworldData.overall_percentage || '';
-            }
+            // Step 5: English
+            const englishData = stepData[5] || {};
+            document.getElementById('reading_level').value = englishData.reading_level || 'good';
+            document.getElementById('listening_level').value = englishData.listening_level || 'good';
 
-            // Load Anki data
-            const { data: ankiData } = await WardApp.db
-                .from('user_anki_data')
-                .select('*')
-                .eq('user_id', userData.id)
-                .single();
+            // Step 6: Anki data
+            const ankiData = stepData[6] || {};
+            document.getElementById('anki_downloaded').value = String(ankiData.downloaded || false);
+            document.getElementById('uses_anking').value = ankiData.uses_anking || 'true';
+            document.getElementById('anki_frequency').value = ankiData.frequency || 'daily';
+            document.getElementById('average_cards').value = ankiData.average_cards_per_day || '';
 
-            if (ankiData) {
-                document.getElementById('anki_downloaded').value = String(ankiData.downloaded);
-                document.getElementById('uses_anking').value = ankiData.uses_anking || 'true';
-                document.getElementById('anki_frequency').value = ankiData.frequency || 'daily';
-                document.getElementById('average_cards').value = ankiData.average_cards_per_day || '';
-            }
+            // Steps 7-9: Research data
+            const researchData = stepData[7] || stepData[8] || stepData[9] || {};
+            document.getElementById('research_experience').value = researchData.experience_level || 'none';
+            document.getElementById('wants_research').value = researchData.wants_research_ward || 'immediately';
+            const interests = researchData.interest_areas;
+            document.getElementById('interest_areas').value = Array.isArray(interests) ? interests.join(', ') : (interests || '');
+            const institutions = researchData.target_institutions;
+            document.getElementById('target_institutions').value = Array.isArray(institutions) ? institutions.join(', ') : (institutions || '');
 
-            // Load English data
-            const { data: englishData } = await WardApp.db
-                .from('user_english_level')
-                .select('*')
-                .eq('user_id', userData.id)
-                .single();
+            // Step 10: Observerships
+            const observerData = stepData[10] || {};
+            document.getElementById('did_clerkship').value = String(observerData.did_clerkship || false);
+            document.getElementById('did_observership').value = String(observerData.did_observership || false);
 
-            if (englishData) {
-                document.getElementById('reading_level').value = englishData.reading_level || 'good';
-                document.getElementById('listening_level').value = englishData.listening_level || 'good';
-            }
-
-            // Load Research data
-            const { data: researchData } = await WardApp.db
-                .from('user_research_data')
-                .select('*')
-                .eq('user_id', userData.id)
-                .single();
-
-            if (researchData) {
-                document.getElementById('research_experience').value = researchData.experience_level || 'none';
-                document.getElementById('wants_research').value = researchData.wants_research_ward || 'immediately';
-                document.getElementById('interest_areas').value =
-                    researchData.interest_areas ? JSON.parse(researchData.interest_areas).join(', ') : '';
-                document.getElementById('target_institutions').value =
-                    researchData.target_institutions ? JSON.parse(researchData.target_institutions).join(', ') : '';
-            }
-
-            // Load Background data
-            const { data: backgroundData } = await WardApp.db
-                .from('user_background')
-                .select('*')
-                .eq('user_id', userData.id)
-                .single();
-
-            if (backgroundData) {
-                document.getElementById('current_location').value = backgroundData.current_location || 'brazil';
-                document.getElementById('personal_story').value = backgroundData.personal_story || '';
-            }
-
-            // Load Observership data
-            const { data: observerData } = await WardApp.db
-                .from('user_observerships')
-                .select('*')
-                .eq('user_id', userData.id)
-                .single();
-
-            if (observerData) {
-                document.getElementById('did_clerkship').value = String(observerData.did_clerkship);
-                document.getElementById('did_observership').value = String(observerData.did_observership);
-            }
+            // Step 11: Background
+            const backgroundData = stepData[11] || {};
+            document.getElementById('current_location').value = backgroundData.current_location || 'brazil';
+            document.getElementById('personal_story').value = backgroundData.personal_story || '';
 
             WardApp.hideLoading();
+        }
+
+        // Helper function to save questionnaire data
+        async function saveQuestionnaireStep(step, data) {
+            // Check if record exists
+            const { data: existing } = await WardApp.db
+                .from('questionnaire_data')
+                .select('id')
+                .eq('user_id', userData.id)
+                .eq('step', step)
+                .maybeSingle();
+
+            if (existing) {
+                await WardApp.db
+                    .from('questionnaire_data')
+                    .update({ data: data, updated_at: new Date().toISOString() })
+                    .eq('user_id', userData.id)
+                    .eq('step', step);
+            } else {
+                await WardApp.db
+                    .from('questionnaire_data')
+                    .insert({ user_id: userData.id, step: step, data: data });
+            }
         }
 
         // Form submissions
@@ -595,7 +574,13 @@
                 intended_specialty_usa: document.getElementById('intended_specialty_usa').value
             };
 
-            await WardApp.db.from('user_basic_data').upsert({ user_id: userData.id, ...data });
+            await saveQuestionnaireStep(1, data);
+
+            // Also update full_name on users table
+            if (data.full_name) {
+                await WardApp.db.from('users').update({ full_name: data.full_name }).eq('id', userData.id);
+            }
+
             WardApp.showToast('Dados salvos com sucesso!');
         });
 
@@ -613,16 +598,15 @@
                 dedicated_months: parseInt(document.getElementById('dedicated_months').value)
             };
 
-            await WardApp.db.from('user_usmle_data').upsert({ user_id: userData.id, ...data });
+            await saveQuestionnaireStep(2, data);
             WardApp.showToast('Dados salvos com sucesso!');
         });
 
         document.getElementById('prep-form').addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            // UWorld
-            await WardApp.db.from('user_uworld_data').upsert({
-                user_id: userData.id,
+            // UWorld (step 3)
+            await saveQuestionnaireStep(3, {
                 purchased: document.getElementById('uworld_purchased').value === 'true',
                 activated: document.getElementById('uworld_activated').value === 'true',
                 expiration_date: document.getElementById('uworld_expiration').value,
@@ -630,20 +614,18 @@
                 overall_percentage: parseInt(document.getElementById('overall_percentage').value) || null
             });
 
-            // Anki
-            await WardApp.db.from('user_anki_data').upsert({
-                user_id: userData.id,
+            // English (step 5)
+            await saveQuestionnaireStep(5, {
+                reading_level: document.getElementById('reading_level').value,
+                listening_level: document.getElementById('listening_level').value
+            });
+
+            // Anki (step 6)
+            await saveQuestionnaireStep(6, {
                 downloaded: document.getElementById('anki_downloaded').value === 'true',
                 uses_anking: document.getElementById('uses_anking').value,
                 frequency: document.getElementById('anki_frequency').value,
                 average_cards_per_day: parseInt(document.getElementById('average_cards').value) || null
-            });
-
-            // English
-            await WardApp.db.from('user_english_level').upsert({
-                user_id: userData.id,
-                reading_level: document.getElementById('reading_level').value,
-                listening_level: document.getElementById('listening_level').value
             });
 
             WardApp.showToast('Dados salvos com sucesso!');
@@ -654,25 +636,25 @@
             const data = {
                 experience_level: document.getElementById('research_experience').value,
                 wants_research_ward: document.getElementById('wants_research').value,
-                interest_areas: JSON.stringify(document.getElementById('interest_areas').value.split(',').map(s => s.trim())),
-                target_institutions: JSON.stringify(document.getElementById('target_institutions').value.split(',').map(s => s.trim()))
+                interest_areas: document.getElementById('interest_areas').value.split(',').map(s => s.trim()).filter(s => s),
+                target_institutions: document.getElementById('target_institutions').value.split(',').map(s => s.trim()).filter(s => s)
             };
 
-            await WardApp.db.from('user_research_data').upsert({ user_id: userData.id, ...data });
+            await saveQuestionnaireStep(7, data);
             WardApp.showToast('Dados salvos com sucesso!');
         });
 
         document.getElementById('clinical-form').addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            await WardApp.db.from('user_observerships').upsert({
-                user_id: userData.id,
+            // Observerships (step 10)
+            await saveQuestionnaireStep(10, {
                 did_clerkship: document.getElementById('did_clerkship').value === 'true',
                 did_observership: document.getElementById('did_observership').value === 'true'
             });
 
-            await WardApp.db.from('user_background').upsert({
-                user_id: userData.id,
+            // Background (step 11)
+            await saveQuestionnaireStep(11, {
                 current_location: document.getElementById('current_location').value,
                 personal_story: document.getElementById('personal_story').value
             });
