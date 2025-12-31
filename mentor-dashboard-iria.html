@@ -219,6 +219,46 @@
         </div>
     </div>
 
+    <!-- Edit Landmark Modal -->
+    <div id="edit-landmark-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">✏️ Editar Landmark</h3>
+                <button class="modal-close" onclick="closeModal('edit-landmark-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-landmark-id">
+                <div class="form-group">
+                    <label class="form-label">Titulo do Landmark</label>
+                    <input type="text" id="edit-landmark-title" class="form-input" readonly style="background: #f3f4f6;">
+                </div>
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="edit-landmark-completed">
+                        <span class="form-check-label">✅ Marcar como Concluido</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="edit-landmark-urgent">
+                        <span class="form-check-label">🔴 Marcar como Urgente</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Adicionar Observacao</label>
+                    <textarea id="edit-landmark-observation" class="form-textarea" rows="3" placeholder="Digite uma observacao sobre esta chamada..."></textarea>
+                </div>
+                <div id="edit-landmark-notes" class="mt-3">
+                    <!-- Previous notes will be shown here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('edit-landmark-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveLandmarkEdit()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
@@ -457,9 +497,9 @@
                 }
             });
 
-            // Build landmarks HTML
+            // Build landmarks HTML - EDITABLE
             let landmarksHTML = '<div class="landmarks-overview mb-4">';
-            landmarksHTML += '<h4 style="margin-bottom: 1rem;">📍 Landmarks do Aluno</h4>';
+            landmarksHTML += '<h4 style="margin-bottom: 1rem;">📍 Landmarks do Aluno <small style="font-weight: normal; color: #6b7280;">(clique para editar)</small></h4>';
 
             const completedCount = landmarks.filter(l => l.completed).length;
             const pendingCount = landmarks.filter(l => !l.completed).length;
@@ -471,7 +511,7 @@
                 ${urgentCount > 0 ? `<span class="badge" style="background: #fee2e2; color: #991b1b; padding: 0.5rem 1rem; border-radius: 20px;">🔴 ${urgentCount} Urgentes</span>` : ''}
             </div>`;
 
-            // Show each group
+            // Show each group with EDITABLE landmarks
             for (const [key, group] of Object.entries(landmarkGroups)) {
                 if (group.items.length > 0) {
                     landmarksHTML += `<div class="landmark-group-section mb-2">
@@ -481,7 +521,10 @@
                     group.items.forEach(lm => {
                         const statusClass = lm.completed ? 'completed' : (lm.is_urgent ? 'urgent' : 'pending');
                         const icon = lm.completed ? '✅' : (lm.is_urgent ? '🔴' : '⏳');
-                        landmarksHTML += `<span class="landmark-chip ${statusClass}" title="${lm.title}">${icon} ${lm.title.substring(0, 30)}${lm.title.length > 30 ? '...' : ''}</span>`;
+                        // Make each landmark clickable for editing
+                        landmarksHTML += `<span class="landmark-chip ${statusClass} clickable"
+                            onclick="openEditLandmarkModal(${lm.id}, '${lm.title.replace(/'/g, "\\'")}', ${lm.completed}, ${lm.is_urgent})"
+                            title="Clique para editar: ${lm.title}">${icon} ${lm.title.substring(0, 30)}${lm.title.length > 30 ? '...' : ''}</span>`;
                     });
 
                     landmarksHTML += '</div></div>';
@@ -635,7 +678,7 @@
                     });
                 });
 
-                // Blog posts
+                // Blog posts - FULL CONTENT
                 (postsRes.data || []).forEach(item => {
                     feed.push({
                         type: 'post',
@@ -643,13 +686,14 @@
                         color: '#7c3aed',
                         user: item.users?.full_name || item.users?.email || 'Aluno',
                         action: 'publicou no blog',
-                        title: item.content?.substring(0, 100) + (item.content?.length > 100 ? '...' : ''),
+                        title: '', // Will show full content
+                        fullContent: item.content,
                         detail: `${item.likes || 0} likes, ${item.dislikes || 0} dislikes`,
                         date: item.created_at
                     });
                 });
 
-                // Comments
+                // Comments - FULL CONTENT
                 (commentsRes.data || []).forEach(item => {
                     feed.push({
                         type: 'comment',
@@ -657,7 +701,8 @@
                         color: '#059669',
                         user: item.users?.full_name || item.users?.email || 'Aluno',
                         action: 'comentou em um post',
-                        title: item.content?.substring(0, 80) + (item.content?.length > 80 ? '...' : ''),
+                        title: '',
+                        fullContent: item.content,
                         detail: '',
                         date: item.created_at
                     });
@@ -678,7 +723,7 @@
                     });
                 });
 
-                // Study diary
+                // Study diary - FULL CONTENT
                 (studyDiaryRes.data || []).forEach(item => {
                     feed.push({
                         type: 'study',
@@ -686,13 +731,14 @@
                         color: '#f59e0b',
                         user: item.users?.full_name || item.users?.email || 'Aluno',
                         action: 'atualizou diario de estudos',
-                        title: item.content?.substring(0, 80) + (item.content?.length > 80 ? '...' : ''),
+                        title: '',
+                        fullContent: item.content || item.entry_text,
                         detail: '',
                         date: item.created_at
                     });
                 });
 
-                // UWorld diary
+                // UWorld diary - FULL CONTENT
                 (uworldDiaryRes.data || []).forEach(item => {
                     const acertos = item.questions_correct && item.questions_total
                         ? Math.round((item.questions_correct / item.questions_total) * 100) + '% acertos'
@@ -705,6 +751,7 @@
                         action: 'registrou sessao UWorld',
                         title: `${item.questions_total || 0} questoes ${acertos ? '- ' + acertos : ''}`,
                         detail: item.system_name ? `System: ${item.system_name}` : '',
+                        fullContent: item.difficulties,
                         date: item.created_at
                     });
                 });
@@ -723,7 +770,7 @@
                     });
                 });
 
-                // Mentor messages
+                // Mentor messages - FULL CONTENT
                 (messagesRes.data || []).forEach(item => {
                     feed.push({
                         type: 'message',
@@ -731,7 +778,8 @@
                         color: '#0ea5e9',
                         user: item.mentor?.full_name || 'Mentor',
                         action: `enviou mensagem para ${item.users?.full_name || 'aluno'}`,
-                        title: item.content?.substring(0, 80) + (item.content?.length > 80 ? '...' : ''),
+                        title: '',
+                        fullContent: item.content,
                         detail: '',
                         date: item.created_at
                     });
@@ -773,7 +821,7 @@
                     return;
                 }
 
-                // Render feed (show last 50 items)
+                // Render feed (show last 50 items) with FULL CONTENT
                 container.innerHTML = feed.slice(0, 50).map(item => `
                     <div class="feed-item" style="border-left-color: ${item.color}">
                         <div class="feed-icon">${item.icon}</div>
@@ -781,7 +829,8 @@
                             <div class="feed-header">
                                 <strong>${item.user}</strong> ${item.action}
                             </div>
-                            <div class="feed-title">${item.title}</div>
+                            ${item.title ? `<div class="feed-title">${item.title}</div>` : ''}
+                            ${item.fullContent ? `<div class="feed-full-content">${item.fullContent}</div>` : ''}
                             ${item.detail ? `<div class="feed-detail">${item.detail}</div>` : ''}
                             <div class="feed-date">${WardApp.formatDate(item.date)}</div>
                         </div>
@@ -903,6 +952,97 @@
             if (!selectedStudent) return;
             // Open student profile in new tab or modal
             window.open(`profile.html?user_id=${selectedStudent.id}`, '_blank');
+        }
+
+        // Edit Landmark Functions
+        let currentEditLandmarkId = null;
+
+        async function openEditLandmarkModal(id, title, completed, urgent) {
+            currentEditLandmarkId = id;
+            document.getElementById('edit-landmark-id').value = id;
+            document.getElementById('edit-landmark-title').value = title;
+            document.getElementById('edit-landmark-completed').checked = completed;
+            document.getElementById('edit-landmark-urgent').checked = urgent;
+            document.getElementById('edit-landmark-observation').value = '';
+
+            // Load existing notes
+            const { data: landmark } = await WardApp.db
+                .from('landmarks')
+                .select('notes')
+                .eq('id', id)
+                .single();
+
+            const notesContainer = document.getElementById('edit-landmark-notes');
+            const notes = landmark?.notes || [];
+
+            if (notes.length > 0) {
+                notesContainer.innerHTML = `
+                    <label class="form-label">Observacoes anteriores:</label>
+                    <div class="previous-notes" style="max-height: 150px; overflow-y: auto; background: #f9fafb; padding: 0.75rem; border-radius: 8px;">
+                        ${notes.map(note => `
+                            <div class="note-item" style="margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb;">
+                                <div style="font-size: 0.85rem;">${note.text}</div>
+                                <div style="font-size: 0.7rem; color: #9ca3af;">
+                                    ${note.author} - ${WardApp.formatDate(note.date)}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                notesContainer.innerHTML = '<p class="text-muted" style="font-size: 0.85rem;">Nenhuma observacao ainda</p>';
+            }
+
+            openModal('edit-landmark-modal');
+        }
+
+        async function saveLandmarkEdit() {
+            const id = currentEditLandmarkId;
+            const completed = document.getElementById('edit-landmark-completed').checked;
+            const urgent = document.getElementById('edit-landmark-urgent').checked;
+            const newObservation = document.getElementById('edit-landmark-observation').value.trim();
+
+            // Build update object
+            const updates = {
+                completed,
+                is_urgent: urgent
+            };
+
+            if (completed) {
+                updates.completion_date = new Date().toISOString();
+            }
+
+            // If there's a new observation, add it
+            if (newObservation) {
+                const { data: landmark } = await WardApp.db
+                    .from('landmarks')
+                    .select('notes')
+                    .eq('id', id)
+                    .single();
+
+                const notes = landmark?.notes || [];
+                notes.push({
+                    text: newObservation,
+                    date: new Date().toISOString(),
+                    author: userData.full_name || userData.email
+                });
+                updates.notes = notes;
+            }
+
+            await WardApp.db
+                .from('landmarks')
+                .update(updates)
+                .eq('id', id);
+
+            closeModal('edit-landmark-modal');
+            WardApp.showToast('Landmark atualizado!');
+
+            // Reload student timeline
+            if (selectedStudent) {
+                await loadStudentTimeline(selectedStudent.id);
+            }
+            await loadPendingCalls();
+            await updateStats();
         }
 
         function openModal(id) {
@@ -1182,6 +1322,28 @@
         .landmark-chip.urgent {
             background: #fee2e2;
             border-color: #fca5a5;
+        }
+
+        .landmark-chip.clickable {
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        .landmark-chip.clickable:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        /* Feed item with expandable content */
+        .feed-full-content {
+            background: #f9fafb;
+            padding: 0.75rem;
+            border-radius: 6px;
+            margin-top: 0.5rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 300px;
+            overflow-y: auto;
         }
     </style>
 </body>
