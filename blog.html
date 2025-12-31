@@ -171,26 +171,46 @@
         async function loadPosts() {
             document.getElementById('loading-posts').style.display = 'block';
 
+            // First get posts
             const { data: posts, error } = await WardApp.db
                 .from('blog_posts')
-                .select(`
-                    *,
-                    author:users!blog_posts_user_id_fkey(id, name, full_name, role)
-                `)
+                .select('*')
                 .eq('is_deleted', false)
                 .order('is_pinned', { ascending: false })
                 .order('likes', { ascending: false })
                 .order('created_at', { ascending: false });
 
-            document.getElementById('loading-posts').style.display = 'none';
-
             if (error) {
                 console.error('Error loading posts:', error);
                 WardApp.showToast('Erro ao carregar posts', 'error');
+                document.getElementById('loading-posts').style.display = 'none';
                 return;
             }
 
-            allPosts = posts || [];
+            // Get unique user IDs and fetch user data
+            const userIds = [...new Set(posts.map(p => p.user_id).filter(id => id))];
+            let usersMap = {};
+
+            if (userIds.length > 0) {
+                const { data: users } = await WardApp.db
+                    .from('users')
+                    .select('id, name, full_name, role')
+                    .in('id', userIds);
+
+                if (users) {
+                    usersMap = users.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
+                }
+            }
+
+            // Attach author to each post
+            const postsWithAuthors = posts.map(p => ({
+                ...p,
+                author: usersMap[p.user_id] || { name: 'Desconhecido', role: 'aluno' }
+            }));
+
+            document.getElementById('loading-posts').style.display = 'none';
+
+            allPosts = postsWithAuthors || [];
             renderPosts();
         }
 
@@ -343,10 +363,7 @@
         async function loadComments(postId) {
             const { data: comments, error } = await WardApp.db
                 .from('blog_comments')
-                .select(`
-                    *,
-                    author:users!blog_comments_user_id_fkey(name, full_name, role)
-                `)
+                .select('*')
                 .eq('post_id', postId)
                 .eq('is_deleted', false)
                 .order('created_at', { ascending: true });
@@ -358,9 +375,25 @@
                 return;
             }
 
+            // Get unique user IDs and fetch user data
+            const userIds = [...new Set(comments.map(c => c.user_id).filter(id => id))];
+            let usersMap = {};
+
+            if (userIds.length > 0) {
+                const { data: users } = await WardApp.db
+                    .from('users')
+                    .select('id, name, full_name, role')
+                    .in('id', userIds);
+
+                if (users) {
+                    usersMap = users.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
+                }
+            }
+
             commentsList.innerHTML = comments.map(comment => {
-                const authorName = comment.author?.full_name || comment.author?.name || 'Usuario';
-                const isMentorComment = comment.author?.role?.startsWith('mentor_');
+                const author = usersMap[comment.user_id] || { name: 'Usuario', role: 'aluno' };
+                const authorName = author.full_name || author.name || 'Usuario';
+                const isMentorComment = author.role?.startsWith('mentor_');
                 const badge = isMentorComment ? '<span class="mentor-badge-sm">M</span>' : '';
 
                 return `
