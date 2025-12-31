@@ -165,6 +165,16 @@
             </div>
         </div>
 
+        <!-- Pending Calls Section -->
+        <div class="card mt-4">
+            <div class="card-header">📞 Calls Pendentes (Todas)</div>
+            <div class="card-body">
+                <div id="pending-calls-list" class="pending-calls-grid">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
         <!-- Mentors Access -->
         <div class="card mt-4">
             <div class="card-header">👩‍🏫 Acessar Dashboard de Mentores</div>
@@ -287,6 +297,77 @@ Cardiovascular	Physiology	62	FALSE
 
             await loadRecentActivity();
             await renderStudentsTable();
+            await loadPendingCalls();
+        }
+
+        async function loadPendingCalls() {
+            // Admin sees ALL pending landmarks
+            const { data: pendingCalls, error } = await WardApp.db
+                .from('landmarks')
+                .select('*')
+                .eq('completed', false)
+                .order('is_urgent', { ascending: false })
+                .order('created_at', { ascending: true });
+
+            const container = document.getElementById('pending-calls-list');
+
+            if (error) {
+                console.error('Error loading pending calls:', error);
+                container.innerHTML = '<p class="text-muted">Erro ao carregar calls</p>';
+                return;
+            }
+
+            if (!pendingCalls || pendingCalls.length === 0) {
+                container.innerHTML = '<p class="text-muted">Nenhuma call pendente!</p>';
+                return;
+            }
+
+            // Get user info for each pending call
+            const userIds = [...new Set(pendingCalls.map(c => c.user_id))];
+            const { data: users } = await WardApp.db
+                .from('users')
+                .select('id, full_name, email')
+                .in('id', userIds);
+
+            const userMap = {};
+            (users || []).forEach(u => userMap[u.id] = u);
+
+            const groupNames = {
+                'setup': 'Setup',
+                'first-round': '1a Rodada',
+                'second-round': '2a Rodada',
+                'system-calls': 'System',
+                'research': 'Pesquisa',
+                'second-pass': 'Second Pass',
+                'dedicated': 'Dedicated',
+                'extras': 'Extra'
+            };
+
+            container.innerHTML = pendingCalls.map(call => {
+                const user = userMap[call.user_id] || {};
+                return `
+                    <div class="pending-call-card ${call.is_urgent ? 'urgent' : ''}">
+                        <div class="call-icon">${call.is_urgent ? '🔴' : '📞'}</div>
+                        <div class="call-info">
+                            <div class="call-title">${call.title}</div>
+                            <div class="call-student">${user.full_name || user.email || 'Aluno'}</div>
+                            <div class="call-group">${groupNames[call.group_name] || call.group_name}</div>
+                        </div>
+                        <button class="btn btn-sm btn-primary" onclick="markCallComplete(${call.id})">✓</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function markCallComplete(landmarkId) {
+            await WardApp.db
+                .from('landmarks')
+                .update({ completed: true, completion_date: new Date().toISOString() })
+                .eq('id', landmarkId);
+
+            WardApp.showToast('Call marcada como concluida!');
+            await loadPendingCalls();
+            await loadDashboardData();
         }
 
         async function loadRecentActivity() {
@@ -695,6 +776,54 @@ Cardiovascular	Physiology	62	FALSE
 
         .modal-lg {
             max-width: 700px;
+        }
+
+        .pending-calls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .pending-call-card {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+            border-left: 3px solid var(--gray-300);
+        }
+
+        .pending-call-card.urgent {
+            background: #fef2f2;
+            border-left-color: #ef4444;
+        }
+
+        .call-icon {
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .call-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .call-title {
+            font-weight: 500;
+            word-wrap: break-word;
+        }
+
+        .call-student {
+            font-size: 0.875rem;
+            color: var(--gray-600);
+        }
+
+        .call-group {
+            font-size: 0.75rem;
+            color: var(--gray-400);
         }
     </style>
 </body>

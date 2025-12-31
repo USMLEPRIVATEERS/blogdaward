@@ -363,30 +363,51 @@
         }
 
         async function loadResearchCalls() {
-            const { data: calls } = await WardApp.db
+            // Load pending landmarks for Romulo (research calls and calls with Romulo in title)
+            const { data: calls, error } = await WardApp.db
                 .from('landmarks')
-                .select('*, user:users!landmarks_user_id_fkey(name, full_name)')
-                .eq('group_name', 'research')
+                .select('*')
                 .eq('completed', false)
-                .order('urgent', { ascending: false });
+                .or('group_name.eq.research,title.ilike.%Romulo%,title.ilike.%romulo%')
+                .order('is_urgent', { ascending: false })
+                .order('created_at', { ascending: true });
 
             const container = document.getElementById('research-calls-list');
+
+            if (error) {
+                console.error('Error loading research calls:', error);
+                container.innerHTML = '<p class="text-muted">Erro ao carregar calls</p>';
+                return;
+            }
 
             if (!calls || calls.length === 0) {
                 container.innerHTML = '<p class="text-muted">Nenhuma research call pendente</p>';
                 return;
             }
 
-            container.innerHTML = calls.map(call => `
-                <div class="call-card ${call.urgent ? 'urgent' : ''}">
-                    <div class="call-icon">${call.urgent ? '🔴' : '🔬'}</div>
+            // Get user info for each call
+            const userIds = [...new Set(calls.map(c => c.user_id))];
+            const { data: users } = await WardApp.db
+                .from('users')
+                .select('id, full_name, email')
+                .in('id', userIds);
+
+            const userMap = {};
+            (users || []).forEach(u => userMap[u.id] = u);
+
+            container.innerHTML = calls.map(call => {
+                const user = userMap[call.user_id] || {};
+                return `
+                <div class="call-card ${call.is_urgent ? 'urgent' : ''}">
+                    <div class="call-icon">${call.is_urgent ? '🔴' : '🔬'}</div>
                     <div class="call-info">
                         <div class="call-title">${call.title}</div>
-                        <div class="call-student">${call.user?.full_name || 'Aluno'}</div>
+                        <div class="call-student">${user.full_name || 'Aluno'}</div>
                     </div>
                     <button class="btn btn-sm btn-primary" onclick="markCallComplete(${call.id})">✓</button>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
 
         async function markCallComplete(landmarkId) {

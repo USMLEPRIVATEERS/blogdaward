@@ -917,35 +917,62 @@
         }
 
         async function loadPendingCalls() {
+            // Load pending landmarks for Iria (all her calls that are not completed)
             const { data: pendingCalls, error } = await WardApp.db
                 .from('landmarks')
-                .select(`
-                    *,
-                    user:users!landmarks_user_id_fkey(full_name, email)
-                `)
+                .select('*')
                 .eq('completed', false)
-                .or('group_name.eq.first_round,group_name.eq.second_round,group_name.eq.system_calls')
-                .order('urgent', { ascending: false })
+                .or('title.ilike.%Iria%,title.ilike.%iria%')
+                .order('is_urgent', { ascending: false })
                 .order('created_at', { ascending: true });
 
             const container = document.getElementById('pending-calls-list');
+
+            if (error) {
+                console.error('Error loading pending calls:', error);
+                container.innerHTML = '<p class="text-muted">Erro ao carregar calls</p>';
+                return;
+            }
 
             if (!pendingCalls || pendingCalls.length === 0) {
                 container.innerHTML = '<p class="text-muted">Nenhuma call pendente!</p>';
                 return;
             }
 
-            container.innerHTML = pendingCalls.map(call => `
-                <div class="pending-call-card ${call.urgent ? 'urgent' : ''}">
-                    <div class="call-icon">${call.urgent ? '🔴' : '📞'}</div>
-                    <div class="call-info">
-                        <div class="call-title">${call.title}</div>
-                        <div class="call-student">${call.user?.full_name || 'Aluno'}</div>
-                        <div class="call-group">${call.group_name}</div>
+            // Get user info for each pending call
+            const userIds = [...new Set(pendingCalls.map(c => c.user_id))];
+            const { data: users } = await WardApp.db
+                .from('users')
+                .select('id, full_name, email')
+                .in('id', userIds);
+
+            const userMap = {};
+            (users || []).forEach(u => userMap[u.id] = u);
+
+            container.innerHTML = pendingCalls.map(call => {
+                const user = userMap[call.user_id] || {};
+                const groupNames = {
+                    'setup': 'Setup',
+                    'first-round': '1a Rodada',
+                    'second-round': '2a Rodada',
+                    'system-calls': 'System',
+                    'research': 'Pesquisa',
+                    'second-pass': 'Second Pass',
+                    'dedicated': 'Dedicated',
+                    'extras': 'Extra'
+                };
+                return `
+                    <div class="pending-call-card ${call.is_urgent ? 'urgent' : ''}">
+                        <div class="call-icon">${call.is_urgent ? '🔴' : '📞'}</div>
+                        <div class="call-info">
+                            <div class="call-title">${call.title}</div>
+                            <div class="call-student">${user.full_name || user.email || 'Aluno'}</div>
+                            <div class="call-group">${groupNames[call.group_name] || call.group_name}</div>
+                        </div>
+                        <button class="btn btn-sm btn-primary" onclick="markCallComplete(${call.id})">✓</button>
                     </div>
-                    <button class="btn btn-sm btn-primary" onclick="markCallComplete(${call.id})">✓</button>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         async function markCallComplete(landmarkId) {
