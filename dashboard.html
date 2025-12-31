@@ -295,25 +295,48 @@
             userData = await WardApp.checkAuth();
             if (!userData) return;
 
-            // Check if mentor is viewing as student
+            // Check if mentor is viewing as student (URL param or localStorage)
             const urlParams = new URLSearchParams(window.location.search);
-            const viewAsId = urlParams.get('view_as');
-            const viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+            let viewAsId = urlParams.get('view_as');
+            let viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
 
-            if (viewAsId && viewAsData && viewAsData.studentId == viewAsId) {
-                // Load student data instead
-                const { data: student } = await WardApp.db
-                    .from('users')
-                    .select('*')
-                    .eq('id', viewAsId)
-                    .single();
+            // If not in URL, check localStorage
+            if (!viewAsId && viewAsData) {
+                viewAsId = viewAsData.id || viewAsData.studentId;
+            }
 
-                if (student) {
-                    viewingAsStudent = student;
-                    userData = { ...userData, ...student, originalMentor: viewAsData };
+            if (viewAsId) {
+                // Check if current user is a mentor
+                const isMentor = userData.role && userData.role.startsWith('mentor');
 
-                    // Show viewing banner
-                    showViewingAsBanner(viewAsData);
+                if (isMentor) {
+                    // Load student data
+                    const { data: student } = await WardApp.db
+                        .from('users')
+                        .select('*')
+                        .eq('id', viewAsId)
+                        .single();
+
+                    if (student) {
+                        viewingAsStudent = student;
+                        userData = { ...userData, ...student, originalMentor: viewAsData };
+
+                        // Ensure localStorage has the data (for persistence across navigation)
+                        if (!viewAsData || (viewAsData.id != viewAsId && viewAsData.studentId != viewAsId)) {
+                            viewAsData = { id: student.id, name: student.full_name, mentorRole: userData.role };
+                            localStorage.setItem('view_as_student', JSON.stringify(viewAsData));
+                        }
+
+                        // Show viewing banner
+                        showViewingAsBanner({
+                            id: student.id,
+                            name: student.full_name || student.email,
+                            mentorRole: viewAsData?.mentorRole || userData.role
+                        });
+                    }
+                } else {
+                    // Not a mentor, clear the storage
+                    localStorage.removeItem('view_as_student');
                 }
             }
 
@@ -596,8 +619,10 @@
             const banner = document.createElement('div');
             banner.id = 'viewing-as-banner';
             banner.className = 'viewing-as-banner';
+            const studentName = viewAsData.name || viewAsData.studentName || 'Aluno';
+            const studentId = viewAsData.id || viewAsData.studentId;
             banner.innerHTML = `
-                <span>👁️ Visualizando como: <strong>${viewAsData.studentName}</strong></span>
+                <span>👁️ Visualizando como: <strong>${studentName}</strong></span>
                 <button class="btn btn-sm" onclick="exitViewAsStudent()">✕ Sair desta visualizacao</button>
             `;
             document.body.insertBefore(banner, document.body.firstChild);
@@ -606,7 +631,7 @@
             document.body.style.paddingTop = '50px';
 
             // Update all navbar links to include view_as parameter
-            updateNavbarForViewAs(viewAsData.studentId);
+            updateNavbarForViewAs(studentId);
         }
 
         function updateNavbarForViewAs(studentId) {
@@ -622,8 +647,17 @@
         }
 
         function exitViewAsStudent() {
+            const viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
             localStorage.removeItem('view_as_student');
-            window.close();
+
+            // Redirect to mentor's dashboard based on their role
+            if (viewAsData && viewAsData.mentorRole) {
+                const mentorName = viewAsData.mentorRole.replace('mentor_', '');
+                window.location.href = `mentor-dashboard-${mentorName}.html`;
+            } else {
+                // Fallback - try to close or go to main page
+                window.location.href = 'index.html';
+            }
         }
     </script>
 </body>

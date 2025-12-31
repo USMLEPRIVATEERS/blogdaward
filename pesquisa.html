@@ -509,6 +509,18 @@
             if (student) {
                 document.getElementById('viewing-as-banner').style.display = 'flex';
                 document.getElementById('viewing-student-name').textContent = student.full_name;
+
+                // Preserve mentorRole from existing localStorage if available
+                const existingData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+                const mentorRole = existingData?.mentorRole || userData.role;
+
+                // Store in localStorage for other pages
+                localStorage.setItem('view_as_student', JSON.stringify({
+                    id: studentId,
+                    name: student.full_name,
+                    mentorRole: mentorRole
+                }));
+
                 updateNavbarForViewAs(studentId);
             }
         }
@@ -526,10 +538,16 @@
         }
 
         function exitViewAs() {
+            const viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
             localStorage.removeItem('view_as_student');
-            window.location.href = userData.role === 'mentor_marcos'
-                ? 'mentor-dashboard-marcos.html'
-                : 'mentor-dashboard-iria.html';
+
+            // Redirect back to mentor dashboard based on stored role
+            if (viewAsData && viewAsData.mentorRole) {
+                const mentorName = viewAsData.mentorRole.replace('mentor_', '');
+                window.location.href = `mentor-dashboard-${mentorName}.html`;
+            } else {
+                window.location.href = 'index.html';
+            }
         }
 
         async function loadAllUsers() {
