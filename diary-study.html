@@ -39,7 +39,7 @@
             <h1>📓 Diario de Estudos</h1>
             <div class="btn-group">
                 <a href="diary-uworld.html" class="btn btn-outline">📊 Diario UWorld</a>
-                <button class="btn btn-primary" onclick="openModal('new-entry-modal')">+ Nova Entrada</button>
+                <button class="btn btn-primary" id="new-entry-btn" onclick="openModal('new-entry-modal')">+ Nova Entrada</button>
             </div>
         </div>
 
@@ -288,12 +288,20 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
+    <!-- Viewing As Banner -->
+    <div id="viewing-as-banner" class="viewing-as-banner" style="display: none;">
+        <span>👁️ Visualizando como: <strong id="viewing-student-name"></strong></span>
+        <button class="btn btn-sm btn-secondary" onclick="exitViewAs()">Voltar para minha conta</button>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
         let allEntries = [];
         let currentDate = new Date();
+        let viewingAsStudentId = null;
+        let targetUserId = null; // The user whose diary we're viewing
 
         const moodEmojis = {
             great: '😊',
@@ -310,10 +318,43 @@
             userData = await WardApp.checkAuth();
             if (!userData) return;
 
-            // Check if diary is enabled (stored in localStorage)
-            if (localStorage.getItem('study_diary_enabled') !== 'true') {
-                window.location.href = 'dashboard.html';
-                return;
+            // Check if viewing as another student (URL param or localStorage)
+            const urlParams = new URLSearchParams(window.location.search);
+            viewingAsStudentId = urlParams.get('view_as');
+
+            // If not in URL, check localStorage
+            if (!viewingAsStudentId) {
+                const storedViewAs = localStorage.getItem('view_as_student');
+                if (storedViewAs) {
+                    try {
+                        const parsed = JSON.parse(storedViewAs);
+                        viewingAsStudentId = parsed.id;
+                    } catch(e) {}
+                }
+            }
+
+            if (viewingAsStudentId) {
+                // Verify mentor is authorized to view this student
+                const isMentor = userData.role && userData.role.startsWith('mentor');
+                if (isMentor) {
+                    await setupViewingAsStudent(viewingAsStudentId);
+                    targetUserId = parseInt(viewingAsStudentId);
+
+                    // Hide new entry button for mentors
+                    document.getElementById('new-entry-btn').style.display = 'none';
+                } else {
+                    // Not a mentor, ignore view_as and clear storage
+                    localStorage.removeItem('view_as_student');
+                    targetUserId = userData.id;
+                }
+            } else {
+                targetUserId = userData.id;
+
+                // Check if diary is enabled (stored in localStorage)
+                if (localStorage.getItem('study_diary_enabled') !== 'true') {
+                    window.location.href = 'dashboard.html';
+                    return;
+                }
             }
 
             // Set default date to today
@@ -322,11 +363,66 @@
             await loadEntries();
         });
 
+        async function setupViewingAsStudent(studentId) {
+            // Get student info
+            const { data: student } = await WardApp.db
+                .from('users')
+                .select('full_name')
+                .eq('id', studentId)
+                .single();
+
+            if (student) {
+                // Show viewing banner and add body padding
+                document.getElementById('viewing-as-banner').style.display = 'flex';
+                document.getElementById('viewing-student-name').textContent = student.full_name;
+                document.body.style.paddingTop = '50px';
+
+                // Preserve mentorRole from existing localStorage if available
+                const existingData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+                const mentorRole = existingData?.mentorRole || userData.role;
+
+                // Store in localStorage for other pages
+                localStorage.setItem('view_as_student', JSON.stringify({
+                    id: studentId,
+                    name: student.full_name,
+                    mentorRole: mentorRole
+                }));
+
+                // Update navbar links to maintain view_as context
+                updateNavbarForViewAs(studentId);
+            }
+        }
+
+        function updateNavbarForViewAs(studentId) {
+            const navLinks = document.querySelectorAll('.nav-menu a.nav-link, .nav-user a');
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && !href.startsWith('#') && !href.startsWith('javascript')) {
+                    const url = new URL(href, window.location.href);
+                    url.searchParams.set('view_as', studentId);
+                    link.setAttribute('href', url.href);
+                }
+            });
+        }
+
+        function exitViewAs() {
+            const viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+            localStorage.removeItem('view_as_student');
+
+            // Redirect back to mentor dashboard
+            if (viewAsData && viewAsData.mentorRole) {
+                const mentorName = viewAsData.mentorRole.replace('mentor_', '');
+                window.location.href = `mentor-dashboard-${mentorName}.html`;
+            } else {
+                window.location.href = 'index.html';
+            }
+        }
+
         async function loadEntries() {
             const { data: entries, error } = await WardApp.db
                 .from('study_diary')
                 .select('*')
-                .eq('user_id', userData.id)
+                .eq('user_id', targetUserId)
                 .order('date', { ascending: false });
 
             if (error) {
@@ -465,8 +561,9 @@
 
             container.innerHTML = allEntries.slice(0, 20).map(entry => {
                 const resources = entry.resources || [];
+                const isViewing = viewingAsStudentId !== null;
                 return `
-                    <div class="entry-item" onclick="editEntry(${entry.id})">
+                    <div class="entry-item" onclick="${isViewing ? '' : `editEntry(${entry.id})`}" style="${isViewing ? 'cursor: default;' : ''}"
                         <div class="entry-date">
                             <div class="entry-day">${new Date(entry.date).getDate()}</div>
                             <div class="entry-month">${monthNames[new Date(entry.date).getMonth()].substring(0, 3)}</div>
@@ -806,6 +903,37 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
             gap: 0.5rem;
+        }
+
+        /* Viewing As Banner */
+        .viewing-as-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .viewing-as-banner button {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.5);
+            color: white;
+            padding: 0.35rem 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .viewing-as-banner button:hover {
+            background: rgba(255,255,255,0.3);
         }
     </style>
 </body>
