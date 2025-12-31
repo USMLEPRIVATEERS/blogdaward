@@ -103,7 +103,18 @@
                     <span class="dashboard-card-icon">🎯</span>
                     <span class="dashboard-card-title">Preparacao Atual</span>
                 </div>
-                <form id="prep-status-form">
+
+                <!-- Display Mode (when already filled) -->
+                <div id="prep-status-display" style="display: none;">
+                    <div style="padding: 1rem; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-radius: 8px; border-left: 4px solid #0ea5e9; margin-bottom: 0.75rem;">
+                        <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.25rem;">Voce esta focando em:</div>
+                        <div id="prep-status-value" style="font-size: 1.1rem; font-weight: 700; color: #0f172a;"></div>
+                    </div>
+                    <button class="btn btn-outline btn-sm" onclick="editPrepStatus()">✏️ Editar</button>
+                </div>
+
+                <!-- Edit Form Mode (when empty or editing) -->
+                <form id="prep-status-form" style="display: none;">
                     <div class="form-group mb-2">
                         <label class="form-label">Atualmente focando em:</label>
                         <div class="form-check">
@@ -127,7 +138,10 @@
                             <label class="form-check-label" for="prep_other">Outro</label>
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="cancelPrepStatusEdit()" id="cancel-prep-btn" style="display: none;">Cancelar</button>
+                    </div>
                 </form>
             </div>
 
@@ -482,10 +496,42 @@
                 .eq('user_id', userData.id)
                 .single();
 
+            const displayDiv = document.getElementById('prep-status-display');
+            const formDiv = document.getElementById('prep-status-form');
+
             if (data?.currently_preparing_for) {
+                // Show display mode
+                const prepLabels = {
+                    'step1': 'Step 1',
+                    'step2ck': 'Step 2 CK',
+                    'step3': 'Step 3',
+                    'oet': 'OET',
+                    'other': 'Outro'
+                };
+                document.getElementById('prep-status-value').textContent = prepLabels[data.currently_preparing_for] || data.currently_preparing_for;
+                displayDiv.style.display = 'block';
+                formDiv.style.display = 'none';
+
+                // Also check the radio for when editing
                 const radio = document.querySelector(`input[name="current_prep"][value="${data.currently_preparing_for}"]`);
                 if (radio) radio.checked = true;
+            } else {
+                // Show form mode (first time filling)
+                displayDiv.style.display = 'none';
+                formDiv.style.display = 'block';
             }
+        }
+
+        function editPrepStatus() {
+            document.getElementById('prep-status-display').style.display = 'none';
+            document.getElementById('prep-status-form').style.display = 'block';
+            document.getElementById('cancel-prep-btn').style.display = 'inline-block';
+        }
+
+        function cancelPrepStatusEdit() {
+            document.getElementById('prep-status-display').style.display = 'block';
+            document.getElementById('prep-status-form').style.display = 'none';
+            document.getElementById('cancel-prep-btn').style.display = 'none';
         }
 
         // Preparation status form
@@ -493,7 +539,10 @@
             e.preventDefault();
 
             const value = document.querySelector('input[name="current_prep"]:checked')?.value;
-            if (!value) return;
+            if (!value) {
+                WardApp.showToast('Selecione uma opcao', 'warning');
+                return;
+            }
 
             const { error } = await WardApp.db
                 .from('user_preparation_status')
@@ -505,6 +554,8 @@
 
             if (!error) {
                 WardApp.showToast('Status atualizado!');
+                // Reload to show display mode
+                await loadPrepStatus();
             }
         });
 
