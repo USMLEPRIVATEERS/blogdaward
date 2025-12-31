@@ -535,17 +535,27 @@
                 return;
             }
 
-            // Update comment count
-            const post = allPosts.find(p => p.id == postId);
-            if (post && post.comments_count > 0) {
-                await WardApp.db.from('blog_posts')
-                    .update({ comments_count: post.comments_count - 1 })
-                    .eq('id', postId);
-            }
+            // Update comment count by counting actual comments
+            await updateCommentCount(postId);
 
             WardApp.showToast('Comentario excluido!');
             await loadComments(postId);
             await loadPosts();
+        }
+
+        async function updateCommentCount(postId) {
+            // Count actual non-deleted comments
+            const { count, error } = await WardApp.db
+                .from('blog_comments')
+                .select('*', { count: 'exact', head: true })
+                .eq('post_id', postId)
+                .eq('is_deleted', false);
+
+            if (!error) {
+                await WardApp.db.from('blog_posts')
+                    .update({ comments_count: count || 0 })
+                    .eq('id', postId);
+            }
         }
 
         async function addComment() {
@@ -569,13 +579,8 @@
                 return;
             }
 
-            // Update comment count directly (without RPC)
-            const post = allPosts.find(p => p.id == postId);
-            if (post) {
-                await WardApp.db.from('blog_posts')
-                    .update({ comments_count: (post.comments_count || 0) + 1 })
-                    .eq('id', postId);
-            }
+            // Update comment count by counting actual comments
+            await updateCommentCount(parseInt(postId));
 
             document.getElementById('new-comment').value = '';
             WardApp.showToast('Comentario adicionado!');
