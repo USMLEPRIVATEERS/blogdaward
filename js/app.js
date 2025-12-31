@@ -4,20 +4,27 @@
 const SUPABASE_URL = 'https://yxtdesthusclivjdewfl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4dGRlc3RodXNjbGl2amRld2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxNDUzMzYsImV4cCI6MjA4MjcyMTMzNn0.OQgK2s8K7CKJKyIwx7I6jnExTdCBpgiM7KfZuqhbPbw';
 
-// Initialize Supabase Client - using supabaseClient to avoid conflict with global supabase from CDN
+// Initialize Supabase Client
 let supabaseClient = null;
 
-// Wait for supabase CDN to be loaded
+// Wait for supabase CDN to be loaded and initialize
 function initSupabase() {
     if (window.supabase && window.supabase.createClient) {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Expose the initialized client globally so all pages can use supabase.from()
+        window.supabase = supabaseClient;
         return true;
     }
     return false;
 }
 
-// Initialize supabase immediately if available
-initSupabase();
+// Initialize supabase immediately if available, otherwise wait for DOM
+if (!initSupabase()) {
+    document.addEventListener('DOMContentLoaded', function() {
+        // Retry initialization after DOM is ready
+        setTimeout(initSupabase, 100);
+    });
+}
 
 // ===== UTILITY FUNCTIONS =====
 
@@ -1283,8 +1290,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Helper to get supabase client (ensures it's initialized)
+function getSupabaseClient() {
+    if (!supabaseClient) {
+        initSupabase();
+    }
+    return supabaseClient;
+}
+
 // Export functions for use in HTML
 window.WardApp = {
+    // Supabase client accessor - use WardApp.db.from('table')
+    get db() {
+        return getSupabaseClient();
+    },
     login,
     logout,
     checkAuth,
@@ -1327,3 +1346,10 @@ window.WardApp = {
     formatDate,
     daysRemaining
 };
+
+// Also expose supabase globally for backward compatibility
+Object.defineProperty(window, 'supabase', {
+    get() {
+        return getSupabaseClient();
+    }
+});
