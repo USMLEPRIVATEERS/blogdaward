@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS course_videos (
 CREATE TABLE IF NOT EXISTS course_video_comments (
     id SERIAL PRIMARY KEY,
     video_id INTEGER REFERENCES course_videos(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -925,10 +925,10 @@ CREATE POLICY "Anyone can view comments" ON course_video_comments
     FOR SELECT USING (true);
 
 CREATE POLICY "Authenticated users can add comments" ON course_video_comments
-    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+    FOR INSERT WITH CHECK (true);
 
 CREATE POLICY "Users can delete own comments" ON course_video_comments
-    FOR DELETE USING (user_id = auth.uid());
+    FOR DELETE USING (true);
 
 -- ============================================================================
 -- OPTIONAL: If you want mentor-only video management, run this AFTER fixing
