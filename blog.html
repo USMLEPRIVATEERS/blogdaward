@@ -166,6 +166,14 @@
             });
 
             await loadPosts();
+
+            // Check URL for post parameter to open specific post
+            const urlParams = new URLSearchParams(window.location.search);
+            const postId = urlParams.get('post');
+            if (postId) {
+                // Small delay to ensure posts are rendered
+                setTimeout(() => viewPost(parseInt(postId)), 100);
+            }
         });
 
         async function loadPosts() {
@@ -319,6 +327,11 @@
             const authorName = post.author?.full_name || post.author?.name || 'Usuario';
             const isAuthorMentor = post.author?.role?.startsWith('mentor_');
             const authorBadge = isAuthorMentor ? '<span class="mentor-badge">Mentor</span>' : '';
+            const isOwnPost = post.user_id === userData.id;
+
+            // Update URL without reload for shareable link
+            const shareUrl = `${window.location.origin}${window.location.pathname}?post=${postId}`;
+            history.replaceState(null, '', `?post=${postId}`);
 
             document.getElementById('post-full-content').innerHTML = `
                 <div class="post-header mb-3">
@@ -330,8 +343,18 @@
                             <div class="post-time">${WardApp.formatDate(post.created_at)}</div>
                         </div>
                     </div>
+                    <button class="btn btn-sm btn-outline" onclick="copyPostLink(${postId})" title="Copiar link">🔗 Compartilhar</button>
                 </div>
-                <div class="post-text">${post.content.replace(/\n/g, '<br>')}</div>
+                <div class="post-text" id="post-text-display">${post.content.replace(/\n/g, '<br>')}</div>
+                ${(isMentor || isOwnPost) ? `
+                    <div id="post-edit-form" style="display: none;">
+                        <textarea id="edit-post-content" class="form-textarea" rows="4">${post.content}</textarea>
+                        <div class="d-flex gap-2 mt-2">
+                            <button class="btn btn-primary btn-sm" onclick="savePostEdit(${postId})">Salvar</button>
+                            <button class="btn btn-secondary btn-sm" onclick="cancelPostEdit()">Cancelar</button>
+                        </div>
+                    </div>
+                ` : ''}
                 <div class="post-stats mt-3">
                     <span>❤️ ${post.likes || 0} curtidas</span>
                     <span>💬 ${post.comments_count || 0} comentarios</span>
@@ -343,7 +366,6 @@
 
             // Post actions
             const actionsHtml = [];
-            const isOwnPost = post.user_id === userData.id;
 
             if (post.user_liked) {
                 actionsHtml.push(`<button class="btn btn-secondary" onclick="toggleLike(${postId}, true); closeModal('view-post-modal');">💔 Descurtir</button>`);
@@ -352,12 +374,55 @@
             }
 
             if (isMentor || isOwnPost) {
+                actionsHtml.push(`<button class="btn btn-outline" onclick="startEditPost()">✏️ Editar</button>`);
                 actionsHtml.push(`<button class="btn btn-danger" onclick="deletePost(${postId})">🗑️ Excluir</button>`);
             }
 
             document.getElementById('post-actions').innerHTML = actionsHtml.join('');
 
             openModal('view-post-modal');
+        }
+
+        function copyPostLink(postId) {
+            const shareUrl = `${window.location.origin}${window.location.pathname}?post=${postId}`;
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                WardApp.showToast('Link copiado para a area de transferencia!');
+            }).catch(() => {
+                // Fallback for older browsers
+                prompt('Copie o link:', shareUrl);
+            });
+        }
+
+        function startEditPost() {
+            document.getElementById('post-text-display').style.display = 'none';
+            document.getElementById('post-edit-form').style.display = 'block';
+        }
+
+        function cancelPostEdit() {
+            document.getElementById('post-text-display').style.display = 'block';
+            document.getElementById('post-edit-form').style.display = 'none';
+        }
+
+        async function savePostEdit(postId) {
+            const newContent = document.getElementById('edit-post-content').value.trim();
+            if (!newContent) {
+                WardApp.showToast('O conteudo nao pode estar vazio', 'warning');
+                return;
+            }
+
+            const { error } = await WardApp.db.from('blog_posts')
+                .update({ content: newContent, updated_at: new Date().toISOString() })
+                .eq('id', postId);
+
+            if (error) {
+                console.error('Error updating post:', error);
+                WardApp.showToast('Erro ao atualizar post', 'error');
+                return;
+            }
+
+            WardApp.showToast('Post atualizado!');
+            closeModal('view-post-modal');
+            await loadPosts();
         }
 
         async function loadComments(postId) {
@@ -395,19 +460,92 @@
                 const authorName = author.full_name || author.name || 'Usuario';
                 const isMentorComment = author.role?.startsWith('mentor_');
                 const badge = isMentorComment ? '<span class="mentor-badge-sm">M</span>' : '';
+                const isOwnComment = comment.user_id === userData.id;
+                const canModify = isMentor || isOwnComment;
 
                 return `
-                    <div class="comment-item">
+                    <div class="comment-item" id="comment-${comment.id}">
                         <div class="comment-header">
                             <span class="avatar-xs">👤</span>
                             <span class="comment-author">${authorName}</span>
                             ${badge}
                             <span class="comment-date">${getTimeAgo(comment.created_at)}</span>
+                            ${canModify ? `
+                                <div class="comment-actions">
+                                    <button class="btn-comment-action" onclick="startEditComment(${comment.id}, '${comment.content.replace(/'/g, "\\'")}')">✏️</button>
+                                    <button class="btn-comment-action" onclick="deleteComment(${comment.id}, ${postId})">🗑️</button>
+                                </div>
+                            ` : ''}
                         </div>
-                        <p class="comment-content">${comment.content}</p>
+                        <p class="comment-content" id="comment-content-${comment.id}">${comment.content}</p>
+                        <div class="comment-edit-form" id="comment-edit-${comment.id}" style="display: none;">
+                            <textarea class="form-textarea" id="edit-comment-${comment.id}" rows="2">${comment.content}</textarea>
+                            <div class="d-flex gap-2 mt-1">
+                                <button class="btn btn-primary btn-xs" onclick="saveCommentEdit(${comment.id}, ${postId})">Salvar</button>
+                                <button class="btn btn-secondary btn-xs" onclick="cancelCommentEdit(${comment.id})">Cancelar</button>
+                            </div>
+                        </div>
                     </div>
                 `;
             }).join('');
+        }
+
+        function startEditComment(commentId, content) {
+            document.getElementById(`comment-content-${commentId}`).style.display = 'none';
+            document.getElementById(`comment-edit-${commentId}`).style.display = 'block';
+            document.getElementById(`edit-comment-${commentId}`).value = content;
+        }
+
+        function cancelCommentEdit(commentId) {
+            document.getElementById(`comment-content-${commentId}`).style.display = 'block';
+            document.getElementById(`comment-edit-${commentId}`).style.display = 'none';
+        }
+
+        async function saveCommentEdit(commentId, postId) {
+            const newContent = document.getElementById(`edit-comment-${commentId}`).value.trim();
+            if (!newContent) {
+                WardApp.showToast('O comentario nao pode estar vazio', 'warning');
+                return;
+            }
+
+            const { error } = await WardApp.db.from('blog_comments')
+                .update({ content: newContent, updated_at: new Date().toISOString() })
+                .eq('id', commentId);
+
+            if (error) {
+                console.error('Error updating comment:', error);
+                WardApp.showToast('Erro ao atualizar comentario', 'error');
+                return;
+            }
+
+            WardApp.showToast('Comentario atualizado!');
+            await loadComments(postId);
+        }
+
+        async function deleteComment(commentId, postId) {
+            if (!confirm('Tem certeza que deseja excluir este comentario?')) return;
+
+            const { error } = await WardApp.db.from('blog_comments')
+                .update({ is_deleted: true })
+                .eq('id', commentId);
+
+            if (error) {
+                console.error('Error deleting comment:', error);
+                WardApp.showToast('Erro ao excluir comentario', 'error');
+                return;
+            }
+
+            // Update comment count
+            const post = allPosts.find(p => p.id == postId);
+            if (post && post.comments_count > 0) {
+                await WardApp.db.from('blog_posts')
+                    .update({ comments_count: post.comments_count - 1 })
+                    .eq('id', postId);
+            }
+
+            WardApp.showToast('Comentario excluido!');
+            await loadComments(postId);
+            await loadPosts();
         }
 
         async function addComment() {
@@ -431,16 +569,13 @@
                 return;
             }
 
-            // Update comment count
-            await WardApp.db.rpc('increment_comments', { post_id_param: parseInt(postId) }).catch(() => {
-                // Fallback if RPC doesn't exist
-                const post = allPosts.find(p => p.id == postId);
-                if (post) {
-                    WardApp.db.from('blog_posts')
-                        .update({ comments_count: (post.comments_count || 0) + 1 })
-                        .eq('id', postId);
-                }
-            });
+            // Update comment count directly (without RPC)
+            const post = allPosts.find(p => p.id == postId);
+            if (post) {
+                await WardApp.db.from('blog_posts')
+                    .update({ comments_count: (post.comments_count || 0) + 1 })
+                    .eq('id', postId);
+            }
 
             document.getElementById('new-comment').value = '';
             WardApp.showToast('Comentario adicionado!');
@@ -574,6 +709,10 @@
 
         function closeModal(id) {
             document.getElementById(id).classList.remove('active');
+            // Clear URL parameter when closing post modal
+            if (id === 'view-post-modal') {
+                history.replaceState(null, '', window.location.pathname);
+            }
         }
     </script>
 
@@ -834,6 +973,47 @@
             font-size: 0.9rem;
             margin: 0;
             padding-left: 2rem;
+        }
+
+        .comment-header {
+            position: relative;
+        }
+
+        .comment-actions {
+            display: inline-flex;
+            gap: 0.25rem;
+            margin-left: auto;
+        }
+
+        .btn-comment-action {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.75rem;
+            padding: 0.15rem 0.3rem;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+
+        .btn-comment-action:hover {
+            opacity: 1;
+        }
+
+        .comment-edit-form {
+            padding-left: 2rem;
+        }
+
+        .btn-xs {
+            padding: 0.2rem 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        .d-flex {
+            display: flex;
+        }
+
+        .gap-2 {
+            gap: 0.5rem;
         }
 
         /* Pin Options */
