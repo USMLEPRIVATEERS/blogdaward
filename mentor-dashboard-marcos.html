@@ -119,6 +119,10 @@
                             <span class="action-icon">🔬</span>
                             <span class="action-title">Novo Projeto</span>
                         </a>
+                        <div class="action-card" onclick="openModal('add-video-modal')">
+                            <span class="action-icon">🎬</span>
+                            <span class="action-title">Adicionar Aula</span>
+                        </div>
                         <div class="action-card" onclick="openModal('broadcast-modal')">
                             <span class="action-icon">📢</span>
                             <span class="action-title">Broadcast</span>
@@ -251,6 +255,50 @@ Cardiovascular	Physiology	62	FALSE
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('broadcast-modal')">Cancelar</button>
                 <button class="btn btn-primary" onclick="sendBroadcast()">Enviar para Todos</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Video Modal -->
+    <div id="add-video-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">🎬 Adicionar Nova Aula</h3>
+                <button class="modal-close" onclick="closeModal('add-video-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="video-title">Título da Aula *</label>
+                    <input type="text" id="video-title" class="form-input" placeholder="Ex: Introdução ao USMLE Step 1" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="video-url">Link do Vídeo (YouTube ou Vimeo)</label>
+                    <input type="text" id="video-url" class="form-input" placeholder="https://www.youtube.com/watch?v=...">
+                    <p class="form-hint">Deixe em branco se o vídeo ainda não estiver disponível</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="video-description">Descrição</label>
+                    <textarea id="video-description" class="form-textarea" rows="4" placeholder="Descreva o conteúdo da aula..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="video-duration">Duração (minutos)</label>
+                    <input type="number" id="video-duration" class="form-input" placeholder="45">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="video-tags">Tags da Aula *</label>
+                    <input type="text" id="video-tags" class="form-input" placeholder="USMLE::STEP_1::Anatomia" required>
+                    <p class="form-hint">Use :: para separar níveis. Ex: USMLE::STEP_1::Cardiovascular</p>
+                    <p class="form-hint">Tags disponíveis: USMLE (STEP_1, STEP_2, STEP_3), PESQUISA, WARD_ACADEMY, MATCH, OET</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="video-order">Ordem (opcional)</label>
+                    <input type="number" id="video-order" class="form-input" placeholder="1" value="100">
+                    <p class="form-hint">Determina a posição da aula na lista</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('add-video-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveVideo()">Salvar Aula</button>
             </div>
         </div>
     </div>
@@ -603,6 +651,64 @@ Cardiovascular	Physiology	62	FALSE
 
         function closeModal(id) {
             document.getElementById(id).classList.remove('active');
+        }
+
+        async function saveVideo() {
+            const title = document.getElementById('video-title').value.trim();
+            const url = document.getElementById('video-url').value.trim();
+            const description = document.getElementById('video-description').value.trim();
+            const duration = document.getElementById('video-duration').value;
+            const tags = document.getElementById('video-tags').value.trim();
+            const order = document.getElementById('video-order').value || 100;
+
+            if (!title) {
+                WardApp.showToast('Título é obrigatório', 'warning');
+                return;
+            }
+
+            if (!tags) {
+                WardApp.showToast('Tags são obrigatórias', 'warning');
+                return;
+            }
+
+            // Validate tags format
+            if (!tags.includes('::')) {
+                WardApp.showToast('Use :: para separar níveis nas tags', 'warning');
+                return;
+            }
+
+            const videoData = {
+                title: title,
+                video_url: url || null,
+                description: description || null,
+                duration_minutes: duration ? parseInt(duration) : null,
+                tags: tags,
+                order_position: parseInt(order),
+                is_published: true,
+                created_at: new Date().toISOString()
+            };
+
+            const { data, error } = await WardApp.db
+                .from('course_videos')
+                .insert(videoData)
+                .select();
+
+            if (error) {
+                console.error('Error saving video:', error);
+                WardApp.showToast('Erro ao salvar aula', 'error');
+                return;
+            }
+
+            WardApp.showToast('Aula adicionada com sucesso!');
+            closeModal('add-video-modal');
+
+            // Clear form
+            document.getElementById('video-title').value = '';
+            document.getElementById('video-url').value = '';
+            document.getElementById('video-description').value = '';
+            document.getElementById('video-duration').value = '';
+            document.getElementById('video-tags').value = '';
+            document.getElementById('video-order').value = '100';
         }
     </script>
 
