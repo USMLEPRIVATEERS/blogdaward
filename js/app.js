@@ -155,9 +155,25 @@ async function login(email, password) {
 
         hideLoading();
 
-        // Check if first login
+        // Check if first login or questionnaire not complete
         if (!data.first_login_completed) {
-            window.location.href = 'questionnaire/step1-basic-data.html';
+            // Redirect to the correct questionnaire step based on progress
+            const step = data.questionnaire_step || 0;
+            const stepUrls = {
+                0: 'questionnaire/step1-basic-data.html',
+                1: 'questionnaire/step2-usmle-data.html',
+                2: 'questionnaire/step3-uworld-prep.html',
+                3: 'questionnaire/step4-uworld-progress.html',
+                4: 'questionnaire/step5-english.html',
+                5: 'questionnaire/step6-anki.html',
+                6: 'questionnaire/step7-research-1.html',
+                7: 'questionnaire/step8-research-2.html',
+                8: 'questionnaire/step9-research-3.html',
+                9: 'questionnaire/step10-observerships.html',
+                10: 'questionnaire/step11-background.html',
+                11: 'questionnaire/step11-background.html'
+            };
+            window.location.href = stepUrls[step] || stepUrls[0];
         } else {
             // Redirect based on role
             switch (data.role) {
@@ -278,13 +294,25 @@ function getTableNameForStep(step) {
     return tableMap[step];
 }
 
-// Update questionnaire progress
+// Update questionnaire progress - only advance if new step is higher
 async function updateQuestionnaireProgress(userId, step) {
     try {
-        await supabaseClient
+        // Get current progress first
+        const { data: user } = await supabaseClient
             .from('users')
-            .update({ questionnaire_step: step })
-            .eq('id', userId);
+            .select('questionnaire_step')
+            .eq('id', userId)
+            .single();
+
+        const currentStep = user?.questionnaire_step || 0;
+
+        // Only update if new step is higher than current
+        if (step > currentStep) {
+            await supabaseClient
+                .from('users')
+                .update({ questionnaire_step: step })
+                .eq('id', userId);
+        }
     } catch (err) {
         console.error('Progress update error:', err);
     }
