@@ -393,13 +393,12 @@ Cardiovascular	Physiology	62	FALSE
         }
 
         async function loadPendingCalls() {
-            // Admin sees ALL pending landmarks
+            // Load pending landmarks for Marcos only
             const { data: allPending, error } = await WardApp.db
                 .from('landmarks')
                 .select('*')
                 .eq('completed', false)
-                .order('is_urgent', { ascending: false })
-                .order('created_at', { ascending: true });
+                .like('landmark_type', 'call_marcos%');
 
             if (error) {
                 console.error('Error loading pending calls:', error);
@@ -408,18 +407,50 @@ Cardiovascular	Physiology	62	FALSE
                 return;
             }
 
-            if (!allPending || allPending.length === 0) {
-                document.getElementById('pending-calls-list').innerHTML = '<p class="text-muted">Nenhuma call agendada!</p>';
-                document.getElementById('pending-landmarks-list').innerHTML = '<p class="text-muted">Nenhum landmark pendente!</p>';
+            // Load scheduled calls from scheduled_calls table
+            const { data: scheduledCallsData } = await WardApp.db
+                .from('scheduled_calls')
+                .select('*, landmark:landmarks(*), student:users!scheduled_calls_student_id_fkey(id, full_name, email)')
+                .eq('mentor_id', userData.id)
+                .eq('status', 'scheduled')
+                .order('scheduled_date', { ascending: true })
+                .order('scheduled_time', { ascending: true });
+
+            const callsContainer = document.getElementById('pending-calls-list');
+            const landmarksContainer = document.getElementById('pending-landmarks-list');
+
+            // Render scheduled calls (ordered by nearest date first)
+            if (!scheduledCallsData || scheduledCallsData.length === 0) {
+                callsContainer.innerHTML = '<p class="text-muted">Nenhuma call agendada!</p>';
+            } else {
+                callsContainer.innerHTML = scheduledCallsData.map(item => {
+                    const landmark = item.landmark;
+                    const student = item.student;
+                    return `
+                        <div class="pending-call-card">
+                            <div class="call-icon">📞</div>
+                            <div class="call-info">
+                                <div class="call-title">${landmark?.title || 'Call'}</div>
+                                <div class="call-student">${student?.full_name || student?.email || 'Aluno'}</div>
+                                <div class="call-time">🕐 ${formatDateTime(item.scheduled_date + 'T' + item.scheduled_time)}</div>
+                            </div>
+                            <button class="btn btn-sm btn-primary" onclick="markCallComplete(${landmark?.id})">✓</button>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // Filter out landmarks that are already scheduled
+            const scheduledLandmarkIds = new Set((scheduledCallsData || []).map(s => s.landmark_id));
+            const unscheduledLandmarks = (allPending || []).filter(l => !scheduledLandmarkIds.has(l.id));
+
+            if (unscheduledLandmarks.length === 0) {
+                landmarksContainer.innerHTML = '<p class="text-muted">Nenhum landmark pendente!</p>';
                 return;
             }
 
-            // Separate scheduled calls from unscheduled landmarks
-            const scheduledCalls = allPending.filter(item => item.scheduled_time);
-            const pendingLandmarks = allPending.filter(item => !item.scheduled_time);
-
             // Get user info for all items
-            const userIds = [...new Set(allPending.map(c => c.user_id))];
+            const userIds = [...new Set(unscheduledLandmarks.map(c => c.user_id))];
             const { data: users } = await WardApp.db
                 .from('users')
                 .select('id, full_name, email')
@@ -439,48 +470,58 @@ Cardiovascular	Physiology	62	FALSE
                 'extras': 'Extra'
             };
 
-            // Render scheduled calls
-            const callsContainer = document.getElementById('pending-calls-list');
-            if (scheduledCalls.length === 0) {
-                callsContainer.innerHTML = '<p class="text-muted">Nenhuma call agendada!</p>';
-            } else {
-                callsContainer.innerHTML = scheduledCalls.map(call => {
-                    const user = userMap[call.user_id] || {};
-                    return `
-                        <div class="pending-call-card ${call.is_urgent ? 'urgent' : ''}">
-                            <div class="call-icon">${call.is_urgent ? '🔴' : '📞'}</div>
-                            <div class="call-info">
-                                <div class="call-title">${call.title}</div>
-                                <div class="call-student">${user.full_name || user.email || 'Aluno'}</div>
-                                <div class="call-group">${groupNames[call.group_name] || call.group_name}</div>
-                                ${call.scheduled_time ? `<div class="call-time">🕐 ${formatDateTime(call.scheduled_time)}</div>` : ''}
-                            </div>
-                            <button class="btn btn-sm btn-primary" onclick="markCallComplete(${call.id})">✓</button>
-                        </div>
-                    `;
-                }).join('');
-            }
+            // Group by category
+            const groupedLandmarks = {};
+            unscheduledLandmarks.forEach(landmark => {
+                const groupKey = landmark.group_name || 'outros';
+                if (!groupedLandmarks[groupKey]) {
+                    groupedLandmarks[groupKey] = [];
+                }
+                groupedLandmarks[groupKey].push(landmark);
+            });
 
-            // Render pending landmarks
-            const landmarksContainer = document.getElementById('pending-landmarks-list');
-            if (pendingLandmarks.length === 0) {
-                landmarksContainer.innerHTML = '<p class="text-muted">Nenhum landmark pendente!</p>';
-            } else {
-                landmarksContainer.innerHTML = pendingLandmarks.map(call => {
-                    const user = userMap[call.user_id] || {};
+            // Sort within each group alphabetically by student name
+            Object.keys(groupedLandmarks).forEach(groupKey => {
+                groupedLandmarks[groupKey].sort((a, b) => {
+                    const userA = userMap[a.user_id] || {};
+                    const userB = userMap[b.user_id] || {};
+                    const nameA = userA.full_name || userA.email || '';
+                    const nameB = userB.full_name || userB.email || '';
+                    return nameA.localeCompare(nameB);
+                });
+            });
+
+            // Render grouped landmarks
+            let html = '';
+            const sortedGroups = Object.keys(groupedLandmarks).sort();
+
+            sortedGroups.forEach(groupKey => {
+                const landmarks = groupedLandmarks[groupKey];
+                const groupName = groupNames[groupKey] || groupKey;
+
+                html += `<div style="margin-bottom: 1.5rem;">`;
+                html += `<h4 style="color: #C45700; font-size: 0.9rem; margin-bottom: 0.5rem; font-weight: 600;">${groupName}</h4>`;
+                html += landmarks.map(landmark => {
+                    const user = userMap[landmark.user_id] || {};
+                    const statusIcon = landmark.is_urgent ? '🔴' : '📋';
+                    const statusClass = landmark.is_urgent ? 'urgent' : '';
+
                     return `
-                        <div class="pending-call-card ${call.is_urgent ? 'urgent' : ''}">
-                            <div class="call-icon">${call.is_urgent ? '🔴' : '📋'}</div>
+                        <div class="pending-call-card ${statusClass}">
+                            <div class="call-icon">${statusIcon}</div>
                             <div class="call-info">
-                                <div class="call-title">${call.title}</div>
+                                <div class="call-title">${landmark.title}</div>
                                 <div class="call-student">${user.full_name || user.email || 'Aluno'}</div>
-                                <div class="call-group">${groupNames[call.group_name] || call.group_name}</div>
+                                <div class="call-group">${groupNames[landmark.group_name] || landmark.group_name}</div>
                             </div>
-                            <button class="btn btn-sm btn-primary" onclick="markCallComplete(${call.id})">✓</button>
+                            <button class="btn btn-sm btn-primary" onclick="markCallComplete(${landmark.id})">✓</button>
                         </div>
                     `;
                 }).join('');
-            }
+                html += `</div>`;
+            });
+
+            landmarksContainer.innerHTML = html;
         }
 
         function formatDateTime(datetime) {
