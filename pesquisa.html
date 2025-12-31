@@ -216,7 +216,101 @@
                 </div>
             </div>
             <div class="modal-footer" id="project-modal-footer">
+                <div class="d-flex gap-2">
+                    <button class="btn btn-danger" id="delete-project-btn" style="display: none;" onclick="deleteProject()">🗑️ Excluir Projeto</button>
+                    <button class="btn btn-outline" id="manage-participants-btn" style="display: none;" onclick="openManageParticipantsModal()">👥 Gerenciar Participantes</button>
+                    <button class="btn btn-primary" id="edit-project-btn" style="display: none;" onclick="openEditProjectModal()">✏️ Editar Projeto</button>
+                </div>
                 <button class="btn btn-secondary" onclick="closeModal('view-project-modal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Project Modal -->
+    <div id="edit-project-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">✏️ Editar Projeto</h3>
+                <button class="modal-close" onclick="closeModal('edit-project-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-project-id">
+                <div class="form-group">
+                    <label class="form-label">Tipo de Meta-Analise *</label>
+                    <select id="edit-project-type" class="form-input" onchange="updateEditTitleFields()">
+                        <option value="double-arm">Double Arm (Intervention vs Comparison)</option>
+                        <option value="single-arm">Single Arm</option>
+                    </select>
+                </div>
+                <div id="edit-double-arm-fields">
+                    <div class="form-group">
+                        <label class="form-label">Titulo (Intervention vs Comparison for Outcome) *</label>
+                        <div class="input-group">
+                            <input type="text" id="edit-project-intervention" class="form-input" placeholder="Intervention">
+                            <span class="input-addon">vs</span>
+                            <input type="text" id="edit-project-comparison" class="form-input" placeholder="Comparison">
+                            <span class="input-addon">for</span>
+                            <input type="text" id="edit-project-outcome" class="form-input" placeholder="Outcome">
+                        </div>
+                    </div>
+                </div>
+                <div id="edit-single-arm-fields" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Titulo do Projeto *</label>
+                        <input type="text" id="edit-project-single-title" class="form-input" placeholder="Titulo do projeto">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Descricao</label>
+                    <textarea id="edit-project-description" class="form-input" rows="3" placeholder="Descricao do projeto"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select id="edit-project-status" class="form-input">
+                        <option value="active">Em andamento</option>
+                        <option value="completed">Concluido</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Data Limite</label>
+                    <input type="date" id="edit-project-deadline" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Link Externo (Drive, etc)</label>
+                    <input type="url" id="edit-project-link" class="form-input" placeholder="https://...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('edit-project-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveProjectEdit()">💾 Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Participants Modal -->
+    <div id="manage-participants-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">👥 Gerenciar Participantes</h3>
+                <button class="modal-close" onclick="closeModal('manage-participants-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Adicionar Participante</label>
+                    <select id="add-participant-select" class="form-input">
+                        <option value="">Selecione um usuario...</option>
+                    </select>
+                    <button class="btn btn-primary btn-sm mt-2" onclick="addParticipant()">+ Adicionar</button>
+                </div>
+                <div class="mt-3">
+                    <h4 class="mb-2">Participantes Atuais</h4>
+                    <div id="current-participants-list">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('manage-participants-modal')">Fechar</button>
             </div>
         </div>
     </div>
@@ -493,8 +587,8 @@
 
             isMentor = userData.role && userData.role.startsWith('mentor_');
 
-            // Only show mentor actions if not viewing as student
-            if (isMentor && !viewingAsStudentId) {
+            // Show project actions for mentors and students (students can add their own projects)
+            if (!viewingAsStudentId) {
                 document.getElementById('mentor-actions').style.display = 'flex';
                 await loadAllUsers();
             }
@@ -694,9 +788,26 @@
             // Render tasks
             renderTasks(tasks);
 
-            // Show add task button for mentors
+            // Show action buttons based on role
+            const isParticipant = (currentProject.participants || []).includes(userData.id);
+
             if (isMentor) {
+                // Mentors get full edit access
                 document.getElementById('add-task-btn').style.display = 'block';
+                document.getElementById('edit-project-btn').style.display = 'inline-block';
+                document.getElementById('delete-project-btn').style.display = 'inline-block';
+                document.getElementById('manage-participants-btn').style.display = 'inline-block';
+            } else if (isParticipant) {
+                // Students who are participants can edit description only
+                document.getElementById('add-task-btn').style.display = 'none';
+                document.getElementById('edit-project-btn').style.display = 'inline-block'; // They can edit but with limited fields
+                document.getElementById('delete-project-btn').style.display = 'none';
+                document.getElementById('manage-participants-btn').style.display = 'none';
+            } else {
+                document.getElementById('add-task-btn').style.display = 'none';
+                document.getElementById('edit-project-btn').style.display = 'none';
+                document.getElementById('delete-project-btn').style.display = 'none';
+                document.getElementById('manage-participants-btn').style.display = 'none';
             }
 
             openModal('view-project-modal');
@@ -1022,6 +1133,266 @@
 
             // Set the title in uppercase
             document.getElementById('project-title').value = title.toUpperCase();
+        }
+
+        // Edit Project Functions
+        function updateEditTitleFields() {
+            const type = document.getElementById('edit-project-type').value;
+            document.getElementById('edit-double-arm-fields').style.display = type === 'double-arm' ? 'block' : 'none';
+            document.getElementById('edit-single-arm-fields').style.display = type === 'single-arm' ? 'block' : 'none';
+        }
+
+        function openEditProjectModal() {
+            if (!currentProject) return;
+
+            document.getElementById('edit-project-id').value = currentProject.id;
+            document.getElementById('edit-project-type').value = currentProject.project_type || 'double-arm';
+            document.getElementById('edit-project-description').value = currentProject.description || '';
+            document.getElementById('edit-project-status').value = currentProject.status || 'active';
+            document.getElementById('edit-project-deadline').value = currentProject.deadline ? currentProject.deadline.split('T')[0] : '';
+            document.getElementById('edit-project-link').value = currentProject.drive_link || '';
+
+            // Parse the title to fill the fields
+            const title = currentProject.title || '';
+            if (currentProject.project_type === 'single-arm') {
+                document.getElementById('edit-project-single-title').value = title;
+            } else {
+                // Try to parse "X vs Y for Z" format
+                const vsMatch = title.match(/^(.+?)\s+VS\s+(.+?)\s+FOR\s+(.+)$/i);
+                if (vsMatch) {
+                    document.getElementById('edit-project-intervention').value = vsMatch[1];
+                    document.getElementById('edit-project-comparison').value = vsMatch[2];
+                    document.getElementById('edit-project-outcome').value = vsMatch[3];
+                } else {
+                    document.getElementById('edit-project-intervention').value = title;
+                    document.getElementById('edit-project-comparison').value = '';
+                    document.getElementById('edit-project-outcome').value = '';
+                }
+            }
+
+            updateEditTitleFields();
+
+            // For non-mentors, hide most fields - they can only edit description
+            const fieldsToHideForStudents = [
+                'edit-project-type', 'edit-double-arm-fields', 'edit-single-arm-fields',
+                'edit-project-status', 'edit-project-deadline', 'edit-project-link'
+            ].map(id => document.getElementById(id)?.parentElement || document.getElementById(id));
+
+            if (!isMentor) {
+                fieldsToHideForStudents.forEach(el => {
+                    if (el) el.style.display = 'none';
+                });
+                document.querySelector('#edit-project-modal .modal-title').textContent = '✏️ Editar Descricao';
+            } else {
+                fieldsToHideForStudents.forEach(el => {
+                    if (el) el.style.display = '';
+                });
+                document.querySelector('#edit-project-modal .modal-title').textContent = '✏️ Editar Projeto';
+            }
+
+            openModal('edit-project-modal');
+        }
+
+        async function saveProjectEdit() {
+            const projectId = document.getElementById('edit-project-id').value;
+            const description = document.getElementById('edit-project-description').value.trim();
+
+            // For students, only update description
+            if (!isMentor) {
+                const { error } = await WardApp.db
+                    .from('research_projects')
+                    .update({
+                        description,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', projectId);
+
+                if (error) {
+                    console.error('Error updating project:', error);
+                    WardApp.showToast('Erro ao atualizar descricao', 'error');
+                    return;
+                }
+
+                closeModal('edit-project-modal');
+                closeModal('view-project-modal');
+                WardApp.showToast('Descricao atualizada!');
+                await loadProjects();
+                return;
+            }
+
+            // For mentors, update all fields
+            const projectType = document.getElementById('edit-project-type').value;
+            const status = document.getElementById('edit-project-status').value;
+            const deadline = document.getElementById('edit-project-deadline').value || null;
+            const driveLink = document.getElementById('edit-project-link').value.trim() || null;
+
+            // Generate title based on type
+            let title = '';
+            if (projectType === 'single-arm') {
+                title = document.getElementById('edit-project-single-title').value.trim();
+            } else {
+                const intervention = document.getElementById('edit-project-intervention').value.trim();
+                const comparison = document.getElementById('edit-project-comparison').value.trim();
+                const outcome = document.getElementById('edit-project-outcome').value.trim();
+                if (intervention && comparison && outcome) {
+                    title = `${intervention} VS ${comparison} FOR ${outcome}`.toUpperCase();
+                } else {
+                    title = intervention || '';
+                }
+            }
+
+            if (!title) {
+                WardApp.showToast('Preencha o titulo do projeto', 'warning');
+                return;
+            }
+
+            const { error } = await WardApp.db
+                .from('research_projects')
+                .update({
+                    title,
+                    description,
+                    project_type: projectType,
+                    status,
+                    deadline,
+                    drive_link: driveLink,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', projectId);
+
+            if (error) {
+                console.error('Error updating project:', error);
+                WardApp.showToast('Erro ao atualizar projeto', 'error');
+                return;
+            }
+
+            closeModal('edit-project-modal');
+            closeModal('view-project-modal');
+            WardApp.showToast('Projeto atualizado!');
+            await loadProjects();
+        }
+
+        async function deleteProject() {
+            if (!currentProject) return;
+
+            if (!confirm(`Tem certeza que deseja excluir o projeto "${currentProject.title}"? Esta ação não pode ser desfeita.`)) {
+                return;
+            }
+
+            // First delete all tasks for this project
+            await WardApp.db
+                .from('research_tasks')
+                .delete()
+                .eq('project_id', currentProject.id);
+
+            // Then delete the project
+            const { error } = await WardApp.db
+                .from('research_projects')
+                .delete()
+                .eq('id', currentProject.id);
+
+            if (error) {
+                console.error('Error deleting project:', error);
+                WardApp.showToast('Erro ao excluir projeto', 'error');
+                return;
+            }
+
+            closeModal('view-project-modal');
+            WardApp.showToast('Projeto excluído!');
+            currentProject = null;
+            await loadProjects();
+        }
+
+        // Manage Participants Functions
+        function openManageParticipantsModal() {
+            if (!currentProject) return;
+
+            // Populate the select with users not already in the project
+            const participantIds = currentProject.participants || [];
+            const availableUsers = allUsers.filter(u => !participantIds.includes(u.id));
+
+            const select = document.getElementById('add-participant-select');
+            select.innerHTML = '<option value="">Selecione um usuario...</option>' +
+                availableUsers.map(u => `<option value="${u.id}">${u.full_name || u.email} ${u.role?.startsWith('mentor_') ? '(Mentor)' : ''}</option>`).join('');
+
+            // Render current participants with remove button
+            renderCurrentParticipants();
+
+            openModal('manage-participants-modal');
+        }
+
+        async function renderCurrentParticipants() {
+            const participantIds = currentProject.participants || [];
+            if (participantIds.length === 0) {
+                document.getElementById('current-participants-list').innerHTML = '<p class="text-muted">Nenhum participante</p>';
+                return;
+            }
+
+            const { data: participants } = await WardApp.db
+                .from('users')
+                .select('id, full_name, email, role')
+                .in('id', participantIds);
+
+            document.getElementById('current-participants-list').innerHTML = (participants || []).map(p => {
+                const isMentorParticipant = p.role && p.role.startsWith('mentor_');
+                return `
+                    <div class="participant-manage-item d-flex justify-between align-center mb-2 p-2" style="background: var(--gray-50); border-radius: var(--radius-md);">
+                        <div class="d-flex align-center gap-2">
+                            <span>${isMentorParticipant ? '🎓' : '👤'}</span>
+                            <span>${p.full_name || p.email}</span>
+                            ${isMentorParticipant ? '<span class="mentor-tag" style="font-size: 0.7rem; background: var(--primary-color); color: white; padding: 0.1rem 0.3rem; border-radius: 4px;">Mentor</span>' : ''}
+                        </div>
+                        <button class="btn btn-sm btn-danger" onclick="removeParticipant(${p.id})">✕</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function addParticipant() {
+            const userId = document.getElementById('add-participant-select').value;
+            if (!userId) {
+                WardApp.showToast('Selecione um usuario', 'warning');
+                return;
+            }
+
+            const participants = [...(currentProject.participants || []), parseInt(userId)];
+
+            const { error } = await WardApp.db
+                .from('research_projects')
+                .update({ participants, updated_at: new Date().toISOString() })
+                .eq('id', currentProject.id);
+
+            if (error) {
+                console.error('Error adding participant:', error);
+                WardApp.showToast('Erro ao adicionar participante', 'error');
+                return;
+            }
+
+            currentProject.participants = participants;
+            WardApp.showToast('Participante adicionado!');
+            openManageParticipantsModal(); // Refresh the modal
+            loadParticipants(); // Update the view-project-modal participants
+        }
+
+        async function removeParticipant(userId) {
+            if (!confirm('Remover este participante do projeto?')) return;
+
+            const participants = (currentProject.participants || []).filter(id => id !== userId);
+
+            const { error } = await WardApp.db
+                .from('research_projects')
+                .update({ participants, updated_at: new Date().toISOString() })
+                .eq('id', currentProject.id);
+
+            if (error) {
+                console.error('Error removing participant:', error);
+                WardApp.showToast('Erro ao remover participante', 'error');
+                return;
+            }
+
+            currentProject.participants = participants;
+            WardApp.showToast('Participante removido!');
+            openManageParticipantsModal(); // Refresh the modal
+            loadParticipants(); // Update the view-project-modal participants
         }
 
         function openModal(id) {
