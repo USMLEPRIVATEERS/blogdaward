@@ -20,6 +20,7 @@
                 <a href="mentor-dashboard-guilherme.html" class="nav-link active">Dashboard</a>
                 <a href="mentor-cronograma.html" class="nav-link">Cronograma</a>
                 <a href="mentor-chamadas.html" class="nav-link">Chamadas</a>
+                <a href="diary-uworld.html" class="nav-link" id="nav-diary" style="display: none;">Diario</a>
                 <a href="links.html" class="nav-link">Links</a>
                 <a href="blog.html" class="nav-link">Blog</a>
             </nav>
@@ -74,6 +75,21 @@
             <div class="card-body">
                 <div id="frequency-chart" class="frequency-chart">
                     <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Preferences Card -->
+        <div class="card mb-4">
+            <div class="card-header">⚙️ Preferências</div>
+            <div class="card-body">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-diaries">
+                        <span class="toggle-slider"></span>
+                        <span>Ativar Diários para mim</span>
+                    </label>
+                    <p class="form-hint" style="margin: 0;">Ativa os diários de estudo e UWorld na sua navbar</p>
                 </div>
             </div>
         </div>
@@ -289,6 +305,7 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             }
 
             await loadStudentsData();
+            await loadDiaryPreference();
         });
 
         async function loadStudentsData() {
@@ -603,6 +620,64 @@ Dica: Use as tags do AnKing em vez de decks separados!`
         function closeModal(id) {
             document.getElementById(id).classList.remove('active');
         }
+
+        // Diary preference functions
+        async function loadDiaryPreference() {
+            // Load from database
+            const { data: userPrefs } = await WardApp.db
+                .from('users')
+                .select('diaries_enabled')
+                .eq('id', userData.id)
+                .single();
+
+            const diariesEnabled = userPrefs?.diaries_enabled || false;
+
+            // Update UI
+            document.getElementById('toggle-diaries').checked = diariesEnabled;
+
+            // Also sync to localStorage for compatibility with diary pages
+            localStorage.setItem('study_diary_enabled', diariesEnabled);
+            localStorage.setItem('uworld_diary_enabled', diariesEnabled);
+
+            updateDiaryLink();
+        }
+
+        function updateDiaryLink() {
+            const diariesEnabled = localStorage.getItem('study_diary_enabled') === 'true';
+            const diaryLink = document.getElementById('nav-diary');
+
+            if (diaryLink) {
+                if (diariesEnabled) {
+                    diaryLink.style.display = 'block';
+                } else {
+                    diaryLink.style.display = 'none';
+                }
+            }
+        }
+
+        document.getElementById('toggle-diaries').addEventListener('change', async function() {
+            const enabled = this.checked;
+
+            // Save to database
+            const { error } = await WardApp.db
+                .from('users')
+                .update({ diaries_enabled: enabled })
+                .eq('id', userData.id);
+
+            if (error) {
+                console.error('Error updating diaries preference:', error);
+                WardApp.showToast('Erro ao salvar preferência', 'error');
+                this.checked = !enabled; // Revert checkbox
+                return;
+            }
+
+            // Update localStorage for compatibility
+            localStorage.setItem('study_diary_enabled', enabled);
+            localStorage.setItem('uworld_diary_enabled', enabled);
+
+            updateDiaryLink();
+            WardApp.showToast(enabled ? 'Diários ativados!' : 'Diários desativados');
+        });
     </script>
 
     <style>
