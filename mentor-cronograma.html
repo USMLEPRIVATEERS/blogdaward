@@ -122,15 +122,16 @@
             <div class="modal-body">
                 <div class="alert alert-info mb-3">
                     <strong>Instrucoes:</strong><br>
-                    1. Copie os dados do Excel (colunas: System, Category, Questoes)<br>
+                    1. Copie os dados do Excel (incluindo o cabeçalho)<br>
                     2. Cole na area abaixo (separado por TAB)<br>
-                    3. O formato deve ser: System[TAB]Category[TAB]Questoes
+                    3. Colunas aceitas: System, Category, Questions, Data de Início, Data de Fim, ✓<br>
+                    4. Formatos de data aceitos: MM/DD/YYYY ou DD/MM/YYYY (detecta automaticamente)
                 </div>
                 <div class="form-group">
                     <label class="form-label">Cole os dados aqui:</label>
-                    <textarea id="import-data" class="form-textarea" rows="10" placeholder="System	Category	Questoes
-Cardiovascular	Cardiac arrhythmias	50
-Cardiovascular	Heart failure	30
+                    <textarea id="import-data" class="form-textarea" rows="10" placeholder="System	Category	Questions	Data de Início	Data de Fim	✓
+CARDIOVASCULAR	Normal structure	55	12/19/2025	12/22/2025	FALSE
+CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
 ..."></textarea>
                 </div>
                 <div class="form-group">
@@ -389,15 +390,58 @@ Cardiovascular	Heart failure	30
             const lines = data.split('\n').filter(l => l.trim());
             const items = [];
 
-            // Helper to convert DD/MM/YYYY to YYYY-MM-DD
+            // Helper to convert date to YYYY-MM-DD
+            // Auto-detects MM/DD/YYYY (American) or DD/MM/YYYY (Brazilian) format
             function parseDate(dateStr) {
                 if (!dateStr) return null;
                 const parts = dateStr.trim().split('/');
-                if (parts.length === 3) {
-                    const [day, month, year] = parts;
-                    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                if (parts.length !== 3) return null;
+
+                let day, month, year;
+                const num1 = parseInt(parts[0]);
+                const num2 = parseInt(parts[1]);
+                const num3 = parseInt(parts[2]);
+
+                // Detect year position (usually the 4-digit number or largest number)
+                if (num3 > 31) {
+                    // Year is in third position: ?/?/YYYY
+                    year = num3;
+                    // Detect if MM/DD/YYYY or DD/MM/YYYY
+                    if (num1 > 12) {
+                        // Must be DD/MM/YYYY (day can't be month)
+                        day = num1;
+                        month = num2;
+                    } else if (num2 > 12) {
+                        // Must be MM/DD/YYYY (month can't be day)
+                        month = num1;
+                        day = num2;
+                    } else {
+                        // Ambiguous - default to MM/DD/YYYY (American format)
+                        month = num1;
+                        day = num2;
+                    }
+                } else if (num1 > 31) {
+                    // Year is in first position: YYYY/?/?
+                    year = num1;
+                    month = num2;
+                    day = num3;
+                } else {
+                    // Assume third position is year with 2 digits
+                    year = num3 < 100 ? 2000 + num3 : num3;
+                    if (num1 > 12) {
+                        day = num1;
+                        month = num2;
+                    } else if (num2 > 12) {
+                        month = num1;
+                        day = num2;
+                    } else {
+                        // Default to MM/DD/YYYY
+                        month = num1;
+                        day = num2;
+                    }
                 }
-                return null;
+
+                return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             }
 
             // Skip header if present (check if first line contains "System" or "Category")
