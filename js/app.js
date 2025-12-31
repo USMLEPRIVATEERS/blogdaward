@@ -4,8 +4,20 @@
 const SUPABASE_URL = 'https://yxtdesthusclivjdewfl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4dGRlc3RodXNjbGl2amRld2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxNDUzMzYsImV4cCI6MjA4MjcyMTMzNn0.OQgK2s8K7CKJKyIwx7I6jnExTdCBpgiM7KfZuqhbPbw';
 
-// Initialize Supabase Client
-const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+// Initialize Supabase Client - using supabaseClient to avoid conflict with global supabase from CDN
+let supabaseClient = null;
+
+// Wait for supabase CDN to be loaded
+function initSupabase() {
+    if (window.supabase && window.supabase.createClient) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        return true;
+    }
+    return false;
+}
+
+// Initialize supabase immediately if available
+initSupabase();
 
 // ===== UTILITY FUNCTIONS =====
 
@@ -96,7 +108,16 @@ async function login(email, password) {
     showLoading();
     try {
         // Check credentials in Supabase
-        const { data, error } = await supabase
+        if (!supabaseClient) {
+            initSupabase();
+            if (!supabaseClient) {
+                hideLoading();
+                showToast('Erro de conexão. Recarregue a página.', 'error');
+                return false;
+            }
+        }
+
+        const { data, error } = await supabaseClient
             .from('users')
             .select('*')
             .eq('email', email)
@@ -169,7 +190,7 @@ async function saveQuestionnaireProgress(step, data) {
         if (!tableName) return false;
 
         // Check if record exists
-        const { data: existing } = await supabase
+        const { data: existing } = await supabaseClient
             .from(tableName)
             .select('user_id')
             .eq('user_id', user.id)
@@ -177,7 +198,7 @@ async function saveQuestionnaireProgress(step, data) {
 
         if (existing) {
             // Update existing record
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from(tableName)
                 .update(data)
                 .eq('user_id', user.id);
@@ -185,7 +206,7 @@ async function saveQuestionnaireProgress(step, data) {
             if (error) throw error;
         } else {
             // Insert new record
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from(tableName)
                 .insert({ user_id: user.id, ...data });
 
@@ -224,7 +245,7 @@ function getTableNameForStep(step) {
 // Update questionnaire progress
 async function updateQuestionnaireProgress(userId, step) {
     try {
-        await supabase
+        await supabaseClient
             .from('users')
             .update({ questionnaire_step: step })
             .eq('id', userId);
@@ -239,7 +260,7 @@ async function completeQuestionnaire() {
     if (!user) return false;
 
     try {
-        await supabase
+        await supabaseClient
             .from('users')
             .update({ first_login_completed: true })
             .eq('id', user.id);
@@ -264,7 +285,7 @@ async function loadQuestionnaireData(step) {
         const tableName = getTableNameForStep(step);
         if (!tableName) return null;
 
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from(tableName)
             .select('*')
             .eq('user_id', user.id)
@@ -287,7 +308,7 @@ async function loadDashboardData() {
 
     try {
         // Load messages
-        const { data: messages } = await supabase
+        const { data: messages } = await supabaseClient
             .from('messages')
             .select('*, users!created_by(name)')
             .eq('user_id', user.id)
@@ -295,14 +316,14 @@ async function loadDashboardData() {
             .order('created_at', { ascending: false });
 
         // Load landmarks
-        const { data: landmarks } = await supabase
+        const { data: landmarks } = await supabaseClient
             .from('landmarks')
             .select('*')
             .eq('user_id', user.id)
             .order('order_position', { ascending: true });
 
         // Load preparation status
-        const { data: prepStatus } = await supabase
+        const { data: prepStatus } = await supabaseClient
             .from('user_preparation_status')
             .select('*')
             .eq('user_id', user.id)
@@ -325,7 +346,7 @@ async function loadDashboardData() {
 // Update landmark status
 async function updateLandmark(landmarkId, updates) {
     try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('landmarks')
             .update(updates)
             .eq('id', landmarkId);
@@ -343,7 +364,7 @@ async function updateLandmark(landmarkId, updates) {
 // Add landmark observation
 async function addLandmarkObservation(landmarkId, observation) {
     try {
-        const { data: landmark } = await supabase
+        const { data: landmark } = await supabaseClient
             .from('landmarks')
             .select('notes')
             .eq('id', landmarkId)
@@ -356,7 +377,7 @@ async function addLandmarkObservation(landmarkId, observation) {
             author: JSON.parse(localStorage.getItem('ward_user')).name
         });
 
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('landmarks')
             .update({ notes })
             .eq('id', landmarkId);
@@ -378,7 +399,7 @@ async function loadSchedule(userId = null) {
     if (!targetUserId) return null;
 
     try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('schedules')
             .select('*')
             .eq('user_id', targetUserId)
@@ -395,7 +416,7 @@ async function loadSchedule(userId = null) {
 // Update schedule item
 async function updateScheduleItem(itemId, completed) {
     try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('schedules')
             .update({ completed, updated_at: new Date().toISOString() })
             .eq('id', itemId);
@@ -411,7 +432,7 @@ async function updateScheduleItem(itemId, completed) {
 // Signal schedule delay
 async function signalDelay(userId, startDate, endDate, reason) {
     try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('schedule_delays')
             .insert({
                 user_id: userId,
@@ -435,7 +456,7 @@ async function signalDelay(userId, startDate, endDate, reason) {
 // Load links
 async function loadLinks(category = null) {
     try {
-        let query = supabase
+        let query = supabaseClient
             .from('links_repository')
             .select('*, users!added_by(name)')
             .order('created_at', { ascending: false });
@@ -459,7 +480,7 @@ async function addLink(linkData) {
     if (!user) return false;
 
     try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('links_repository')
             .insert({ ...linkData, added_by: user.id });
 
@@ -478,7 +499,7 @@ async function addLink(linkData) {
 // Load blog posts
 async function loadBlogPosts(filter = 'recent') {
     try {
-        let query = supabase
+        let query = supabaseClient
             .from('blog_posts')
             .select('*, users!user_id(name, role)');
 
@@ -503,7 +524,7 @@ async function createPost(content) {
     if (!user) return false;
 
     try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('blog_posts')
             .insert({
                 user_id: user.id,
@@ -525,7 +546,7 @@ async function createPost(content) {
 // Like/Dislike post
 async function reactToPost(postId, reaction) {
     try {
-        const { data: post } = await supabase
+        const { data: post } = await supabaseClient
             .from('blog_posts')
             .select('likes, dislikes')
             .eq('id', postId)
@@ -535,7 +556,7 @@ async function reactToPost(postId, reaction) {
             ? { likes: (post?.likes || 0) + 1 }
             : { dislikes: (post?.dislikes || 0) + 1 };
 
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('blog_posts')
             .update(updates)
             .eq('id', postId);
@@ -551,7 +572,7 @@ async function reactToPost(postId, reaction) {
 // Load comments
 async function loadComments(postId) {
     try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('blog_comments')
             .select('*, users!user_id(name)')
             .eq('post_id', postId)
@@ -571,7 +592,7 @@ async function addComment(postId, content) {
     if (!user) return false;
 
     try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('blog_comments')
             .insert({
                 post_id: postId,
@@ -594,7 +615,7 @@ async function loadResearchProjects(userId = null) {
     const user = await checkAuth();
 
     try {
-        let query = supabase
+        let query = supabaseClient
             .from('research_projects')
             .select(`
                 *,
@@ -605,7 +626,7 @@ async function loadResearchProjects(userId = null) {
 
         // If user is student, only show their projects
         if (userId || (user && !user.role.startsWith('mentor_'))) {
-            const { data: coauthored } = await supabase
+            const { data: coauthored } = await supabaseClient
                 .from('research_coauthors')
                 .select('project_id')
                 .eq('user_id', userId || user.id);
@@ -630,7 +651,7 @@ async function createResearchProject(projectData) {
     if (!user) return false;
 
     try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('research_projects')
             .insert({ ...projectData, created_by: user.id })
             .select()
@@ -656,7 +677,7 @@ async function createResearchProject(projectData) {
         ];
 
         for (const stage of stages) {
-            await supabase
+            await supabaseClient
                 .from('research_stages_completed')
                 .insert({
                     project_id: data.id,
@@ -682,7 +703,7 @@ async function loadStudyDiary(userId = null) {
     const targetUserId = userId || user?.id;
 
     try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('study_diary')
             .select('*')
             .eq('user_id', targetUserId)
@@ -702,7 +723,7 @@ async function addStudyDiaryEntry(entryText, date = null) {
     if (!user) return false;
 
     try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('study_diary')
             .insert({
                 user_id: user.id,
@@ -726,7 +747,7 @@ async function loadUWorldDiary(userId = null) {
     const targetUserId = userId || user?.id;
 
     try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('uworld_diary')
             .select('*')
             .eq('user_id', targetUserId)
@@ -746,7 +767,7 @@ async function addUWorldDiaryEntry(entryData) {
     if (!user) return false;
 
     try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('uworld_diary')
             .insert({
                 user_id: user.id,
@@ -780,7 +801,7 @@ async function submitCheckIn(status, message = '') {
     if (!user) return false;
 
     try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('daily_checkins')
             .insert({
                 user_id: user.id,
@@ -805,7 +826,7 @@ async function submitCheckIn(status, message = '') {
 // Load all members
 async function loadAllMembers() {
     try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('users')
             .select('*')
             .order('name', { ascending: true });
@@ -821,7 +842,7 @@ async function loadAllMembers() {
 // Add new member
 async function addMember(memberData) {
     try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('users')
             .insert({
                 ...memberData,
@@ -854,11 +875,11 @@ async function removeMember(userId) {
         ];
 
         for (const table of tables) {
-            await supabase.from(table).delete().eq('user_id', userId);
+            await supabaseClient.from(table).delete().eq('user_id', userId);
         }
 
         // Delete user
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('users')
             .delete()
             .eq('id', userId);
@@ -876,7 +897,7 @@ async function removeMember(userId) {
 // Update member data
 async function updateMemberData(userId, table, data) {
     try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from(table)
             .upsert({ user_id: userId, ...data });
 
@@ -894,7 +915,7 @@ async function updateMemberData(userId, table, data) {
 async function pasteSchedule(userId, scheduleText) {
     try {
         // Delete existing schedule
-        await supabase.from('schedules').delete().eq('user_id', userId);
+        await supabaseClient.from('schedules').delete().eq('user_id', userId);
 
         // Parse tab-separated values
         const lines = scheduleText.trim().split('\n');
@@ -914,7 +935,7 @@ async function pasteSchedule(userId, scheduleText) {
         }
 
         if (scheduleItems.length > 0) {
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('schedules')
                 .insert(scheduleItems);
 
@@ -936,35 +957,35 @@ async function pasteSchedule(userId, scheduleText) {
 async function loadMentorTimeline(mentorRole) {
     try {
         // Get recent check-ins
-        const { data: checkins } = await supabase
+        const { data: checkins } = await supabaseClient
             .from('daily_checkins')
             .select('*, users!user_id(name)')
             .order('created_at', { ascending: false })
             .limit(20);
 
         // Get recent study diary entries
-        const { data: studyEntries } = await supabase
+        const { data: studyEntries } = await supabaseClient
             .from('study_diary')
             .select('*, users!user_id(name)')
             .order('created_at', { ascending: false })
             .limit(20);
 
         // Get recent UWorld diary entries
-        const { data: uworldEntries } = await supabase
+        const { data: uworldEntries } = await supabaseClient
             .from('uworld_diary')
             .select('*, users!user_id(name)')
             .order('created_at', { ascending: false })
             .limit(20);
 
         // Get schedule delays
-        const { data: delays } = await supabase
+        const { data: delays } = await supabaseClient
             .from('schedule_delays')
             .select('*, users!user_id(name)')
             .order('created_at', { ascending: false })
             .limit(20);
 
         // Get blog posts
-        const { data: posts } = await supabase
+        const { data: posts } = await supabaseClient
             .from('blog_posts')
             .select('*, users!user_id(name)')
             .order('created_at', { ascending: false })
@@ -989,7 +1010,7 @@ async function loadMentorTimeline(mentorRole) {
 // Get pending calls for mentor
 async function getPendingCalls(mentorType) {
     try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('landmarks')
             .select('*, users!user_id(name, id)')
             .eq('completed', false)
