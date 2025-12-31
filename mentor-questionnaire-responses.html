@@ -179,6 +179,7 @@
         let userData = null;
         let allStudents = [];
         let currentStudent = null;
+        let currentResponses = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
@@ -253,124 +254,77 @@
             event.currentTarget.classList.add('active');
 
             // Load student data
-            const { data: student, error } = await WardApp.db
-                .from('users')
-                .select('*')
-                .eq('id', studentId)
-                .single();
+            const student = allStudents.find(s => s.id === studentId);
+            if (!student) return;
 
-            if (error || !student) {
-                WardApp.showToast('Erro ao carregar dados do aluno', 'error');
+            // Load questionnaire responses
+            const { data: responses, error } = await WardApp.db
+                .from('questionnaire_data')
+                .select('*')
+                .eq('user_id', studentId)
+                .order('step', { ascending: true });
+
+            if (error) {
+                console.error('Error loading responses:', error);
+                WardApp.showToast('Erro ao carregar respostas', 'error');
                 return;
             }
 
             currentStudent = student;
-            renderStudentResponses(student);
+            currentResponses = responses || [];
+            renderStudentResponses();
         }
 
-        function renderStudentResponses(student) {
+        function renderStudentResponses() {
             document.getElementById('no-student-selected').style.display = 'none';
             document.getElementById('responses-content').style.display = 'block';
-            document.getElementById('student-name').textContent = student.full_name || student.email;
+            document.getElementById('student-name').textContent = currentStudent.full_name || currentStudent.email;
 
             const sections = document.getElementById('responses-sections');
             sections.innerHTML = '';
 
-            // Step 1: Basic Data
-            sections.innerHTML += renderStep('Step 1: Dados Básicos', {
-                'Nome Completo': student.full_name || '-',
-                'Email': student.email || '-',
-                'WhatsApp': student.whatsapp || '-',
-                'Data de Nascimento': student.birth_date || '-',
-                'Graduação': student.graduation || '-',
-                'Ano de Formação': student.graduation_year || '-'
-            });
+            // Render all 11 steps
+            for (let step = 1; step <= 11; step++) {
+                const stepData = currentResponses.find(r => r.step === step);
+                const data = stepData ? stepData.data : {};
 
-            // Step 2: USMLE Data
-            sections.innerHTML += renderStep('Step 2: Dados do USMLE', {
-                'Step 1 Feito?': student.step1_done ? 'Sim' : 'Não',
-                'Step 1 Score': student.step1_score || '-',
-                'Step 1 Data': student.step1_date || '-',
-                'Step 2 CK Feito?': student.step2ck_done ? 'Sim' : 'Não',
-                'Step 2 CK Score': student.step2ck_score || '-',
-                'Step 2 CK Data': student.step2ck_date || '-',
-                'Step 3 Feito?': student.step3_done ? 'Sim' : 'Não',
-                'Step 3 Score': student.step3_score || '-',
-                'OET Feito?': student.oet_done ? 'Sim' : 'Não',
-                'OET Score': student.oet_score || '-'
-            });
-
-            // Step 3: UWorld Prep
-            sections.innerHTML += renderStep('Step 3: Preparação UWorld', {
-                'Tem UWorld?': student.has_uworld ? 'Sim' : 'Não',
-                'Tipo de Conta': student.uworld_account_type || '-',
-                'Data de Início': student.uworld_start_date || '-',
-                'Data de Expiração': student.uworld_expiry_date || '-',
-                'Objetivo de Conclusão': student.uworld_target_completion || '-'
-            });
-
-            // Step 4: UWorld Progress
-            sections.innerHTML += renderStep('Step 4: Progresso UWorld', {
-                'Percentual Completo': student.uworld_percent_complete ? `${student.uworld_percent_complete}%` : '-',
-                'Média Geral': student.uworld_average_overall ? `${student.uworld_average_overall}%` : '-',
-                'Modo de Estudo': student.uworld_study_mode || '-',
-                'Horas por Dia': student.uworld_hours_per_day || '-',
-                'Dias por Semana': student.uworld_days_per_week || '-'
-            });
-
-            // Step 5: English
-            sections.innerHTML += renderStep('Step 5: Inglês', {
-                'Nível de Inglês': student.english_level || '-',
-                'Fez Curso de Inglês?': student.english_course ? 'Sim' : 'Não',
-                'Qual Curso': student.english_course_name || '-',
-                'Precisa Melhorar?': student.needs_english_improvement ? 'Sim' : 'Não'
-            });
-
-            // Step 6: Anki
-            sections.innerHTML += renderStep('Step 6: Anki', {
-                'Usa Anki?': student.uses_anki ? 'Sim' : 'Não',
-                'Deck Principal': student.anki_main_deck || '-',
-                'Cards por Dia': student.anki_cards_per_day || '-',
-                'Tem Dificuldades?': student.anki_difficulties ? 'Sim' : 'Não',
-                'Descrição das Dificuldades': student.anki_difficulties_description || '-'
-            });
-
-            // Step 7-9: Research
-            sections.innerHTML += renderStep('Step 7-9: Pesquisa', {
-                'Quer fazer Pesquisa?': student.wants_research ? 'Sim' : 'Não',
-                'Tipo de Pesquisa': student.research_type || '-',
-                'Área de Interesse': student.research_area || '-',
-                'Tem Publicações?': student.has_publications ? 'Sim' : 'Não',
-                'Número de Publicações': student.num_publications || '-',
-                'Quer Ajuda da Ward?': student.wants_ward_research_help ? 'Sim' : 'Não'
-            });
-
-            // Step 10: Observerships
-            sections.innerHTML += renderStep('Step 10: Observerships', {
-                'Fez Observership?': student.has_observership ? 'Sim' : 'Não',
-                'Onde': student.observership_location || '-',
-                'Quando': student.observership_when || '-',
-                'Quer fazer mais?': student.wants_more_observerships ? 'Sim' : 'Não'
-            });
-
-            // Step 11: Background
-            sections.innerHTML += renderStep('Step 11: Background', {
-                'Formação em Medicina no Brasil?': student.brazilian_med_school ? 'Sim' : 'Não',
-                'Qual Faculdade': student.med_school_name || '-',
-                'Tem Residência?': student.has_residency ? 'Sim' : 'Não',
-                'Especialidade': student.residency_specialty || '-',
-                'Já trabalha?': student.currently_working ? 'Sim' : 'Não',
-                'Área de Trabalho': student.work_area || '-'
-            });
+                sections.innerHTML += renderStep(`Step ${step}`, data);
+            }
         }
 
         function renderStep(title, data) {
-            const items = Object.entries(data).map(([label, value]) => `
-                <div class="response-item">
-                    <div class="response-label">${label}</div>
-                    <div class="response-value">${value}</div>
-                </div>
-            `).join('');
+            if (!data || Object.keys(data).length === 0) {
+                return `
+                    <div class="step-section">
+                        <div class="step-header">${title}</div>
+                        <div class="response-item">
+                            <div class="response-value" style="color: #9ca3af; font-style: italic;">Nenhuma resposta registrada</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const items = Object.entries(data).map(([key, value]) => {
+                // Format key to be more readable
+                const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+                // Format value
+                let displayValue = value;
+                if (typeof value === 'boolean') {
+                    displayValue = value ? 'Sim' : 'Não';
+                } else if (value === null || value === undefined || value === '') {
+                    displayValue = '-';
+                } else if (typeof value === 'object') {
+                    displayValue = JSON.stringify(value, null, 2);
+                }
+
+                return `
+                    <div class="response-item">
+                        <div class="response-label">${label}</div>
+                        <div class="response-value">${displayValue}</div>
+                    </div>
+                `;
+            }).join('');
 
             return `
                 <div class="step-section">
@@ -390,34 +344,31 @@
             content += `Data de Exportação: ${new Date().toLocaleString('pt-BR')}\n`;
             content += `\n${'='.repeat(80)}\n\n`;
 
-            // Add all responses
-            const allData = {
-                'STEP 1: DADOS BÁSICOS': {
-                    'Nome Completo': currentStudent.full_name,
-                    'Email': currentStudent.email,
-                    'WhatsApp': currentStudent.whatsapp,
-                    'Data de Nascimento': currentStudent.birth_date,
-                    'Graduação': currentStudent.graduation,
-                    'Ano de Formação': currentStudent.graduation_year
-                },
-                'STEP 2: DADOS DO USMLE': {
-                    'Step 1 Feito?': currentStudent.step1_done ? 'Sim' : 'Não',
-                    'Step 1 Score': currentStudent.step1_score,
-                    'Step 1 Data': currentStudent.step1_date,
-                    'Step 2 CK Feito?': currentStudent.step2ck_done ? 'Sim' : 'Não',
-                    'Step 2 CK Score': currentStudent.step2ck_score,
-                    'Step 2 CK Data': currentStudent.step2ck_date
-                }
-                // Add more sections as needed
-            };
+            // Add all steps
+            for (let step = 1; step <= 11; step++) {
+                const stepData = currentResponses.find(r => r.step === step);
+                const data = stepData ? stepData.data : {};
 
-            Object.entries(allData).forEach(([section, data]) => {
-                content += `${section}\n${'-'.repeat(80)}\n`;
-                Object.entries(data).forEach(([label, value]) => {
-                    content += `${label}: ${value || '-'}\n`;
-                });
+                content += `STEP ${step}\n${'-'.repeat(80)}\n`;
+
+                if (!data || Object.keys(data).length === 0) {
+                    content += 'Nenhuma resposta registrada\n';
+                } else {
+                    Object.entries(data).forEach(([key, value]) => {
+                        const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        let displayValue = value;
+                        if (typeof value === 'boolean') {
+                            displayValue = value ? 'Sim' : 'Não';
+                        } else if (value === null || value === undefined || value === '') {
+                            displayValue = '-';
+                        } else if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        content += `${label}: ${displayValue}\n`;
+                    });
+                }
                 content += `\n`;
-            });
+            }
 
             // Download as text file
             const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
