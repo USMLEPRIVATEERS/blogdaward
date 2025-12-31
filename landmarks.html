@@ -408,8 +408,10 @@
         }
 
         .mentor-tab.active {
-            background: var(--primary-color);
-            color: white;
+            background: var(--primary-light);
+            color: var(--gray-900);
+            font-weight: 600;
+            border-bottom: 2px solid var(--primary-color);
         }
 
         .availability-week {
@@ -461,6 +463,101 @@
             cursor: pointer;
             font-size: 0.75rem;
             margin-left: 0.5rem;
+        }
+
+        /* Availability Slot List View */
+        .availability-slots-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        .availability-slot-card {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border: 1px solid #86efac;
+            border-radius: 12px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .availability-slot-card:hover {
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+            border-color: #22c55e;
+        }
+
+        .availability-slot-card.slot-guilherme {
+            background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+            border-color: #fde047;
+            cursor: not-allowed;
+            opacity: 0.8;
+        }
+
+        .availability-slot-card.slot-guilherme:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        .slot-date-icon {
+            font-size: 2rem;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .slot-info {
+            flex: 1;
+        }
+
+        .slot-date {
+            font-weight: 600;
+            color: var(--gray-900);
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .slot-time {
+            color: var(--gray-600);
+            font-size: 0.9rem;
+        }
+
+        .slot-action {
+            color: #22c55e;
+            font-size: 1.5rem;
+        }
+
+        .slot-action-disabled {
+            color: #9ca3af;
+            font-size: 0.8rem;
+            text-align: center;
+        }
+
+        .no-availability {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--gray-500);
+        }
+
+        .no-availability-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .guilherme-info-box {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
+            color: #92400e;
         }
     </style>
 
@@ -1094,6 +1191,17 @@
                 return;
             }
 
+            const isGuilherme = mentorKey === 'guilherme';
+
+            // Load mentor settings for minimum days ahead (default 2)
+            const { data: mentorSettings } = await WardApp.db
+                .from('mentor_settings')
+                .select('min_days_ahead')
+                .eq('mentor_id', mentor.id)
+                .maybeSingle();
+
+            const minDaysAhead = mentorSettings?.min_days_ahead ?? 2;
+
             // Load regular availability
             const { data: regularSlots } = await WardApp.db
                 .from('mentor_availability_regular')
@@ -1103,16 +1211,21 @@
                 .order('day_of_week')
                 .order('start_time');
 
-            // Load specific dates (next 14 days)
-            const today = new Date().toISOString().split('T')[0];
-            const twoWeeks = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            // Calculate date range (min days ahead to 30 days)
+            const today = new Date();
+            const minDate = new Date(today.getTime() + minDaysAhead * 24 * 60 * 60 * 1000);
+            const maxDate = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
 
+            const minDateStr = minDate.toISOString().split('T')[0];
+            const maxDateStr = maxDate.toISOString().split('T')[0];
+
+            // Load specific dates
             const { data: specificDates } = await WardApp.db
                 .from('mentor_availability_specific')
                 .select('*')
                 .eq('mentor_id', mentor.id)
-                .gte('available_date', today)
-                .lte('available_date', twoWeeks);
+                .gte('available_date', minDateStr)
+                .lte('available_date', maxDateStr);
 
             // Load already scheduled calls
             const { data: scheduledCalls } = await WardApp.db
@@ -1120,66 +1233,123 @@
                 .select('scheduled_date, scheduled_time')
                 .eq('mentor_id', mentor.id)
                 .eq('status', 'scheduled')
-                .gte('scheduled_date', today);
+                .gte('scheduled_date', minDateStr);
 
-            // Render weekly availability
-            let html = '<h4 class="mb-2">Horarios Regulares (Semanais)</h4>';
+            const bookedSlots = (scheduledCalls || []).map(c =>
+                c.scheduled_date + '_' + c.scheduled_time.substring(0, 5)
+            );
 
-            if (!regularSlots || regularSlots.length === 0) {
-                html += '<p class="text-muted">Nenhum horario regular cadastrado</p>';
-            } else {
-                html += '<div class="availability-week">';
-                for (let i = 0; i < 7; i++) {
-                    const daySlots = regularSlots.filter(s => s.day_of_week === i);
+            // Build unavailable dates set
+            const unavailableDates = new Set(
+                (specificDates || []).filter(d => d.is_unavailable).map(d => d.available_date)
+            );
 
-                    // Generate individual meeting slots for each availability block
-                    let slotsHtml = '';
-                    daySlots.forEach(s => {
-                        const duration = s.duration_minutes || 60;
-                        const meetingSlots = generateMeetingSlots(s.start_time, s.end_time, duration);
-                        meetingSlots.forEach(slot => {
-                            slotsHtml += `<div class="availability-slot">${slot.start} - ${slot.end}</div>`;
-                        });
+            // Generate all available slots for the next 30 days
+            const allSlots = [];
+
+            for (let d = new Date(minDate); d <= maxDate; d.setDate(d.getDate() + 1)) {
+                const dateStr = d.toISOString().split('T')[0];
+                const dayOfWeek = d.getDay();
+
+                // Skip unavailable specific dates
+                if (unavailableDates.has(dateStr)) continue;
+
+                // Get regular slots for this day of week
+                const dayRegularSlots = (regularSlots || []).filter(s => s.day_of_week === dayOfWeek);
+
+                // Get specific availability for this date
+                const daySpecificSlots = (specificDates || []).filter(s =>
+                    s.available_date === dateStr && !s.is_unavailable
+                );
+
+                // Combine slots
+                const combinedSlots = [...dayRegularSlots, ...daySpecificSlots];
+
+                combinedSlots.forEach(slot => {
+                    const duration = slot.duration_minutes || 60;
+                    const meetingSlots = generateMeetingSlots(slot.start_time, slot.end_time, duration);
+
+                    meetingSlots.forEach(ms => {
+                        const slotKey = dateStr + '_' + ms.start;
+                        if (!bookedSlots.includes(slotKey)) {
+                            allSlots.push({
+                                date: dateStr,
+                                dayOfWeek: dayOfWeek,
+                                startTime: ms.start,
+                                endTime: ms.end,
+                                mentorId: mentor.id,
+                                mentorKey: mentorKey
+                            });
+                        }
                     });
-
-                    html += `
-                        <div class="availability-day">
-                            <div class="availability-day-name">${dayNames[i]}</div>
-                            ${slotsHtml || '<div class="no-slots">-</div>'}
-                        </div>
-                    `;
-                }
-                html += '</div>';
+                });
             }
 
-            // Render specific dates
-            const unavailableDates = (specificDates || []).filter(d => d.is_unavailable);
-            const extraAvailable = (specificDates || []).filter(d => !d.is_unavailable);
+            // Sort by date and time
+            allSlots.sort((a, b) => {
+                if (a.date !== b.date) return a.date.localeCompare(b.date);
+                return a.startTime.localeCompare(b.startTime);
+            });
 
-            if (unavailableDates.length > 0) {
-                html += '<h4 class="mb-2 mt-4">Dias Indisponiveis</h4>';
-                html += unavailableDates.map(d => `
-                    <div style="background: #fee2e2; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.25rem;">
-                        ❌ ${WardApp.formatDate(d.available_date)} ${d.notes ? '- ' + d.notes : ''}
+            // Build HTML
+            let html = '';
+
+            if (isGuilherme) {
+                html += `
+                    <div class="guilherme-info-box">
+                        ⚠️ <strong>Atenção:</strong> As chamadas com Guilherme são apenas para os temas pré-definidos
+                        (Configurando Anki e Uso do Anki). Use o botão 📅 no landmark correspondente para agendar.
                     </div>
-                `).join('');
+                `;
             }
 
-            if (extraAvailable.length > 0) {
-                html += '<h4 class="mb-2 mt-4">Disponibilidades Extras</h4>';
-                html += extraAvailable.map(d => {
-                    const duration = d.duration_minutes || 60;
-                    const meetingSlots = generateMeetingSlots(d.start_time, d.end_time, duration);
-                    const slotsHtml = meetingSlots.map(s =>
-                        `<span style="display: inline-block; margin: 2px; padding: 2px 6px; background: #a7f3d0; border-radius: 4px; font-size: 0.75rem;">${s.start}-${s.end}</span>`
-                    ).join('');
-                    return `
-                        <div style="background: #d1fae5; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.25rem;">
-                            ✅ ${WardApp.formatDate(d.available_date)} ${d.notes ? '(' + d.notes + ')' : ''}
-                            <div style="margin-top: 0.25rem;">${slotsHtml}</div>
-                        </div>
-                    `;
-                }).join('');
+            if (allSlots.length === 0) {
+                html += `
+                    <div class="no-availability">
+                        <div class="no-availability-icon">📅</div>
+                        <h4>Nenhuma disponibilidade</h4>
+                        <p>Este mentor nao possui horarios disponiveis nos proximos dias.</p>
+                    </div>
+                `;
+            } else {
+                html += `<p class="mb-3" style="font-size: 0.85rem; color: var(--gray-600);">
+                    Mostrando ${allSlots.length} horarios disponiveis a partir de ${minDaysAhead} dias
+                </p>`;
+                html += '<div class="availability-slots-list">';
+
+                allSlots.forEach(slot => {
+                    const dateObj = new Date(slot.date + 'T12:00:00');
+                    const dayName = dayNames[slot.dayOfWeek];
+                    const formattedDate = WardApp.formatDate(slot.date);
+
+                    if (isGuilherme) {
+                        html += `
+                            <div class="availability-slot-card slot-guilherme">
+                                <div class="slot-date-icon">📅</div>
+                                <div class="slot-info">
+                                    <div class="slot-date">${formattedDate} (${dayName})</div>
+                                    <div class="slot-time">${slot.startTime} - ${slot.endTime}</div>
+                                </div>
+                                <div class="slot-action-disabled">
+                                    Agende pelo<br>landmark
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="availability-slot-card" onclick="scheduleFromSlot('${slot.mentorId}', '${slot.date}', '${slot.startTime}', '${slot.endTime}')">
+                                <div class="slot-date-icon">📅</div>
+                                <div class="slot-info">
+                                    <div class="slot-date">${formattedDate} (${dayName})</div>
+                                    <div class="slot-time">${slot.startTime} - ${slot.endTime}</div>
+                                </div>
+                                <div class="slot-action">→</div>
+                            </div>
+                        `;
+                    }
+                });
+
+                html += '</div>';
             }
 
             document.getElementById('availability-content').innerHTML = html;
@@ -1425,6 +1595,83 @@
 
             closeModal('schedule-modal');
             WardApp.showToast('Chamada agendada com sucesso!');
+        }
+
+        // Schedule from clicking on an availability slot (creates extra call)
+        async function scheduleFromSlot(mentorId, date, startTime, endTime) {
+            // Close availability modal
+            closeModal('availability-modal');
+
+            // Get mentor name for the landmark title
+            let mentorName = 'Mentor';
+            for (const [key, m] of Object.entries(mentorsData)) {
+                if (m.id == mentorId) {
+                    mentorName = m.full_name || (key === 'iria' ? 'Dra. Iria' : 'Marcos');
+                    break;
+                }
+            }
+
+            // Ask for call topic
+            const topic = prompt('Qual o tema da chamada extra?');
+            if (!topic) return;
+
+            // Create the extra call landmark
+            const { data: newLandmark, error: lmError } = await WardApp.db
+                .from('landmarks')
+                .insert({
+                    user_id: targetUserId,
+                    landmark_type: 'call_extra_' + Date.now(),
+                    title: `Chamada Extra - ${mentorName}: ${topic}`,
+                    completed: false,
+                    is_urgent: false,
+                    notes: [],
+                    order_position: 999,
+                    group_name: 'extras'
+                })
+                .select()
+                .single();
+
+            if (lmError) {
+                console.error('Error creating landmark:', lmError);
+                WardApp.showToast('Erro ao criar chamada', 'error');
+                return;
+            }
+
+            // Check if slot is still available
+            const { data: existing } = await WardApp.db
+                .from('scheduled_calls')
+                .select('id')
+                .eq('mentor_id', mentorId)
+                .eq('scheduled_date', date)
+                .eq('scheduled_time', startTime)
+                .eq('status', 'scheduled')
+                .maybeSingle();
+
+            if (existing) {
+                WardApp.showToast('Este horario ja foi reservado. Escolha outro.', 'error');
+                return;
+            }
+
+            // Schedule the call
+            const { error } = await WardApp.db
+                .from('scheduled_calls')
+                .insert({
+                    landmark_id: newLandmark.id,
+                    student_id: targetUserId,
+                    mentor_id: mentorId,
+                    scheduled_date: date,
+                    scheduled_time: startTime,
+                    status: 'scheduled'
+                });
+
+            if (error) {
+                console.error('Error scheduling:', error);
+                WardApp.showToast('Erro ao agendar', 'error');
+                return;
+            }
+
+            WardApp.showToast(`Chamada agendada para ${WardApp.formatDate(date)} às ${startTime}!`);
+            loadLandmarks();
         }
     </script>
 </body>

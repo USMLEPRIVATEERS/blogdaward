@@ -258,6 +258,28 @@
 
         <!-- Tab: Regular Availability -->
         <div id="tab-availability" class="tab-content">
+            <!-- Settings Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <span>⚙️ Configuracoes de Agendamento</span>
+                </div>
+                <div class="card-body">
+                    <div class="input-group" style="max-width: 400px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">Minimo de dias para agendamento</label>
+                            <select id="min-days-ahead" class="form-input" onchange="saveMinDaysAhead()">
+                                <option value="1">1 dia</option>
+                                <option value="2">2 dias (recomendado)</option>
+                                <option value="3">3 dias</option>
+                                <option value="5">5 dias</option>
+                                <option value="7">7 dias (1 semana)</option>
+                            </select>
+                            <small class="text-muted">Alunos so podem agendar chamadas com pelo menos este tempo de antecedencia</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card mb-4">
                 <div class="card-header">
                     <span>🕐 Disponibilidade Regular (Recorrente)</span>
@@ -451,10 +473,43 @@
 
         async function loadAllData() {
             await Promise.all([
+                loadMentorSettings(),
                 loadRegularAvailability(),
                 loadSpecificDates(),
                 loadScheduledCalls()
             ]);
+        }
+
+        async function loadMentorSettings() {
+            const { data: settings } = await WardApp.db
+                .from('mentor_settings')
+                .select('min_days_ahead')
+                .eq('mentor_id', userData.id)
+                .maybeSingle();
+
+            const minDays = settings?.min_days_ahead ?? 2;
+            document.getElementById('min-days-ahead').value = minDays;
+        }
+
+        async function saveMinDaysAhead() {
+            const minDays = parseInt(document.getElementById('min-days-ahead').value);
+
+            // Upsert the setting
+            const { error } = await WardApp.db
+                .from('mentor_settings')
+                .upsert({
+                    mentor_id: userData.id,
+                    min_days_ahead: minDays,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'mentor_id' });
+
+            if (error) {
+                console.error('Error saving settings:', error);
+                WardApp.showToast('Erro ao salvar', 'error');
+                return;
+            }
+
+            WardApp.showToast('Configuracao salva!');
         }
 
         function showTab(tab) {
