@@ -1118,12 +1118,21 @@
                 html += '<div class="availability-week">';
                 for (let i = 0; i < 7; i++) {
                     const daySlots = regularSlots.filter(s => s.day_of_week === i);
+
+                    // Generate individual meeting slots for each availability block
+                    let slotsHtml = '';
+                    daySlots.forEach(s => {
+                        const duration = s.duration_minutes || 60;
+                        const meetingSlots = generateMeetingSlots(s.start_time, s.end_time, duration);
+                        meetingSlots.forEach(slot => {
+                            slotsHtml += `<div class="availability-slot">${slot.start} - ${slot.end}</div>`;
+                        });
+                    });
+
                     html += `
                         <div class="availability-day">
                             <div class="availability-day-name">${dayNames[i]}</div>
-                            ${daySlots.length > 0 ? daySlots.map(s => `
-                                <div class="availability-slot">${formatTime(s.start_time)} - ${formatTime(s.end_time)}</div>
-                            `).join('') : '<div class="no-slots">-</div>'}
+                            ${slotsHtml || '<div class="no-slots">-</div>'}
                         </div>
                     `;
                 }
@@ -1145,12 +1154,19 @@
 
             if (extraAvailable.length > 0) {
                 html += '<h4 class="mb-2 mt-4">Disponibilidades Extras</h4>';
-                html += extraAvailable.map(d => `
-                    <div style="background: #d1fae5; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.25rem;">
-                        ✅ ${WardApp.formatDate(d.available_date)} - ${formatTime(d.start_time)} a ${formatTime(d.end_time)}
-                        ${d.notes ? ' (' + d.notes + ')' : ''}
-                    </div>
-                `).join('');
+                html += extraAvailable.map(d => {
+                    const duration = d.duration_minutes || 60;
+                    const meetingSlots = generateMeetingSlots(d.start_time, d.end_time, duration);
+                    const slotsHtml = meetingSlots.map(s =>
+                        `<span style="display: inline-block; margin: 2px; padding: 2px 6px; background: #a7f3d0; border-radius: 4px; font-size: 0.75rem;">${s.start}-${s.end}</span>`
+                    ).join('');
+                    return `
+                        <div style="background: #d1fae5; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.25rem;">
+                            ✅ ${WardApp.formatDate(d.available_date)} ${d.notes ? '(' + d.notes + ')' : ''}
+                            <div style="margin-top: 0.25rem;">${slotsHtml}</div>
+                        </div>
+                    `;
+                }).join('');
             }
 
             document.getElementById('availability-content').innerHTML = html;
@@ -1159,6 +1175,32 @@
         function formatTime(time) {
             if (!time) return '';
             return time.substring(0, 5);
+        }
+
+        function generateMeetingSlots(startTime, endTime, durationMinutes) {
+            const slots = [];
+            let current = timeToMinutesLocal(startTime);
+            const end = timeToMinutesLocal(endTime);
+
+            while (current + durationMinutes <= end) {
+                const slotStart = minutesToTimeLocal(current);
+                const slotEnd = minutesToTimeLocal(current + durationMinutes);
+                slots.push({ start: slotStart, end: slotEnd });
+                current += durationMinutes;
+            }
+
+            return slots;
+        }
+
+        function timeToMinutesLocal(time) {
+            const [h, m] = time.split(':').map(Number);
+            return h * 60 + m;
+        }
+
+        function minutesToTimeLocal(mins) {
+            const h = Math.floor(mins / 60).toString().padStart(2, '0');
+            const m = (mins % 60).toString().padStart(2, '0');
+            return h + ':' + m;
         }
 
         // Called when clicking schedule button on a landmark
