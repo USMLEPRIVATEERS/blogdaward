@@ -134,6 +134,19 @@
             </div>
         </div>
 
+        <!-- Global Activity Feed - Facebook Style -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <span>🌐 Atividade Global da Plataforma</span>
+                <button class="btn btn-sm btn-outline" onclick="loadGlobalFeed()">🔄 Atualizar</button>
+            </div>
+            <div class="card-body">
+                <div id="global-activity-feed" class="activity-feed">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
         <!-- Pending Calls Section -->
         <div class="card mt-4">
             <div class="card-header">
@@ -216,6 +229,24 @@
         let allStudents = [];
         let selectedStudent = null;
 
+        // Default landmarks template
+        const defaultLandmarks = [
+            { group: 'setup', title: 'Entrada na Ward Academy', type: 'entry' },
+            { group: 'first-round', title: '1a Chamada - Dra. Iria: Background e USMLE', type: 'call_iria_1' },
+            { group: 'first-round', title: '1a Chamada - Guilherme: Configurando Anki', type: 'call_guilherme_1' },
+            { group: 'first-round', title: '1a Chamada - Marcos: Organizando proximos passos', type: 'call_marcos_1' },
+            { group: 'second-round', title: '2a Chamada - Dra. Iria: Como usar o UWorld', type: 'call_iria_2' },
+            { group: 'second-round', title: '2a Chamada - Guilherme: Uso do Anki nas ultimas semanas', type: 'call_guilherme_2' },
+            { group: 'second-round', title: '3a Chamada - Dra. Iria: Primeiras semanas de estudo', type: 'call_iria_3' },
+            { group: 'second-round', title: '4a Chamada - Dra. Iria: Desempenho no Blocao', type: 'call_iria_4' },
+            { group: 'second-pass', title: 'Chamada - Dra. Iria: Second Pass', type: 'call_iria_second_pass' },
+            { group: 'second-pass', title: 'Chamada - Dra. Iria: Simulados (NBMEs)', type: 'call_iria_nbmes' },
+            { group: 'dedicated', title: 'Chamada - Dra. Iria: Dedicated', type: 'call_iria_dedicated' },
+            { group: 'dedicated', title: 'Chamada - Dra. Iria: Agendar a prova', type: 'call_iria_schedule' },
+            { group: 'dedicated', title: 'Chamada - Dra. Iria: Pre-prova', type: 'call_iria_pre_exam' },
+            { group: 'dedicated', title: 'Chamada - Dra. Iria: Pos-prova', type: 'call_iria_post_exam' }
+        ];
+
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
@@ -227,8 +258,63 @@
             }
 
             await loadStudents();
+            await ensureAllStudentsHaveLandmarks();
             await loadPendingCalls();
+            await loadGlobalFeed();
         });
+
+        // Ensure all students have default landmarks
+        async function ensureAllStudentsHaveLandmarks() {
+            for (const student of allStudents) {
+                const { data: existing } = await WardApp.db
+                    .from('landmarks')
+                    .select('id')
+                    .eq('user_id', student.id)
+                    .limit(1);
+
+                if (!existing || existing.length === 0) {
+                    // Check if student wants research
+                    const { data: researchData } = await WardApp.db
+                        .from('user_research_data')
+                        .select('wants_research_ward')
+                        .eq('user_id', student.id)
+                        .single();
+
+                    const wantsResearch = researchData?.wants_research_ward === 'immediately' ||
+                                         researchData?.wants_research_ward === 'after_usmle';
+
+                    // Add research landmarks if they want research
+                    let landmarksToCreate = [...defaultLandmarks];
+                    if (wantsResearch) {
+                        landmarksToCreate.push(
+                            { group: 'research', title: '2a Chamada - Marcos: Conversa sobre pesquisa', type: 'call_marcos_research_2' },
+                            { group: 'research', title: '3a Chamada - Marcos: Usar databases corretamente', type: 'call_marcos_research_3' },
+                            { group: 'research', title: '4a Chamada - Marcos: Validando ideia de revisao', type: 'call_marcos_research_4' },
+                            { group: 'research', title: '5a Chamada - Marcos: Triagem por titulo e resumo', type: 'call_marcos_research_5' },
+                            { group: 'research', title: '6a Chamada - Marcos: Triagem por manuscritos', type: 'call_marcos_research_6' },
+                            { group: 'research', title: '7a Chamada - Marcos: Extracao de dados', type: 'call_marcos_research_7' },
+                            { group: 'research', title: '8a Chamada - Marcos: Risco de vies', type: 'call_marcos_research_8' },
+                            { group: 'research', title: '9a Chamada - Marcos: Escrita cientifica', type: 'call_marcos_research_9' },
+                            { group: 'research', title: '10a Chamada - Marcos: Submissao do manuscrito', type: 'call_marcos_research_10' }
+                        );
+                    }
+
+                    const landmarks = landmarksToCreate.map((lm, index) => ({
+                        user_id: student.id,
+                        landmark_type: lm.type,
+                        title: lm.title,
+                        completed: false,
+                        is_urgent: false,
+                        notes: [],
+                        order_position: index,
+                        group_name: lm.group
+                    }));
+
+                    await WardApp.db.from('landmarks').insert(landmarks);
+                    console.log(`Created landmarks for ${student.full_name || student.email}`);
+                }
+            }
+        }
 
         async function loadStudents() {
             const { data: students, error } = await WardApp.db
@@ -343,13 +429,67 @@
 
             // Load various data for timeline (including diaries for Facebook-like social feed)
             const [landmarksRes, checkinsRes, messagesRes, delaysRes, studyDiaryRes, uworldDiaryRes] = await Promise.all([
-                WardApp.db.from('landmarks').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(10),
+                WardApp.db.from('landmarks').select('*').eq('user_id', studentId).order('order_position', { ascending: true }),
                 WardApp.db.from('daily_checkins').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(10),
                 WardApp.db.from('messages').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(5),
                 WardApp.db.from('schedule_delays').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(5),
                 WardApp.db.from('study_diary').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(10),
                 WardApp.db.from('uworld_diary').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(10)
             ]);
+
+            // Render Landmarks Section first (prominent display)
+            const landmarks = landmarksRes.data || [];
+            const landmarkGroups = {
+                'setup': { name: 'Setup Inicial', items: [] },
+                'first-round': { name: '1a Rodada de Chamadas', items: [] },
+                'second-round': { name: '2a Rodada de Chamadas', items: [] },
+                'system-calls': { name: 'Chamadas por System', items: [] },
+                'research': { name: 'Chamadas de Pesquisa', items: [] },
+                'second-pass': { name: 'Second Pass e Simulados', items: [] },
+                'dedicated': { name: 'Dedicated e Prova', items: [] },
+                'extras': { name: 'Extras', items: [] }
+            };
+
+            landmarks.forEach(lm => {
+                const group = lm.group_name || 'extras';
+                if (landmarkGroups[group]) {
+                    landmarkGroups[group].items.push(lm);
+                }
+            });
+
+            // Build landmarks HTML
+            let landmarksHTML = '<div class="landmarks-overview mb-4">';
+            landmarksHTML += '<h4 style="margin-bottom: 1rem;">📍 Landmarks do Aluno</h4>';
+
+            const completedCount = landmarks.filter(l => l.completed).length;
+            const pendingCount = landmarks.filter(l => !l.completed).length;
+            const urgentCount = landmarks.filter(l => l.is_urgent && !l.completed).length;
+
+            landmarksHTML += `<div class="landmark-stats mb-3" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <span class="badge" style="background: #d1fae5; color: #065f46; padding: 0.5rem 1rem; border-radius: 20px;">✅ ${completedCount} Concluidos</span>
+                <span class="badge" style="background: #fef3c7; color: #92400e; padding: 0.5rem 1rem; border-radius: 20px;">⏳ ${pendingCount} Pendentes</span>
+                ${urgentCount > 0 ? `<span class="badge" style="background: #fee2e2; color: #991b1b; padding: 0.5rem 1rem; border-radius: 20px;">🔴 ${urgentCount} Urgentes</span>` : ''}
+            </div>`;
+
+            // Show each group
+            for (const [key, group] of Object.entries(landmarkGroups)) {
+                if (group.items.length > 0) {
+                    landmarksHTML += `<div class="landmark-group-section mb-2">
+                        <strong style="font-size: 0.85rem; color: #6b7280;">${group.name}</strong>
+                        <div class="landmark-chips" style="margin-top: 0.5rem;">`;
+
+                    group.items.forEach(lm => {
+                        const statusClass = lm.completed ? 'completed' : (lm.is_urgent ? 'urgent' : 'pending');
+                        const icon = lm.completed ? '✅' : (lm.is_urgent ? '🔴' : '⏳');
+                        landmarksHTML += `<span class="landmark-chip ${statusClass}" title="${lm.title}">${icon} ${lm.title.substring(0, 30)}${lm.title.length > 30 ? '...' : ''}</span>`;
+                    });
+
+                    landmarksHTML += '</div></div>';
+                }
+            }
+            landmarksHTML += '</div>';
+            landmarksHTML += '<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 1rem 0;">';
+            landmarksHTML += '<h4 style="margin-bottom: 1rem;">📅 Timeline de Atividades</h4>';
 
             // Combine and sort by date
             const timeline = [];
@@ -427,12 +567,8 @@
             // Sort by date descending
             timeline.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-            if (timeline.length === 0) {
-                container.innerHTML = '<p class="text-muted">Nenhuma atividade ainda</p>';
-                return;
-            }
-
-            container.innerHTML = timeline.slice(0, 20).map(item => `
+            // Build timeline HTML
+            let timelineHTML = timeline.slice(0, 20).map(item => `
                 <div class="timeline-item ${item.type} ${item.completed === false ? 'pending' : ''}">
                     <div class="timeline-icon">${item.icon}</div>
                     <div class="timeline-content">
@@ -442,6 +578,220 @@
                     </div>
                 </div>
             `).join('');
+
+            if (timeline.length === 0) {
+                timelineHTML = '<p class="text-muted">Nenhuma atividade recente</p>';
+            }
+
+            // Combine landmarks and timeline
+            container.innerHTML = landmarksHTML + timelineHTML;
+        }
+
+        // Load GLOBAL activity feed - Facebook style with ALL platform activity
+        async function loadGlobalFeed() {
+            const container = document.getElementById('global-activity-feed');
+            container.innerHTML = '<p class="text-muted">Carregando atividades...</p>';
+
+            try {
+                // Load ALL platform activities
+                const [
+                    linksRes,
+                    postsRes,
+                    commentsRes,
+                    checkinsRes,
+                    studyDiaryRes,
+                    uworldDiaryRes,
+                    delaysRes,
+                    messagesRes,
+                    researchRes,
+                    landmarksRes
+                ] = await Promise.all([
+                    WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('blog_posts').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('blog_comments').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('daily_checkins').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30),
+                    WardApp.db.from('study_diary').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('uworld_diary').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('schedule_delays').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('mentor_messages').select('*, users:user_id(full_name, email), mentor:mentor_id(full_name)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('research_projects').select('*, users:created_by(full_name, email)').order('updated_at', { ascending: false }).limit(15),
+                    WardApp.db.from('landmarks').select('*, users:user_id(full_name, email)').eq('completed', true).order('completion_date', { ascending: false }).limit(20)
+                ]);
+
+                // Combine all activities into a single timeline
+                const feed = [];
+
+                // Links added
+                (linksRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'link',
+                        icon: '🔗',
+                        color: '#2563eb',
+                        user: item.users?.full_name || item.users?.email || 'Sistema',
+                        action: 'adicionou um link',
+                        title: item.title,
+                        detail: item.category ? `Categoria: ${item.category}` : item.url,
+                        date: item.created_at
+                    });
+                });
+
+                // Blog posts
+                (postsRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'post',
+                        icon: '📝',
+                        color: '#7c3aed',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'publicou no blog',
+                        title: item.content?.substring(0, 100) + (item.content?.length > 100 ? '...' : ''),
+                        detail: `${item.likes || 0} likes, ${item.dislikes || 0} dislikes`,
+                        date: item.created_at
+                    });
+                });
+
+                // Comments
+                (commentsRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'comment',
+                        icon: '💬',
+                        color: '#059669',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'comentou em um post',
+                        title: item.content?.substring(0, 80) + (item.content?.length > 80 ? '...' : ''),
+                        detail: '',
+                        date: item.created_at
+                    });
+                });
+
+                // Check-ins
+                (checkinsRes.data || []).forEach(item => {
+                    const statusMap = { tranquilo: '🟢 Tranquilo', preciso_ajuda: '🟡 Precisa de Ajuda', parado: '🔴 Parado' };
+                    feed.push({
+                        type: 'checkin',
+                        icon: item.status === 'parado' ? '🔴' : item.status === 'preciso_ajuda' ? '🟡' : '🟢',
+                        color: item.status === 'parado' ? '#ef4444' : item.status === 'preciso_ajuda' ? '#f59e0b' : '#10b981',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'fez check-in',
+                        title: statusMap[item.status] || item.status,
+                        detail: item.message || '',
+                        date: item.created_at
+                    });
+                });
+
+                // Study diary
+                (studyDiaryRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'study',
+                        icon: '📔',
+                        color: '#f59e0b',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'atualizou diario de estudos',
+                        title: item.content?.substring(0, 80) + (item.content?.length > 80 ? '...' : ''),
+                        detail: '',
+                        date: item.created_at
+                    });
+                });
+
+                // UWorld diary
+                (uworldDiaryRes.data || []).forEach(item => {
+                    const acertos = item.questions_correct && item.questions_total
+                        ? Math.round((item.questions_correct / item.questions_total) * 100) + '% acertos'
+                        : '';
+                    feed.push({
+                        type: 'uworld',
+                        icon: '📊',
+                        color: '#6366f1',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'registrou sessao UWorld',
+                        title: `${item.questions_total || 0} questoes ${acertos ? '- ' + acertos : ''}`,
+                        detail: item.system_name ? `System: ${item.system_name}` : '',
+                        date: item.created_at
+                    });
+                });
+
+                // Schedule delays
+                (delaysRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'delay',
+                        icon: '⚠️',
+                        color: '#ef4444',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'sinalizou atraso no cronograma',
+                        title: item.reason || 'Atraso sinalizado',
+                        detail: `${WardApp.formatDate(item.start_date)} - ${WardApp.formatDate(item.end_date)}`,
+                        date: item.created_at
+                    });
+                });
+
+                // Mentor messages
+                (messagesRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'message',
+                        icon: '✉️',
+                        color: '#0ea5e9',
+                        user: item.mentor?.full_name || 'Mentor',
+                        action: `enviou mensagem para ${item.users?.full_name || 'aluno'}`,
+                        title: item.content?.substring(0, 80) + (item.content?.length > 80 ? '...' : ''),
+                        detail: '',
+                        date: item.created_at
+                    });
+                });
+
+                // Research projects updates
+                (researchRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'research',
+                        icon: '🔬',
+                        color: '#8b5cf6',
+                        user: item.users?.full_name || item.users?.email || 'Pesquisador',
+                        action: 'atualizou projeto de pesquisa',
+                        title: item.title,
+                        detail: `Status: ${item.status || 'em andamento'}`,
+                        date: item.updated_at
+                    });
+                });
+
+                // Completed landmarks
+                (landmarksRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'landmark',
+                        icon: '✅',
+                        color: '#10b981',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'completou landmark',
+                        title: item.title,
+                        detail: item.group_name || '',
+                        date: item.completion_date || item.created_at
+                    });
+                });
+
+                // Sort by date descending
+                feed.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                if (feed.length === 0) {
+                    container.innerHTML = '<p class="text-muted">Nenhuma atividade recente</p>';
+                    return;
+                }
+
+                // Render feed (show last 50 items)
+                container.innerHTML = feed.slice(0, 50).map(item => `
+                    <div class="feed-item" style="border-left-color: ${item.color}">
+                        <div class="feed-icon">${item.icon}</div>
+                        <div class="feed-content">
+                            <div class="feed-header">
+                                <strong>${item.user}</strong> ${item.action}
+                            </div>
+                            <div class="feed-title">${item.title}</div>
+                            ${item.detail ? `<div class="feed-detail">${item.detail}</div>` : ''}
+                            <div class="feed-date">${WardApp.formatDate(item.date)}</div>
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                console.error('Error loading global feed:', error);
+                container.innerHTML = '<p class="text-muted">Erro ao carregar atividades</p>';
+            }
         }
 
         async function loadPendingCalls() {
@@ -737,6 +1087,101 @@
         .call-group {
             font-size: 0.75rem;
             color: var(--gray-400);
+        }
+
+        /* Global Activity Feed Styles */
+        .activity-feed {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .feed-item {
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            border-left: 3px solid #e5e7eb;
+            margin-bottom: 0.5rem;
+            background: var(--gray-50);
+            border-radius: 0 var(--radius-md) var(--radius-md) 0;
+            transition: background 0.2s;
+        }
+
+        .feed-item:hover {
+            background: var(--gray-100);
+        }
+
+        .feed-icon {
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .feed-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .feed-header {
+            font-size: 0.875rem;
+            color: var(--gray-700);
+            margin-bottom: 0.25rem;
+        }
+
+        .feed-title {
+            font-weight: 500;
+            color: var(--gray-900);
+            word-wrap: break-word;
+        }
+
+        .feed-detail {
+            font-size: 0.8rem;
+            color: var(--gray-500);
+            margin-top: 0.25rem;
+        }
+
+        .feed-date {
+            font-size: 0.7rem;
+            color: var(--gray-400);
+            margin-top: 0.25rem;
+        }
+
+        /* Landmarks section in student timeline */
+        .landmarks-section {
+            background: #fef3c7;
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .landmarks-section h4 {
+            margin: 0 0 0.75rem 0;
+            color: #92400e;
+        }
+
+        .landmark-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            background: var(--white);
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            margin: 0.25rem;
+            border: 1px solid #fcd34d;
+        }
+
+        .landmark-chip.completed {
+            background: #d1fae5;
+            border-color: #6ee7b7;
+        }
+
+        .landmark-chip.pending {
+            background: #fef3c7;
+            border-color: #fcd34d;
+        }
+
+        .landmark-chip.urgent {
+            background: #fee2e2;
+            border-color: #fca5a5;
         }
     </style>
 </body>

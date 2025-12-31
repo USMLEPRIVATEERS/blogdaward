@@ -1268,6 +1268,54 @@ function updateHeaderUserInfo() {
     }
 }
 
+// ===== DYNAMIC NAVBAR BASED ON ROLE =====
+
+function updateNavbarForRole() {
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) return;
+
+    // Get the Dashboard link in navbar
+    const dashboardLink = document.querySelector('.nav-menu a[href="dashboard.html"]');
+    if (!dashboardLink) return;
+
+    // Update Dashboard link based on role
+    switch (user.role) {
+        case 'mentor_marcos':
+            dashboardLink.href = 'mentor-dashboard-marcos.html';
+            break;
+        case 'mentor_iria':
+            dashboardLink.href = 'mentor-dashboard-iria.html';
+            break;
+        case 'mentor_guilherme':
+            dashboardLink.href = 'mentor-dashboard-guilherme.html';
+            break;
+        case 'mentor_romulo':
+            dashboardLink.href = 'mentor-dashboard-romulo.html';
+            break;
+        default:
+            // Keep dashboard.html for students
+            dashboardLink.href = 'dashboard.html';
+    }
+
+    // Add mentor-specific links if mentor
+    if (user.role && user.role.startsWith('mentor_')) {
+        const navMenu = document.querySelector('.nav-menu');
+        if (navMenu) {
+            // Check if admin link already exists
+            if (!navMenu.querySelector('a[href="admin-members.html"]')) {
+                // Add admin link for Marcos
+                if (user.role === 'mentor_marcos') {
+                    const adminLink = document.createElement('a');
+                    adminLink.href = 'admin-members.html';
+                    adminLink.className = 'nav-link';
+                    adminLink.textContent = 'Admin';
+                    navMenu.appendChild(adminLink);
+                }
+            }
+        }
+    }
+}
+
 // ===== INITIALIZATION =====
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1278,6 +1326,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initRangeSliders();
     initMobileMenu();
     updateHeaderUserInfo();
+    updateNavbarForRole();
 
     // Check if should show check-in modal
     const user = JSON.parse(localStorage.getItem('ward_user'));
