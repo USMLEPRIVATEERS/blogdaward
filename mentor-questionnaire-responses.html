@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Respostas dos Questionários</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .questionnaire-grid {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .students-sidebar {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 1rem;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .student-item {
+            padding: 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 0.5rem;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .student-item:hover {
+            background: #f9fafb;
+            border-color: #e5e7eb;
+        }
+
+        .student-item.active {
+            background: #eff6ff;
+            border-color: #C45700;
+        }
+
+        .student-item-name {
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .student-item-progress {
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+
+        .responses-container {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 2rem;
+        }
+
+        .step-section {
+            margin-bottom: 2rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .step-section:last-child {
+            border-bottom: none;
+        }
+
+        .step-header {
+            background: linear-gradient(135deg, #C45700, #ff8c42);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .response-item {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: #f9fafb;
+            border-radius: 6px;
+        }
+
+        .response-label {
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 0.25rem;
+            font-size: 0.9rem;
+        }
+
+        .response-value {
+            color: #1f2937;
+            font-size: 0.95rem;
+        }
+
+        .empty-state-responses {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #9ca3af;
+        }
+
+        .export-btn {
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <div class="logo">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </div>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="#" class="nav-link" id="mentor-dashboard-link">Dashboard</a>
+            </nav>
+            <div class="nav-user">
+                <a href="profile.html" class="user-menu-btn">
+                    <span>👤</span>
+                    <span class="user-name">Perfil</span>
+                </a>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="welcome-banner">
+            <h1 class="welcome-title">📋 Respostas dos Questionários</h1>
+            <p class="welcome-subtitle">Visualize as respostas completas de cada aluno</p>
+        </div>
+
+        <div class="questionnaire-grid">
+            <!-- Sidebar com lista de alunos -->
+            <div class="students-sidebar">
+                <h3 style="margin-bottom: 1rem; font-size: 1rem;">Selecione um Aluno</h3>
+                <div id="students-list">
+                    <p class="text-muted">Carregando alunos...</p>
+                </div>
+            </div>
+
+            <!-- Container de respostas -->
+            <div class="responses-container">
+                <div id="no-student-selected" class="empty-state-responses">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">👈</div>
+                    <h3>Selecione um aluno</h3>
+                    <p>Escolha um aluno da lista ao lado para ver suas respostas</p>
+                </div>
+
+                <div id="responses-content" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                        <h2 id="student-name" style="margin: 0;"></h2>
+                        <button class="btn btn-outline export-btn" onclick="exportResponses()">📥 Exportar Respostas</button>
+                    </div>
+                    <div id="responses-sections"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let allStudents = [];
+        let currentStudent = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Check if user is mentor
+            const isMentor = userData.role && userData.role.startsWith('mentor');
+            if (!isMentor) {
+                WardApp.showToast('Acesso restrito a mentores', 'error');
+                setTimeout(() => window.location.href = 'dashboard.html', 1500);
+                return;
+            }
+
+            // Set dashboard link based on mentor role
+            const mentorName = userData.role.replace('mentor_', '');
+            document.getElementById('mentor-dashboard-link').href = `mentor-dashboard-${mentorName}.html`;
+
+            // Update user name
+            const displayName = userData.full_name || userData.email.split('@')[0];
+            document.querySelector('.user-name').textContent = displayName || 'Perfil';
+
+            // Load students
+            await loadStudents();
+        });
+
+        async function loadStudents() {
+            const { data: students, error } = await WardApp.db
+                .from('users')
+                .select('id, full_name, email, questionnaire_step, first_login_completed')
+                .eq('role', 'aluno')
+                .order('full_name', { ascending: true });
+
+            if (error) {
+                console.error('Error loading students:', error);
+                document.getElementById('students-list').innerHTML = '<p class="text-muted">Erro ao carregar alunos</p>';
+                return;
+            }
+
+            if (!students || students.length === 0) {
+                document.getElementById('students-list').innerHTML = '<p class="text-muted">Nenhum aluno encontrado</p>';
+                return;
+            }
+
+            allStudents = students;
+            renderStudentsList();
+        }
+
+        function renderStudentsList() {
+            const container = document.getElementById('students-list');
+
+            container.innerHTML = allStudents.map(student => {
+                const step = student.questionnaire_step || 0;
+                const completed = student.first_login_completed && step >= 11;
+                const progress = Math.round((step / 11) * 100);
+
+                return `
+                    <div class="student-item" onclick="selectStudent(${student.id})">
+                        <div class="student-item-name">${student.full_name || student.email}</div>
+                        <div class="student-item-progress">
+                            ${completed ? '✅ Completo' : `📊 ${progress}% (${step}/11 etapas)`}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function selectStudent(studentId) {
+            // Update active state
+            document.querySelectorAll('.student-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+
+            // Load student data
+            const { data: student, error } = await WardApp.db
+                .from('users')
+                .select('*')
+                .eq('id', studentId)
+                .single();
+
+            if (error || !student) {
+                WardApp.showToast('Erro ao carregar dados do aluno', 'error');
+                return;
+            }
+
+            currentStudent = student;
+            renderStudentResponses(student);
+        }
+
+        function renderStudentResponses(student) {
+            document.getElementById('no-student-selected').style.display = 'none';
+            document.getElementById('responses-content').style.display = 'block';
+            document.getElementById('student-name').textContent = student.full_name || student.email;
+
+            const sections = document.getElementById('responses-sections');
+            sections.innerHTML = '';
+
+            // Step 1: Basic Data
+            sections.innerHTML += renderStep('Step 1: Dados Básicos', {
+                'Nome Completo': student.full_name || '-',
+                'Email': student.email || '-',
+                'WhatsApp': student.whatsapp || '-',
+                'Data de Nascimento': student.birth_date || '-',
+                'Graduação': student.graduation || '-',
+                'Ano de Formação': student.graduation_year || '-'
+            });
+
+            // Step 2: USMLE Data
+            sections.innerHTML += renderStep('Step 2: Dados do USMLE', {
+                'Step 1 Feito?': student.step1_done ? 'Sim' : 'Não',
+                'Step 1 Score': student.step1_score || '-',
+                'Step 1 Data': student.step1_date || '-',
+                'Step 2 CK Feito?': student.step2ck_done ? 'Sim' : 'Não',
+                'Step 2 CK Score': student.step2ck_score || '-',
+                'Step 2 CK Data': student.step2ck_date || '-',
+                'Step 3 Feito?': student.step3_done ? 'Sim' : 'Não',
+                'Step 3 Score': student.step3_score || '-',
+                'OET Feito?': student.oet_done ? 'Sim' : 'Não',
+                'OET Score': student.oet_score || '-'
+            });
+
+            // Step 3: UWorld Prep
+            sections.innerHTML += renderStep('Step 3: Preparação UWorld', {
+                'Tem UWorld?': student.has_uworld ? 'Sim' : 'Não',
+                'Tipo de Conta': student.uworld_account_type || '-',
+                'Data de Início': student.uworld_start_date || '-',
+                'Data de Expiração': student.uworld_expiry_date || '-',
+                'Objetivo de Conclusão': student.uworld_target_completion || '-'
+            });
+
+            // Step 4: UWorld Progress
+            sections.innerHTML += renderStep('Step 4: Progresso UWorld', {
+                'Percentual Completo': student.uworld_percent_complete ? `${student.uworld_percent_complete}%` : '-',
+                'Média Geral': student.uworld_average_overall ? `${student.uworld_average_overall}%` : '-',
+                'Modo de Estudo': student.uworld_study_mode || '-',
+                'Horas por Dia': student.uworld_hours_per_day || '-',
+                'Dias por Semana': student.uworld_days_per_week || '-'
+            });
+
+            // Step 5: English
+            sections.innerHTML += renderStep('Step 5: Inglês', {
+                'Nível de Inglês': student.english_level || '-',
+                'Fez Curso de Inglês?': student.english_course ? 'Sim' : 'Não',
+                'Qual Curso': student.english_course_name || '-',
+                'Precisa Melhorar?': student.needs_english_improvement ? 'Sim' : 'Não'
+            });
+
+            // Step 6: Anki
+            sections.innerHTML += renderStep('Step 6: Anki', {
+                'Usa Anki?': student.uses_anki ? 'Sim' : 'Não',
+                'Deck Principal': student.anki_main_deck || '-',
+                'Cards por Dia': student.anki_cards_per_day || '-',
+                'Tem Dificuldades?': student.anki_difficulties ? 'Sim' : 'Não',
+                'Descrição das Dificuldades': student.anki_difficulties_description || '-'
+            });
+
+            // Step 7-9: Research
+            sections.innerHTML += renderStep('Step 7-9: Pesquisa', {
+                'Quer fazer Pesquisa?': student.wants_research ? 'Sim' : 'Não',
+                'Tipo de Pesquisa': student.research_type || '-',
+                'Área de Interesse': student.research_area || '-',
+                'Tem Publicações?': student.has_publications ? 'Sim' : 'Não',
+                'Número de Publicações': student.num_publications || '-',
+                'Quer Ajuda da Ward?': student.wants_ward_research_help ? 'Sim' : 'Não'
+            });
+
+            // Step 10: Observerships
+            sections.innerHTML += renderStep('Step 10: Observerships', {
+                'Fez Observership?': student.has_observership ? 'Sim' : 'Não',
+                'Onde': student.observership_location || '-',
+                'Quando': student.observership_when || '-',
+                'Quer fazer mais?': student.wants_more_observerships ? 'Sim' : 'Não'
+            });
+
+            // Step 11: Background
+            sections.innerHTML += renderStep('Step 11: Background', {
+                'Formação em Medicina no Brasil?': student.brazilian_med_school ? 'Sim' : 'Não',
+                'Qual Faculdade': student.med_school_name || '-',
+                'Tem Residência?': student.has_residency ? 'Sim' : 'Não',
+                'Especialidade': student.residency_specialty || '-',
+                'Já trabalha?': student.currently_working ? 'Sim' : 'Não',
+                'Área de Trabalho': student.work_area || '-'
+            });
+        }
+
+        function renderStep(title, data) {
+            const items = Object.entries(data).map(([label, value]) => `
+                <div class="response-item">
+                    <div class="response-label">${label}</div>
+                    <div class="response-value">${value}</div>
+                </div>
+            `).join('');
+
+            return `
+                <div class="step-section">
+                    <div class="step-header">${title}</div>
+                    ${items}
+                </div>
+            `;
+        }
+
+        function exportResponses() {
+            if (!currentStudent) return;
+
+            // Create text content
+            let content = `RESPOSTAS DO QUESTIONÁRIO\n`;
+            content += `Aluno: ${currentStudent.full_name || currentStudent.email}\n`;
+            content += `Email: ${currentStudent.email}\n`;
+            content += `Data de Exportação: ${new Date().toLocaleString('pt-BR')}\n`;
+            content += `\n${'='.repeat(80)}\n\n`;
+
+            // Add all responses
+            const allData = {
+                'STEP 1: DADOS BÁSICOS': {
+                    'Nome Completo': currentStudent.full_name,
+                    'Email': currentStudent.email,
+                    'WhatsApp': currentStudent.whatsapp,
+                    'Data de Nascimento': currentStudent.birth_date,
+                    'Graduação': currentStudent.graduation,
+                    'Ano de Formação': currentStudent.graduation_year
+                },
+                'STEP 2: DADOS DO USMLE': {
+                    'Step 1 Feito?': currentStudent.step1_done ? 'Sim' : 'Não',
+                    'Step 1 Score': currentStudent.step1_score,
+                    'Step 1 Data': currentStudent.step1_date,
+                    'Step 2 CK Feito?': currentStudent.step2ck_done ? 'Sim' : 'Não',
+                    'Step 2 CK Score': currentStudent.step2ck_score,
+                    'Step 2 CK Data': currentStudent.step2ck_date
+                }
+                // Add more sections as needed
+            };
+
+            Object.entries(allData).forEach(([section, data]) => {
+                content += `${section}\n${'-'.repeat(80)}\n`;
+                Object.entries(data).forEach(([label, value]) => {
+                    content += `${label}: ${value || '-'}\n`;
+                });
+                content += `\n`;
+            });
+
+            // Download as text file
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `questionario_${currentStudent.full_name || currentStudent.email}_${new Date().getTime()}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            WardApp.showToast('Respostas exportadas com sucesso!');
+        }
+    </script>
+</body>
+</html>
