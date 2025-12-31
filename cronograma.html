@@ -19,6 +19,7 @@
             <nav class="nav-menu">
                 <a href="dashboard.html" class="nav-link">Dashboard</a>
                 <a href="cronograma.html" class="nav-link active">Cronograma</a>
+                <a href="landmarks.html" class="nav-link">Chamadas</a>
                 <a href="links.html" class="nav-link">Links</a>
                 <a href="blog.html" class="nav-link">Blog</a>
                 <a href="pesquisa.html" class="nav-link">Pesquisa</a>
@@ -138,25 +139,96 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
+    <!-- Viewing As Banner -->
+    <div id="viewing-as-banner" class="viewing-as-banner" style="display: none;">
+        <span>👁️ Visualizando como: <strong id="viewing-student-name"></strong></span>
+        <button class="btn btn-sm btn-secondary" onclick="exitViewAs()">Voltar para minha conta</button>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
         let scheduleData = [];
+        let viewingAsStudentId = null;
+        let targetUserId = null; // The user whose schedule we're viewing
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
 
+            // Check if viewing as another student
+            const urlParams = new URLSearchParams(window.location.search);
+            viewingAsStudentId = urlParams.get('view_as');
+
+            if (viewingAsStudentId) {
+                // Verify mentor is authorized to view this student
+                const isMentor = userData.role && userData.role.startsWith('mentor');
+                if (isMentor) {
+                    await setupViewingAsStudent(viewingAsStudentId);
+                    targetUserId = parseInt(viewingAsStudentId);
+                } else {
+                    // Not a mentor, ignore view_as
+                    targetUserId = userData.id;
+                }
+            } else {
+                targetUserId = userData.id;
+            }
+
             await loadSchedule();
             await loadDelays();
         });
+
+        async function setupViewingAsStudent(studentId) {
+            // Get student info
+            const { data: student } = await WardApp.db
+                .from('users')
+                .select('full_name')
+                .eq('id', studentId)
+                .single();
+
+            if (student) {
+                // Show viewing banner
+                document.getElementById('viewing-as-banner').style.display = 'flex';
+                document.getElementById('viewing-student-name').textContent = student.full_name;
+
+                // Store in localStorage for other pages
+                localStorage.setItem('view_as_student', JSON.stringify({
+                    id: studentId,
+                    name: student.full_name
+                }));
+
+                // Update navbar links to maintain view_as context
+                updateNavbarForViewAs(studentId);
+            }
+        }
+
+        function updateNavbarForViewAs(studentId) {
+            const navLinks = document.querySelectorAll('.nav-menu a.nav-link, .nav-user a');
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && !href.startsWith('#') && !href.startsWith('javascript')) {
+                    // Remove existing view_as param if present
+                    const url = new URL(href, window.location.origin);
+                    url.searchParams.set('view_as', studentId);
+                    link.setAttribute('href', url.pathname + url.search);
+                }
+            });
+        }
+
+        function exitViewAs() {
+            localStorage.removeItem('view_as_student');
+            // Redirect back to mentor dashboard
+            window.location.href = userData.role === 'mentor_marcos'
+                ? 'mentor-dashboard-marcos.html'
+                : 'mentor-dashboard-iria.html';
+        }
 
         async function loadSchedule() {
             const { data: schedule, error } = await WardApp.db
                 .from('schedules')
                 .select('*')
-                .eq('user_id', userData.id)
+                .eq('user_id', targetUserId)
                 .order('id', { ascending: true });
 
             if (error || !schedule || schedule.length === 0) {
@@ -246,7 +318,7 @@
             const { data: delays } = await WardApp.db
                 .from('schedule_delays')
                 .select('*')
-                .eq('user_id', userData.id)
+                .eq('user_id', targetUserId)
                 .order('created_at', { ascending: false });
 
             if (delays && delays.length > 0) {
@@ -277,7 +349,7 @@
             }
 
             await WardApp.db.from('schedule_delays').insert({
-                user_id: userData.id,
+                user_id: targetUserId,
                 start_date: startDate,
                 end_date: endDate,
                 reason
@@ -436,6 +508,34 @@
             .schedule-table td:first-child {
                 display: none;
             }
+        }
+
+        /* Viewing As Banner */
+        .viewing-as-banner {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.75rem 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            font-size: 0.9rem;
+            position: sticky;
+            top: 60px;
+            z-index: 99;
+            flex-wrap: wrap;
+        }
+
+        .viewing-as-banner .btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        .viewing-as-banner .btn:hover {
+            background: rgba(255,255,255,0.3);
         }
     </style>
 </body>

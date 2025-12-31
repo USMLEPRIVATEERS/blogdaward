@@ -21,6 +21,7 @@
             <nav class="nav-menu">
                 <a href="dashboard.html" class="nav-link">Dashboard</a>
                 <a href="cronograma.html" class="nav-link">Cronograma</a>
+                <a href="landmarks.html" class="nav-link">Chamadas</a>
                 <a href="links.html" class="nav-link">Links</a>
                 <a href="blog.html" class="nav-link">Blog</a>
                 <a href="pesquisa.html" class="nav-link">Pesquisa</a>
@@ -416,14 +417,40 @@
         <div class="loading-spinner"></div>
     </div>
 
+    <!-- Viewing As Banner -->
+    <div id="viewing-as-banner" class="viewing-as-banner" style="display: none;">
+        <span>👁️ Visualizando como: <strong id="viewing-student-name"></strong></span>
+        <button class="btn btn-sm btn-secondary" onclick="exitViewAs()">Voltar para minha conta</button>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
+        let viewingAsStudentId = null;
+        let targetUserId = null; // The user whose profile we're viewing
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
+
+            // Check if viewing as another student
+            const urlParams = new URLSearchParams(window.location.search);
+            viewingAsStudentId = urlParams.get('view_as');
+
+            if (viewingAsStudentId) {
+                // Verify mentor is authorized to view this student
+                const isMentor = userData.role && userData.role.startsWith('mentor');
+                if (isMentor) {
+                    await setupViewingAsStudent(viewingAsStudentId);
+                    targetUserId = parseInt(viewingAsStudentId);
+                } else {
+                    // Not a mentor, ignore view_as
+                    targetUserId = userData.id;
+                }
+            } else {
+                targetUserId = userData.id;
+            }
 
             // Initialize tabs
             initTabs();
@@ -431,6 +458,63 @@
             // Load all data
             await loadAllData();
         });
+
+        async function setupViewingAsStudent(studentId) {
+            // Get student info
+            const { data: student } = await WardApp.db
+                .from('users')
+                .select('full_name, email')
+                .eq('id', studentId)
+                .single();
+
+            if (student) {
+                // Show viewing banner
+                document.getElementById('viewing-as-banner').style.display = 'flex';
+                document.getElementById('viewing-student-name').textContent = student.full_name;
+
+                // Store in localStorage for other pages
+                localStorage.setItem('view_as_student', JSON.stringify({
+                    id: studentId,
+                    name: student.full_name
+                }));
+
+                // Update navbar links to maintain view_as context
+                updateNavbarForViewAs(studentId);
+
+                // Make forms read-only when viewing as student
+                makeFormsReadOnly();
+            }
+        }
+
+        function updateNavbarForViewAs(studentId) {
+            const navLinks = document.querySelectorAll('.nav-menu a.nav-link, .nav-user a');
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && !href.startsWith('#') && !href.startsWith('javascript')) {
+                    const url = new URL(href, window.location.origin);
+                    url.searchParams.set('view_as', studentId);
+                    link.setAttribute('href', url.pathname + url.search);
+                }
+            });
+        }
+
+        function makeFormsReadOnly() {
+            // Disable all inputs and buttons in forms
+            document.querySelectorAll('input, select, textarea').forEach(el => {
+                el.disabled = true;
+            });
+            document.querySelectorAll('form button[type="submit"]').forEach(btn => {
+                btn.style.display = 'none';
+            });
+        }
+
+        function exitViewAs() {
+            localStorage.removeItem('view_as_student');
+            // Redirect back to mentor dashboard
+            window.location.href = userData.role === 'mentor_marcos'
+                ? 'mentor-dashboard-marcos.html'
+                : 'mentor-dashboard-iria.html';
+        }
 
         function initTabs() {
             document.querySelectorAll('.tab').forEach(tab => {
@@ -447,11 +531,24 @@
         async function loadAllData() {
             WardApp.showLoading();
 
+            // Get the target user's info for email field
+            let targetUserData = userData;
+            if (viewingAsStudentId) {
+                const { data: student } = await WardApp.db
+                    .from('users')
+                    .select('*')
+                    .eq('id', targetUserId)
+                    .single();
+                if (student) {
+                    targetUserData = student;
+                }
+            }
+
             // Load all questionnaire data at once
             const { data: allData } = await WardApp.db
                 .from('questionnaire_data')
                 .select('step, data')
-                .eq('user_id', userData.id);
+                .eq('user_id', targetUserId);
 
             // Create a map of step -> data
             const stepData = {};
@@ -461,8 +558,8 @@
 
             // Step 1: Basic data
             const basicData = stepData[1] || {};
-            document.getElementById('full_name').value = basicData.full_name || userData.full_name || '';
-            document.getElementById('email').value = userData.email || '';
+            document.getElementById('full_name').value = basicData.full_name || targetUserData.full_name || '';
+            document.getElementById('email').value = targetUserData.email || '';
             document.getElementById('cpf').value = basicData.cpf || '';
             document.getElementById('orcid').value = basicData.orcid || '';
             document.getElementById('address_line1').value = basicData.address_line1 || '';
@@ -662,5 +759,35 @@
             WardApp.showToast('Dados salvos com sucesso!');
         });
     </script>
+
+    <style>
+        /* Viewing As Banner */
+        .viewing-as-banner {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.75rem 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            font-size: 0.9rem;
+            position: sticky;
+            top: 60px;
+            z-index: 99;
+            flex-wrap: wrap;
+        }
+
+        .viewing-as-banner .btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        .viewing-as-banner .btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+    </style>
 </body>
 </html>
