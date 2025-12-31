@@ -244,7 +244,7 @@
         });
 
         async function loadMembers() {
-            const { data: members, error } = await supabase
+            const { data: members, error } = await WardApp.db
                 .from('users')
                 .select('*')
                 .order('created_at', { ascending: false });
@@ -412,7 +412,7 @@
                 return;
             }
 
-            const { error } = await supabase
+            const { error } = await WardApp.db
                 .from('users')
                 .update({
                     full_name: name,
@@ -446,7 +446,7 @@
             }
 
             // Soft delete - just set status to inactive
-            const { error } = await supabase
+            const { error } = await WardApp.db
                 .from('users')
                 .update({ status: 'inactive' })
                 .eq('id', memberId);
@@ -469,7 +469,7 @@
             const [questionnaireRes, scheduleRes, checkinsRes] = await Promise.all([
                 WardApp.db.from('questionnaire_data').select('*').eq('user_id', memberId),
                 WardApp.db.from('schedules').select('completed').eq('user_id', memberId),
-                WardApp.db.from('check_ins').select('*').eq('user_id', memberId).order('created_at', { ascending: false }).limit(5)
+                WardApp.db.from('daily_checkins').select('*').eq('user_id', memberId).order('created_at', { ascending: false }).limit(5)
             ]);
 
             const scheduleTotal = scheduleRes.data?.length || 0;
@@ -533,8 +533,8 @@
                                 ${checkinsRes.data.map(c => `
                                     <div class="checkin-item">
                                         <span class="checkin-status">
-                                            ${c.status === 'on_track' ? '🟢' : c.status === 'behind' ? '🟡' : '🔴'}
-                                            ${c.status === 'on_track' ? 'Em dia' : c.status === 'behind' ? 'Atrasado' : 'Parado'}
+                                            ${c.status === 'tranquilo' ? '🟢' : c.status === 'preciso_ajuda' ? '🟡' : '🔴'}
+                                            ${c.status === 'tranquilo' ? 'Tranquilo' : c.status === 'preciso_ajuda' ? 'Precisa Ajuda' : 'Parado'}
                                         </span>
                                         <span class="checkin-date">${WardApp.formatDate(c.created_at)}</span>
                                     </div>
