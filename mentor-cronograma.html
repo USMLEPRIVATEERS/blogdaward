@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Cronograma dos Alunos</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <div class="logo">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </div>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="#" class="nav-link" id="nav-dashboard">Dashboard</a>
+                <a href="mentor-cronograma.html" class="nav-link active">Cronograma</a>
+                <a href="mentor-chamadas.html" class="nav-link">Chamadas</a>
+                <a href="links.html" class="nav-link">Links</a>
+                <a href="blog.html" class="nav-link">Blog</a>
+                <a href="pesquisa.html" class="nav-link">Pesquisa</a>
+            </nav>
+            <div class="nav-user">
+                <span class="user-name" id="mentor-name">Mentor</span>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
+            <h1>📅 Cronograma dos Alunos</h1>
+        </div>
+
+        <!-- Student Selector -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <span>👥 Selecionar Aluno</span>
+            </div>
+            <div class="card-body">
+                <div class="form-group">
+                    <select id="student-select" class="form-input" onchange="loadStudentSchedule()">
+                        <option value="">-- Selecione um aluno --</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Student Schedule Section (hidden until student selected) -->
+        <div id="schedule-section" style="display: none;">
+            <!-- Student Info -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-between align-center">
+                    <span>📊 Cronograma de <strong id="selected-student-name"></strong></span>
+                    <div class="btn-group">
+                        <button class="btn btn-outline btn-sm" onclick="openImportModal()">📋 Importar do Excel</button>
+                        <button class="btn btn-danger btn-sm" onclick="clearSchedule()">🗑️ Limpar Cronograma</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Progress -->
+                    <div class="progress-container mb-3">
+                        <div class="progress-header">
+                            <span>Progresso Geral</span>
+                            <span id="schedule-progress-text">0%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="schedule-progress-fill" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Delays Alert -->
+                    <div id="delays-alert" class="alert alert-warning mb-3" style="display: none;">
+                        <strong>⚠️ Atrasos Sinalizados:</strong>
+                        <div id="delays-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schedule Table -->
+            <div class="card">
+                <div class="card-header d-flex justify-between align-center">
+                    <span>📋 Itens do Cronograma</span>
+                    <button class="btn btn-primary btn-sm" onclick="openAddItemModal()">+ Adicionar Item</button>
+                </div>
+                <div class="card-body" style="overflow-x: auto;">
+                    <table class="schedule-table" id="schedule-table">
+                        <thead>
+                            <tr>
+                                <th>System</th>
+                                <th>Category</th>
+                                <th>Questoes</th>
+                                <th>Inicio</th>
+                                <th>Fim</th>
+                                <th>Concluido</th>
+                                <th>Acoes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schedule-body">
+                            <!-- Filled by JS -->
+                        </tbody>
+                    </table>
+                    <div id="no-schedule" class="empty-state" style="display: none;">
+                        <p class="text-muted">Nenhum item no cronograma. Importe do Excel ou adicione manualmente.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Import Modal -->
+    <div id="import-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">📋 Importar Cronograma do Excel</h3>
+                <button class="modal-close" onclick="closeModal('import-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info mb-3">
+                    <strong>Instrucoes:</strong><br>
+                    1. Copie os dados do Excel (colunas: System, Category, Questoes)<br>
+                    2. Cole na area abaixo (separado por TAB)<br>
+                    3. O formato deve ser: System[TAB]Category[TAB]Questoes
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Cole os dados aqui:</label>
+                    <textarea id="import-data" class="form-textarea" rows="10" placeholder="System	Category	Questoes
+Cardiovascular	Cardiac arrhythmias	50
+Cardiovascular	Heart failure	30
+..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="import-replace">
+                        <span class="form-check-label">Substituir cronograma existente</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('import-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="importSchedule()">Importar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Item Modal -->
+    <div id="add-item-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">➕ Adicionar Item</h3>
+                <button class="modal-close" onclick="closeModal('add-item-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">System *</label>
+                    <input type="text" id="item-system" class="form-input" placeholder="Ex: Cardiovascular">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Category *</label>
+                    <input type="text" id="item-category" class="form-input" placeholder="Ex: Cardiac arrhythmias">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Questoes</label>
+                    <input type="number" id="item-questions" class="form-input" placeholder="0">
+                </div>
+                <div class="input-group">
+                    <div class="form-group">
+                        <label class="form-label">Data Inicio</label>
+                        <input type="date" id="item-start-date" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Data Fim</label>
+                        <input type="date" id="item-end-date" class="form-input">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('add-item-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="addScheduleItem()">Adicionar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Item Modal -->
+    <div id="edit-item-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">✏️ Editar Item</h3>
+                <button class="modal-close" onclick="closeModal('edit-item-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-item-id">
+                <div class="form-group">
+                    <label class="form-label">System *</label>
+                    <input type="text" id="edit-item-system" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Category *</label>
+                    <input type="text" id="edit-item-category" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Questoes</label>
+                    <input type="number" id="edit-item-questions" class="form-input">
+                </div>
+                <div class="input-group">
+                    <div class="form-group">
+                        <label class="form-label">Data Inicio</label>
+                        <input type="date" id="edit-item-start-date" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Data Fim</label>
+                        <input type="date" id="edit-item-end-date" class="form-input">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="edit-item-completed">
+                        <span class="form-check-label">Marcar como concluido</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="deleteScheduleItem()">Excluir</button>
+                <button class="btn btn-secondary" onclick="closeModal('edit-item-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveScheduleItem()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let allStudents = [];
+        let selectedStudentId = null;
+        let scheduleData = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Check if mentor
+            if (!userData.role || !userData.role.startsWith('mentor_')) {
+                window.location.href = 'dashboard.html';
+                return;
+            }
+
+            // Set dashboard link based on role
+            const dashboardLinks = {
+                'mentor_marcos': 'mentor-dashboard-marcos.html',
+                'mentor_iria': 'mentor-dashboard-iria.html',
+                'mentor_guilherme': 'mentor-dashboard-guilherme.html',
+                'mentor_romulo': 'mentor-dashboard-romulo.html'
+            };
+            document.getElementById('nav-dashboard').href = dashboardLinks[userData.role] || 'dashboard.html';
+            document.getElementById('mentor-name').textContent = userData.full_name || userData.email;
+
+            await loadStudents();
+        });
+
+        async function loadStudents() {
+            const { data: students } = await WardApp.db
+                .from('users')
+                .select('id, full_name, email')
+                .eq('role', 'aluno')
+                .order('full_name');
+
+            allStudents = students || [];
+
+            const select = document.getElementById('student-select');
+            select.innerHTML = '<option value="">-- Selecione um aluno --</option>' +
+                allStudents.map(s => `<option value="${s.id}">${s.full_name || s.email}</option>`).join('');
+        }
+
+        async function loadStudentSchedule() {
+            const studentId = document.getElementById('student-select').value;
+            if (!studentId) {
+                document.getElementById('schedule-section').style.display = 'none';
+                return;
+            }
+
+            selectedStudentId = studentId;
+            const student = allStudents.find(s => s.id == studentId);
+            document.getElementById('selected-student-name').textContent = student?.full_name || student?.email;
+            document.getElementById('schedule-section').style.display = 'block';
+
+            // Load schedule
+            const { data: schedule } = await WardApp.db
+                .from('schedules')
+                .select('*')
+                .eq('user_id', studentId)
+                .order('order_position', { ascending: true });
+
+            scheduleData = schedule || [];
+            renderSchedule();
+
+            // Load delays
+            const { data: delays } = await WardApp.db
+                .from('schedule_delays')
+                .select('*')
+                .eq('user_id', studentId)
+                .order('created_at', { ascending: false });
+
+            if (delays && delays.length > 0) {
+                document.getElementById('delays-alert').style.display = 'block';
+                document.getElementById('delays-list').innerHTML = delays.map(d => `
+                    <div class="delay-item">
+                        📅 ${WardApp.formatDate(d.start_date)} - ${WardApp.formatDate(d.end_date)}
+                        ${d.reason ? `: ${d.reason}` : ''}
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('delays-alert').style.display = 'none';
+            }
+        }
+
+        function renderSchedule() {
+            const tbody = document.getElementById('schedule-body');
+            const noSchedule = document.getElementById('no-schedule');
+
+            if (scheduleData.length === 0) {
+                tbody.innerHTML = '';
+                noSchedule.style.display = 'block';
+                document.getElementById('schedule-progress-text').textContent = '0%';
+                document.getElementById('schedule-progress-fill').style.width = '0%';
+                return;
+            }
+
+            noSchedule.style.display = 'none';
+
+            // Calculate progress
+            const completed = scheduleData.filter(s => s.completed).length;
+            const progress = Math.round((completed / scheduleData.length) * 100);
+            document.getElementById('schedule-progress-text').textContent = progress + '%';
+            document.getElementById('schedule-progress-fill').style.width = progress + '%';
+
+            tbody.innerHTML = scheduleData.map(item => `
+                <tr class="${item.completed ? 'completed-row' : ''}">
+                    <td>${item.system_name || '-'}</td>
+                    <td>${item.category || '-'}</td>
+                    <td>${item.questions_count || '-'}</td>
+                    <td>${item.start_date ? WardApp.formatDate(item.start_date) : '-'}</td>
+                    <td>${item.end_date ? WardApp.formatDate(item.end_date) : '-'}</td>
+                    <td class="text-center">
+                        <input type="checkbox" ${item.completed ? 'checked' : ''}
+                            onchange="toggleCompleted(${item.id}, this.checked)">
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline" onclick="editItem(${item.id})">✏️</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function toggleCompleted(itemId, completed) {
+            await WardApp.db
+                .from('schedules')
+                .update({ completed, updated_at: new Date().toISOString() })
+                .eq('id', itemId);
+
+            // Update local data
+            const item = scheduleData.find(s => s.id === itemId);
+            if (item) item.completed = completed;
+            renderSchedule();
+        }
+
+        function openImportModal() {
+            document.getElementById('import-data').value = '';
+            document.getElementById('import-replace').checked = false;
+            openModal('import-modal');
+        }
+
+        async function importSchedule() {
+            const data = document.getElementById('import-data').value.trim();
+            const replace = document.getElementById('import-replace').checked;
+
+            if (!data) {
+                WardApp.showToast('Cole os dados do Excel', 'warning');
+                return;
+            }
+
+            const lines = data.split('\n').filter(l => l.trim());
+            const items = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                const cols = lines[i].split('\t');
+                if (cols.length >= 2) {
+                    items.push({
+                        user_id: selectedStudentId,
+                        system_name: cols[0]?.trim() || '',
+                        category: cols[1]?.trim() || '',
+                        questions_count: parseInt(cols[2]) || null,
+                        completed: false,
+                        order_position: i
+                    });
+                }
+            }
+
+            if (items.length === 0) {
+                WardApp.showToast('Nenhum dado valido encontrado', 'error');
+                return;
+            }
+
+            // If replacing, delete existing
+            if (replace) {
+                await WardApp.db
+                    .from('schedules')
+                    .delete()
+                    .eq('user_id', selectedStudentId);
+            }
+
+            // Insert new items
+            const { error } = await WardApp.db
+                .from('schedules')
+                .insert(items);
+
+            if (error) {
+                console.error('Error importing:', error);
+                WardApp.showToast('Erro ao importar', 'error');
+                return;
+            }
+
+            closeModal('import-modal');
+            WardApp.showToast(`${items.length} itens importados!`);
+            await loadStudentSchedule();
+        }
+
+        async function clearSchedule() {
+            if (!confirm('Tem certeza que deseja limpar todo o cronograma deste aluno?')) return;
+
+            await WardApp.db
+                .from('schedules')
+                .delete()
+                .eq('user_id', selectedStudentId);
+
+            WardApp.showToast('Cronograma limpo');
+            await loadStudentSchedule();
+        }
+
+        function openAddItemModal() {
+            document.getElementById('item-system').value = '';
+            document.getElementById('item-category').value = '';
+            document.getElementById('item-questions').value = '';
+            document.getElementById('item-start-date').value = '';
+            document.getElementById('item-end-date').value = '';
+            openModal('add-item-modal');
+        }
+
+        async function addScheduleItem() {
+            const system = document.getElementById('item-system').value.trim();
+            const category = document.getElementById('item-category').value.trim();
+            const questions = parseInt(document.getElementById('item-questions').value) || null;
+            const startDate = document.getElementById('item-start-date').value || null;
+            const endDate = document.getElementById('item-end-date').value || null;
+
+            if (!system || !category) {
+                WardApp.showToast('System e Category sao obrigatorios', 'warning');
+                return;
+            }
+
+            const { error } = await WardApp.db
+                .from('schedules')
+                .insert({
+                    user_id: selectedStudentId,
+                    system_name: system,
+                    category: category,
+                    questions_count: questions,
+                    start_date: startDate,
+                    end_date: endDate,
+                    completed: false,
+                    order_position: scheduleData.length
+                });
+
+            if (error) {
+                WardApp.showToast('Erro ao adicionar', 'error');
+                return;
+            }
+
+            closeModal('add-item-modal');
+            WardApp.showToast('Item adicionado!');
+            await loadStudentSchedule();
+        }
+
+        function editItem(itemId) {
+            const item = scheduleData.find(s => s.id === itemId);
+            if (!item) return;
+
+            document.getElementById('edit-item-id').value = itemId;
+            document.getElementById('edit-item-system').value = item.system_name || '';
+            document.getElementById('edit-item-category').value = item.category || '';
+            document.getElementById('edit-item-questions').value = item.questions_count || '';
+            document.getElementById('edit-item-start-date').value = item.start_date || '';
+            document.getElementById('edit-item-end-date').value = item.end_date || '';
+            document.getElementById('edit-item-completed').checked = item.completed || false;
+            openModal('edit-item-modal');
+        }
+
+        async function saveScheduleItem() {
+            const itemId = document.getElementById('edit-item-id').value;
+            const system = document.getElementById('edit-item-system').value.trim();
+            const category = document.getElementById('edit-item-category').value.trim();
+            const questions = parseInt(document.getElementById('edit-item-questions').value) || null;
+            const startDate = document.getElementById('edit-item-start-date').value || null;
+            const endDate = document.getElementById('edit-item-end-date').value || null;
+            const completed = document.getElementById('edit-item-completed').checked;
+
+            if (!system || !category) {
+                WardApp.showToast('System e Category sao obrigatorios', 'warning');
+                return;
+            }
+
+            await WardApp.db
+                .from('schedules')
+                .update({
+                    system_name: system,
+                    category: category,
+                    questions_count: questions,
+                    start_date: startDate,
+                    end_date: endDate,
+                    completed: completed,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', itemId);
+
+            closeModal('edit-item-modal');
+            WardApp.showToast('Item atualizado!');
+            await loadStudentSchedule();
+        }
+
+        async function deleteScheduleItem() {
+            if (!confirm('Excluir este item?')) return;
+
+            const itemId = document.getElementById('edit-item-id').value;
+
+            await WardApp.db
+                .from('schedules')
+                .delete()
+                .eq('id', itemId);
+
+            closeModal('edit-item-modal');
+            WardApp.showToast('Item excluido');
+            await loadStudentSchedule();
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+    </script>
+
+    <style>
+        .schedule-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .schedule-table th,
+        .schedule-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .schedule-table th {
+            background: var(--gray-50);
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .schedule-table tr:hover {
+            background: var(--gray-50);
+        }
+
+        .schedule-table .completed-row {
+            background: #d1fae5;
+        }
+
+        .schedule-table .completed-row:hover {
+            background: #a7f3d0;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: var(--radius-md);
+        }
+
+        .alert-warning {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            color: #92400e;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            border: 1px solid #3b82f6;
+            color: #1e40af;
+        }
+
+        .delay-item {
+            padding: 0.25rem 0;
+            font-size: 0.875rem;
+        }
+    </style>
+</body>
+</html>

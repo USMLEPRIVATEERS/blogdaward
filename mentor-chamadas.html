@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Chamadas e Disponibilidades</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .availability-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .day-column {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            padding: 0.5rem;
+            min-height: 200px;
+        }
+
+        .day-header {
+            text-align: center;
+            font-weight: 600;
+            padding: 0.5rem;
+            background: var(--gray-100);
+            border-radius: var(--radius-sm);
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .time-slot {
+            background: var(--primary-light);
+            color: var(--primary-color);
+            padding: 0.35rem 0.5rem;
+            border-radius: var(--radius-sm);
+            margin-bottom: 0.25rem;
+            font-size: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .time-slot .remove-btn {
+            background: none;
+            border: none;
+            color: var(--danger-color);
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .time-slot.unavailable {
+            background: #fee2e2;
+            color: #991b1b;
+            text-decoration: line-through;
+        }
+
+        .scheduled-calls-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .call-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .call-card.pending {
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .call-card.completed {
+            border-left: 4px solid var(--success-color);
+            opacity: 0.7;
+        }
+
+        .call-card.cancelled {
+            border-left: 4px solid var(--danger-color);
+            opacity: 0.5;
+        }
+
+        .call-icon {
+            font-size: 2rem;
+        }
+
+        .call-info {
+            flex: 1;
+        }
+
+        .call-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .call-meta {
+            font-size: 0.875rem;
+            color: var(--gray-600);
+        }
+
+        .call-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .add-slot-btn {
+            width: 100%;
+            padding: 0.5rem;
+            background: var(--gray-100);
+            border: 2px dashed var(--gray-300);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            color: var(--gray-500);
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+
+        .add-slot-btn:hover {
+            background: var(--primary-light);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .specific-date-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .specific-date-card.unavailable {
+            background: #fee2e2;
+            border-color: #fca5a5;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .tab-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 0.95rem;
+            color: var(--gray-600);
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            color: var(--primary-color);
+        }
+
+        .tab-btn.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .availability-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .day-column {
+                min-height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <div class="logo">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </div>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="#" class="nav-link" id="nav-dashboard">Dashboard</a>
+                <a href="mentor-cronograma.html" class="nav-link">Cronograma</a>
+                <a href="mentor-chamadas.html" class="nav-link active">Chamadas</a>
+                <a href="links.html" class="nav-link">Links</a>
+                <a href="blog.html" class="nav-link">Blog</a>
+                <a href="pesquisa.html" class="nav-link">Pesquisa</a>
+            </nav>
+            <div class="nav-user">
+                <span class="user-name" id="mentor-name">Mentor</span>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
+            <h1>📞 Chamadas e Disponibilidades</h1>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('scheduled')">📅 Chamadas Agendadas</button>
+            <button class="tab-btn" onclick="showTab('availability')">🕐 Minhas Disponibilidades</button>
+            <button class="tab-btn" onclick="showTab('specific')">📆 Datas Especificas</button>
+        </div>
+
+        <!-- Tab: Scheduled Calls -->
+        <div id="tab-scheduled" class="tab-content active">
+            <div class="card">
+                <div class="card-header d-flex justify-between align-center">
+                    <span>📅 Proximas Chamadas</span>
+                    <div class="form-group" style="margin: 0; min-width: 150px;">
+                        <select id="filter-status" class="form-input" onchange="loadScheduledCalls()">
+                            <option value="all">Todas</option>
+                            <option value="scheduled" selected>Agendadas</option>
+                            <option value="completed">Concluidas</option>
+                            <option value="cancelled">Canceladas</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="scheduled-calls-list" class="scheduled-calls-list">
+                        <!-- Filled by JS -->
+                    </div>
+                    <div id="no-calls" class="empty-state" style="display: none;">
+                        <p class="text-muted">Nenhuma chamada encontrada</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Regular Availability -->
+        <div id="tab-availability" class="tab-content">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <span>🕐 Disponibilidade Regular (Recorrente)</span>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">Configure seus horarios regulares de disponibilidade. Estes horarios se repetem toda semana.</p>
+
+                    <div class="availability-grid" id="availability-grid">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Specific Dates -->
+        <div id="tab-specific" class="tab-content">
+            <div class="card">
+                <div class="card-header d-flex justify-between align-center">
+                    <span>📆 Datas Especificas</span>
+                    <div class="btn-group">
+                        <button class="btn btn-primary btn-sm" onclick="openAddSpecificModal(false)">+ Adicionar Disponibilidade</button>
+                        <button class="btn btn-danger btn-sm" onclick="openAddSpecificModal(true)">+ Marcar Indisponibilidade</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">Adicione datas especificas de disponibilidade ou indisponibilidade que sobrescrevem sua agenda regular.</p>
+
+                    <div id="specific-dates-list">
+                        <!-- Filled by JS -->
+                    </div>
+                    <div id="no-specific" class="empty-state" style="display: none;">
+                        <p class="text-muted">Nenhuma data especifica cadastrada</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Add Regular Slot Modal -->
+    <div id="add-slot-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">➕ Adicionar Horario</h3>
+                <button class="modal-close" onclick="closeModal('add-slot-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="slot-day">
+                <p class="text-muted mb-3">Adicionando horario para: <strong id="slot-day-name"></strong></p>
+
+                <div class="input-group">
+                    <div class="form-group">
+                        <label class="form-label">Inicio *</label>
+                        <input type="time" id="slot-start" class="form-input" value="09:00">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Fim *</label>
+                        <input type="time" id="slot-end" class="form-input" value="12:00">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Duracao de cada slot (minutos)</label>
+                    <select id="slot-duration" class="form-input">
+                        <option value="30" selected>30 minutos</option>
+                        <option value="45">45 minutos</option>
+                        <option value="60">60 minutos</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('add-slot-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveRegularSlot()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Specific Date Modal -->
+    <div id="add-specific-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="specific-modal-title">📆 Adicionar Data</h3>
+                <button class="modal-close" onclick="closeModal('add-specific-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="specific-is-unavailable">
+
+                <div class="form-group">
+                    <label class="form-label">Data *</label>
+                    <input type="date" id="specific-date" class="form-input">
+                </div>
+                <div id="specific-times-group">
+                    <div class="input-group">
+                        <div class="form-group">
+                            <label class="form-label">Inicio</label>
+                            <input type="time" id="specific-start" class="form-input" value="09:00">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Fim</label>
+                            <input type="time" id="specific-end" class="form-input" value="12:00">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Observacao (opcional)</label>
+                    <input type="text" id="specific-notes" class="form-input" placeholder="Ex: Congresso, Ferias, etc.">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('add-specific-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveSpecificDate()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Call Details Modal -->
+    <div id="call-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">📞 Detalhes da Chamada</h3>
+                <button class="modal-close" onclick="closeModal('call-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="call-id">
+                <div id="call-details">
+                    <!-- Filled by JS -->
+                </div>
+                <div class="form-group mt-3">
+                    <label class="form-label">Observacoes</label>
+                    <textarea id="call-notes" class="form-textarea" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="cancelCall()">Cancelar Chamada</button>
+                <button class="btn btn-success" onclick="completeCall()">Marcar Concluida</button>
+                <button class="btn btn-primary" onclick="saveCallNotes()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let regularAvailability = [];
+        let specificDates = [];
+        let scheduledCalls = [];
+
+        const dayNames = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
+        const dayNamesShort = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Check if mentor
+            if (!userData.role || !userData.role.startsWith('mentor_')) {
+                window.location.href = 'dashboard.html';
+                return;
+            }
+
+            // Set dashboard link based on role
+            const dashboardLinks = {
+                'mentor_marcos': 'mentor-dashboard-marcos.html',
+                'mentor_iria': 'mentor-dashboard-iria.html',
+                'mentor_guilherme': 'mentor-dashboard-guilherme.html',
+                'mentor_romulo': 'mentor-dashboard-romulo.html'
+            };
+            document.getElementById('nav-dashboard').href = dashboardLinks[userData.role] || 'dashboard.html';
+            document.getElementById('mentor-name').textContent = userData.full_name || userData.email;
+
+            await loadAllData();
+        });
+
+        async function loadAllData() {
+            await Promise.all([
+                loadRegularAvailability(),
+                loadSpecificDates(),
+                loadScheduledCalls()
+            ]);
+        }
+
+        function showTab(tab) {
+            // Update buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.add('active');
+        }
+
+        // ===== Regular Availability =====
+        async function loadRegularAvailability() {
+            const { data } = await WardApp.db
+                .from('mentor_availability_regular')
+                .select('*')
+                .eq('mentor_id', userData.id)
+                .eq('is_active', true)
+                .order('day_of_week')
+                .order('start_time');
+
+            regularAvailability = data || [];
+            renderAvailabilityGrid();
+        }
+
+        function renderAvailabilityGrid() {
+            const grid = document.getElementById('availability-grid');
+
+            grid.innerHTML = dayNames.map((day, index) => {
+                const slots = regularAvailability.filter(s => s.day_of_week === index);
+
+                return `
+                    <div class="day-column">
+                        <div class="day-header">${dayNamesShort[index]}</div>
+                        ${slots.map(slot => `
+                            <div class="time-slot">
+                                <span>${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}</span>
+                                <button class="remove-btn" onclick="removeRegularSlot(${slot.id})">✕</button>
+                            </div>
+                        `).join('')}
+                        <button class="add-slot-btn" onclick="openAddSlotModal(${index})">+ Adicionar</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function formatTime(time) {
+            if (!time) return '';
+            return time.substring(0, 5);
+        }
+
+        function openAddSlotModal(dayIndex) {
+            document.getElementById('slot-day').value = dayIndex;
+            document.getElementById('slot-day-name').textContent = dayNames[dayIndex];
+            document.getElementById('slot-start').value = '09:00';
+            document.getElementById('slot-end').value = '12:00';
+            openModal('add-slot-modal');
+        }
+
+        async function saveRegularSlot() {
+            const dayOfWeek = parseInt(document.getElementById('slot-day').value);
+            const startTime = document.getElementById('slot-start').value;
+            const endTime = document.getElementById('slot-end').value;
+            const duration = parseInt(document.getElementById('slot-duration').value);
+
+            if (!startTime || !endTime) {
+                WardApp.showToast('Preencha os horarios', 'warning');
+                return;
+            }
+
+            if (startTime >= endTime) {
+                WardApp.showToast('Horario de fim deve ser maior que inicio', 'warning');
+                return;
+            }
+
+            const { error } = await WardApp.db
+                .from('mentor_availability_regular')
+                .insert({
+                    mentor_id: userData.id,
+                    day_of_week: dayOfWeek,
+                    start_time: startTime,
+                    end_time: endTime,
+                    duration_minutes: duration
+                });
+
+            if (error) {
+                console.error('Error saving:', error);
+                WardApp.showToast('Erro ao salvar', 'error');
+                return;
+            }
+
+            closeModal('add-slot-modal');
+            WardApp.showToast('Horario adicionado!');
+            await loadRegularAvailability();
+        }
+
+        async function removeRegularSlot(slotId) {
+            if (!confirm('Remover este horario?')) return;
+
+            await WardApp.db
+                .from('mentor_availability_regular')
+                .delete()
+                .eq('id', slotId);
+
+            WardApp.showToast('Horario removido');
+            await loadRegularAvailability();
+        }
+
+        // ===== Specific Dates =====
+        async function loadSpecificDates() {
+            const today = new Date().toISOString().split('T')[0];
+
+            const { data } = await WardApp.db
+                .from('mentor_availability_specific')
+                .select('*')
+                .eq('mentor_id', userData.id)
+                .gte('available_date', today)
+                .order('available_date')
+                .order('start_time');
+
+            specificDates = data || [];
+            renderSpecificDates();
+        }
+
+        function renderSpecificDates() {
+            const container = document.getElementById('specific-dates-list');
+            const noSpecific = document.getElementById('no-specific');
+
+            if (specificDates.length === 0) {
+                container.innerHTML = '';
+                noSpecific.style.display = 'block';
+                return;
+            }
+
+            noSpecific.style.display = 'none';
+
+            container.innerHTML = specificDates.map(item => {
+                const dateObj = new Date(item.available_date + 'T12:00:00');
+                const dayName = dayNames[dateObj.getDay()];
+
+                return `
+                    <div class="specific-date-card ${item.is_unavailable ? 'unavailable' : ''}">
+                        <div>
+                            <strong>${WardApp.formatDate(item.available_date)}</strong> (${dayName})
+                            <br>
+                            <span class="text-muted">
+                                ${item.is_unavailable ? '❌ Indisponivel' : `🕐 ${formatTime(item.start_time)} - ${formatTime(item.end_time)}`}
+                                ${item.notes ? ` - ${item.notes}` : ''}
+                            </span>
+                        </div>
+                        <button class="btn btn-sm btn-outline" onclick="removeSpecificDate(${item.id})">🗑️</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openAddSpecificModal(isUnavailable) {
+            document.getElementById('specific-is-unavailable').value = isUnavailable ? '1' : '0';
+            document.getElementById('specific-modal-title').textContent = isUnavailable ?
+                '❌ Marcar Indisponibilidade' : '📆 Adicionar Disponibilidade';
+            document.getElementById('specific-times-group').style.display = isUnavailable ? 'none' : 'block';
+            document.getElementById('specific-date').value = '';
+            document.getElementById('specific-notes').value = '';
+            openModal('add-specific-modal');
+        }
+
+        async function saveSpecificDate() {
+            const isUnavailable = document.getElementById('specific-is-unavailable').value === '1';
+            const date = document.getElementById('specific-date').value;
+            const notes = document.getElementById('specific-notes').value.trim();
+
+            if (!date) {
+                WardApp.showToast('Selecione uma data', 'warning');
+                return;
+            }
+
+            const insertData = {
+                mentor_id: userData.id,
+                available_date: date,
+                is_unavailable: isUnavailable,
+                notes: notes || null
+            };
+
+            if (!isUnavailable) {
+                insertData.start_time = document.getElementById('specific-start').value;
+                insertData.end_time = document.getElementById('specific-end').value;
+            } else {
+                insertData.start_time = '00:00';
+                insertData.end_time = '23:59';
+            }
+
+            const { error } = await WardApp.db
+                .from('mentor_availability_specific')
+                .insert(insertData);
+
+            if (error) {
+                console.error('Error saving:', error);
+                WardApp.showToast('Erro ao salvar', 'error');
+                return;
+            }
+
+            closeModal('add-specific-modal');
+            WardApp.showToast('Data adicionada!');
+            await loadSpecificDates();
+        }
+
+        async function removeSpecificDate(id) {
+            if (!confirm('Remover esta data?')) return;
+
+            await WardApp.db
+                .from('mentor_availability_specific')
+                .delete()
+                .eq('id', id);
+
+            WardApp.showToast('Data removida');
+            await loadSpecificDates();
+        }
+
+        // ===== Scheduled Calls =====
+        async function loadScheduledCalls() {
+            const filter = document.getElementById('filter-status').value;
+
+            let query = WardApp.db
+                .from('scheduled_calls')
+                .select('*, student:student_id(full_name, email), landmark:landmark_id(title)')
+                .eq('mentor_id', userData.id)
+                .order('scheduled_date')
+                .order('scheduled_time');
+
+            if (filter !== 'all') {
+                query = query.eq('status', filter);
+            }
+
+            const { data } = await query;
+            scheduledCalls = data || [];
+            renderScheduledCalls();
+        }
+
+        function renderScheduledCalls() {
+            const container = document.getElementById('scheduled-calls-list');
+            const noCalls = document.getElementById('no-calls');
+
+            if (scheduledCalls.length === 0) {
+                container.innerHTML = '';
+                noCalls.style.display = 'block';
+                return;
+            }
+
+            noCalls.style.display = 'none';
+
+            container.innerHTML = scheduledCalls.map(call => {
+                const statusClass = call.status === 'completed' ? 'completed' :
+                                   call.status === 'cancelled' ? 'cancelled' : 'pending';
+                const statusIcon = call.status === 'completed' ? '✅' :
+                                  call.status === 'cancelled' ? '❌' : '📞';
+
+                return `
+                    <div class="call-card ${statusClass}">
+                        <div class="call-icon">${statusIcon}</div>
+                        <div class="call-info">
+                            <div class="call-title">${call.landmark?.title || 'Chamada'}</div>
+                            <div class="call-meta">
+                                <strong>${call.student?.full_name || call.student?.email}</strong><br>
+                                📅 ${WardApp.formatDate(call.scheduled_date)} as ${formatTime(call.scheduled_time)}
+                                ${call.notes ? `<br>📝 ${call.notes}` : ''}
+                            </div>
+                        </div>
+                        <div class="call-actions">
+                            <button class="btn btn-sm btn-outline" onclick="openCallModal(${call.id})">Ver</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openCallModal(callId) {
+            const call = scheduledCalls.find(c => c.id === callId);
+            if (!call) return;
+
+            document.getElementById('call-id').value = callId;
+            document.getElementById('call-notes').value = call.notes || '';
+
+            document.getElementById('call-details').innerHTML = `
+                <p><strong>Aluno:</strong> ${call.student?.full_name || call.student?.email}</p>
+                <p><strong>Chamada:</strong> ${call.landmark?.title || 'Chamada'}</p>
+                <p><strong>Data:</strong> ${WardApp.formatDate(call.scheduled_date)}</p>
+                <p><strong>Horario:</strong> ${formatTime(call.scheduled_time)}</p>
+                <p><strong>Status:</strong> ${call.status}</p>
+            `;
+
+            openModal('call-modal');
+        }
+
+        async function saveCallNotes() {
+            const callId = document.getElementById('call-id').value;
+            const notes = document.getElementById('call-notes').value.trim();
+
+            await WardApp.db
+                .from('scheduled_calls')
+                .update({ notes, updated_at: new Date().toISOString() })
+                .eq('id', callId);
+
+            closeModal('call-modal');
+            WardApp.showToast('Salvo!');
+            await loadScheduledCalls();
+        }
+
+        async function completeCall() {
+            const callId = document.getElementById('call-id').value;
+
+            await WardApp.db
+                .from('scheduled_calls')
+                .update({ status: 'completed', updated_at: new Date().toISOString() })
+                .eq('id', callId);
+
+            // Also update the landmark if linked
+            const call = scheduledCalls.find(c => c.id == callId);
+            if (call?.landmark_id) {
+                await WardApp.db
+                    .from('landmarks')
+                    .update({ completed: true, completion_date: new Date().toISOString() })
+                    .eq('id', call.landmark_id);
+            }
+
+            closeModal('call-modal');
+            WardApp.showToast('Chamada marcada como concluida!');
+            await loadScheduledCalls();
+        }
+
+        async function cancelCall() {
+            if (!confirm('Cancelar esta chamada?')) return;
+
+            const callId = document.getElementById('call-id').value;
+
+            await WardApp.db
+                .from('scheduled_calls')
+                .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+                .eq('id', callId);
+
+            closeModal('call-modal');
+            WardApp.showToast('Chamada cancelada');
+            await loadScheduledCalls();
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+    </script>
+</body>
+</html>

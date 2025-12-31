@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ward Academy - Landmarks</title>
+    <title>Ward Academy - Chamadas</title>
     <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -19,6 +19,7 @@
             <nav class="nav-menu">
                 <a href="dashboard.html" class="nav-link">Dashboard</a>
                 <a href="cronograma.html" class="nav-link">Cronograma</a>
+                <a href="landmarks.html" class="nav-link active">Chamadas</a>
                 <a href="links.html" class="nav-link">Links</a>
                 <a href="blog.html" class="nav-link">Blog</a>
                 <a href="pesquisa.html" class="nav-link">Pesquisa</a>
@@ -34,8 +35,11 @@
     </header>
 
     <main class="main-container">
-        <div class="d-flex justify-between align-center mb-4">
-            <h1>🎯 Landmarks - Marcos e Chamadas</h1>
+        <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
+            <h1>📞 Chamadas e Marcos</h1>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="openAvailabilityModal()">🕐 Ver Disponibilidades dos Mentores</button>
+            </div>
         </div>
 
         <div class="alert alert-info mb-4">
@@ -279,8 +283,149 @@
         </div>
     </div>
 
+    <!-- Mentor Availability Modal -->
+    <div id="availability-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">🕐 Disponibilidades dos Mentores</h3>
+                <button class="modal-close" onclick="closeModal('availability-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="mentor-tabs mb-3">
+                    <button class="mentor-tab active" data-mentor="iria" onclick="showMentorAvailability('iria')">Dra. Iria</button>
+                    <button class="mentor-tab" data-mentor="marcos" onclick="showMentorAvailability('marcos')">Marcos</button>
+                    <button class="mentor-tab" data-mentor="guilherme" onclick="showMentorAvailability('guilherme')">Guilherme</button>
+                </div>
+                <div id="availability-content">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('availability-modal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule Call Modal -->
+    <div id="schedule-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">📅 Agendar Chamada</h3>
+                <button class="modal-close" onclick="closeModal('schedule-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="schedule-landmark-id">
+                <p class="mb-3"><strong id="schedule-landmark-title"></strong></p>
+
+                <div class="form-group">
+                    <label class="form-label">Mentor *</label>
+                    <select id="schedule-mentor" class="form-input" onchange="loadMentorSlots()">
+                        <option value="">Selecione o mentor...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Data *</label>
+                    <select id="schedule-date" class="form-input" onchange="loadTimeSlots()">
+                        <option value="">Selecione uma data...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Horario *</label>
+                    <select id="schedule-time" class="form-input">
+                        <option value="">Selecione um horario...</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('schedule-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="confirmSchedule()">Agendar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
+
+    <style>
+        .mentor-tabs {
+            display: flex;
+            gap: 0.5rem;
+            border-bottom: 2px solid var(--gray-200);
+            padding-bottom: 0.5rem;
+        }
+
+        .mentor-tab {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            font-size: 0.9rem;
+            color: var(--gray-600);
+        }
+
+        .mentor-tab:hover {
+            background: var(--gray-100);
+        }
+
+        .mentor-tab.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .availability-week {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .availability-day {
+            text-align: center;
+            padding: 0.5rem;
+            background: var(--gray-50);
+            border-radius: var(--radius-sm);
+        }
+
+        .availability-day-name {
+            font-weight: 600;
+            font-size: 0.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .availability-slot {
+            background: var(--primary-light);
+            color: var(--primary-color);
+            padding: 0.25rem 0.5rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            margin-bottom: 0.25rem;
+            cursor: pointer;
+        }
+
+        .availability-slot:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .no-slots {
+            color: var(--gray-400);
+            font-size: 0.75rem;
+        }
+
+        .schedule-btn {
+            background: var(--success-color);
+            color: white;
+            border: none;
+            padding: 0.25rem 0.5rem;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 0.75rem;
+            margin-left: 0.5rem;
+        }
+    </style>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/app.js"></script>
@@ -402,7 +547,14 @@
                 const container = document.querySelector(`.landmark-list[data-group="${groupKey}"]`);
                 if (!container) return;
 
-                container.innerHTML = groups[groupKey].map(lm => `
+                container.innerHTML = groups[groupKey].map(lm => {
+                    // Determine mentor hint from title
+                    let mentorHint = '';
+                    if (lm.title.includes('Iria')) mentorHint = 'iria';
+                    else if (lm.title.includes('Marcos')) mentorHint = 'marcos';
+                    else if (lm.title.includes('Guilherme')) mentorHint = 'guilherme';
+
+                    return `
                     <div class="landmark-item ${lm.is_urgent ? 'landmark-urgent' : ''}"
                          data-id="${lm.id}" draggable="true">
                         <span class="landmark-status">
@@ -416,13 +568,16 @@
                             </div>
                         </div>
                         <div class="landmark-actions">
+                            ${!lm.completed && lm.title.toLowerCase().includes('chamada') ? `
+                                <button class="btn btn-sm btn-primary" onclick="openScheduleModal(${lm.id}, '${lm.title.replace(/'/g, "\\'")}', '${mentorHint}')" title="Agendar">📅</button>
+                            ` : ''}
                             <button class="btn btn-sm" onclick="openEditLandmarkModal(${lm.id})" title="Editar">✏️</button>
                             ${!lm.completed ? `
                                 <button class="btn btn-sm btn-success" onclick="markComplete(${lm.id})" title="Marcar concluido">✓</button>
                             ` : ''}
                         </div>
                     </div>
-                `).join('') || '<p class="text-muted p-2">Nenhum item neste grupo</p>';
+                `}).join('') || '<p class="text-muted p-2">Nenhum item neste grupo</p>';
             });
         }
 
@@ -788,6 +943,333 @@
 
         function closeModal(id) {
             document.getElementById(id).classList.remove('active');
+        }
+
+        // ===== Availability and Scheduling Functions =====
+        const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
+        let mentorsData = {};
+        let currentScheduleMentor = null;
+        let availableSlots = [];
+
+        async function openAvailabilityModal() {
+            // Load mentors
+            const { data: mentors } = await WardApp.db
+                .from('users')
+                .select('id, full_name, role')
+                .ilike('role', 'mentor_%');
+
+            mentorsData = {};
+            (mentors || []).forEach(m => {
+                if (m.role === 'mentor_iria') mentorsData['iria'] = m;
+                else if (m.role === 'mentor_marcos') mentorsData['marcos'] = m;
+                else if (m.role === 'mentor_guilherme') mentorsData['guilherme'] = m;
+            });
+
+            openModal('availability-modal');
+            showMentorAvailability('iria');
+        }
+
+        async function showMentorAvailability(mentorKey) {
+            // Update tabs
+            document.querySelectorAll('.mentor-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.mentor === mentorKey);
+            });
+
+            const mentor = mentorsData[mentorKey];
+            if (!mentor) {
+                document.getElementById('availability-content').innerHTML = '<p class="text-muted">Mentor nao encontrado</p>';
+                return;
+            }
+
+            // Load regular availability
+            const { data: regularSlots } = await WardApp.db
+                .from('mentor_availability_regular')
+                .select('*')
+                .eq('mentor_id', mentor.id)
+                .eq('is_active', true)
+                .order('day_of_week')
+                .order('start_time');
+
+            // Load specific dates (next 14 days)
+            const today = new Date().toISOString().split('T')[0];
+            const twoWeeks = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+            const { data: specificDates } = await WardApp.db
+                .from('mentor_availability_specific')
+                .select('*')
+                .eq('mentor_id', mentor.id)
+                .gte('available_date', today)
+                .lte('available_date', twoWeeks);
+
+            // Load already scheduled calls
+            const { data: scheduledCalls } = await WardApp.db
+                .from('scheduled_calls')
+                .select('scheduled_date, scheduled_time')
+                .eq('mentor_id', mentor.id)
+                .eq('status', 'scheduled')
+                .gte('scheduled_date', today);
+
+            // Render weekly availability
+            let html = '<h4 class="mb-2">Horarios Regulares (Semanais)</h4>';
+
+            if (!regularSlots || regularSlots.length === 0) {
+                html += '<p class="text-muted">Nenhum horario regular cadastrado</p>';
+            } else {
+                html += '<div class="availability-week">';
+                for (let i = 0; i < 7; i++) {
+                    const daySlots = regularSlots.filter(s => s.day_of_week === i);
+                    html += `
+                        <div class="availability-day">
+                            <div class="availability-day-name">${dayNames[i]}</div>
+                            ${daySlots.length > 0 ? daySlots.map(s => `
+                                <div class="availability-slot">${formatTime(s.start_time)} - ${formatTime(s.end_time)}</div>
+                            `).join('') : '<div class="no-slots">-</div>'}
+                        </div>
+                    `;
+                }
+                html += '</div>';
+            }
+
+            // Render specific dates
+            const unavailableDates = (specificDates || []).filter(d => d.is_unavailable);
+            const extraAvailable = (specificDates || []).filter(d => !d.is_unavailable);
+
+            if (unavailableDates.length > 0) {
+                html += '<h4 class="mb-2 mt-4">Dias Indisponiveis</h4>';
+                html += unavailableDates.map(d => `
+                    <div style="background: #fee2e2; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.25rem;">
+                        ❌ ${WardApp.formatDate(d.available_date)} ${d.notes ? '- ' + d.notes : ''}
+                    </div>
+                `).join('');
+            }
+
+            if (extraAvailable.length > 0) {
+                html += '<h4 class="mb-2 mt-4">Disponibilidades Extras</h4>';
+                html += extraAvailable.map(d => `
+                    <div style="background: #d1fae5; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.25rem;">
+                        ✅ ${WardApp.formatDate(d.available_date)} - ${formatTime(d.start_time)} a ${formatTime(d.end_time)}
+                        ${d.notes ? ' (' + d.notes + ')' : ''}
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('availability-content').innerHTML = html;
+        }
+
+        function formatTime(time) {
+            if (!time) return '';
+            return time.substring(0, 5);
+        }
+
+        // Called when clicking schedule button on a landmark
+        async function openScheduleModal(landmarkId, landmarkTitle, mentorHint) {
+            document.getElementById('schedule-landmark-id').value = landmarkId;
+            document.getElementById('schedule-landmark-title').textContent = landmarkTitle;
+
+            // Load mentors for the dropdown
+            const { data: mentors } = await WardApp.db
+                .from('users')
+                .select('id, full_name, role')
+                .ilike('role', 'mentor_%');
+
+            const select = document.getElementById('schedule-mentor');
+            select.innerHTML = '<option value="">Selecione o mentor...</option>' +
+                (mentors || []).map(m => `<option value="${m.id}">${m.full_name || m.role}</option>`).join('');
+
+            // Pre-select mentor based on hint (from landmark title)
+            if (mentorHint) {
+                const mentor = mentors.find(m => m.role === 'mentor_' + mentorHint);
+                if (mentor) select.value = mentor.id;
+            }
+
+            document.getElementById('schedule-date').innerHTML = '<option value="">Selecione uma data...</option>';
+            document.getElementById('schedule-time').innerHTML = '<option value="">Selecione um horario...</option>';
+
+            openModal('schedule-modal');
+
+            if (select.value) loadMentorSlots();
+        }
+
+        async function loadMentorSlots() {
+            const mentorId = document.getElementById('schedule-mentor').value;
+            if (!mentorId) return;
+
+            currentScheduleMentor = mentorId;
+
+            // Load next 14 days of availability
+            const today = new Date();
+            const dates = [];
+
+            for (let i = 1; i <= 14; i++) {
+                const date = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
+                dates.push({
+                    date: date.toISOString().split('T')[0],
+                    dayOfWeek: date.getDay(),
+                    display: WardApp.formatDate(date.toISOString().split('T')[0]) + ' (' + dayNames[date.getDay()] + ')'
+                });
+            }
+
+            // Load regular availability
+            const { data: regularSlots } = await WardApp.db
+                .from('mentor_availability_regular')
+                .select('*')
+                .eq('mentor_id', mentorId)
+                .eq('is_active', true);
+
+            // Load specific dates
+            const { data: specificDates } = await WardApp.db
+                .from('mentor_availability_specific')
+                .select('*')
+                .eq('mentor_id', mentorId)
+                .gte('available_date', today.toISOString().split('T')[0]);
+
+            // Filter dates where mentor is available
+            const availableDates = dates.filter(d => {
+                // Check if there's an unavailability specific date
+                const specificUnavailable = (specificDates || []).find(s =>
+                    s.available_date === d.date && s.is_unavailable
+                );
+                if (specificUnavailable) return false;
+
+                // Check if there's regular availability for this day
+                const hasRegular = (regularSlots || []).some(s => s.day_of_week === d.dayOfWeek);
+
+                // Check if there's specific availability for this date
+                const hasSpecific = (specificDates || []).find(s =>
+                    s.available_date === d.date && !s.is_unavailable
+                );
+
+                return hasRegular || hasSpecific;
+            });
+
+            const dateSelect = document.getElementById('schedule-date');
+            dateSelect.innerHTML = '<option value="">Selecione uma data...</option>' +
+                availableDates.map(d => `<option value="${d.date}">${d.display}</option>`).join('');
+
+            document.getElementById('schedule-time').innerHTML = '<option value="">Selecione um horario...</option>';
+        }
+
+        async function loadTimeSlots() {
+            const mentorId = currentScheduleMentor;
+            const date = document.getElementById('schedule-date').value;
+            if (!mentorId || !date) return;
+
+            const dayOfWeek = new Date(date + 'T12:00:00').getDay();
+
+            // Load regular slots for this day
+            const { data: regularSlots } = await WardApp.db
+                .from('mentor_availability_regular')
+                .select('*')
+                .eq('mentor_id', mentorId)
+                .eq('day_of_week', dayOfWeek)
+                .eq('is_active', true);
+
+            // Load specific slots for this date
+            const { data: specificSlots } = await WardApp.db
+                .from('mentor_availability_specific')
+                .select('*')
+                .eq('mentor_id', mentorId)
+                .eq('available_date', date)
+                .eq('is_unavailable', false);
+
+            // Load already scheduled calls for this date
+            const { data: scheduledCalls } = await WardApp.db
+                .from('scheduled_calls')
+                .select('scheduled_time')
+                .eq('mentor_id', mentorId)
+                .eq('scheduled_date', date)
+                .eq('status', 'scheduled');
+
+            const bookedTimes = (scheduledCalls || []).map(c => c.scheduled_time.substring(0, 5));
+
+            // Generate time slots
+            const slots = [];
+            const allSlots = [...(regularSlots || []), ...(specificSlots || [])];
+
+            allSlots.forEach(slot => {
+                const duration = slot.duration_minutes || 30;
+                let current = timeToMinutes(slot.start_time);
+                const end = timeToMinutes(slot.end_time);
+
+                while (current + duration <= end) {
+                    const timeStr = minutesToTime(current);
+                    if (!bookedTimes.includes(timeStr)) {
+                        slots.push(timeStr);
+                    }
+                    current += duration;
+                }
+            });
+
+            // Remove duplicates and sort
+            const uniqueSlots = [...new Set(slots)].sort();
+
+            const timeSelect = document.getElementById('schedule-time');
+            if (uniqueSlots.length === 0) {
+                timeSelect.innerHTML = '<option value="">Nenhum horario disponivel</option>';
+            } else {
+                timeSelect.innerHTML = '<option value="">Selecione um horario...</option>' +
+                    uniqueSlots.map(t => `<option value="${t}">${t}</option>`).join('');
+            }
+        }
+
+        function timeToMinutes(time) {
+            const [h, m] = time.split(':').map(Number);
+            return h * 60 + m;
+        }
+
+        function minutesToTime(mins) {
+            const h = Math.floor(mins / 60).toString().padStart(2, '0');
+            const m = (mins % 60).toString().padStart(2, '0');
+            return h + ':' + m;
+        }
+
+        async function confirmSchedule() {
+            const landmarkId = document.getElementById('schedule-landmark-id').value;
+            const mentorId = document.getElementById('schedule-mentor').value;
+            const date = document.getElementById('schedule-date').value;
+            const time = document.getElementById('schedule-time').value;
+
+            if (!mentorId || !date || !time) {
+                WardApp.showToast('Preencha todos os campos', 'warning');
+                return;
+            }
+
+            // Check if slot is still available (double booking prevention)
+            const { data: existing } = await WardApp.db
+                .from('scheduled_calls')
+                .select('id')
+                .eq('mentor_id', mentorId)
+                .eq('scheduled_date', date)
+                .eq('scheduled_time', time)
+                .eq('status', 'scheduled')
+                .maybeSingle();
+
+            if (existing) {
+                WardApp.showToast('Este horario ja foi reservado. Escolha outro.', 'error');
+                loadTimeSlots();
+                return;
+            }
+
+            // Create the scheduled call
+            const { error } = await WardApp.db
+                .from('scheduled_calls')
+                .insert({
+                    landmark_id: landmarkId || null,
+                    student_id: userData.id,
+                    mentor_id: mentorId,
+                    scheduled_date: date,
+                    scheduled_time: time,
+                    status: 'scheduled'
+                });
+
+            if (error) {
+                console.error('Error scheduling:', error);
+                WardApp.showToast('Erro ao agendar', 'error');
+                return;
+            }
+
+            closeModal('schedule-modal');
+            WardApp.showToast('Chamada agendada com sucesso!');
         }
     </script>
 </body>
