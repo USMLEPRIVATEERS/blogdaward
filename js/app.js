@@ -1146,7 +1146,9 @@ function initTabs() {
 function initAccordions() {
     const accordionHeaders = document.querySelectorAll('.accordion-header');
     accordionHeaders.forEach(header => {
-        header.addEventListener('click', () => {
+        header.addEventListener('click', (e) => {
+            // Don't toggle if clicking on a checkbox or its label
+            if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL') return;
             const item = header.parentElement;
             item.classList.toggle('active');
         });
