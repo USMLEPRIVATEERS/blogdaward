@@ -136,8 +136,14 @@ async function login(email, password) {
             return false;
         }
 
+        // Normalize user data (handle full_name vs name field)
+        const userData = {
+            ...data,
+            name: data.name || data.full_name || data.email.split('@')[0]
+        };
+
         // Store user data
-        localStorage.setItem('ward_user', JSON.stringify(data));
+        localStorage.setItem('ward_user', JSON.stringify(userData));
 
         hideLoading();
 
