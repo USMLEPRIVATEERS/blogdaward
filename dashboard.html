@@ -6,6 +6,37 @@
     <title>Ward Academy - Dashboard</title>
     <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .viewing-as-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .viewing-as-banner button {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.5);
+            color: white;
+            padding: 0.35rem 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .viewing-as-banner button:hover {
+            background: rgba(255,255,255,0.3);
+        }
+    </style>
 </head>
 <body>
     <!-- Header -->
@@ -256,14 +287,38 @@
     <script src="js/app.js"></script>
     <script>
         let userData = null;
+        let viewingAsStudent = null;
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
 
+            // Check if mentor is viewing as student
+            const urlParams = new URLSearchParams(window.location.search);
+            const viewAsId = urlParams.get('view_as');
+            const viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+
+            if (viewAsId && viewAsData && viewAsData.studentId == viewAsId) {
+                // Load student data instead
+                const { data: student } = await WardApp.db
+                    .from('users')
+                    .select('*')
+                    .eq('id', viewAsId)
+                    .single();
+
+                if (student) {
+                    viewingAsStudent = student;
+                    userData = { ...userData, ...student, originalMentor: viewAsData };
+
+                    // Show viewing banner
+                    showViewingAsBanner(viewAsData);
+                }
+            }
+
             // Update user name
-            document.getElementById('user-name').textContent = userData.name || userData.email.split('@')[0];
-            document.querySelector('.user-name').textContent = userData.name || 'Perfil';
+            const displayName = viewingAsStudent ? viewingAsStudent.full_name || viewingAsStudent.email.split('@')[0] : (userData.name || userData.email.split('@')[0]);
+            document.getElementById('user-name').textContent = displayName;
+            document.querySelector('.user-name').textContent = displayName || 'Perfil';
 
             // Load dashboard data
             loadDashboard();
@@ -483,24 +538,42 @@
             const newPass = document.getElementById('new-password').value;
             const confirmPass = document.getElementById('confirm-password').value;
 
+            if (!oldPass || !newPass || !confirmPass) {
+                WardApp.showToast('Preencha todos os campos', 'warning');
+                return;
+            }
+
+            if (newPass.length < 4) {
+                WardApp.showToast('A nova senha deve ter pelo menos 4 caracteres', 'warning');
+                return;
+            }
+
             if (newPass !== confirmPass) {
                 WardApp.showToast('As senhas nao conferem', 'error');
                 return;
             }
 
-            if (oldPass !== userData.password_hash) {
+            // Check old password (support both plain and hashed)
+            const hashedOldPass = btoa(oldPass + '_ward_salt_2024');
+            if (userData.password_hash !== oldPass && userData.password_hash !== hashedOldPass) {
                 WardApp.showToast('Senha atual incorreta', 'error');
                 return;
             }
 
+            // Hash the new password
+            const hashedNewPass = btoa(newPass + '_ward_salt_2024');
+
             const { error } = await WardApp.db
                 .from('users')
-                .update({ password_hash: newPass })
+                .update({ password_hash: hashedNewPass })
                 .eq('id', userData.id);
 
             if (!error) {
-                userData.password_hash = newPass;
+                userData.password_hash = hashedNewPass;
                 localStorage.setItem('ward_user', JSON.stringify(userData));
+                document.getElementById('old-password').value = '';
+                document.getElementById('new-password').value = '';
+                document.getElementById('confirm-password').value = '';
                 closeModal('password-modal');
                 WardApp.showToast('Senha alterada com sucesso!');
             } else {
@@ -514,6 +587,26 @@
 
         function closeModal(id) {
             document.getElementById(id).classList.remove('active');
+        }
+
+        function showViewingAsBanner(viewAsData) {
+            // Create banner element
+            const banner = document.createElement('div');
+            banner.id = 'viewing-as-banner';
+            banner.className = 'viewing-as-banner';
+            banner.innerHTML = `
+                <span>👁️ Visualizando como: <strong>${viewAsData.studentName}</strong></span>
+                <button class="btn btn-sm" onclick="exitViewAsStudent()">✕ Sair desta visualizacao</button>
+            `;
+            document.body.insertBefore(banner, document.body.firstChild);
+
+            // Add padding to body to account for banner
+            document.body.style.paddingTop = '50px';
+        }
+
+        function exitViewAsStudent() {
+            localStorage.removeItem('view_as_student');
+            window.close();
         }
     </script>
 </body>

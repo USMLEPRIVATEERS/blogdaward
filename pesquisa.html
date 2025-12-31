@@ -92,19 +92,77 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label class="form-label" for="project-title">Titulo do Projeto *</label>
-                    <input type="text" id="project-title" class="form-input" placeholder="Nome do projeto">
+                    <label class="form-label">Tipo de Meta-Analise *</label>
+                    <select id="project-type" class="form-input" onchange="updateTitleFields()">
+                        <option value="double-arm">Double Arm (Intervention vs Comparison)</option>
+                        <option value="single-arm">Single Arm</option>
+                        <option value="network">Network Meta-Analysis</option>
+                    </select>
                 </div>
+
+                <!-- Double Arm Fields -->
+                <div id="double-arm-fields">
+                    <div class="input-group">
+                        <div class="form-group">
+                            <label class="form-label">Intervention *</label>
+                            <input type="text" id="project-intervention" class="form-input" placeholder="Ex: Statins" oninput="generateTitle()">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Comparison *</label>
+                            <input type="text" id="project-comparison" class="form-input" placeholder="Ex: Placebo" oninput="generateTitle()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Single Arm Fields (hidden by default) -->
+                <div id="single-arm-fields" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Intervention *</label>
+                        <input type="text" id="project-intervention-single" class="form-input" placeholder="Ex: Aspirin" oninput="generateTitle()">
+                    </div>
+                </div>
+
+                <!-- Network Fields (hidden by default) -->
+                <div id="network-fields" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Interventions (separadas por virgula) *</label>
+                        <input type="text" id="project-interventions-network" class="form-input" placeholder="Ex: Drug A, Drug B, Drug C" oninput="generateTitle()">
+                    </div>
+                </div>
+
                 <div class="form-group">
-                    <label class="form-label" for="project-description">Descricao</label>
+                    <label class="form-label">Population *</label>
+                    <input type="text" id="project-population" class="form-input" placeholder="Ex: Patients with Diabetes" oninput="generateTitle()">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Titulo Gerado</label>
+                    <input type="text" id="project-title" class="form-input" readonly style="background: #f3f4f6; font-weight: 600; text-transform: uppercase;">
+                    <span class="form-hint">Formato padrao: INTERVENTION [VS COMPARISON] FOR POPULATION</span>
+                </div>
+
+                <div class="input-group">
+                    <div class="form-group">
+                        <label class="form-label">Deadline</label>
+                        <input type="date" id="project-deadline" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Link Google Drive</label>
+                        <input type="url" id="project-drive-link" class="form-input" placeholder="https://drive.google.com/...">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="project-description">Descricao / Comentarios</label>
                     <textarea id="project-description" class="form-textarea" rows="3" placeholder="Descricao do projeto..."></textarea>
                 </div>
+
                 <div class="form-group">
-                    <label class="form-label" for="project-participants">Participantes</label>
+                    <label class="form-label" for="project-participants">Participantes (Coautores)</label>
                     <select id="project-participants" class="form-input" multiple size="5">
                         <!-- Filled by JS -->
                     </select>
-                    <span class="form-hint">Segure Ctrl para selecionar multiplos</span>
+                    <span class="form-hint">Segure Ctrl para selecionar multiplos (mentores e alunos)</span>
                 </div>
             </div>
             <div class="modal-footer">
@@ -123,6 +181,7 @@
             </div>
             <div class="modal-body">
                 <p class="text-muted mb-3" id="view-project-description"></p>
+                <div class="project-meta mb-3" id="project-meta"></div>
 
                 <!-- Progress -->
                 <div class="progress-container mb-4">
@@ -380,16 +439,35 @@
         });
 
         async function loadAllUsers() {
+            // Load both students and mentors for co-authorship
             const { data: users } = await WardApp.db
                 .from('users')
-                .select('id, full_name, email')
-                .eq('role', 'aluno')
+                .select('id, full_name, email, role')
+                .or('role.eq.aluno,role.ilike.mentor_%')
                 .order('full_name');
 
             allUsers = users || [];
 
+            // Separate mentors and students for better organization
+            const mentors = allUsers.filter(u => u.role && u.role.startsWith('mentor_'));
+            const students = allUsers.filter(u => u.role === 'aluno');
+
             const select = document.getElementById('project-participants');
-            select.innerHTML = allUsers.map(u => `<option value="${u.id}">${u.full_name} (${u.email})</option>`).join('');
+            let optionsHtml = '';
+
+            if (mentors.length > 0) {
+                optionsHtml += '<optgroup label="👩‍🏫 Mentores">';
+                optionsHtml += mentors.map(u => `<option value="${u.id}">🎓 ${u.full_name || u.email}</option>`).join('');
+                optionsHtml += '</optgroup>';
+            }
+
+            if (students.length > 0) {
+                optionsHtml += '<optgroup label="👥 Alunos">';
+                optionsHtml += students.map(u => `<option value="${u.id}">${u.full_name || u.email}</option>`).join('');
+                optionsHtml += '</optgroup>';
+            }
+
+            select.innerHTML = optionsHtml;
         }
 
         async function loadProjects() {
@@ -476,6 +554,16 @@
             document.getElementById('view-project-title').textContent = currentProject.title;
             document.getElementById('view-project-description').textContent = currentProject.description || '';
 
+            // Show project metadata (deadline, drive link)
+            let metaHtml = '';
+            if (currentProject.deadline) {
+                metaHtml += `<span class="project-meta-item">📅 Prazo: ${WardApp.formatDate(currentProject.deadline)}</span>`;
+            }
+            if (currentProject.drive_link) {
+                metaHtml += `<a href="${currentProject.drive_link}" target="_blank" class="project-meta-item link">📁 Google Drive</a>`;
+            }
+            document.getElementById('project-meta').innerHTML = metaHtml;
+
             // Calculate progress
             const tasks = currentProject.tasks || [];
             const completedTasks = tasks.filter(t => t.stage === 'tarefa_concluida').length;
@@ -507,15 +595,19 @@
 
             const { data: participants } = await WardApp.db
                 .from('users')
-                .select('id, full_name, email')
+                .select('id, full_name, email, role')
                 .in('id', participantIds);
 
-            document.getElementById('participants-list').innerHTML = (participants || []).map(p => `
-                <div class="participant-chip">
-                    <span class="participant-avatar">👤</span>
-                    <span>${p.full_name}</span>
-                </div>
-            `).join('');
+            document.getElementById('participants-list').innerHTML = (participants || []).map(p => {
+                const isMentorParticipant = p.role && p.role.startsWith('mentor_');
+                return `
+                    <div class="participant-chip ${isMentorParticipant ? 'mentor' : ''}">
+                        <span class="participant-avatar">${isMentorParticipant ? '🎓' : '👤'}</span>
+                        <span>${p.full_name || p.email}</span>
+                        ${isMentorParticipant ? '<span class="mentor-tag">Mentor</span>' : ''}
+                    </div>
+                `;
+            }).join('');
         }
 
         function renderTasks(tasks) {
@@ -577,11 +669,25 @@
             document.getElementById('task-stage').value = 'nova_tarefa';
             document.getElementById('task-deadline').value = '';
 
-            // Fill assignee dropdown
+            // Fill assignee dropdown with all participants (including mentors)
             const assigneeSelect = document.getElementById('task-assignee');
             const participantIds = currentProject.participants || [];
-            assigneeSelect.innerHTML = '<option value="">Nenhum</option>' +
-                allUsers.filter(u => participantIds.includes(u.id)).map(u => `<option value="${u.id}">${u.full_name}</option>`).join('');
+            const participants = allUsers.filter(u => participantIds.includes(u.id));
+            const mentors = participants.filter(u => u.role && u.role.startsWith('mentor_'));
+            const students = participants.filter(u => u.role === 'aluno');
+
+            let optionsHtml = '<option value="">Nenhum</option>';
+            if (mentors.length > 0) {
+                optionsHtml += '<optgroup label="Mentores">';
+                optionsHtml += mentors.map(u => `<option value="${u.id}">🎓 ${u.full_name || u.email}</option>`).join('');
+                optionsHtml += '</optgroup>';
+            }
+            if (students.length > 0) {
+                optionsHtml += '<optgroup label="Alunos">';
+                optionsHtml += students.map(u => `<option value="${u.id}">${u.full_name || u.email}</option>`).join('');
+                optionsHtml += '</optgroup>';
+            }
+            assigneeSelect.innerHTML = optionsHtml;
 
             openModal('add-task-modal');
         }
@@ -630,13 +736,25 @@
             document.getElementById('edit-task-stage').value = task.stage;
             document.getElementById('edit-task-deadline').value = task.deadline || '';
 
-            // Fill assignee dropdown
+            // Fill assignee dropdown with all participants (including mentors)
             const assigneeSelect = document.getElementById('edit-task-assignee');
             const participantIds = currentProject.participants || [];
-            assigneeSelect.innerHTML = '<option value="">Nenhum</option>' +
-                allUsers.filter(u => participantIds.includes(u.id)).map(u =>
-                    `<option value="${u.id}" ${task.assigned_to === u.id ? 'selected' : ''}>${u.full_name}</option>`
-                ).join('');
+            const participants = allUsers.filter(u => participantIds.includes(u.id));
+            const mentors = participants.filter(u => u.role && u.role.startsWith('mentor_'));
+            const students = participants.filter(u => u.role === 'aluno');
+
+            let optionsHtml = '<option value="">Nenhum</option>';
+            if (mentors.length > 0) {
+                optionsHtml += '<optgroup label="Mentores">';
+                optionsHtml += mentors.map(u => `<option value="${u.id}" ${task.assigned_to == u.id ? 'selected' : ''}>🎓 ${u.full_name || u.email}</option>`).join('');
+                optionsHtml += '</optgroup>';
+            }
+            if (students.length > 0) {
+                optionsHtml += '<optgroup label="Alunos">';
+                optionsHtml += students.map(u => `<option value="${u.id}" ${task.assigned_to == u.id ? 'selected' : ''}>${u.full_name || u.email}</option>`).join('');
+                optionsHtml += '</optgroup>';
+            }
+            assigneeSelect.innerHTML = optionsHtml;
 
             openModal('edit-task-modal');
         }
@@ -692,35 +810,102 @@
         }
 
         async function createProject() {
+            const projectType = document.getElementById('project-type').value;
             const title = document.getElementById('project-title').value.trim();
             const description = document.getElementById('project-description').value.trim();
+            const deadline = document.getElementById('project-deadline').value || null;
+            const driveLink = document.getElementById('project-drive-link').value.trim() || null;
             const participantSelect = document.getElementById('project-participants');
-            const participants = Array.from(participantSelect.selectedOptions).map(o => o.value);
+            const participants = Array.from(participantSelect.selectedOptions).map(o => parseInt(o.value));
 
             if (!title) {
-                WardApp.showToast('Preencha o titulo do projeto', 'warning');
+                WardApp.showToast('Preencha os campos obrigatorios para gerar o titulo', 'warning');
                 return;
             }
 
             const { error } = await WardApp.db.from('research_projects').insert({
                 title,
                 description,
+                project_type: projectType,
+                deadline,
+                drive_link: driveLink,
                 participants,
                 status: 'active',
                 created_by: userData.id
             });
 
             if (error) {
+                console.error('Error creating project:', error);
                 WardApp.showToast('Erro ao criar projeto', 'error');
                 return;
             }
 
             closeModal('new-project-modal');
+
+            // Clear form fields
+            document.getElementById('project-type').value = 'double-arm';
+            document.getElementById('project-intervention').value = '';
+            document.getElementById('project-comparison').value = '';
+            document.getElementById('project-intervention-single').value = '';
+            document.getElementById('project-interventions-network').value = '';
+            document.getElementById('project-population').value = '';
             document.getElementById('project-title').value = '';
             document.getElementById('project-description').value = '';
+            document.getElementById('project-deadline').value = '';
+            document.getElementById('project-drive-link').value = '';
+            updateTitleFields();
 
             WardApp.showToast('Projeto criado!');
             await loadProjects();
+        }
+
+        // Title generation functions
+        function updateTitleFields() {
+            const type = document.getElementById('project-type').value;
+
+            // Hide all type-specific fields
+            document.getElementById('double-arm-fields').style.display = 'none';
+            document.getElementById('single-arm-fields').style.display = 'none';
+            document.getElementById('network-fields').style.display = 'none';
+
+            // Show the relevant fields
+            if (type === 'double-arm') {
+                document.getElementById('double-arm-fields').style.display = 'block';
+            } else if (type === 'single-arm') {
+                document.getElementById('single-arm-fields').style.display = 'block';
+            } else if (type === 'network') {
+                document.getElementById('network-fields').style.display = 'block';
+            }
+
+            // Regenerate title
+            generateTitle();
+        }
+
+        function generateTitle() {
+            const type = document.getElementById('project-type').value;
+            const population = document.getElementById('project-population').value.trim();
+            let title = '';
+
+            if (type === 'double-arm') {
+                const intervention = document.getElementById('project-intervention').value.trim();
+                const comparison = document.getElementById('project-comparison').value.trim();
+                if (intervention && comparison && population) {
+                    title = `${intervention} VERSUS ${comparison} FOR ${population}`;
+                }
+            } else if (type === 'single-arm') {
+                const intervention = document.getElementById('project-intervention-single').value.trim();
+                if (intervention && population) {
+                    title = `${intervention} FOR ${population}`;
+                }
+            } else if (type === 'network') {
+                const interventions = document.getElementById('project-interventions-network').value.trim();
+                if (interventions && population) {
+                    title = `${interventions} FOR ${population}`;
+                }
+            }
+
+            // Set the title in uppercase
+            document.getElementById('project-title').value = title.toUpperCase();
         }
 
         function openModal(id) {
@@ -837,6 +1022,20 @@
             font-size: 0.875rem;
         }
 
+        .participant-chip.mentor {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+        }
+
+        .mentor-tag {
+            font-size: 0.65rem;
+            background: #f59e0b;
+            color: white;
+            padding: 0.1rem 0.4rem;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
         .tasks-list {
             display: flex;
             flex-direction: column;
@@ -894,6 +1093,33 @@
 
         .modal-xl {
             max-width: 900px;
+        }
+
+        .project-meta {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .project-meta-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.875rem;
+            color: var(--gray-600);
+            background: var(--gray-100);
+            padding: 0.35rem 0.75rem;
+            border-radius: var(--radius-md);
+        }
+
+        .project-meta-item.link {
+            color: var(--primary-color);
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .project-meta-item.link:hover {
+            background: var(--primary-light);
         }
     </style>
 </body>
