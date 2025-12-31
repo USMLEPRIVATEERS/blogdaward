@@ -340,6 +340,64 @@
         </div>
     </div>
 
+    <!-- Edit Assessment Modal -->
+    <div id="edit-assessment-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 class="modal-title">✏️ Editar Simulado</h3>
+                <button class="modal-close" onclick="closeModal('edit-assessment-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-assessment-form">
+                    <div class="form-group">
+                        <label class="form-label">Título do Simulado *</label>
+                        <input type="text" id="edit-assessment-title" class="form-input" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Seção *</label>
+                        <select id="edit-assessment-section" class="form-input" required>
+                            <option value="">Selecione...</option>
+                            <option value="Avaliação Inicial">Avaliação Inicial</option>
+                            <option value="Síntese de Conhecimento">Síntese de Conhecimento</option>
+                            <option value="WASA">Ward Academy Self Assessments (WASA)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Quantidade de Questões *</label>
+                        <input type="number" id="edit-assessment-questions" class="form-input" min="1" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Tempo Recomendado (minutos) *</label>
+                        <input type="number" id="edit-assessment-time" class="form-input" min="1" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Link do Formulário de Inscrição</label>
+                        <input type="url" id="edit-assessment-registration-url" class="form-input"
+                               placeholder="https://forms.google.com/...">
+                        <small class="form-hint">Google Form para inscrição (opcional)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Link do Simulado *</label>
+                        <input type="url" id="edit-assessment-url" class="form-input"
+                               placeholder="https://forms.google.com/..." required>
+                        <small class="form-hint">Google Form do simulado</small>
+                    </div>
+
+                    <input type="hidden" id="edit-assessment-id">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('edit-assessment-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="updateAssessment()">Salvar Alterações</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
@@ -435,9 +493,17 @@
                                     <span>⏱️ ${assessment.recommended_time_minutes} min</span>
                                 </div>
                             </div>
-                            <button class="btn btn-primary btn-sm" onclick="openScheduleModal(${assessment.id})">
-                                📅 Agendar para Alunos
-                            </button>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <button class="btn btn-outline btn-sm" onclick="editAssessment(${assessment.id})" title="Editar">
+                                    ✏️ Editar
+                                </button>
+                                <button class="btn btn-outline btn-sm" onclick="deleteAssessment(${assessment.id}, '${assessment.title.replace(/'/g, "\\'")}')" title="Excluir" style="color: #dc2626; border-color: #dc2626;">
+                                    🗑️ Excluir
+                                </button>
+                                <button class="btn btn-primary btn-sm" onclick="openScheduleModal(${assessment.id})">
+                                    📅 Agendar para Alunos
+                                </button>
+                            </div>
                         </div>
 
                         <div class="enrolled-students">
@@ -664,6 +730,88 @@
                 month: '2-digit',
                 year: 'numeric'
             });
+        }
+
+        async function editAssessment(assessmentId) {
+            // Fetch assessment data
+            const { data: assessment, error } = await WardApp.db
+                .from('assessments')
+                .select('*')
+                .eq('id', assessmentId)
+                .single();
+
+            if (error || !assessment) {
+                WardApp.showToast('Erro ao carregar simulado', 'error');
+                return;
+            }
+
+            // Fill form
+            document.getElementById('edit-assessment-id').value = assessment.id;
+            document.getElementById('edit-assessment-title').value = assessment.title;
+            document.getElementById('edit-assessment-section').value = assessment.section;
+            document.getElementById('edit-assessment-questions').value = assessment.num_questions;
+            document.getElementById('edit-assessment-time').value = assessment.recommended_time_minutes;
+            document.getElementById('edit-assessment-registration-url').value = assessment.registration_form_url || '';
+            document.getElementById('edit-assessment-url').value = assessment.assessment_url;
+
+            openModal('edit-assessment-modal');
+        }
+
+        async function updateAssessment() {
+            const id = document.getElementById('edit-assessment-id').value;
+            const title = document.getElementById('edit-assessment-title').value.trim();
+            const section = document.getElementById('edit-assessment-section').value;
+            const numQuestions = parseInt(document.getElementById('edit-assessment-questions').value);
+            const timeMinutes = parseInt(document.getElementById('edit-assessment-time').value);
+            const registrationUrl = document.getElementById('edit-assessment-registration-url').value.trim();
+            const assessmentUrl = document.getElementById('edit-assessment-url').value.trim();
+
+            if (!title || !section || !numQuestions || !timeMinutes || !assessmentUrl) {
+                WardApp.showToast('Preencha todos os campos obrigatórios', 'warning');
+                return;
+            }
+
+            const { error } = await WardApp.db
+                .from('assessments')
+                .update({
+                    title,
+                    section,
+                    num_questions: numQuestions,
+                    recommended_time_minutes: timeMinutes,
+                    registration_form_url: registrationUrl || null,
+                    assessment_url: assessmentUrl
+                })
+                .eq('id', id);
+
+            if (error) {
+                console.error('Error updating assessment:', error);
+                WardApp.showToast('Erro ao atualizar simulado', 'error');
+                return;
+            }
+
+            WardApp.showToast('Simulado atualizado com sucesso!');
+            closeModal('edit-assessment-modal');
+            await loadAssessments();
+        }
+
+        async function deleteAssessment(assessmentId, title) {
+            if (!confirm(`Tem certeza que deseja excluir o simulado "${title}"?\n\nEsta ação não pode ser desfeita e removerá também todos os agendamentos associados.`)) {
+                return;
+            }
+
+            const { error } = await WardApp.db
+                .from('assessments')
+                .update({ is_active: false })
+                .eq('id', assessmentId);
+
+            if (error) {
+                console.error('Error deleting assessment:', error);
+                WardApp.showToast('Erro ao excluir simulado', 'error');
+                return;
+            }
+
+            WardApp.showToast('Simulado excluído com sucesso!');
+            await loadAssessments();
         }
 
         function openModal(id) {
