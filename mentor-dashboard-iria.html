@@ -230,13 +230,30 @@
                 <input type="hidden" id="edit-landmark-id">
                 <div class="form-group">
                     <label class="form-label">Titulo do Landmark</label>
-                    <input type="text" id="edit-landmark-title" class="form-input" readonly style="background: #f3f4f6;">
+                    <input type="text" id="edit-landmark-title" class="form-input" placeholder="Nome do evento/chamada">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Grupo</label>
+                    <select id="edit-landmark-group" class="form-input">
+                        <option value="setup">Setup Inicial</option>
+                        <option value="first-round">1a Rodada de Chamadas</option>
+                        <option value="second-round">2a Rodada de Chamadas</option>
+                        <option value="system-calls">Chamadas por System</option>
+                        <option value="research">Chamadas de Pesquisa</option>
+                        <option value="second-pass">Second Pass e Simulados</option>
+                        <option value="dedicated">Dedicated e Prova</option>
+                        <option value="extras">Extras</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label class="form-check">
-                        <input type="checkbox" id="edit-landmark-completed">
+                        <input type="checkbox" id="edit-landmark-completed" onchange="toggleCompletionDate()">
                         <span class="form-check-label">✅ Marcar como Concluido</span>
                     </label>
+                </div>
+                <div class="form-group" id="completion-date-group" style="display: none;">
+                    <label class="form-label">Data de Conclusao</label>
+                    <input type="date" id="edit-landmark-date" class="form-input">
                 </div>
                 <div class="form-group">
                     <label class="form-check">
@@ -252,9 +269,62 @@
                     <!-- Previous notes will be shown here -->
                 </div>
             </div>
+            <div class="modal-footer" style="justify-content: space-between;">
+                <button class="btn btn-danger" onclick="deleteLandmark()">🗑️ Excluir</button>
+                <div>
+                    <button class="btn btn-secondary" onclick="closeModal('edit-landmark-modal')">Cancelar</button>
+                    <button class="btn btn-primary" onclick="saveLandmarkEdit()">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Landmark Modal -->
+    <div id="new-landmark-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">➕ Novo Landmark</h3>
+                <button class="modal-close" onclick="closeModal('new-landmark-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">Aluno: <strong id="new-landmark-student"></strong></p>
+                <div class="form-group">
+                    <label class="form-label">Titulo do Evento *</label>
+                    <input type="text" id="new-landmark-title" class="form-input" placeholder="Ex: Chamada extra - Revisao de Cardio">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Grupo</label>
+                    <select id="new-landmark-group" class="form-input">
+                        <option value="setup">Setup Inicial</option>
+                        <option value="first-round">1a Rodada de Chamadas</option>
+                        <option value="second-round">2a Rodada de Chamadas</option>
+                        <option value="system-calls">Chamadas por System</option>
+                        <option value="research">Chamadas de Pesquisa</option>
+                        <option value="second-pass">Second Pass e Simulados</option>
+                        <option value="dedicated">Dedicated e Prova</option>
+                        <option value="extras" selected>Extras</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="new-landmark-completed" onchange="toggleNewCompletionDate()">
+                        <span class="form-check-label">✅ Ja foi concluido</span>
+                    </label>
+                </div>
+                <div class="form-group" id="new-completion-date-group" style="display: none;">
+                    <label class="form-label">Data de Conclusao</label>
+                    <input type="date" id="new-landmark-date" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="new-landmark-urgent">
+                        <span class="form-check-label">🔴 Marcar como Urgente</span>
+                    </label>
+                </div>
+            </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('edit-landmark-modal')">Cancelar</button>
-                <button class="btn btn-primary" onclick="saveLandmarkEdit()">Salvar</button>
+                <button class="btn btn-secondary" onclick="closeModal('new-landmark-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="createNewLandmark()">Criar Evento</button>
             </div>
         </div>
     </div>
@@ -499,7 +569,10 @@
 
             // Build landmarks HTML - EDITABLE
             let landmarksHTML = '<div class="landmarks-overview mb-4">';
-            landmarksHTML += '<h4 style="margin-bottom: 1rem;">📍 Landmarks do Aluno <small style="font-weight: normal; color: #6b7280;">(clique para editar)</small></h4>';
+            landmarksHTML += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h4 style="margin: 0;">📍 Landmarks do Aluno <small style="font-weight: normal; color: #6b7280;">(clique para editar)</small></h4>
+                <button class="btn btn-sm btn-primary" onclick="openNewLandmarkModal()">+ Novo Evento</button>
+            </div>`;
 
             const completedCount = landmarks.filter(l => l.completed).length;
             const pendingCount = landmarks.filter(l => !l.completed).length;
@@ -957,6 +1030,15 @@
         // Edit Landmark Functions
         let currentEditLandmarkId = null;
 
+        function toggleCompletionDate() {
+            const completed = document.getElementById('edit-landmark-completed').checked;
+            const dateGroup = document.getElementById('completion-date-group');
+            dateGroup.style.display = completed ? 'block' : 'none';
+            if (completed && !document.getElementById('edit-landmark-date').value) {
+                document.getElementById('edit-landmark-date').value = new Date().toISOString().split('T')[0];
+            }
+        }
+
         async function openEditLandmarkModal(id, title, completed, urgent) {
             currentEditLandmarkId = id;
             document.getElementById('edit-landmark-id').value = id;
@@ -965,13 +1047,28 @@
             document.getElementById('edit-landmark-urgent').checked = urgent;
             document.getElementById('edit-landmark-observation').value = '';
 
-            // Load existing notes
+            // Load full landmark data
             const { data: landmark } = await WardApp.db
                 .from('landmarks')
-                .select('notes')
+                .select('*')
                 .eq('id', id)
                 .single();
 
+            // Set group
+            if (landmark?.group_name) {
+                document.getElementById('edit-landmark-group').value = landmark.group_name;
+            }
+
+            // Set completion date
+            if (completed && landmark?.completion_date) {
+                document.getElementById('edit-landmark-date').value = landmark.completion_date.split('T')[0];
+                document.getElementById('completion-date-group').style.display = 'block';
+            } else {
+                document.getElementById('completion-date-group').style.display = 'none';
+                document.getElementById('edit-landmark-date').value = new Date().toISOString().split('T')[0];
+            }
+
+            // Show existing notes
             const notesContainer = document.getElementById('edit-landmark-notes');
             const notes = landmark?.notes || [];
 
@@ -998,18 +1095,30 @@
 
         async function saveLandmarkEdit() {
             const id = currentEditLandmarkId;
+            const title = document.getElementById('edit-landmark-title').value.trim();
+            const group = document.getElementById('edit-landmark-group').value;
             const completed = document.getElementById('edit-landmark-completed').checked;
+            const completionDate = document.getElementById('edit-landmark-date').value;
             const urgent = document.getElementById('edit-landmark-urgent').checked;
             const newObservation = document.getElementById('edit-landmark-observation').value.trim();
 
+            if (!title) {
+                WardApp.showToast('O titulo e obrigatorio', 'warning');
+                return;
+            }
+
             // Build update object
             const updates = {
+                title,
+                group_name: group,
                 completed,
                 is_urgent: urgent
             };
 
-            if (completed) {
-                updates.completion_date = new Date().toISOString();
+            if (completed && completionDate) {
+                updates.completion_date = new Date(completionDate).toISOString();
+            } else if (!completed) {
+                updates.completion_date = null;
             }
 
             // If there's a new observation, add it
@@ -1041,6 +1150,88 @@
             if (selectedStudent) {
                 await loadStudentTimeline(selectedStudent.id);
             }
+            await loadPendingCalls();
+            await updateStats();
+        }
+
+        async function deleteLandmark() {
+            if (!confirm('Tem certeza que deseja excluir este landmark?')) {
+                return;
+            }
+
+            const id = currentEditLandmarkId;
+
+            await WardApp.db
+                .from('landmarks')
+                .delete()
+                .eq('id', id);
+
+            closeModal('edit-landmark-modal');
+            WardApp.showToast('Landmark excluido!');
+
+            // Reload student timeline
+            if (selectedStudent) {
+                await loadStudentTimeline(selectedStudent.id);
+            }
+            await loadPendingCalls();
+            await updateStats();
+        }
+
+        // New Landmark Functions
+        function openNewLandmarkModal() {
+            if (!selectedStudent) {
+                WardApp.showToast('Selecione um aluno primeiro', 'warning');
+                return;
+            }
+            document.getElementById('new-landmark-student').textContent = selectedStudent.full_name || selectedStudent.email;
+            document.getElementById('new-landmark-title').value = '';
+            document.getElementById('new-landmark-group').value = 'extras';
+            document.getElementById('new-landmark-completed').checked = false;
+            document.getElementById('new-landmark-urgent').checked = false;
+            document.getElementById('new-landmark-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('new-completion-date-group').style.display = 'none';
+            openModal('new-landmark-modal');
+        }
+
+        function toggleNewCompletionDate() {
+            const completed = document.getElementById('new-landmark-completed').checked;
+            const dateGroup = document.getElementById('new-completion-date-group');
+            dateGroup.style.display = completed ? 'block' : 'none';
+        }
+
+        async function createNewLandmark() {
+            const title = document.getElementById('new-landmark-title').value.trim();
+            const group = document.getElementById('new-landmark-group').value;
+            const completed = document.getElementById('new-landmark-completed').checked;
+            const completionDate = document.getElementById('new-landmark-date').value;
+            const urgent = document.getElementById('new-landmark-urgent').checked;
+
+            if (!title) {
+                WardApp.showToast('O titulo e obrigatorio', 'warning');
+                return;
+            }
+
+            const newLandmark = {
+                user_id: selectedStudent.id,
+                title,
+                group_name: group,
+                landmark_type: 'custom_' + Date.now(),
+                completed,
+                is_urgent: urgent,
+                notes: [],
+                order_position: 999
+            };
+
+            if (completed && completionDate) {
+                newLandmark.completion_date = new Date(completionDate).toISOString();
+            }
+
+            await WardApp.db.from('landmarks').insert(newLandmark);
+
+            closeModal('new-landmark-modal');
+            WardApp.showToast('Evento criado com sucesso!');
+
+            await loadStudentTimeline(selectedStudent.id);
             await loadPendingCalls();
             await updateStats();
         }
