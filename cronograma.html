@@ -41,6 +41,7 @@
             <h1>📅 Cronograma de Estudos</h1>
             <div class="btn-group">
                 <button class="btn btn-outline" onclick="openModal('delay-modal')">⚠️ Sinalizar Atraso</button>
+                <button class="btn btn-outline" onclick="openModal('difficulty-modal')">🆘 Sinalizar Dificuldade</button>
                 <button class="btn btn-outline" onclick="exportSchedule()">📥 Exportar</button>
             </div>
         </div>
@@ -177,6 +178,64 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('delay-modal')">Cancelar</button>
                 <button class="btn btn-primary" onclick="signalDelay()">Sinalizar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Difficulty Modal -->
+    <div id="difficulty-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">🆘 Sinalizar Dificuldade</h3>
+                <button class="modal-close" onclick="closeModal('difficulty-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info mb-3">
+                    <strong>Relatório de Dificuldade</strong><br>
+                    Compartilhe suas dificuldades com os mentores para receber suporte personalizado.
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="difficulty-system">Sistema</label>
+                    <select id="difficulty-system" class="form-input">
+                        <option value="">Selecione o sistema...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="difficulty-category">Categoria</label>
+                    <input type="text" id="difficulty-category" class="form-input"
+                        placeholder="Ex: Cardiac Arrhythmias, Renal Physiology...">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="difficulty-description">O que você está tendo dificuldade? *</label>
+                    <textarea id="difficulty-description" class="form-textarea" rows="4" required
+                        placeholder="Descreva detalhadamente suas dificuldades, conceitos que não compreendeu, etc..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="difficulty-percentage">Porcentagem de Acertos (opcional)</label>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <input type="number" id="difficulty-percentage" class="form-input"
+                            min="0" max="100" placeholder="0-100" style="max-width: 120px;">
+                        <span class="text-muted">%</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="difficulty-wants-meeting">
+                        <span class="form-check-label">
+                            <strong>Quero agendar reunião com a Dra. Iria</strong><br>
+                            <small class="text-muted">A equipe entrará em contato para agendar</small>
+                        </span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('difficulty-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="signalDifficulty()">Enviar Sinalização</button>
             </div>
         </div>
     </div>
@@ -871,6 +930,82 @@
             WardApp.showToast('Atraso sinalizado com sucesso!');
             await loadDelays();
         }
+
+        async function signalDifficulty() {
+            const system = document.getElementById('difficulty-system').value;
+            const category = document.getElementById('difficulty-category').value.trim();
+            const description = document.getElementById('difficulty-description').value.trim();
+            const percentage = parseInt(document.getElementById('difficulty-percentage').value) || null;
+            const wantsMeeting = document.getElementById('difficulty-wants-meeting').checked;
+
+            if (!description) {
+                WardApp.showToast('Descreva sua dificuldade', 'warning');
+                return;
+            }
+
+            if (!system && !category) {
+                WardApp.showToast('Preencha o sistema ou categoria', 'warning');
+                return;
+            }
+
+            WardApp.showLoading();
+
+            const { error } = await WardApp.db.from('study_difficulties').insert({
+                user_id: targetUserId,
+                system: system || 'Geral',
+                category: category || 'Não especificado',
+                difficulty_description: description,
+                correct_percentage: percentage,
+                wants_meeting: wantsMeeting
+            });
+
+            WardApp.hideLoading();
+
+            if (error) {
+                WardApp.showToast('Erro ao enviar sinalização', 'error');
+                return;
+            }
+
+            // Clear form
+            document.getElementById('difficulty-system').value = '';
+            document.getElementById('difficulty-category').value = '';
+            document.getElementById('difficulty-description').value = '';
+            document.getElementById('difficulty-percentage').value = '';
+            document.getElementById('difficulty-wants-meeting').checked = false;
+
+            closeModal('difficulty-modal');
+
+            if (wantsMeeting) {
+                WardApp.showToast('🆘 Dificuldade sinalizada! A Dra. Iria entrará em contato em breve.', 'success');
+            } else {
+                WardApp.showToast('🆘 Dificuldade sinalizada! Os mentores foram notificados.', 'success');
+            }
+        }
+
+        // Populate systems dropdown in difficulty modal
+        function populateDifficultySystemsDropdown() {
+            const select = document.getElementById('difficulty-system');
+            const uniqueSystems = [...new Set(scheduleData.map(s => s.system))].filter(s => s).sort();
+
+            // Clear existing options except first
+            select.innerHTML = '<option value="">Selecione o sistema...</option>';
+
+            uniqueSystems.forEach(system => {
+                const option = document.createElement('option');
+                option.value = system;
+                option.textContent = system;
+                select.appendChild(option);
+            });
+        }
+
+        // Override openModal to populate systems when difficulty modal opens
+        const originalOpenModal = openModal;
+        openModal = function(modalId) {
+            if (modalId === 'difficulty-modal') {
+                populateDifficultySystemsDropdown();
+            }
+            originalOpenModal(modalId);
+        };
 
         function exportSchedule() {
             if (!scheduleData.length) {

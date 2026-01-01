@@ -847,7 +847,8 @@
                     delaysRes,
                     messagesRes,
                     researchRes,
-                    landmarksRes
+                    landmarksRes,
+                    difficultiesRes
                 ] = await Promise.all([
                     WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('created_at', { ascending: false }).limit(20),
                     WardApp.db.from('blog_posts').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
@@ -858,7 +859,8 @@
                     WardApp.db.from('schedule_delays').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
                     WardApp.db.from('mentor_messages').select('*, users:user_id(full_name, email), mentor:mentor_id(full_name)').order('created_at', { ascending: false }).limit(20),
                     WardApp.db.from('research_projects').select('*, users:created_by(full_name, email)').order('updated_at', { ascending: false }).limit(15),
-                    WardApp.db.from('landmarks').select('*, users:user_id(full_name, email)').eq('completed', true).order('completion_date', { ascending: false }).limit(20)
+                    WardApp.db.from('landmarks').select('*, users:user_id(full_name, email)').eq('completed', true).order('completion_date', { ascending: false }).limit(20),
+                    WardApp.db.from('study_difficulties').select('*, users:user_id(full_name, email)').eq('resolved', false).order('created_at', { ascending: false }).limit(20)
                 ]);
 
                 // Combine all activities into a single timeline
@@ -966,6 +968,23 @@
                         action: 'sinalizou atraso no cronograma',
                         title: item.reason || 'Atraso sinalizado',
                         detail: `${WardApp.formatDate(item.start_date)} - ${WardApp.formatDate(item.end_date)}`,
+                        date: item.created_at
+                    });
+                });
+
+                // Study difficulties - FULL CONTENT
+                (difficultiesRes.data || []).forEach(item => {
+                    const wantsMeetingBadge = item.wants_meeting ? ' <span style="background: #fef3c7; color: #92400e; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">🔔 QUER REUNIÃO COM DRA. IRIA</span>' : '';
+                    const percentageBadge = item.correct_percentage !== null ? ` - ${item.correct_percentage}% acertos` : '';
+                    feed.push({
+                        type: 'difficulty',
+                        icon: '🆘',
+                        color: '#dc2626',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'sinalizou dificuldade',
+                        title: `${item.system} - ${item.category}${percentageBadge}${wantsMeetingBadge}`,
+                        fullContent: item.difficulty_description,
+                        detail: '',
                         date: item.created_at
                     });
                 });
