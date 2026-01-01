@@ -395,7 +395,7 @@
         }
 
         // Format complex data types for display
-        function formatValue(value) {
+        function formatValue(value, fieldKey = '') {
             // Try to parse JSON strings first
             if (typeof value === 'string') {
                 // Check if it looks like JSON (starts with [ or {)
@@ -427,6 +427,20 @@
                 // Check if array contains objects
                 if (typeof value[0] === 'object' && value[0] !== null) {
                     return formatObjectArray(value);
+                }
+
+                // Special handling for no_study_days - convert numbers to day names
+                if (fieldKey === 'no_study_days') {
+                    const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+                    return `
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
+                            ${value.map(dayNum => `
+                                <span style="background: #fef3c7; color: #92400e; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500;">
+                                    ${dayNames[dayNum] || dayNum}
+                                </span>
+                            `).join('')}
+                        </div>
+                    `;
                 }
 
                 // Simple array (strings, numbers) - show as badges
@@ -556,7 +570,7 @@
             const items = Object.entries(data).map(([key, value]) => {
                 // Format key to be more readable
                 const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                const formattedValue = formatValue(value);
+                const formattedValue = formatValue(value, key);
 
                 return `
                     <div class="response-item">
