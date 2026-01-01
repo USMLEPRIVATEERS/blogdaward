@@ -300,6 +300,33 @@ Cardiovascular	Physiology	62	FALSE
         </div>
     </div>
 
+    <!-- Individual Message Modal -->
+    <div id="individual-message-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">💬 Enviar Mensagem</h3>
+                <button class="modal-close" onclick="closeModal('individual-message-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="message-student-id">
+                <div class="form-group">
+                    <label class="form-label">Para:</label>
+                    <div style="padding: 0.5rem; background: var(--gray-100); border-radius: 8px; font-weight: 500;">
+                        <span id="message-student-name"></span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="individual-message-content">Mensagem *</label>
+                    <textarea id="individual-message-content" class="form-textarea" rows="5" placeholder="Escreva sua mensagem..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('individual-message-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="sendIndividualMessage()">Enviar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Add Video Modal -->
     <div id="add-video-modal" class="modal-overlay">
         <div class="modal modal-lg">
@@ -712,8 +739,38 @@ Cardiovascular	Physiology	62	FALSE
         }
 
         function sendMessageTo(studentId, studentName) {
-            // Simplified - would open modal with pre-filled recipient
-            WardApp.showToast('Abrir chat com ' + studentName);
+            // Open modal with pre-filled recipient
+            document.getElementById('message-student-id').value = studentId;
+            document.getElementById('message-student-name').textContent = studentName;
+            document.getElementById('individual-message-content').value = '';
+            openModal('individual-message-modal');
+        }
+
+        async function sendIndividualMessage() {
+            const studentId = document.getElementById('message-student-id').value;
+            const content = document.getElementById('individual-message-content').value.trim();
+
+            if (!content) {
+                WardApp.showToast('Escreva uma mensagem', 'warning');
+                return;
+            }
+
+            // Insert message for the specific student
+            const { error } = await WardApp.db.from('mentor_messages').insert({
+                user_id: studentId,
+                mentor_id: userData.id,
+                content,
+                created_at: new Date().toISOString()
+            });
+
+            if (error) {
+                console.error('Error sending message:', error);
+                WardApp.showToast('Erro ao enviar mensagem: ' + error.message, 'error');
+                return;
+            }
+
+            closeModal('individual-message-modal');
+            WardApp.showToast('Mensagem enviada com sucesso!');
         }
 
         async function sendBroadcast() {
