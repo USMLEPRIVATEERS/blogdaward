@@ -86,6 +86,45 @@
     </div>
 
     <style>
+        .accordion-item {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            overflow: hidden;
+        }
+        .accordion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            cursor: pointer;
+            background: var(--gray-50);
+            border-bottom: 1px solid transparent;
+            transition: all 0.2s;
+            font-weight: 600;
+        }
+        .accordion-header:hover {
+            background: var(--gray-100);
+        }
+        .accordion-item.active .accordion-header {
+            border-bottom-color: var(--gray-200);
+        }
+        .accordion-icon {
+            color: var(--gray-500);
+            transition: transform 0.2s;
+            font-size: 0.85rem;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            padding: 0 1rem;
+        }
+        .accordion-item.active .accordion-content {
+            max-height: 2000px;
+            padding: 1rem;
+        }
         .category-item {
             display: flex;
             align-items: center;
@@ -124,8 +163,12 @@
         document.addEventListener('DOMContentLoaded', async () => {
             // First, load step 2 data to get selected exam
             const step2Data = await WardApp.loadQuestionnaireData(2);
+            console.log('Step 2 data loaded:', step2Data);
             if (step2Data && step2Data.next_exam) {
                 selectedExam = step2Data.next_exam;
+                console.log('Selected exam from database:', selectedExam);
+            } else {
+                console.warn('No exam found in step 2 data, using default:', selectedExam);
             }
 
             // Build the accordion based on selected exam
@@ -196,6 +239,30 @@
         }
 
         function setupEventListeners() {
+            // Accordion toggle - expand/collapse
+            document.querySelectorAll('.accordion-header').forEach(header => {
+                header.addEventListener('click', function(e) {
+                    // Don't toggle if clicking on checkbox
+                    if (e.target.classList.contains('system-checkbox')) {
+                        return;
+                    }
+
+                    const accordionItem = this.parentElement;
+                    const content = accordionItem.querySelector('.accordion-content');
+                    const icon = this.querySelector('.accordion-icon');
+
+                    // Toggle active class
+                    accordionItem.classList.toggle('active');
+
+                    // Toggle icon rotation
+                    if (accordionItem.classList.contains('active')) {
+                        icon.textContent = '▲';
+                    } else {
+                        icon.textContent = '▼';
+                    }
+                });
+            });
+
             // System checkbox - check all categories
             document.querySelectorAll('.system-checkbox').forEach(checkbox => {
                 checkbox.addEventListener('change', function() {
