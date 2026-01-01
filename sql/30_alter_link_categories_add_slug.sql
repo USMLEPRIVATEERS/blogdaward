@@ -6,8 +6,10 @@ ALTER TABLE link_categories
 ADD COLUMN IF NOT EXISTS slug VARCHAR(100);
 
 -- Add created_by column to track who created custom categories
+-- Using BIGINT to match the id type in link_categories table
+-- Not adding foreign key constraint due to type incompatibility with users.id (UUID)
 ALTER TABLE link_categories
-ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id);
+ADD COLUMN IF NOT EXISTS created_by BIGINT;
 
 -- Generate slugs for existing categories from their names
 -- Convert to lowercase, remove accents, replace spaces/special chars with underscores
