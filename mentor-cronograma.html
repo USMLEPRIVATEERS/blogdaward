@@ -125,7 +125,20 @@
                     1. Copie os dados do Excel (incluindo o cabeçalho)<br>
                     2. Cole na area abaixo (separado por TAB)<br>
                     3. Colunas aceitas: System, Category, Questions, Data de Início, Data de Fim, ✓<br>
-                    4. Formatos de data aceitos: MM/DD/YYYY ou DD/MM/YYYY (detecta automaticamente)
+                    4. Escolha o formato de data abaixo
+                </div>
+                <div class="form-group mb-3">
+                    <label class="form-label">Formato das datas:</label>
+                    <div style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
+                        <label class="form-check">
+                            <input type="radio" name="date-format" value="MM/DD/YYYY" checked>
+                            <span class="form-check-label">MM/DD/YYYY (Americano)</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="radio" name="date-format" value="DD/MM/YYYY">
+                            <span class="form-check-label">DD/MM/YYYY (Brasileiro)</span>
+                        </label>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Cole os dados aqui:</label>
@@ -381,6 +394,7 @@ CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
         async function importSchedule() {
             const data = document.getElementById('import-data').value.trim();
             const replace = document.getElementById('import-replace').checked;
+            const dateFormat = document.querySelector('input[name="date-format"]:checked').value;
 
             if (!data) {
                 WardApp.showToast('Cole os dados do Excel', 'warning');
@@ -390,8 +404,7 @@ CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
             const lines = data.split('\n').filter(l => l.trim());
             const items = [];
 
-            // Helper to convert date to YYYY-MM-DD
-            // Auto-detects MM/DD/YYYY (American) or DD/MM/YYYY (Brazilian) format
+            // Helper to convert date to YYYY-MM-DD based on selected format
             function parseDate(dateStr) {
                 if (!dateStr) return null;
                 const parts = dateStr.trim().split('/');
@@ -402,21 +415,15 @@ CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
                 const num2 = parseInt(parts[1]);
                 const num3 = parseInt(parts[2]);
 
-                // Detect year position (usually the 4-digit number or largest number)
+                // Detect year position
                 if (num3 > 31) {
-                    // Year is in third position: ?/?/YYYY
                     year = num3;
-                    // Detect if MM/DD/YYYY or DD/MM/YYYY
-                    if (num1 > 12) {
-                        // Must be DD/MM/YYYY (day can't be month)
+                    // Use selected format
+                    if (dateFormat === 'DD/MM/YYYY') {
                         day = num1;
                         month = num2;
-                    } else if (num2 > 12) {
-                        // Must be MM/DD/YYYY (month can't be day)
-                        month = num1;
-                        day = num2;
                     } else {
-                        // Ambiguous - default to MM/DD/YYYY (American format)
+                        // MM/DD/YYYY
                         month = num1;
                         day = num2;
                     }
@@ -428,14 +435,12 @@ CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
                 } else {
                     // Assume third position is year with 2 digits
                     year = num3 < 100 ? 2000 + num3 : num3;
-                    if (num1 > 12) {
+                    // Use selected format
+                    if (dateFormat === 'DD/MM/YYYY') {
                         day = num1;
                         month = num2;
-                    } else if (num2 > 12) {
-                        month = num1;
-                        day = num2;
                     } else {
-                        // Default to MM/DD/YYYY
+                        // MM/DD/YYYY
                         month = num1;
                         day = num2;
                     }
