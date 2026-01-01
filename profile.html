@@ -210,7 +210,51 @@
                             </div>
                         </div>
 
-                        <button type="submit" class="btn btn-primary mt-3">💾 Salvar Alteracoes</button>
+                        <h4 class="mt-4 mb-2">📅 Dias de Estudo</h4>
+                        <div class="form-group">
+                            <label class="form-label">Quais dias da semana você NÃO quer estudar? (descanso, trabalho, plantões)</label>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-top: 0.5rem;">
+                                <label class="form-check">
+                                    <input type="checkbox" id="no_study_sunday" value="sunday">
+                                    <span class="form-check-label">Domingo</span>
+                                </label>
+                                <label class="form-check">
+                                    <input type="checkbox" id="no_study_monday" value="monday">
+                                    <span class="form-check-label">Segunda</span>
+                                </label>
+                                <label class="form-check">
+                                    <input type="checkbox" id="no_study_tuesday" value="tuesday">
+                                    <span class="form-check-label">Terça</span>
+                                </label>
+                                <label class="form-check">
+                                    <input type="checkbox" id="no_study_wednesday" value="wednesday">
+                                    <span class="form-check-label">Quarta</span>
+                                </label>
+                                <label class="form-check">
+                                    <input type="checkbox" id="no_study_thursday" value="thursday">
+                                    <span class="form-check-label">Quinta</span>
+                                </label>
+                                <label class="form-check">
+                                    <input type="checkbox" id="no_study_friday" value="friday">
+                                    <span class="form-check-label">Sexta</span>
+                                </label>
+                                <label class="form-check">
+                                    <input type="checkbox" id="no_study_saturday" value="saturday">
+                                    <span class="form-check-label">Sábado</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <h4 class="mt-4 mb-2">🏝️ Períodos de Pausa</h4>
+                        <p class="form-hint">Adicione períodos em que você NÃO vai estudar (viagens, férias, etc.)</p>
+                        <div id="break-periods-container">
+                            <!-- Break periods will be added here dynamically -->
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm mt-2" onclick="addBreakPeriod()">
+                            ➕ Adicionar Período de Pausa
+                        </button>
+
+                        <button type="submit" class="btn btn-primary mt-4">💾 Salvar Alteracoes</button>
                     </form>
                 </div>
             </div>
@@ -611,6 +655,21 @@
             document.getElementById('second_pass_months').value = usmleData.second_pass_months || 2;
             document.getElementById('dedicated_months').value = usmleData.dedicated_months || 1;
 
+            // Load no-study days
+            const noStudyDays = usmleData.no_study_days || [];
+            ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].forEach(day => {
+                const checkbox = document.getElementById(`no_study_${day}`);
+                if (checkbox) {
+                    checkbox.checked = noStudyDays.includes(day);
+                }
+            });
+
+            // Load break periods
+            const breakPeriods = usmleData.break_periods || [];
+            breakPeriods.forEach(period => {
+                addBreakPeriod(period.start_date, period.end_date, period.reason);
+            });
+
             // Step 3 & 4: UWorld data
             const uworldData = stepData[3] || stepData[4] || {};
             document.getElementById('uworld_purchased').value = String(uworldData.purchased || false);
@@ -708,6 +767,32 @@
 
         document.getElementById('usmle-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+
+            // Collect no-study days
+            const noStudyDays = [];
+            ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].forEach(day => {
+                const checkbox = document.getElementById(`no_study_${day}`);
+                if (checkbox && checkbox.checked) {
+                    noStudyDays.push(day);
+                }
+            });
+
+            // Collect break periods
+            const breakPeriods = [];
+            document.querySelectorAll('.break-period-item').forEach(item => {
+                const startDate = item.querySelector('.break-start-date').value;
+                const endDate = item.querySelector('.break-end-date').value;
+                const reason = item.querySelector('.break-reason').value;
+
+                if (startDate && endDate) {
+                    breakPeriods.push({
+                        start_date: startDate,
+                        end_date: endDate,
+                        reason: reason || ''
+                    });
+                }
+            });
+
             const data = {
                 pathway: document.getElementById('pathway').value,
                 has_visa: document.getElementById('has_visa').value === 'true',
@@ -717,7 +802,9 @@
                 next_exam_date: document.getElementById('next_exam_date').value,
                 first_pass_months: parseInt(document.getElementById('first_pass_months').value),
                 second_pass_months: parseInt(document.getElementById('second_pass_months').value),
-                dedicated_months: parseInt(document.getElementById('dedicated_months').value)
+                dedicated_months: parseInt(document.getElementById('dedicated_months').value),
+                no_study_days: noStudyDays,
+                break_periods: breakPeriods
             };
 
             await saveQuestionnaireStep(2, data);
@@ -783,6 +870,46 @@
 
             WardApp.showToast('Dados salvos com sucesso!');
         });
+
+        // Add break period dynamically
+        let breakPeriodCounter = 0;
+        function addBreakPeriod(startDate = '', endDate = '', reason = '') {
+            const container = document.getElementById('break-periods-container');
+            const id = breakPeriodCounter++;
+
+            const periodDiv = document.createElement('div');
+            periodDiv.className = 'break-period-item';
+            periodDiv.style.cssText = 'background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;';
+
+            periodDiv.innerHTML = `
+                <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 0.75rem;">
+                    <strong style="color: #374151;">Período ${id + 1}</strong>
+                    <button type="button" class="btn btn-xs btn-danger" onclick="removeBreakPeriod(this)" style="margin-left: auto;">
+                        🗑️ Remover
+                    </button>
+                </div>
+                <div class="input-group">
+                    <div class="form-group">
+                        <label class="form-label">Data Início</label>
+                        <input type="date" class="form-input break-start-date" value="${startDate}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Data Fim</label>
+                        <input type="date" class="form-input break-end-date" value="${endDate}">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top: 0.5rem;">
+                    <label class="form-label">Motivo (opcional)</label>
+                    <input type="text" class="form-input break-reason" placeholder="Ex: Viagem, Férias, Congresso..." value="${reason}">
+                </div>
+            `;
+
+            container.appendChild(periodDiv);
+        }
+
+        function removeBreakPeriod(button) {
+            button.closest('.break-period-item').remove();
+        }
     </script>
 
     <style>
