@@ -81,21 +81,113 @@
 
         .response-item {
             margin-bottom: 1rem;
-            padding: 0.75rem;
+            padding: 1rem;
             background: #f9fafb;
-            border-radius: 6px;
+            border-radius: 8px;
+            border-left: 3px solid #C45700;
+            transition: all 0.2s;
+        }
+
+        .response-item:hover {
+            background: #f3f4f6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
         .response-label {
-            font-weight: 500;
-            color: #374151;
-            margin-bottom: 0.25rem;
-            font-size: 0.9rem;
+            font-weight: 600;
+            color: #C45700;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .response-value {
             color: #1f2937;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        .response-value.empty {
+            color: #9ca3af;
+            font-style: italic;
+        }
+
+        .array-list {
+            list-style: none;
+            padding: 0;
+            margin: 0.5rem 0 0 0;
+        }
+
+        .array-list li {
+            padding: 0.5rem 0.75rem;
+            background: white;
+            margin-bottom: 0.5rem;
+            border-radius: 6px;
+            border-left: 3px solid #3b82f6;
+            font-size: 0.9rem;
+        }
+
+        .object-card {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            border: 1px solid #e5e7eb;
+        }
+
+        .object-card-title {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
             font-size: 0.95rem;
+        }
+
+        .object-field {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 0.9rem;
+        }
+
+        .object-field:last-child {
+            border-bottom: none;
+        }
+
+        .object-field-label {
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .object-field-value {
+            color: #1f2937;
+            font-weight: 600;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-right: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .badge-primary {
+            background: #eff6ff;
+            color: #1e40af;
+        }
+
+        .badge-success {
+            background: #f0fdf4;
+            color: #15803d;
+        }
+
+        .badge-warning {
+            background: #fef3c7;
+            color: #92400e;
         }
 
         .empty-state-responses {
@@ -292,13 +384,107 @@
             }
         }
 
+        // Format complex data types for display
+        function formatValue(value) {
+            if (typeof value === 'boolean') {
+                return value ? '<span class="badge badge-success">✓ Sim</span>' : '<span class="badge badge-warning">✗ Não</span>';
+            }
+
+            if (value === null || value === undefined || value === '') {
+                return '<span class="response-value empty">Não informado</span>';
+            }
+
+            // Handle arrays
+            if (Array.isArray(value)) {
+                if (value.length === 0) {
+                    return '<span class="response-value empty">Nenhum item</span>';
+                }
+
+                // Check if array contains objects
+                if (typeof value[0] === 'object' && value[0] !== null) {
+                    return formatObjectArray(value);
+                }
+
+                // Simple array (strings, numbers)
+                return `
+                    <ul class="array-list">
+                        ${value.map(item => `<li>📌 ${item}</li>`).join('')}
+                    </ul>
+                `;
+            }
+
+            // Handle objects
+            if (typeof value === 'object') {
+                return formatObject(value);
+            }
+
+            // Simple value
+            return value;
+        }
+
+        function formatObject(obj) {
+            if (Object.keys(obj).length === 0) {
+                return '<span class="response-value empty">Nenhum dado</span>';
+            }
+
+            const fields = Object.entries(obj).map(([key, val]) => {
+                const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                let displayValue = val;
+
+                if (typeof val === 'boolean') {
+                    displayValue = val ? '✓ Sim' : '✗ Não';
+                } else if (val === null || val === undefined || val === '') {
+                    displayValue = '-';
+                }
+
+                return `
+                    <div class="object-field">
+                        <span class="object-field-label">${label}</span>
+                        <span class="object-field-value">${displayValue}</span>
+                    </div>
+                `;
+            }).join('');
+
+            return `<div class="object-card">${fields}</div>`;
+        }
+
+        function formatObjectArray(arr) {
+            return arr.map((obj, index) => {
+                const title = obj.system || obj.category || obj.name || `Item ${index + 1}`;
+                return `
+                    <div class="object-card">
+                        <div class="object-card-title">🔹 ${title}</div>
+                        ${Object.entries(obj).map(([key, val]) => {
+                            if (key === 'system' || key === 'category' || key === 'name') return '';
+
+                            const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                            let displayValue = val;
+
+                            if (typeof val === 'boolean') {
+                                displayValue = val ? '✓ Sim' : '✗ Não';
+                            } else if (val === null || val === undefined || val === '') {
+                                displayValue = '-';
+                            }
+
+                            return `
+                                <div class="object-field">
+                                    <span class="object-field-label">${label}</span>
+                                    <span class="object-field-value">${displayValue}</span>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            }).join('');
+        }
+
         function renderStep(title, data) {
             if (!data || Object.keys(data).length === 0) {
                 return `
                     <div class="step-section">
                         <div class="step-header">${title}</div>
                         <div class="response-item">
-                            <div class="response-value" style="color: #9ca3af; font-style: italic;">Nenhuma resposta registrada</div>
+                            <div class="response-value empty">Nenhuma resposta registrada</div>
                         </div>
                     </div>
                 `;
@@ -307,21 +493,12 @@
             const items = Object.entries(data).map(([key, value]) => {
                 // Format key to be more readable
                 const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-
-                // Format value
-                let displayValue = value;
-                if (typeof value === 'boolean') {
-                    displayValue = value ? 'Sim' : 'Não';
-                } else if (value === null || value === undefined || value === '') {
-                    displayValue = '-';
-                } else if (typeof value === 'object') {
-                    displayValue = JSON.stringify(value, null, 2);
-                }
+                const formattedValue = formatValue(value);
 
                 return `
                     <div class="response-item">
                         <div class="response-label">${label}</div>
-                        <div class="response-value">${displayValue}</div>
+                        <div class="response-value">${formattedValue}</div>
                     </div>
                 `;
             }).join('');
