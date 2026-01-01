@@ -19,10 +19,11 @@ const FOLDER_ID = '1taSg22f7FCMJAuAeIYReRHpozBnpdQ_m';
 
 function doPost(e) {
   try {
-    // Obter dados do formulário
-    const fileName = e.parameter.fileName;
-    const fileData = e.parameter.fileData;
-    const mimeType = e.parameter.mimeType;
+    // Obter dados do JSON payload
+    const payload = JSON.parse(e.postData.contents);
+    const fileName = payload.fileName;
+    const fileData = payload.fileData;
+    const mimeType = payload.mimeType;
 
     // Validar dados
     if (!fileName || !fileData) {
