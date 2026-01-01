@@ -8,9 +8,9 @@ DROP TABLE IF EXISTS blog_comment_likes CASCADE;
 
 -- Tabela de likes em comentários
 CREATE TABLE blog_comment_likes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    comment_id UUID NOT NULL REFERENCES blog_comments(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id BIGSERIAL PRIMARY KEY,
+    comment_id BIGINT NOT NULL REFERENCES blog_comments(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(comment_id, user_id)
 );
