@@ -66,7 +66,7 @@
             <div class="card-body">
                 <div class="input-group">
                     <div class="form-group" style="flex: 2;">
-                        <input type="text" id="search-members" class="form-input" placeholder="Buscar por nome ou email..." oninput="filterMembers()">
+                        <input type="text" id="search-members" class="form-input" placeholder="Buscar por nome, CPF ou email..." oninput="filterMembers()">
                     </div>
                     <div class="form-group" style="flex: 1;">
                         <select id="filter-role" class="form-input" onchange="filterMembers()">
@@ -96,6 +96,7 @@
                     <thead>
                         <tr>
                             <th>Nome</th>
+                            <th>CPF</th>
                             <th>Email</th>
                             <th>Funcao</th>
                             <th>Status</th>
@@ -124,8 +125,12 @@
                     <input type="text" id="new-name" class="form-input" placeholder="Nome do membro">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="new-email">Email *</label>
-                    <input type="email" id="new-email" class="form-input" placeholder="email@exemplo.com">
+                    <label class="form-label" for="new-cpf">CPF *</label>
+                    <input type="text" id="new-cpf" class="form-input" placeholder="000.000.000-00" maxlength="14">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="new-email">Email</label>
+                    <input type="email" id="new-email" class="form-input" placeholder="email@exemplo.com (opcional)">
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="new-password">Senha Inicial *</label>
@@ -163,9 +168,13 @@
                     <input type="text" id="edit-name" class="form-input">
                 </div>
                 <div class="form-group">
+                    <label class="form-label" for="edit-cpf">CPF *</label>
+                    <input type="text" id="edit-cpf" class="form-input" placeholder="000.000.000-00" maxlength="14">
+                </div>
+                <div class="form-group">
                     <label class="form-label" for="edit-email">Email</label>
-                    <input type="email" id="edit-email" class="form-input" disabled>
-                    <span class="form-hint">Email nao pode ser alterado</span>
+                    <input type="email" id="edit-email" class="form-input">
+                    <span class="form-hint">Email opcional</span>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="edit-role">Funcao *</label>
@@ -240,8 +249,36 @@
                 return;
             }
 
+            // Add CPF mask to inputs
+            setupCPFMask('new-cpf');
+            setupCPFMask('edit-cpf');
+
             await loadMembers();
         });
+
+        function setupCPFMask(inputId) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+
+            input.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, '');
+                if (value.length <= 11) {
+                    value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                    value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                    value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                    e.target.value = value;
+                }
+            });
+        }
+
+        function formatCPF(cpf) {
+            if (!cpf) return '-';
+            const cleaned = cpf.replace(/\D/g, '');
+            if (cleaned.length === 11) {
+                return cleaned.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+            }
+            return cpf;
+        }
 
         async function loadMembers() {
             const { data: members, error } = await WardApp.db
@@ -278,7 +315,8 @@
             if (search) {
                 filtered = filtered.filter(m =>
                     m.full_name?.toLowerCase().includes(search) ||
-                    m.email?.toLowerCase().includes(search)
+                    m.email?.toLowerCase().includes(search) ||
+                    m.cpf?.includes(search.replace(/\D/g, ''))
                 );
             }
 
@@ -297,7 +335,7 @@
             const tbody = document.getElementById('members-table-body');
 
             if (members.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhum membro encontrado</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Nenhum membro encontrado</td></tr>';
                 return;
             }
 
@@ -312,7 +350,8 @@
                                 <strong>${member.full_name || 'Sem nome'}</strong>
                             </div>
                         </td>
-                        <td>${member.email}</td>
+                        <td>${formatCPF(member.cpf)}</td>
+                        <td>${member.email || '-'}</td>
                         <td>${roleLabels[member.role] || member.role}</td>
                         <td>
                             <span class="badge ${status === 'active' ? 'badge-success' : 'badge-secondary'}">
@@ -333,12 +372,19 @@
 
         async function addMember() {
             const name = document.getElementById('new-name').value.trim();
+            const cpfFormatted = document.getElementById('new-cpf').value;
+            const cpf = cpfFormatted.replace(/\D/g, '');
             const email = document.getElementById('new-email').value.trim();
             const password = document.getElementById('new-password').value;
             const role = document.getElementById('new-role').value;
 
-            if (!name || !email || !password) {
-                WardApp.showToast('Preencha todos os campos', 'warning');
+            if (!name || !cpf || !password) {
+                WardApp.showToast('Preencha nome, CPF e senha', 'warning');
+                return;
+            }
+
+            if (cpf.length !== 11) {
+                WardApp.showToast('CPF deve ter 11 dígitos', 'warning');
                 return;
             }
 
@@ -347,41 +393,26 @@
                 return;
             }
 
-            // Create user in Supabase Auth
-            const { data: authData, error: authError } = await WardApp.db.auth.admin.createUser({
-                email,
-                password,
-                email_confirm: true
+            // Create a simple password hash (base64 encoded)
+            const simpleHash = btoa(password + '_ward_salt_2024');
+
+            const { error } = await WardApp.db.from('users').insert({
+                cpf,
+                email: email || null,
+                password_hash: simpleHash,
+                full_name: name,
+                role,
+                status: 'active'
             });
 
-            if (authError) {
-                // Fallback: just insert in users table (for demo purposes)
-                // Create a simple password hash (base64 encoded - not secure, only for demo)
-                const simpleHash = btoa(password + '_ward_salt_2024');
-
-                const { error } = await WardApp.db.from('users').insert({
-                    email,
-                    password_hash: simpleHash,
-                    full_name: name,
-                    role,
-                    status: 'active'
-                });
-
-                if (error) {
-                    WardApp.showToast('Erro ao criar membro: ' + error.message, 'error');
-                    return;
-                }
-            } else {
-                // Update user data
-                await WardApp.db.from('users').update({
-                    full_name: name,
-                    role,
-                    status: 'active'
-                }).eq('id', authData.user.id);
+            if (error) {
+                WardApp.showToast('Erro ao criar membro: ' + error.message, 'error');
+                return;
             }
 
             closeModal('add-member-modal');
             document.getElementById('new-name').value = '';
+            document.getElementById('new-cpf').value = '';
             document.getElementById('new-email').value = '';
             document.getElementById('new-password').value = '';
 
@@ -396,7 +427,8 @@
 
             document.getElementById('edit-member-id').value = memberId;
             document.getElementById('edit-name').value = member.full_name || '';
-            document.getElementById('edit-email').value = member.email;
+            document.getElementById('edit-cpf').value = formatCPF(member.cpf);
+            document.getElementById('edit-email').value = member.email || '';
             document.getElementById('edit-role').value = member.role || 'aluno';
             document.getElementById('edit-status').value = member.status || 'active';
             document.getElementById('edit-password').value = '';
@@ -407,34 +439,46 @@
         async function updateMember() {
             const memberId = document.getElementById('edit-member-id').value;
             const name = document.getElementById('edit-name').value.trim();
+            const cpfFormatted = document.getElementById('edit-cpf').value;
+            const cpf = cpfFormatted.replace(/\D/g, '');
+            const email = document.getElementById('edit-email').value.trim();
             const role = document.getElementById('edit-role').value;
             const status = document.getElementById('edit-status').value;
             const password = document.getElementById('edit-password').value;
 
-            if (!name) {
-                WardApp.showToast('Nome e obrigatorio', 'warning');
+            if (!name || !cpf) {
+                WardApp.showToast('Nome e CPF são obrigatórios', 'warning');
                 return;
+            }
+
+            if (cpf.length !== 11) {
+                WardApp.showToast('CPF deve ter 11 dígitos', 'warning');
+                return;
+            }
+
+            const updateData = {
+                full_name: name,
+                cpf,
+                email: email || null,
+                role,
+                status,
+                updated_at: new Date().toISOString()
+            };
+
+            // Update password if provided
+            if (password && password.length >= 6) {
+                const simpleHash = btoa(password + '_ward_salt_2024');
+                updateData.password_hash = simpleHash;
             }
 
             const { error } = await WardApp.db
                 .from('users')
-                .update({
-                    full_name: name,
-                    role,
-                    status,
-                    updated_at: new Date().toISOString()
-                })
+                .update(updateData)
                 .eq('id', memberId);
 
             if (error) {
-                WardApp.showToast('Erro ao atualizar', 'error');
+                WardApp.showToast('Erro ao atualizar: ' + error.message, 'error');
                 return;
-            }
-
-            // Update password if provided
-            if (password && password.length >= 6) {
-                // This would need admin API or server-side function
-                WardApp.showToast('Senha atualizada (nota: requer API admin)', 'info');
             }
 
             closeModal('edit-member-modal');
