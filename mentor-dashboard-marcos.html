@@ -338,6 +338,24 @@ Cardiovascular	Physiology	62	FALSE
         </div>
     </div>
 
+    <!-- Check-ins Modal -->
+    <div id="checkins-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">📊 Check-ins de <span id="checkins-student-name"></span></h3>
+                <button class="modal-close" onclick="closeModal('checkins-modal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <div id="checkins-list">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('checkins-modal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Add Video Modal -->
     <div id="add-video-modal" class="modal-overlay">
         <div class="modal modal-lg">
@@ -706,6 +724,7 @@ Cardiovascular	Physiology	62	FALSE
                         </td>
                         <td>
                             <button class="btn btn-xs btn-outline" onclick="viewStudent(${student.id})">Ver</button>
+                            <button class="btn btn-xs btn-outline" onclick="viewCheckIns(${student.id}, '${student.full_name}')">📊 Check-ins</button>
                             <button class="btn btn-xs btn-outline" onclick="sendMessageTo(${student.id}, '${student.full_name}')">💬</button>
                             <button class="btn btn-xs btn-secondary" onclick="viewAsStudent(${student.id})" title="Ver como Aluno">👁️</button>
                         </td>
@@ -844,6 +863,103 @@ Cardiovascular	Physiology	62	FALSE
 
             closeModal('individual-message-modal');
             WardApp.showToast('Mensagem enviada com sucesso!');
+        }
+
+        async function viewCheckIns(studentId, studentName) {
+            document.getElementById('checkins-student-name').textContent = studentName;
+
+            // Load check-ins for this student
+            const { data: checkins, error } = await WardApp.db
+                .from('daily_checkins')
+                .select('*')
+                .eq('user_id', studentId)
+                .order('date', { ascending: false })
+                .limit(30); // Last 30 check-ins
+
+            const container = document.getElementById('checkins-list');
+
+            if (!checkins || checkins.length === 0) {
+                container.innerHTML = '<p class="text-muted">Nenhum check-in registrado ainda.</p>';
+                openModal('checkins-modal');
+                return;
+            }
+
+            // Render check-ins
+            container.innerHTML = checkins.map(checkin => {
+                const date = new Date(checkin.date);
+                const formattedDate = date.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+                const statusBadges = {
+                    'tranquilo': { text: '😊 Tranquilo', color: '#10b981' },
+                    'preciso_ajuda': { text: '🆘 Precisa de ajuda', color: '#ef4444' },
+                    'parado': { text: '⏸️ Parado', color: '#f59e0b' },
+                    'custom': { text: '✍️ Mensagem', color: '#6b7280' }
+                };
+
+                const statusInfo = statusBadges[checkin.status] || statusBadges.custom;
+
+                // Calculate UWorld accuracy
+                const uworldAccuracy = checkin.uworld_questions_done > 0
+                    ? Math.round((checkin.uworld_correct_answers / checkin.uworld_questions_done) * 100)
+                    : 0;
+
+                return `
+                    <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 1.05rem; color: #1f2937; margin-bottom: 0.25rem;">
+                                    ${formattedDate}
+                                </div>
+                                <div style="display: inline-block; padding: 0.25rem 0.75rem; background: ${statusInfo.color}; color: white; border-radius: 6px; font-size: 0.85rem; font-weight: 500;">
+                                    ${statusInfo.text}
+                                </div>
+                            </div>
+                        </div>
+
+                        ${checkin.message ? `
+                            <div style="background: #f9fafb; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; border-left: 3px solid #6b7280;">
+                                <div style="font-size: 0.85rem; color: #6b7280; margin-bottom: 0.25rem;">Mensagem:</div>
+                                <div style="color: #374151; font-size: 0.95rem;">${checkin.message}</div>
+                            </div>
+                        ` : ''}
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                            <!-- UWorld Progress -->
+                            ${(checkin.uworld_questions_done > 0 || checkin.uworld_correct_answers > 0) ? `
+                                <div style="background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%); padding: 0.75rem; border-radius: 8px;">
+                                    <div style="font-size: 0.75rem; color: #1e40af; font-weight: 600; margin-bottom: 0.5rem; text-transform: uppercase;">UWorld</div>
+                                    <div style="font-size: 1.5rem; font-weight: 700; color: #1e40af;">${checkin.uworld_questions_done}</div>
+                                    <div style="font-size: 0.85rem; color: #1e40af;">questões feitas</div>
+                                    <div style="margin-top: 0.5rem; font-size: 1.1rem; font-weight: 600; color: ${uworldAccuracy >= 70 ? '#10b981' : uworldAccuracy >= 50 ? '#f59e0b' : '#ef4444'};">
+                                        ${uworldAccuracy}% acertos
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            <!-- Anki Progress -->
+                            ${(checkin.anki_cards_today > 0 || checkin.anki_avg_cards > 0 || checkin.anki_current_streak > 0) ? `
+                                <div style="background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%); padding: 0.75rem; border-radius: 8px;">
+                                    <div style="font-size: 0.75rem; color: #92400e; font-weight: 600; margin-bottom: 0.5rem; text-transform: uppercase;">Anki</div>
+                                    <div style="font-size: 1.5rem; font-weight: 700; color: #92400e;">${checkin.anki_cards_today}</div>
+                                    <div style="font-size: 0.85rem; color: #92400e;">cards hoje</div>
+                                    <div style="margin-top: 0.5rem; display: flex; justify-content: space-between;">
+                                        <div>
+                                            <div style="font-size: 0.75rem; color: #92400e;">Média/dia</div>
+                                            <div style="font-size: 1.1rem; font-weight: 600; color: #92400e;">${checkin.anki_avg_cards}</div>
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 0.75rem; color: #92400e;">Streak</div>
+                                            <div style="font-size: 1.1rem; font-weight: 600; color: #92400e;">🔥 ${checkin.anki_current_streak}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            openModal('checkins-modal');
         }
 
         async function sendBroadcast() {
