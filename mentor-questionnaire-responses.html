@@ -378,7 +378,17 @@
             // Render all 11 steps
             for (let step = 1; step <= 11; step++) {
                 const stepData = currentResponses.find(r => r.step === step);
-                const data = stepData ? stepData.data : {};
+                let data = stepData ? stepData.data : {};
+
+                // Parse JSON if it's a string
+                if (typeof data === 'string') {
+                    try {
+                        data = JSON.parse(data);
+                    } catch (e) {
+                        console.error('Error parsing step data:', e);
+                        data = {};
+                    }
+                }
 
                 sections.innerHTML += renderStep(`Step ${step}`, data);
             }
@@ -405,11 +415,15 @@
                     return formatObjectArray(value);
                 }
 
-                // Simple array (strings, numbers)
+                // Simple array (strings, numbers) - show as badges
                 return `
-                    <ul class="array-list">
-                        ${value.map(item => `<li>📌 ${item}</li>`).join('')}
-                    </ul>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
+                        ${value.map(item => `
+                            <span style="background: #dbeafe; color: #1e40af; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500;">
+                                ${item}
+                            </span>
+                        `).join('')}
+                    </div>
                 `;
             }
 
@@ -449,33 +463,53 @@
         }
 
         function formatObjectArray(arr) {
-            return arr.map((obj, index) => {
-                const title = obj.system || obj.category || obj.name || `Item ${index + 1}`;
+            return `<div style="margin-top: 0.75rem;">` + arr.map((obj, index) => {
+                // Build descriptive title
+                let title = '';
+                if (obj.system && obj.category) {
+                    // For completed_categories type
+                    title = `${obj.system} - ${obj.category}`;
+                } else if (obj.system) {
+                    title = obj.system;
+                } else if (obj.category) {
+                    title = obj.category;
+                } else if (obj.name) {
+                    title = obj.name;
+                } else if (obj.institution) {
+                    title = obj.institution;
+                } else {
+                    title = `Item ${index + 1}`;
+                }
+
                 return `
-                    <div class="object-card">
-                        <div class="object-card-title">🔹 ${title}</div>
+                    <div class="object-card" style="margin-bottom: 0.75rem; background: linear-gradient(to right, #f0f9ff 0%, #ffffff 100%);">
+                        <div class="object-card-title" style="padding-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb; margin-bottom: 0.75rem;">
+                            🔹 ${title}
+                        </div>
                         ${Object.entries(obj).map(([key, val]) => {
-                            if (key === 'system' || key === 'category' || key === 'name') return '';
+                            // Don't show system/category/name twice since they're in title
+                            if ((obj.system && obj.category) && (key === 'system' || key === 'category')) return '';
+                            if (!obj.system && !obj.category && key === 'name') return '';
 
                             const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                             let displayValue = val;
 
                             if (typeof val === 'boolean') {
-                                displayValue = val ? '✓ Sim' : '✗ Não';
+                                displayValue = `<span style="color: ${val ? '#10b981' : '#ef4444'}; font-weight: 600;">${val ? '✓ Sim' : '✗ Não'}</span>`;
                             } else if (val === null || val === undefined || val === '') {
-                                displayValue = '-';
+                                displayValue = '<span style="color: #9ca3af; font-style: italic;">-</span>';
                             }
 
                             return `
-                                <div class="object-field">
-                                    <span class="object-field-label">${label}</span>
-                                    <span class="object-field-value">${displayValue}</span>
+                                <div class="object-field" style="padding: 0.4rem 0;">
+                                    <span class="object-field-label" style="color: #6b7280; font-size: 0.85rem;">${label}:</span>
+                                    <span class="object-field-value" style="color: #1f2937; font-weight: 500;">${displayValue}</span>
                                 </div>
                             `;
-                        }).join('')}
+                        }).filter(item => item !== '').join('')}
                     </div>
                 `;
-            }).join('');
+            }).join('') + `</div>`;
         }
 
         function renderStep(title, data) {
