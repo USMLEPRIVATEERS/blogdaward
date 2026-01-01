@@ -237,7 +237,7 @@
         <div class="modal modal-lg">
             <div class="modal-header">
                 <h3 class="modal-title">🎓 Como tem sido sua preparacao?</h3>
-                <button class="modal-close" onclick="closeModal('checkin-modal')">&times;</button>
+                <button class="modal-close" onclick="skipCheckIn()">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -722,39 +722,52 @@
             console.log('[CHECK-IN DEBUG] targetUserId:', targetUserId);
             console.log('[CHECK-IN DEBUG] Data de hoje:', today);
 
-            // Check if user already submitted check-in today
+            // ONLY check database - single source of truth
             const { data: existingCheckIn, error: dbError } = await WardApp.db
                 .from('daily_checkins')
-                .select('id')
+                .select('id, status')
                 .eq('user_id', targetUserId)
                 .eq('date', today)
                 .maybeSingle();
 
             console.log('[CHECK-IN DEBUG] Existe check-in no banco?', !!existingCheckIn);
+            console.log('[CHECK-IN DEBUG] Status:', existingCheckIn?.status);
             console.log('[CHECK-IN DEBUG] Erro no banco?', dbError);
 
-            // Check if user skipped check-in today in localStorage
-            const skippedDate = localStorage.getItem('checkin_skipped_date');
-            console.log('[CHECK-IN DEBUG] Data salva no localStorage:', skippedDate);
-            const skippedForToday = skippedDate === today;
-            console.log('[CHECK-IN DEBUG] Pulou hoje?', skippedForToday);
-
-            // If no check-in for today AND didn't skip today, show the modal
-            if (!existingCheckIn && !skippedForToday) {
+            // If ANY check-in exists for today (including skipped), don't show modal
+            if (!existingCheckIn) {
                 console.log('[CHECK-IN DEBUG] ✅ Mostrando modal de check-in');
                 setTimeout(() => {
                     openModal('checkin-modal');
                 }, 500);
             } else {
-                console.log('[CHECK-IN DEBUG] ❌ NÃO mostrando modal - check-in já feito ou pulado');
+                console.log('[CHECK-IN DEBUG] ❌ NÃO mostrando modal - check-in já existe para hoje');
             }
         }
 
-        function skipCheckIn() {
+        async function skipCheckIn() {
             const today = new Date().toISOString().split('T')[0];
-            console.log('[CHECK-IN DEBUG] Pulando check-in, salvando data:', today);
-            // Save skip date to localStorage so modal doesn't appear again today
-            localStorage.setItem('checkin_skipped_date', today);
+            console.log('[CHECK-IN DEBUG] Pulando check-in, salvando no banco...');
+
+            // Save to database with 'skipped' status so modal doesn't appear again today
+            const { error } = await WardApp.db
+                .from('daily_checkins')
+                .upsert({
+                    user_id: targetUserId,
+                    status: 'skipped',
+                    message: '',
+                    date: today
+                }, {
+                    onConflict: 'user_id,date',
+                    ignoreDuplicates: false
+                });
+
+            if (error) {
+                console.error('[CHECK-IN DEBUG] ❌ Erro ao salvar skip:', error);
+            } else {
+                console.log('[CHECK-IN DEBUG] ✅ Skip salvo no banco com sucesso!');
+            }
+
             closeModal('checkin-modal');
         }
 
@@ -804,10 +817,6 @@
 
                 if (!error) {
                     console.log('[CHECK-IN DEBUG] ✅ Check-in salvo com sucesso no banco!');
-
-                    // IMPORTANT: Also save to localStorage to prevent modal from showing again
-                    localStorage.setItem('checkin_skipped_date', today);
-                    console.log('[CHECK-IN DEBUG] ✅ Salvo no localStorage:', today);
 
                     closeModal('checkin-modal');
                     WardApp.showToast('✅ Check-in salvo com sucesso!');
