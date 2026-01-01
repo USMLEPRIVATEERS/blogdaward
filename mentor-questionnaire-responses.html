@@ -396,6 +396,20 @@
 
         // Format complex data types for display
         function formatValue(value) {
+            // Try to parse JSON strings first
+            if (typeof value === 'string') {
+                // Check if it looks like JSON (starts with [ or {)
+                const trimmed = value.trim();
+                if ((trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+                    (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+                    try {
+                        value = JSON.parse(value);
+                    } catch (e) {
+                        // Not valid JSON, keep as string
+                    }
+                }
+            }
+
             if (typeof value === 'boolean') {
                 return value ? '<span class="badge badge-success">✓ Sim</span>' : '<span class="badge badge-warning">✗ Não</span>';
             }
@@ -432,7 +446,7 @@
                 return formatObject(value);
             }
 
-            // Simple value
+            // Simple value (string, number, etc)
             return value;
         }
 
@@ -463,16 +477,25 @@
         }
 
         function formatObjectArray(arr) {
+            // Helper to format category names
+            function formatCategoryName(text) {
+                return text
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, l => l.toUpperCase());
+            }
+
             return `<div style="margin-top: 0.75rem;">` + arr.map((obj, index) => {
                 // Build descriptive title
                 let title = '';
                 if (obj.system && obj.category) {
-                    // For completed_categories type
-                    title = `${obj.system} - ${obj.category}`;
+                    // For completed_categories type - format nicely
+                    const systemFormatted = formatCategoryName(obj.system);
+                    const categoryFormatted = formatCategoryName(obj.category);
+                    title = `${systemFormatted} → ${categoryFormatted}`;
                 } else if (obj.system) {
-                    title = obj.system;
+                    title = formatCategoryName(obj.system);
                 } else if (obj.category) {
-                    title = obj.category;
+                    title = formatCategoryName(obj.category);
                 } else if (obj.name) {
                     title = obj.name;
                 } else if (obj.institution) {
@@ -491,19 +514,25 @@
                             if ((obj.system && obj.category) && (key === 'system' || key === 'category')) return '';
                             if (!obj.system && !obj.category && key === 'name') return '';
 
+                            // Skip null, undefined, empty strings, or false booleans that aren't meaningful
+                            if (val === null || val === undefined || val === '') return '';
+                            if (typeof val === 'boolean' && !val) return ''; // Skip false flags
+
                             const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                             let displayValue = val;
 
                             if (typeof val === 'boolean') {
-                                displayValue = `<span style="color: ${val ? '#10b981' : '#ef4444'}; font-weight: 600;">${val ? '✓ Sim' : '✗ Não'}</span>`;
-                            } else if (val === null || val === undefined || val === '') {
-                                displayValue = '<span style="color: #9ca3af; font-style: italic;">-</span>';
+                                displayValue = `<span style="color: #10b981; font-weight: 600;">✓ ${label}</span>`;
+                            } else {
+                                displayValue = val;
                             }
 
                             return `
                                 <div class="object-field" style="padding: 0.4rem 0;">
-                                    <span class="object-field-label" style="color: #6b7280; font-size: 0.85rem;">${label}:</span>
-                                    <span class="object-field-value" style="color: #1f2937; font-weight: 500;">${displayValue}</span>
+                                    ${typeof val === 'boolean' ? displayValue : `
+                                        <span class="object-field-label" style="color: #6b7280; font-size: 0.85rem;">${label}:</span>
+                                        <span class="object-field-value" style="color: #1f2937; font-weight: 500;">${displayValue}</span>
+                                    `}
                                 </div>
                             `;
                         }).filter(item => item !== '').join('')}
