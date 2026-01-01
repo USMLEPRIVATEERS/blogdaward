@@ -718,28 +718,41 @@
         async function checkAndShowCheckIn() {
             const today = new Date().toISOString().split('T')[0];
 
+            console.log('[CHECK-IN DEBUG] Verificando se deve mostrar modal...');
+            console.log('[CHECK-IN DEBUG] targetUserId:', targetUserId);
+            console.log('[CHECK-IN DEBUG] Data de hoje:', today);
+
             // Check if user already submitted check-in today
-            const { data: existingCheckIn } = await WardApp.db
+            const { data: existingCheckIn, error: dbError } = await WardApp.db
                 .from('daily_checkins')
                 .select('id')
                 .eq('user_id', targetUserId)
                 .eq('date', today)
                 .maybeSingle();
 
+            console.log('[CHECK-IN DEBUG] Existe check-in no banco?', !!existingCheckIn);
+            console.log('[CHECK-IN DEBUG] Erro no banco?', dbError);
+
             // Check if user skipped check-in today in localStorage
             const skippedDate = localStorage.getItem('checkin_skipped_date');
+            console.log('[CHECK-IN DEBUG] Data salva no localStorage:', skippedDate);
             const skippedForToday = skippedDate === today;
+            console.log('[CHECK-IN DEBUG] Pulou hoje?', skippedForToday);
 
             // If no check-in for today AND didn't skip today, show the modal
             if (!existingCheckIn && !skippedForToday) {
+                console.log('[CHECK-IN DEBUG] ✅ Mostrando modal de check-in');
                 setTimeout(() => {
                     openModal('checkin-modal');
                 }, 500);
+            } else {
+                console.log('[CHECK-IN DEBUG] ❌ NÃO mostrando modal - check-in já feito ou pulado');
             }
         }
 
         function skipCheckIn() {
             const today = new Date().toISOString().split('T')[0];
+            console.log('[CHECK-IN DEBUG] Pulando check-in, salvando data:', today);
             // Save skip date to localStorage so modal doesn't appear again today
             localStorage.setItem('checkin_skipped_date', today);
             closeModal('checkin-modal');
@@ -790,6 +803,12 @@
                     });
 
                 if (!error) {
+                    console.log('[CHECK-IN DEBUG] ✅ Check-in salvo com sucesso no banco!');
+
+                    // IMPORTANT: Also save to localStorage to prevent modal from showing again
+                    localStorage.setItem('checkin_skipped_date', today);
+                    console.log('[CHECK-IN DEBUG] ✅ Salvo no localStorage:', today);
+
                     closeModal('checkin-modal');
                     WardApp.showToast('✅ Check-in salvo com sucesso!');
 
@@ -802,10 +821,11 @@
                     document.getElementById('checkin-anki-streak').value = '';
                     document.querySelectorAll('input[name="checkin_status"]').forEach(r => r.checked = false);
                 } else {
+                    console.error('[CHECK-IN DEBUG] ❌ Erro ao salvar check-in:', error);
                     WardApp.showToast('Erro ao salvar check-in', 'error');
                 }
             } catch (err) {
-                console.error('Error submitting check-in:', err);
+                console.error('[CHECK-IN DEBUG] ❌ Exceção ao salvar check-in:', err);
                 WardApp.showToast('Erro ao salvar check-in', 'error');
             } finally {
                 // Restore button state
