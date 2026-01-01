@@ -1,3 +1,8 @@
+-- Primeiro, dropar todas as políticas RLS se existirem
+DROP POLICY IF EXISTS "Anyone can view comment likes" ON blog_comment_likes;
+DROP POLICY IF EXISTS "Authenticated users can create comment likes" ON blog_comment_likes;
+DROP POLICY IF EXISTS "Users can delete their own comment likes" ON blog_comment_likes;
+
 -- Dropar tabela existente se houver (para recriar com tipos corretos)
 DROP TABLE IF EXISTS blog_comment_likes CASCADE;
 
