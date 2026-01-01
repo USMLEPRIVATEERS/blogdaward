@@ -170,6 +170,60 @@
                 </div>
             </div>
 
+            <div class="questionnaire-section">
+                <h3 class="section-title">📅 Dias de Estudo</h3>
+
+                <div class="form-group">
+                    <label class="form-label">Quais dias da semana voce NAO quer estudar? (descanso, trabalho, plantoes)</label>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.5rem; margin-top: 0.5rem;">
+                        <div class="form-check">
+                            <input type="checkbox" id="no_study_sunday" name="no_study_days" value="0">
+                            <label class="form-check-label" for="no_study_sunday">Domingo</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="no_study_monday" name="no_study_days" value="1">
+                            <label class="form-check-label" for="no_study_monday">Segunda</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="no_study_tuesday" name="no_study_days" value="2">
+                            <label class="form-check-label" for="no_study_tuesday">Terca</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="no_study_wednesday" name="no_study_days" value="3">
+                            <label class="form-check-label" for="no_study_wednesday">Quarta</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="no_study_thursday" name="no_study_days" value="4">
+                            <label class="form-check-label" for="no_study_thursday">Quinta</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="no_study_friday" name="no_study_days" value="5">
+                            <label class="form-check-label" for="no_study_friday">Sexta</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="no_study_saturday" name="no_study_days" value="6">
+                            <label class="form-check-label" for="no_study_saturday">Sabado</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="questionnaire-section">
+                <h3 class="section-title">🏝️ Periodos de Pausa</h3>
+
+                <div class="form-group">
+                    <label class="form-label">Adicione periodos em que voce NAO vai estudar (viagens, ferias, etc.)</label>
+
+                    <div id="break-periods-container" style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;">
+                        <!-- Break periods will be added here dynamically -->
+                    </div>
+
+                    <button type="button" class="btn btn-outline btn-sm" onclick="addBreakPeriod()" style="margin-top: 1rem;">
+                        ➕ Adicionar Periodo de Pausa
+                    </button>
+                </div>
+            </div>
+
             <!-- Navigation -->
             <div class="questionnaire-nav">
                 <button type="button" class="btn btn-secondary" onclick="window.location.href='step1-basic-data.html'">
@@ -198,6 +252,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="../js/app.js"></script>
     <script>
+        let breakPeriodCounter = 0;
+
         // Load existing data
         document.addEventListener('DOMContentLoaded', async () => {
             const data = await WardApp.loadQuestionnaireData(2);
@@ -226,6 +282,21 @@
                 document.getElementById('second_pass_months').value = data.second_pass_months || 2;
                 document.getElementById('dedicated_months').value = data.dedicated_months || 1;
 
+                // Load no study days
+                if (data.no_study_days && Array.isArray(data.no_study_days)) {
+                    data.no_study_days.forEach(day => {
+                        const checkbox = document.querySelector(`input[name="no_study_days"][value="${day}"]`);
+                        if (checkbox) checkbox.checked = true;
+                    });
+                }
+
+                // Load break periods
+                if (data.break_periods && Array.isArray(data.break_periods)) {
+                    data.break_periods.forEach(period => {
+                        addBreakPeriod(period.start_date, period.end_date, period.reason);
+                    });
+                }
+
                 // Update range displays
                 document.querySelectorAll('.range-slider').forEach(slider => {
                     const valueDisplay = slider.parentElement.querySelector('.range-value');
@@ -235,6 +306,68 @@
                 });
             }
         });
+
+        // Add break period
+        function addBreakPeriod(startDate = '', endDate = '', reason = '') {
+            const container = document.getElementById('break-periods-container');
+            const id = breakPeriodCounter++;
+
+            const periodDiv = document.createElement('div');
+            periodDiv.className = 'break-period-item';
+            periodDiv.id = `break-period-${id}`;
+            periodDiv.style.cssText = 'background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem;';
+
+            periodDiv.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <h5 style="margin: 0; font-size: 0.9rem; font-weight: 600; color: #374151;">Periodo ${id + 1}</h5>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="removeBreakPeriod(${id})" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                        🗑️ Remover
+                    </button>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div>
+                        <label class="form-label" style="font-size: 0.85rem;">Data Inicio</label>
+                        <input type="date" class="form-input break-start" value="${startDate}">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 0.85rem;">Data Fim</label>
+                        <input type="date" class="form-input break-end" value="${endDate}">
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label" style="font-size: 0.85rem;">Motivo</label>
+                    <input type="text" class="form-input break-reason" placeholder="Viagem em familia..." value="${reason}">
+                </div>
+            `;
+
+            container.appendChild(periodDiv);
+        }
+
+        // Remove break period
+        function removeBreakPeriod(id) {
+            const element = document.getElementById(`break-period-${id}`);
+            if (element) {
+                element.remove();
+            }
+        }
+
+        // Collect break periods data
+        function collectBreakPeriods() {
+            const periods = [];
+            const periodElements = document.querySelectorAll('.break-period-item');
+
+            periodElements.forEach(element => {
+                const startDate = element.querySelector('.break-start').value;
+                const endDate = element.querySelector('.break-end').value;
+                const reason = element.querySelector('.break-reason').value;
+
+                if (startDate || endDate || reason) {
+                    periods.push({ start_date: startDate, end_date: endDate, reason });
+                }
+            });
+
+            return periods;
+        }
 
         // Conditional field for visa
         document.querySelectorAll('input[name="has_visa"]').forEach(radio => {
@@ -265,6 +398,9 @@
             const checkedStages = Array.from(document.querySelectorAll('input[name="current_stage"]:checked'))
                 .map(cb => cb.value);
 
+            const noStudyDays = Array.from(document.querySelectorAll('input[name="no_study_days"]:checked'))
+                .map(cb => parseInt(cb.value));
+
             const formData = {
                 pathway: document.querySelector('input[name="pathway"]:checked')?.value,
                 has_visa: document.querySelector('input[name="has_visa"]:checked')?.value === 'true',
@@ -275,7 +411,9 @@
                 next_exam_date: document.getElementById('next_exam_date').value,
                 first_pass_months: parseInt(document.getElementById('first_pass_months').value),
                 second_pass_months: parseInt(document.getElementById('second_pass_months').value),
-                dedicated_months: parseInt(document.getElementById('dedicated_months').value)
+                dedicated_months: parseInt(document.getElementById('dedicated_months').value),
+                no_study_days: noStudyDays,
+                break_periods: collectBreakPeriods()
             };
 
             WardApp.showLoading();
@@ -292,6 +430,9 @@
             const checkedStages = Array.from(document.querySelectorAll('input[name="current_stage"]:checked'))
                 .map(cb => cb.value);
 
+            const noStudyDays = Array.from(document.querySelectorAll('input[name="no_study_days"]:checked'))
+                .map(cb => parseInt(cb.value));
+
             const formData = {
                 pathway: document.querySelector('input[name="pathway"]:checked')?.value,
                 has_visa: document.querySelector('input[name="has_visa"]:checked')?.value === 'true',
@@ -302,7 +443,9 @@
                 next_exam_date: document.getElementById('next_exam_date').value,
                 first_pass_months: parseInt(document.getElementById('first_pass_months').value),
                 second_pass_months: parseInt(document.getElementById('second_pass_months').value),
-                dedicated_months: parseInt(document.getElementById('dedicated_months').value)
+                dedicated_months: parseInt(document.getElementById('dedicated_months').value),
+                no_study_days: noStudyDays,
+                break_periods: collectBreakPeriods()
             };
 
             await WardApp.saveQuestionnaireProgress(2, formData);
