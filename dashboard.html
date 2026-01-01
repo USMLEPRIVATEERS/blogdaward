@@ -701,23 +701,29 @@
                 return;
             }
 
+            const today = new Date().toISOString().split('T')[0];
+
+            // Use upsert to update if already exists for today
             const { error } = await WardApp.db
                 .from('daily_checkins')
-                .insert({
+                .upsert({
                     user_id: targetUserId,
                     status: status || 'custom',
                     message: message,
-                    date: new Date().toISOString().split('T')[0],
+                    date: today,
                     uworld_questions_done: uworldQuestions,
                     uworld_correct_answers: uworldCorrect,
                     anki_cards_today: ankiToday,
                     anki_avg_cards: ankiAvg,
                     anki_current_streak: ankiStreak
+                }, {
+                    onConflict: 'user_id,date',
+                    ignoreDuplicates: false
                 });
 
             if (!error) {
                 closeModal('checkin-modal');
-                WardApp.showToast('Check-in registrado!');
+                WardApp.showToast('✅ Check-in salvo com sucesso!');
 
                 // Clear form
                 document.getElementById('checkin-message').value = '';
