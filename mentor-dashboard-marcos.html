@@ -622,7 +622,10 @@ Cardiovascular	Physiology	62	FALSE
                     messagesRes,
                     researchRes,
                     landmarksRes,
-                    difficultiesRes
+                    difficultiesRes,
+                    scheduledCallsRes,
+                    completedSchedulesRes,
+                    questionnaireRes
                 ] = await Promise.all([
                     WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('created_at', { ascending: false }).limit(20),
                     WardApp.db.from('blog_posts').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
@@ -634,7 +637,10 @@ Cardiovascular	Physiology	62	FALSE
                     WardApp.db.from('mentor_messages').select('*, users:user_id(full_name, email), mentor:mentor_id(full_name)').order('created_at', { ascending: false }).limit(20),
                     WardApp.db.from('research_projects').select('*, users:created_by(full_name, email)').order('updated_at', { ascending: false }).limit(15),
                     WardApp.db.from('landmarks').select('*, users:user_id(full_name, email)').eq('completed', true).order('completion_date', { ascending: false }).limit(20),
-                    WardApp.db.from('study_difficulties').select('*, users:user_id(full_name, email)').eq('resolved', false).order('created_at', { ascending: false }).limit(20)
+                    WardApp.db.from('study_difficulties').select('*, users:user_id(full_name, email)').eq('resolved', false).order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('scheduled_calls').select('*, users:student_id(full_name, email), mentor:mentor_id(full_name), landmark:landmark_id(title)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('schedules').select('*, users:user_id(full_name, email)').eq('completed', true).order('completion_date', { ascending: false }).limit(30),
+                    WardApp.db.from('users').select('id, full_name, email, questionnaire_completed, updated_at').eq('questionnaire_completed', true).order('updated_at', { ascending: false }).limit(20)
                 ]);
 
                 // Combine all activities into a single timeline
@@ -684,17 +690,42 @@ Cardiovascular	Physiology	62	FALSE
                     });
                 });
 
-                // Check-ins
+                // Check-ins - FULL CONTENT with UWorld and Anki data
                 (checkinsRes.data || []).forEach(item => {
-                    const statusMap = { tranquilo: '🟢 Tranquilo', preciso_ajuda: '🟡 Precisa de Ajuda', parado: '🔴 Parado' };
+                    const statusMap = {
+                        tranquilo: '🟢 Tranquilo',
+                        preciso_ajuda: '🟡 Precisa de Ajuda',
+                        parado: '🔴 Parado',
+                        custom: '✍️ Mensagem personalizada'
+                    };
+
+                    // Build progress details
+                    let progressDetails = [];
+                    if (item.uworld_questions_done > 0) {
+                        const percentage = item.uworld_correct_answers && item.uworld_questions_done
+                            ? Math.round((item.uworld_correct_answers / item.uworld_questions_done) * 100)
+                            : 0;
+                        progressDetails.push(`📊 UWorld: ${item.uworld_questions_done} questões (${percentage}% acertos)`);
+                    }
+                    if (item.anki_cards_today > 0) {
+                        progressDetails.push(`🎴 Anki: ${item.anki_cards_today} cards hoje`);
+                        if (item.anki_current_streak > 0) {
+                            progressDetails.push(`🔥 Streak: ${item.anki_current_streak} dias`);
+                        }
+                    }
+
+                    const progressInfo = progressDetails.length > 0
+                        ? '<br><small style="color: #6366f1;">' + progressDetails.join(' • ') + '</small>'
+                        : '';
+
                     feed.push({
                         type: 'checkin',
-                        icon: item.status === 'parado' ? '🔴' : item.status === 'preciso_ajuda' ? '🟡' : '🟢',
+                        icon: item.status === 'parado' ? '🔴' : item.status === 'preciso_ajuda' ? '🟡' : item.status === 'custom' ? '✍️' : '🟢',
                         color: item.status === 'parado' ? '#ef4444' : item.status === 'preciso_ajuda' ? '#f59e0b' : '#10b981',
                         user: item.users?.full_name || item.users?.email || 'Aluno',
                         action: 'fez check-in',
-                        title: statusMap[item.status] || item.status,
-                        detail: item.message || '',
+                        title: statusMap[item.status] || 'Check-in',
+                        detail: item.message ? item.message + progressInfo : progressInfo.replace('<br>', ''),
                         date: item.created_at
                     });
                 });
@@ -803,6 +834,51 @@ Cardiovascular	Physiology	62	FALSE
                         title: item.title,
                         detail: item.group_name || '',
                         date: item.completion_date || item.created_at
+                    });
+                });
+
+                // Scheduled calls
+                (scheduledCallsRes.data || []).forEach(item => {
+                    const scheduledDate = item.scheduled_date && item.scheduled_time
+                        ? `${WardApp.formatDate(item.scheduled_date)} às ${item.scheduled_time}`
+                        : 'Data a definir';
+                    feed.push({
+                        type: 'scheduled_call',
+                        icon: '📞',
+                        color: '#0ea5e9',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'agendou call',
+                        title: item.landmark?.title || 'Call com mentor',
+                        detail: `${item.mentor?.full_name || 'Mentor'} - ${scheduledDate}`,
+                        date: item.created_at
+                    });
+                });
+
+                // Completed schedules
+                (completedSchedulesRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'schedule_completed',
+                        icon: '✓',
+                        color: '#10b981',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'completou tópico do cronograma',
+                        title: `${item.system} - ${item.category}`,
+                        detail: item.questions ? `${item.questions} questões` : '',
+                        date: item.completion_date || item.updated_at
+                    });
+                });
+
+                // Completed questionnaires
+                (questionnaireRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'questionnaire',
+                        icon: '📋',
+                        color: '#8b5cf6',
+                        user: item.full_name || item.email || 'Aluno',
+                        action: 'completou o questionário inicial',
+                        title: '✨ Novo perfil criado na plataforma',
+                        detail: '',
+                        date: item.updated_at
                     });
                 });
 
