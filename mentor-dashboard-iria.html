@@ -88,6 +88,17 @@
             </div>
         </div>
 
+        <!-- Schedule Delays Alert -->
+        <div id="delays-alert" class="card mb-4" style="display: none; border: 2px solid #ef4444; background: linear-gradient(135deg, #fee2e2 0%, #ffffff 100%);">
+            <div class="card-header" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white;">
+                <span>⚠️ Atrasos Reportados pelos Alunos</span>
+                <span id="delays-count" class="badge" style="background: white; color: #dc2626; padding: 0.25rem 0.75rem; border-radius: 12px; font-weight: 700;"></span>
+            </div>
+            <div class="card-body" id="delays-list">
+                <!-- Filled by JS -->
+            </div>
+        </div>
+
         <!-- Main Content Grid -->
         <div class="dashboard-grid">
             <!-- Left Column: Student List -->
@@ -408,6 +419,7 @@
 
             await loadStudents();
             await ensureAllStudentsHaveLandmarks();
+            await loadScheduleDelays();
             await loadPendingCalls();
             await loadPendingLandmarks();
             await loadGlobalFeed();
@@ -1182,6 +1194,67 @@
             });
 
             container.innerHTML = html;
+        }
+
+        async function loadScheduleDelays() {
+            // Load all schedules with delay_reported = true
+            const { data: delayedItems } = await WardApp.db
+                .from('schedules')
+                .select('*, users!inner(full_name, email)')
+                .eq('delay_reported', true)
+                .order('delay_reported_at', { ascending: false });
+
+            if (!delayedItems || delayedItems.length === 0) {
+                document.getElementById('delays-alert').style.display = 'none';
+                return;
+            }
+
+            // Show alert
+            document.getElementById('delays-alert').style.display = 'block';
+            document.getElementById('delays-count').textContent = delayedItems.length;
+
+            // Group by student
+            const byStudent = {};
+            delayedItems.forEach(item => {
+                const userId = item.user_id;
+                if (!byStudent[userId]) {
+                    byStudent[userId] = {
+                        name: item.users.full_name || item.users.email,
+                        items: []
+                    };
+                }
+                byStudent[userId].items.push(item);
+            });
+
+            // Render delays list
+            const delaysList = document.getElementById('delays-list');
+            delaysList.innerHTML = Object.values(byStudent).map(student => `
+                <div style="background: white; border-left: 4px solid #ef4444; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+                        <div>
+                            <strong style="font-size: 1.1rem; color: #dc2626;">👤 ${student.name}</strong>
+                            <div style="font-size: 0.85rem; color: #6b7280; margin-top: 0.25rem;">
+                                ${student.items.length} ${student.items.length === 1 ? 'item atrasado' : 'itens atrasados'}
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline" onclick="selectStudent(${student.items[0].user_id})" title="Ver timeline do aluno">
+                            👁️ Ver Timeline
+                        </button>
+                    </div>
+                    <div style="display: grid; gap: 0.5rem;">
+                        ${student.items.map(item => `
+                            <div style="background: #fef2f2; padding: 0.75rem; border-radius: 6px; font-size: 0.9rem;">
+                                <div style="font-weight: 600; color: #dc2626; margin-bottom: 0.25rem;">
+                                    ${item.system}: ${item.category}
+                                </div>
+                                <div style="color: #6b7280; font-size: 0.85rem;">
+                                    Reportado em: ${item.delay_reported_at ? new Date(item.delay_reported_at).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : '-'}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
         }
 
         async function markCallComplete(landmarkId) {

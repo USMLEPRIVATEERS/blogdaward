@@ -93,24 +93,32 @@
 
         <!-- Schedule Table -->
         <div id="schedule-container" class="card">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
-                <div>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
                     <span>Cronograma de First Pass</span>
                     <span class="text-muted" id="last-update"></span>
                 </div>
-                <label class="form-check" style="margin: 0; font-size: 0.85rem;">
-                    <input type="checkbox" id="hide-completed-toggle" onchange="toggleHideCompleted()">
-                    <span class="form-check-label">Ocultar concluidos</span>
-                </label>
+                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    <!-- View Toggle -->
+                    <div class="btn-group" style="display: flex; background: var(--gray-100); border-radius: 6px; padding: 0.25rem;">
+                        <button id="view-cards-btn" class="btn btn-sm" onclick="switchView('cards')" style="background: white; border: none; padding: 0.5rem 1rem;">📱 Cards</button>
+                        <button id="view-table-btn" class="btn btn-sm" onclick="switchView('table')" style="background: transparent; border: none; padding: 0.5rem 1rem;">📊 Planilha</button>
+                    </div>
+                    <!-- Hide Completed Toggle -->
+                    <label class="form-check" style="margin: 0; font-size: 0.85rem; white-space: nowrap;">
+                        <input type="checkbox" id="hide-completed-toggle" onchange="toggleHideCompleted()">
+                        <span class="form-check-label">Ocultar concluídos</span>
+                    </label>
+                </div>
             </div>
             <div class="card-body">
-                <!-- Mobile Cards View -->
+                <!-- Cards View (Now default for all devices) -->
                 <div class="schedule-cards" id="schedule-cards">
                     <!-- Filled by JS -->
                 </div>
 
-                <!-- Desktop Table View -->
-                <div class="schedule-wrapper">
+                <!-- Table View -->
+                <div class="schedule-wrapper" id="schedule-wrapper" style="display: none;">
                     <table class="schedule-table" id="schedule-table">
                         <thead>
                             <tr>
@@ -119,7 +127,8 @@
                                 <th class="col-questions">Qtd</th>
                                 <th class="col-date">Inicio</th>
                                 <th class="col-date">Fim</th>
-                                <th class="col-check">OK</th>
+                                <th class="col-lessons">Aulas Recomendadas</th>
+                                <th class="col-check">✓</th>
                             </tr>
                         </thead>
                         <tbody id="schedule-body">
@@ -200,10 +209,21 @@
         let viewingAsStudentId = null;
         let targetUserId = null; // The user whose schedule we're viewing
         let hideCompleted = false;
+        let currentView = 'cards'; // Default view
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
+
+            // Load view preference from localStorage
+            currentView = localStorage.getItem('schedule_view') || 'cards';
+
+            // Load hide completed preference from localStorage
+            const hideCompletedPref = localStorage.getItem('schedule_hide_completed');
+            if (hideCompletedPref === 'true') {
+                hideCompleted = true;
+                document.getElementById('hide-completed-toggle').checked = true;
+            }
 
             // Check if viewing as another student (URL param or localStorage)
             const urlParams = new URLSearchParams(window.location.search);
@@ -244,6 +264,9 @@
 
             await loadSchedule();
             await loadDelays();
+
+            // Apply view preference
+            switchView(currentView);
         });
 
         async function setupViewingAsStudent(studentId) {
@@ -497,8 +520,35 @@
             }
         }
 
+        function switchView(view) {
+            currentView = view;
+            localStorage.setItem('schedule_view', view);
+
+            const cardsContainer = document.getElementById('schedule-cards');
+            const tableWrapper = document.getElementById('schedule-wrapper');
+            const cardsBtn = document.getElementById('view-cards-btn');
+            const tableBtn = document.getElementById('view-table-btn');
+
+            if (view === 'cards') {
+                cardsContainer.style.display = 'block';
+                tableWrapper.style.display = 'none';
+                cardsBtn.style.background = 'white';
+                cardsBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                tableBtn.style.background = 'transparent';
+                tableBtn.style.boxShadow = 'none';
+            } else {
+                cardsContainer.style.display = 'none';
+                tableWrapper.style.display = 'block';
+                tableBtn.style.background = 'white';
+                tableBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                cardsBtn.style.background = 'transparent';
+                cardsBtn.style.boxShadow = 'none';
+            }
+        }
+
         function toggleHideCompleted() {
             hideCompleted = document.getElementById('hide-completed-toggle').checked;
+            localStorage.setItem('schedule_hide_completed', hideCompleted);
             renderScheduleTable(scheduleData);
         }
 
@@ -565,6 +615,9 @@
                         <td class="col-questions">${item.questions || '-'}</td>
                         <td class="col-date">${startDate}</td>
                         <td class="col-date">${endDate}</td>
+                        <td class="col-lessons" style="font-size: 0.85rem; max-width: 300px; white-space: normal;">
+                            ${item.recommended_lessons || '-'}
+                        </td>
                         <td class="col-check">
                             <input type="checkbox"
                                 class="schedule-checkbox"
@@ -576,7 +629,7 @@
                 `;
             }).join('');
 
-            // Render cards for mobile
+            // Render cards (now with better layout and recommended lessons)
             cardsContainer.innerHTML = filteredSchedule.map(item => {
                 // Format dates
                 const startDate = item.start_date ? WardApp.formatDate(item.start_date) : '-';
@@ -598,6 +651,24 @@
                 const cardClass = item.completed ? 'completed' :
                                   isCurrent ? 'current' :
                                   isOverdue ? 'overdue' : '';
+
+                // Parse recommended lessons to create nice badges
+                const lessons = item.recommended_lessons || '';
+                let lessonsHtml = '';
+                if (lessons && lessons.trim()) {
+                    // Split by bullet points or pipe separators
+                    const lessonParts = lessons.split(/[•|]/).filter(l => l.trim());
+                    lessonsHtml = `
+                        <div class="card-lessons">
+                            <div class="card-lessons-label">📚 Aulas Recomendadas:</div>
+                            <div class="card-lessons-list">
+                                ${lessonParts.map(lesson => `
+                                    <span class="lesson-badge">${lesson.trim()}</span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
 
                 return `
                     <div class="schedule-card-item ${cardClass}">
@@ -626,6 +697,14 @@
                                 <div class="schedule-card-meta-value">${endDate}</div>
                             </div>
                         </div>
+                        ${lessonsHtml}
+                        ${!item.completed ? `
+                            <div class="card-actions">
+                                <button class="btn-card-delay" onclick="reportItemDelay(${item.id}, '${item.system}', '${item.category}')" title="Sinalizar atraso neste item">
+                                    ⚠️ Sinalizar Atraso
+                                </button>
+                            </div>
+                        ` : ''}
                     </div>
                 `;
             }).join('');
@@ -673,6 +752,32 @@
                     </div>
                 `).join('');
             }
+        }
+
+        async function reportItemDelay(itemId, system, category) {
+            const confirmed = confirm(`Deseja sinalizar atraso no item:\n\n${system}: ${category}\n\nOs mentores serão notificados.`);
+            if (!confirmed) return;
+
+            // Mark item as delay_reported
+            await WardApp.db
+                .from('schedules')
+                .update({
+                    delay_reported: true,
+                    delay_reported_at: new Date().toISOString()
+                })
+                .eq('id', itemId);
+
+            // Also create a delay record for mentor dashboard
+            await WardApp.db.from('schedule_delays').insert({
+                user_id: targetUserId,
+                start_date: new Date().toISOString(),
+                end_date: new Date().toISOString(),
+                reason: `Atraso reportado no item: ${system} - ${category}`
+            });
+
+            WardApp.showToast('⚠️ Atraso sinalizado! Os mentores foram notificados.');
+            await loadSchedule();
+            await loadDelays();
         }
 
         async function signalDelay() {
@@ -928,36 +1033,180 @@
             accent-color: #22c55e;
         }
 
-        /* Responsive breakpoints */
-        @media (max-width: 768px) {
-            /* Hide table, show cards on mobile */
-            .schedule-table {
-                display: none;
-            }
-            .schedule-cards {
-                display: block;
-            }
-
-            /* Adjust button group on mobile */
-            .btn-group {
-                display: flex;
-                flex-direction: column;
-                width: 100%;
-            }
-
-            .btn-group .btn {
-                width: 100%;
-                margin-bottom: 0.5rem;
-            }
+        /* Schedule Cards Styling */
+        .schedule-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1rem;
         }
 
-        @media (min-width: 769px) {
-            /* Show table, hide cards on desktop */
-            .schedule-table {
-                display: table;
-            }
+        .schedule-card-item {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: all 0.3s ease;
+        }
+
+        .schedule-card-item:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .schedule-card-item.current {
+            border-color: #22c55e;
+            background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+        }
+
+        .schedule-card-item.overdue {
+            border-color: #ef4444;
+            background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
+        }
+
+        .schedule-card-item.completed {
+            opacity: 0.7;
+            background: #f9fafb;
+        }
+
+        .schedule-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .schedule-card-title {
+            flex: 1;
+        }
+
+        .schedule-card-system {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+
+        .schedule-card-category {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1f2937;
+            line-height: 1.4;
+        }
+
+        .schedule-card-checkbox {
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            accent-color: #22c55e;
+            flex-shrink: 0;
+        }
+
+        .schedule-card-meta {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .schedule-card-meta-item {
+            text-align: center;
+        }
+
+        .schedule-card-meta-label {
+            font-size: 0.7rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+
+        .schedule-card-meta-value {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .card-lessons {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .card-lessons-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.75rem;
+        }
+
+        .card-lessons-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .lesson-badge {
+            display: inline-block;
+            padding: 0.4rem 0.75rem;
+            background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+            color: #1e40af;
+            font-size: 0.8rem;
+            font-weight: 500;
+            border-radius: 6px;
+            border: 1px solid #bfdbfe;
+            line-height: 1.4;
+        }
+
+        .card-actions {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .btn-card-delay {
+            background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%);
+            color: #92400e;
+            border: 1px solid #fbbf24;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-card-delay:hover {
+            background: linear-gradient(135deg, #fde68a 0%, #fcd34d 100%);
+            transform: scale(1.05);
+        }
+
+        /* Responsive breakpoints */
+        @media (max-width: 768px) {
             .schedule-cards {
-                display: none;
+                grid-template-columns: 1fr;
+            }
+
+            .schedule-card-meta {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+            }
+
+            .schedule-card-meta-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                text-align: left;
+            }
+
+            .btn-group {
+                flex-direction: column;
+                width: 100%;
             }
         }
 
