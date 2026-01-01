@@ -1,5 +1,8 @@
+-- Dropar tabela existente se houver (para recriar com tipos corretos)
+DROP TABLE IF EXISTS blog_comment_likes CASCADE;
+
 -- Tabela de likes em comentários
-CREATE TABLE IF NOT EXISTS blog_comment_likes (
+CREATE TABLE blog_comment_likes (
     id BIGSERIAL PRIMARY KEY,
     comment_id BIGINT NOT NULL REFERENCES blog_comments(id) ON DELETE CASCADE,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
