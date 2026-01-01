@@ -432,9 +432,27 @@
                     currentCard.querySelector('.card-header').style.background = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
                     currentCard.querySelector('.card-header').innerHTML = '📅 Proximo estudo';
 
+                    // Parse recommended lessons for next item
+                    let nextLessonsHtml = '';
+                    if (next.recommended_lessons && next.recommended_lessons.trim()) {
+                        const lessonParts = next.recommended_lessons.split(/[•|]/).filter(l => l.trim());
+                        nextLessonsHtml = `
+                            <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e5e7eb;">
+                                <div style="font-weight: 600; font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem;">📚 Aulas Recomendadas:</div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                    ${lessonParts.map(lesson => `
+                                        <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500;">
+                                            ${lesson.trim()}
+                                        </span>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+
                     contentDiv.innerHTML = `
-                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                            <div>
+                        <div>
+                            <div style="margin-bottom: 0.5rem;">
                                 <h3 style="margin: 0 0 0.5rem 0;">${next.system}: ${next.category}</h3>
                                 <p class="text-muted" style="margin: 0;">
                                     <strong>Inicio:</strong> ${formatShortDate(next.start_date)} |
@@ -442,6 +460,7 @@
                                     <strong>Questoes:</strong> ${next.questions || '-'}
                                 </p>
                             </div>
+                            ${nextLessonsHtml}
                         </div>
                     `;
                 } else {
@@ -453,21 +472,44 @@
                 currentCard.querySelector('.card-header').style.background = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
                 currentCard.querySelector('.card-header').innerHTML = '📚 O que voce deveria estar estudando agora';
 
-                contentDiv.innerHTML = currentItems.map(item => `
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid #e5e7eb;">
-                        <div style="flex: 1;">
-                            <h3 style="margin: 0 0 0.5rem 0;">${item.system}: ${item.category}</h3>
-                            <p class="text-muted" style="margin: 0; font-size: 0.9rem;">
-                                <strong>Inicio:</strong> ${formatShortDate(item.start_date)} |
-                                <strong>Fim:</strong> ${formatShortDate(item.end_date)} |
-                                <strong>Questoes:</strong> ${item.questions || '-'}
-                            </p>
+                contentDiv.innerHTML = currentItems.map(item => {
+                    // Parse recommended lessons
+                    let lessonsHtml = '';
+                    if (item.recommended_lessons && item.recommended_lessons.trim()) {
+                        const lessonParts = item.recommended_lessons.split(/[•|]/).filter(l => l.trim());
+                        lessonsHtml = `
+                            <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e5e7eb;">
+                                <div style="font-weight: 600; font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem;">📚 Aulas Recomendadas:</div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                    ${lessonParts.map(lesson => `
+                                        <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500;">
+                                            ${lesson.trim()}
+                                        </span>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    return `
+                        <div style="padding: 0.75rem 0; border-bottom: 1px solid #e5e7eb;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.5rem;">
+                                <div style="flex: 1;">
+                                    <h3 style="margin: 0 0 0.5rem 0;">${item.system}: ${item.category}</h3>
+                                    <p class="text-muted" style="margin: 0; font-size: 0.9rem;">
+                                        <strong>Inicio:</strong> ${formatShortDate(item.start_date)} |
+                                        <strong>Fim:</strong> ${formatShortDate(item.end_date)} |
+                                        <strong>Questoes:</strong> ${item.questions || '-'}
+                                    </p>
+                                </div>
+                                <button class="btn btn-success" onclick="markCurrentComplete(${item.id}, ${hasDelays})">
+                                    ✅ Marcar como Concluido
+                                </button>
+                            </div>
+                            ${lessonsHtml}
                         </div>
-                        <button class="btn btn-success" onclick="markCurrentComplete(${item.id}, ${hasDelays})">
-                            ✅ Marcar como Concluido
-                        </button>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
             }
         }
 
