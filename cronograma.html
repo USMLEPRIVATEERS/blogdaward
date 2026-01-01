@@ -433,22 +433,7 @@
                     currentCard.querySelector('.card-header').innerHTML = '📅 Proximo estudo';
 
                     // Parse recommended lessons for next item
-                    let nextLessonsHtml = '';
-                    if (next.recommended_lessons && next.recommended_lessons.trim()) {
-                        const lessonParts = next.recommended_lessons.split(/[•|]/).filter(l => l.trim());
-                        nextLessonsHtml = `
-                            <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e5e7eb;">
-                                <div style="font-weight: 600; font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem;">📚 Aulas Recomendadas:</div>
-                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                                    ${lessonParts.map(lesson => `
-                                        <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500;">
-                                            ${lesson.trim()}
-                                        </span>
-                                    `).join('')}
-                                </div>
-                            </div>
-                        `;
-                    }
+                    const nextLessonsHtml = formatRecommendedLessons(next.recommended_lessons);
 
                     contentDiv.innerHTML = `
                         <div>
@@ -472,44 +457,24 @@
                 currentCard.querySelector('.card-header').style.background = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
                 currentCard.querySelector('.card-header').innerHTML = '📚 O que voce deveria estar estudando agora';
 
-                contentDiv.innerHTML = currentItems.map(item => {
-                    // Parse recommended lessons
-                    let lessonsHtml = '';
-                    if (item.recommended_lessons && item.recommended_lessons.trim()) {
-                        const lessonParts = item.recommended_lessons.split(/[•|]/).filter(l => l.trim());
-                        lessonsHtml = `
-                            <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e5e7eb;">
-                                <div style="font-weight: 600; font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem;">📚 Aulas Recomendadas:</div>
-                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                                    ${lessonParts.map(lesson => `
-                                        <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500;">
-                                            ${lesson.trim()}
-                                        </span>
-                                    `).join('')}
-                                </div>
+                contentDiv.innerHTML = currentItems.map(item => `
+                    <div style="padding: 0.75rem 0; border-bottom: 1px solid #e5e7eb;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.5rem;">
+                            <div style="flex: 1;">
+                                <h3 style="margin: 0 0 0.5rem 0;">${item.system}: ${item.category}</h3>
+                                <p class="text-muted" style="margin: 0; font-size: 0.9rem;">
+                                    <strong>Inicio:</strong> ${formatShortDate(item.start_date)} |
+                                    <strong>Fim:</strong> ${formatShortDate(item.end_date)} |
+                                    <strong>Questoes:</strong> ${item.questions || '-'}
+                                </p>
                             </div>
-                        `;
-                    }
-
-                    return `
-                        <div style="padding: 0.75rem 0; border-bottom: 1px solid #e5e7eb;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.5rem;">
-                                <div style="flex: 1;">
-                                    <h3 style="margin: 0 0 0.5rem 0;">${item.system}: ${item.category}</h3>
-                                    <p class="text-muted" style="margin: 0; font-size: 0.9rem;">
-                                        <strong>Inicio:</strong> ${formatShortDate(item.start_date)} |
-                                        <strong>Fim:</strong> ${formatShortDate(item.end_date)} |
-                                        <strong>Questoes:</strong> ${item.questions || '-'}
-                                    </p>
-                                </div>
-                                <button class="btn btn-success" onclick="markCurrentComplete(${item.id}, ${hasDelays})">
-                                    ✅ Marcar como Concluido
-                                </button>
-                            </div>
-                            ${lessonsHtml}
+                            <button class="btn btn-success" onclick="markCurrentComplete(${item.id}, ${hasDelays})">
+                                ✅ Marcar como Concluido
+                            </button>
                         </div>
-                    `;
-                }).join('');
+                        ${formatRecommendedLessons(item.recommended_lessons)}
+                    </div>
+                `).join('');
             }
         }
 
@@ -657,8 +622,8 @@
                         <td class="col-questions">${item.questions || '-'}</td>
                         <td class="col-date">${startDate}</td>
                         <td class="col-date">${endDate}</td>
-                        <td class="col-lessons" style="font-size: 0.85rem; max-width: 300px; white-space: normal;">
-                            ${item.recommended_lessons || '-'}
+                        <td class="col-lessons" style="font-size: 0.8rem; max-width: 400px; white-space: normal; padding: 0.75rem;">
+                            ${item.recommended_lessons ? formatRecommendedLessons(item.recommended_lessons).replace(/border-top.*?;/, '').replace(/margin-top.*?;/, '').replace(/padding-top.*?;/, '') : '-'}
                         </td>
                         <td class="col-check">
                             <input type="checkbox"
@@ -694,23 +659,8 @@
                                   isCurrent ? 'current' :
                                   isOverdue ? 'overdue' : '';
 
-                // Parse recommended lessons to create nice badges
-                const lessons = item.recommended_lessons || '';
-                let lessonsHtml = '';
-                if (lessons && lessons.trim()) {
-                    // Split by bullet points or pipe separators
-                    const lessonParts = lessons.split(/[•|]/).filter(l => l.trim());
-                    lessonsHtml = `
-                        <div class="card-lessons">
-                            <div class="card-lessons-label">📚 Aulas Recomendadas:</div>
-                            <div class="card-lessons-list">
-                                ${lessonParts.map(lesson => `
-                                    <span class="lesson-badge">${lesson.trim()}</span>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                }
+                // Parse recommended lessons with course-specific colors
+                const lessonsHtml = formatRecommendedLessons(item.recommended_lessons);
 
                 return `
                     <div class="schedule-card-item ${cardClass}">
@@ -761,6 +711,65 @@
             const month = monthNames[date.getMonth()];
             const year = date.getFullYear();
             return `${day} ${month} ${year}`;
+        }
+
+        // Parse and format recommended lessons by course with distinct colors
+        function formatRecommendedLessons(lessonsString) {
+            if (!lessonsString || !lessonsString.trim()) return '';
+
+            // Define colors for each course
+            const courseColors = {
+                'B&B': { bg: '#dbeafe', color: '#1e40af', icon: '📘' },
+                'Boards and Beyond': { bg: '#dbeafe', color: '#1e40af', icon: '📘' },
+                'Sketchy Pharm': { bg: '#f3e8ff', color: '#7c3aed', icon: '💊' },
+                'Sketchy Micro': { bg: '#d1fae5', color: '#059669', icon: '🦠' },
+                'Sketchy Path': { bg: '#fee2e2', color: '#dc2626', icon: '🩺' },
+                'Pathoma': { bg: '#fed7aa', color: '#c2410c', icon: '🔬' },
+                'First Aid': { bg: '#fef3c7', color: '#92400e', icon: '📖' },
+                'NBME': { bg: '#e5e7eb', color: '#374151', icon: '📝' },
+                'UWorld': { bg: '#ccfbf1', color: '#0f766e', icon: '❓' },
+                'Amboss': { bg: '#fce7f3', color: '#be185d', icon: '🎯' }
+            };
+
+            // Split by pipe (|) to separate different courses
+            const courseSections = lessonsString.split('|').map(s => s.trim()).filter(s => s);
+
+            let html = '<div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e5e7eb;">';
+            html += '<div style="font-weight: 600; font-size: 0.85rem; color: #6b7280; margin-bottom: 0.75rem;">📚 Aulas Recomendadas:</div>';
+
+            courseSections.forEach(section => {
+                // Extract course name (before the first colon)
+                const colonIndex = section.indexOf(':');
+                if (colonIndex === -1) return;
+
+                const courseName = section.substring(0, colonIndex).trim();
+                const lessons = section.substring(colonIndex + 1).trim();
+
+                // Get color scheme for this course
+                const colorScheme = courseColors[courseName] || { bg: '#f3f4f6', color: '#4b5563', icon: '🎓' };
+
+                // Split lessons by bullet points
+                const lessonList = lessons.split('•').map(l => l.trim()).filter(l => l);
+
+                html += `
+                    <div style="margin-bottom: 0.75rem;">
+                        <div style="font-weight: 600; font-size: 0.8rem; color: ${colorScheme.color}; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.25rem;">
+                            <span>${colorScheme.icon}</span>
+                            <span>${courseName}</span>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-left: 1.5rem;">
+                            ${lessonList.map(lesson => `
+                                <span style="background: ${colorScheme.bg}; color: ${colorScheme.color}; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.75rem; font-weight: 500; border: 1px solid ${colorScheme.color}30;">
+                                    ${lesson}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            return html;
         }
 
         async function toggleComplete(id, completed) {
