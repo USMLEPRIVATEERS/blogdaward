@@ -723,25 +723,64 @@
             console.log('[CHECK-IN DEBUG] Data de hoje:', today);
 
             // ONLY check database - single source of truth
-            const { data: existingCheckIn, error: dbError } = await WardApp.db
-                .from('daily_checkins')
-                .select('id, status')
-                .eq('user_id', targetUserId)
-                .eq('date', today)
-                .maybeSingle();
+            // Try query with timeout and retry
+            let existingCheckIn = null;
+            let dbError = null;
+            let retries = 3;
 
-            console.log('[CHECK-IN DEBUG] Existe check-in no banco?', !!existingCheckIn);
-            console.log('[CHECK-IN DEBUG] Status:', existingCheckIn?.status);
-            console.log('[CHECK-IN DEBUG] Erro no banco?', dbError);
+            for (let attempt = 1; attempt <= retries; attempt++) {
+                console.log(`[CHECK-IN DEBUG] Tentativa ${attempt} de ${retries}...`);
+
+                try {
+                    const result = await Promise.race([
+                        WardApp.db
+                            .from('daily_checkins')
+                            .select('id, status')
+                            .eq('user_id', targetUserId)
+                            .eq('date', today)
+                            .maybeSingle(),
+                        new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error('Query timeout')), 5000)
+                        )
+                    ]);
+
+                    existingCheckIn = result.data;
+                    dbError = result.error;
+
+                    console.log('[CHECK-IN DEBUG] Query completada com sucesso!');
+                    console.log('[CHECK-IN DEBUG] Existe check-in no banco?', !!existingCheckIn);
+                    console.log('[CHECK-IN DEBUG] Status:', existingCheckIn?.status);
+                    console.log('[CHECK-IN DEBUG] Erro no banco?', dbError);
+
+                    break; // Success, exit retry loop
+
+                } catch (err) {
+                    console.error(`[CHECK-IN DEBUG] Erro na tentativa ${attempt}:`, err);
+                    if (attempt === retries) {
+                        dbError = err;
+                        console.error('[CHECK-IN DEBUG] ❌ Todas as tentativas falharam');
+                    } else {
+                        // Wait before retry
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                }
+            }
+
+            // CRITICAL: If there was an error, DON'T show modal (be conservative)
+            // Only show modal if query succeeded AND no check-in was found
+            if (dbError) {
+                console.log('[CHECK-IN DEBUG] ⚠️ Erro na query do banco - NÃO mostrando modal para evitar spam');
+                return;
+            }
 
             // If ANY check-in exists for today (including skipped), don't show modal
             if (!existingCheckIn) {
-                console.log('[CHECK-IN DEBUG] ✅ Mostrando modal de check-in');
+                console.log('[CHECK-IN DEBUG] ✅ Nenhum check-in encontrado - Mostrando modal');
                 setTimeout(() => {
                     openModal('checkin-modal');
                 }, 500);
             } else {
-                console.log('[CHECK-IN DEBUG] ❌ NÃO mostrando modal - check-in já existe para hoje');
+                console.log('[CHECK-IN DEBUG] ❌ Check-in já existe para hoje - NÃO mostrando modal');
             }
         }
 
