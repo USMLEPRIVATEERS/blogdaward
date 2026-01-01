@@ -201,6 +201,18 @@
             </div>
         </div>
 
+        <!-- Scheduled Video Calls -->
+        <div class="card mt-4">
+            <div class="card-header">
+                📞 Chamadas de Video Agendadas
+            </div>
+            <div class="card-body">
+                <div id="scheduled-calls-list">
+                    <p class="text-muted">Carregando chamadas...</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Quick Access -->
         <div class="card mt-4">
             <div class="card-header">
@@ -317,6 +329,45 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('password-modal')">Cancelar</button>
                 <button class="btn btn-primary" onclick="changePassword()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Call Details Modal -->
+    <div id="call-details-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">📞 Detalhes da Chamada</h3>
+                <button class="modal-close" onclick="closeModal('call-details-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="modal-call-id">
+                <div class="form-group">
+                    <label class="form-label"><strong>Mentor:</strong></label>
+                    <p id="modal-mentor-name" class="text-muted"></p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><strong>Tipo de Chamada:</strong></label>
+                    <p id="modal-call-title" class="text-muted"></p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><strong>Data e Horário:</strong></label>
+                    <p id="modal-call-datetime" class="text-muted"></p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><strong>Status:</strong></label>
+                    <p id="modal-call-status" class="text-muted"></p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="modal-call-notes"><strong>Observações:</strong></label>
+                    <textarea id="modal-call-notes" class="form-textarea" rows="4" placeholder="Adicione observações sobre esta chamada..."></textarea>
+                    <small class="text-muted">Você e o mentor podem ver e editar estas observações</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="cancelCall()">❌ Desmarcar Chamada</button>
+                <button class="btn btn-secondary" onclick="closeModal('call-details-modal')">Fechar</button>
+                <button class="btn btn-primary" onclick="saveCallNotesStudent()">💾 Salvar Observações</button>
             </div>
         </div>
     </div>
@@ -447,6 +498,9 @@
 
             // Load landmarks preview
             await loadLandmarksPreview();
+
+            // Load scheduled calls
+            await loadScheduledCalls();
 
             // Load preparation status
             await loadPrepStatus();
@@ -800,6 +854,165 @@
                 WardApp.showToast('Senha alterada com sucesso!');
             } else {
                 WardApp.showToast('Erro ao alterar senha', 'error');
+            }
+        }
+
+        // Scheduled Calls Functions
+        async function loadScheduledCalls() {
+            const container = document.getElementById('scheduled-calls-list');
+
+            try {
+                const { data: calls, error } = await WardApp.db
+                    .from('scheduled_calls')
+                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, email), landmark:landmarks(title)')
+                    .eq('student_id', targetUserId)
+                    .in('status', ['scheduled', 'pending'])
+                    .order('scheduled_date', { ascending: true })
+                    .order('scheduled_time', { ascending: true });
+
+                if (error) {
+                    console.error('Error loading scheduled calls:', error);
+                    container.innerHTML = '<p class="text-muted">Erro ao carregar chamadas</p>';
+                    return;
+                }
+
+                if (!calls || calls.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><p class="text-muted">Nenhuma chamada agendada no momento</p></div>';
+                    return;
+                }
+
+                container.innerHTML = calls.map(call => {
+                    const datetime = call.scheduled_date && call.scheduled_time
+                        ? `${WardApp.formatDate(call.scheduled_date)} às ${call.scheduled_time}`
+                        : 'Data a definir';
+                    const statusColors = {
+                        scheduled: '#10b981',
+                        pending: '#f59e0b',
+                        completed: '#6b7280',
+                        cancelled: '#ef4444'
+                    };
+                    const statusLabels = {
+                        scheduled: 'Agendada',
+                        pending: 'Pendente',
+                        completed: 'Concluída',
+                        cancelled: 'Cancelada'
+                    };
+
+                    return `
+                        <div class="call-card" style="border-left: 4px solid ${statusColors[call.status] || '#6b7280'}; margin-bottom: 1rem; padding: 1rem; background: #f9fafb; border-radius: 8px; cursor: pointer;" onclick="viewCallDetails(${call.id})">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div>
+                                    <div style="font-weight: 600; color: #111827; margin-bottom: 0.25rem;">
+                                        ${call.landmark?.title || 'Chamada com mentor'}
+                                    </div>
+                                    <div style="color: #6b7280; font-size: 0.875rem;">
+                                        👤 ${call.mentor?.full_name || 'Mentor'}<br>
+                                        📅 ${datetime}<br>
+                                        ${call.notes ? '📝 ' + (call.notes.length > 60 ? call.notes.substring(0, 60) + '...' : call.notes) : ''}
+                                    </div>
+                                </div>
+                                <div>
+                                    <span style="background: ${statusColors[call.status] || '#6b7280'}; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
+                                        ${statusLabels[call.status] || call.status}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                console.error('Error loading scheduled calls:', err);
+                container.innerHTML = '<p class="text-muted">Erro ao carregar chamadas</p>';
+            }
+        }
+
+        async function viewCallDetails(callId) {
+            try {
+                const { data: call, error } = await WardApp.db
+                    .from('scheduled_calls')
+                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, email), landmark:landmarks(title)')
+                    .eq('id', callId)
+                    .single();
+
+                if (error || !call) {
+                    WardApp.showToast('Erro ao carregar detalhes da chamada', 'error');
+                    return;
+                }
+
+                const datetime = call.scheduled_date && call.scheduled_time
+                    ? `${WardApp.formatDate(call.scheduled_date)} às ${call.scheduled_time}`
+                    : 'Data a definir';
+
+                const statusLabels = {
+                    scheduled: 'Agendada',
+                    pending: 'Pendente',
+                    completed: 'Concluída',
+                    cancelled: 'Cancelada'
+                };
+
+                document.getElementById('modal-call-id').value = call.id;
+                document.getElementById('modal-mentor-name').textContent = call.mentor?.full_name || 'Mentor';
+                document.getElementById('modal-call-title').textContent = call.landmark?.title || 'Chamada com mentor';
+                document.getElementById('modal-call-datetime').textContent = datetime;
+                document.getElementById('modal-call-status').textContent = statusLabels[call.status] || call.status;
+                document.getElementById('modal-call-notes').value = call.notes || '';
+
+                openModal('call-details-modal');
+            } catch (err) {
+                console.error('Error viewing call details:', err);
+                WardApp.showToast('Erro ao carregar detalhes da chamada', 'error');
+            }
+        }
+
+        async function saveCallNotesStudent() {
+            const callId = document.getElementById('modal-call-id').value;
+            const notes = document.getElementById('modal-call-notes').value.trim();
+
+            try {
+                const { error } = await WardApp.db
+                    .from('scheduled_calls')
+                    .update({ notes, updated_at: new Date().toISOString() })
+                    .eq('id', callId);
+
+                if (error) {
+                    WardApp.showToast('Erro ao salvar observações', 'error');
+                    return;
+                }
+
+                closeModal('call-details-modal');
+                WardApp.showToast('✅ Observações salvas com sucesso!');
+                await loadScheduledCalls();
+            } catch (err) {
+                console.error('Error saving notes:', err);
+                WardApp.showToast('Erro ao salvar observações', 'error');
+            }
+        }
+
+        async function cancelCall() {
+            const callId = document.getElementById('modal-call-id').value;
+
+            if (!confirm('Tem certeza que deseja desmarcar esta chamada?')) {
+                return;
+            }
+
+            try {
+                const { error } = await WardApp.db
+                    .from('scheduled_calls')
+                    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+                    .eq('id', callId);
+
+                if (error) {
+                    WardApp.showToast('Erro ao desmarcar chamada', 'error');
+                    return;
+                }
+
+                closeModal('call-details-modal');
+                WardApp.showToast('❌ Chamada desmarcada com sucesso');
+                await loadScheduledCalls();
+            } catch (err) {
+                console.error('Error cancelling call:', err);
+                WardApp.showToast('Erro ao desmarcar chamada', 'error');
             }
         }
 
