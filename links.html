@@ -176,7 +176,7 @@
                     </div>
                     <div class="form-group" style="flex: 1;">
                         <label class="form-label" for="link-category">Categoria *</label>
-                        <select id="link-category" class="form-input">
+                        <select id="link-category" class="form-input" onchange="toggleCustomCategory('add')">
                             <option value="">Selecione...</option>
                             <option value="uworld">UWorld</option>
                             <option value="anki">Anki</option>
@@ -191,10 +191,16 @@
                             <option value="ecfmg">ECFMG</option>
                             <option value="residency">Residencia</option>
                             <option value="observership">Observership</option>
+                            <option value="estagios">Estagios</option>
                             <option value="tools">Ferramentas</option>
                             <option value="other">Outros</option>
+                            <option value="custom">Outra...</option>
                         </select>
                     </div>
+                </div>
+                <div class="form-group" id="custom-category-field-add" style="display: none;">
+                    <label class="form-label" for="custom-category-add">Nome da Nova Categoria *</label>
+                    <input type="text" id="custom-category-add" class="form-input" placeholder="Digite o nome da categoria...">
                 </div>
                 <div class="form-group">
                     <label class="form-check">
@@ -249,7 +255,7 @@
                     </div>
                     <div class="form-group" style="flex: 1;">
                         <label class="form-label" for="edit-link-category">Categoria *</label>
-                        <select id="edit-link-category" class="form-input">
+                        <select id="edit-link-category" class="form-input" onchange="toggleCustomCategory('edit')">
                             <option value="uworld">UWorld</option>
                             <option value="anki">Anki</option>
                             <option value="amboss">Amboss</option>
@@ -263,10 +269,16 @@
                             <option value="ecfmg">ECFMG</option>
                             <option value="residency">Residencia</option>
                             <option value="observership">Observership</option>
+                            <option value="estagios">Estagios</option>
                             <option value="tools">Ferramentas</option>
                             <option value="other">Outros</option>
+                            <option value="custom">Outra...</option>
                         </select>
                     </div>
+                </div>
+                <div class="form-group" id="custom-category-field-edit" style="display: none;">
+                    <label class="form-label" for="custom-category-edit">Nome da Nova Categoria *</label>
+                    <input type="text" id="custom-category-edit" class="form-input" placeholder="Digite o nome da categoria...">
                 </div>
                 <div class="form-group">
                     <label class="form-check">
@@ -403,6 +415,7 @@
             }
 
             await loadLinks();
+            await loadCustomCategories();
         });
 
         async function setupViewingAsStudent(studentId) {
@@ -645,13 +658,112 @@
             });
         }
 
+        // Toggle custom category input field
+        function toggleCustomCategory(mode) {
+            const select = document.getElementById(mode === 'add' ? 'link-category' : 'edit-link-category');
+            const field = document.getElementById(`custom-category-field-${mode}`);
+
+            if (select.value === 'custom') {
+                field.style.display = 'block';
+            } else {
+                field.style.display = 'none';
+            }
+        }
+
+        // Save custom category to database
+        async function saveCustomCategory(categoryName) {
+            const categorySlug = categoryName.toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+                .replace(/[^a-z0-9]+/g, '_') // Replace non-alphanumeric with underscore
+                .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
+
+            // Check if category already exists
+            const { data: existing } = await WardApp.db
+                .from('link_categories')
+                .select('*')
+                .eq('slug', categorySlug)
+                .maybeSingle();
+
+            if (existing) {
+                return categorySlug;
+            }
+
+            // Insert new category
+            const { error } = await WardApp.db
+                .from('link_categories')
+                .insert({
+                    slug: categorySlug,
+                    name: categoryName,
+                    created_by: userData.id
+                });
+
+            if (error) {
+                console.error('Error saving custom category:', error);
+            }
+
+            // Reload categories
+            await loadCustomCategories();
+
+            return categorySlug;
+        }
+
+        // Load custom categories from database
+        async function loadCustomCategories() {
+            const { data: categories } = await WardApp.db
+                .from('link_categories')
+                .select('*')
+                .order('name');
+
+            if (categories && categories.length > 0) {
+                // Add to both select dropdowns (before "Outra...")
+                const addSelect = document.getElementById('link-category');
+                const editSelect = document.getElementById('edit-link-category');
+
+                // Remove existing custom options (except the default ones)
+                const selects = [addSelect, editSelect];
+                selects.forEach(select => {
+                    // Remove all custom options (those not in the default list)
+                    const optionsToRemove = [];
+                    for (let i = 0; i < select.options.length; i++) {
+                        const option = select.options[i];
+                        if (!['', 'uworld', 'anki', 'amboss', 'boards_beyond', 'pathoma',
+                              'sketchy', 'first_aid', 'nbme', 'research', 'visa', 'ecfmg',
+                              'residency', 'observership', 'estagios', 'tools', 'other', 'custom'].includes(option.value)) {
+                            optionsToRemove.push(option);
+                        }
+                    }
+                    optionsToRemove.forEach(opt => opt.remove());
+
+                    // Add custom categories before "Outra..."
+                    const customOption = select.querySelector('option[value="custom"]');
+                    categories.forEach(cat => {
+                        const option = document.createElement('option');
+                        option.value = cat.slug;
+                        option.textContent = cat.name;
+                        select.insertBefore(option, customOption);
+                    });
+                });
+            }
+        }
+
         async function saveLink() {
             const title = document.getElementById('link-title').value.trim();
             const url = document.getElementById('link-url').value.trim();
             const description = document.getElementById('link-description').value.trim();
             const step = document.getElementById('link-step').value;
-            const category = document.getElementById('link-category').value;
+            let category = document.getElementById('link-category').value;
             const pinned = document.getElementById('link-pinned').checked;
+
+            // Handle custom category
+            if (category === 'custom') {
+                const customCategoryName = document.getElementById('custom-category-add').value.trim();
+                if (!customCategoryName) {
+                    WardApp.showToast('Digite o nome da nova categoria', 'warning');
+                    return;
+                }
+                // Save custom category and get its slug
+                category = await saveCustomCategory(customCategoryName);
+            }
 
             if (!title || !url || !step || !category) {
                 WardApp.showToast('Preencha todos os campos obrigatorios', 'warning');
@@ -680,6 +792,8 @@
             document.getElementById('link-step').value = '';
             document.getElementById('link-category').value = '';
             document.getElementById('link-pinned').checked = false;
+            document.getElementById('custom-category-add').value = '';
+            document.getElementById('custom-category-field-add').style.display = 'none';
 
             WardApp.showToast('Link adicionado com sucesso!');
             await loadLinks();
@@ -706,8 +820,19 @@
             const url = document.getElementById('edit-link-url').value.trim();
             const description = document.getElementById('edit-link-description').value.trim();
             const step = document.getElementById('edit-link-step').value;
-            const category = document.getElementById('edit-link-category').value;
+            let category = document.getElementById('edit-link-category').value;
             const pinned = document.getElementById('edit-link-pinned').checked;
+
+            // Handle custom category
+            if (category === 'custom') {
+                const customCategoryName = document.getElementById('custom-category-edit').value.trim();
+                if (!customCategoryName) {
+                    WardApp.showToast('Digite o nome da nova categoria', 'warning');
+                    return;
+                }
+                // Save custom category and get its slug
+                category = await saveCustomCategory(customCategoryName);
+            }
 
             if (!title || !url || !step || !category) {
                 WardApp.showToast('Preencha todos os campos obrigatorios', 'warning');
