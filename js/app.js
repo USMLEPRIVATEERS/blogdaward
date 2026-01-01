@@ -187,6 +187,13 @@ async function login(cpf, password) {
             return false;
         }
 
+        // Check if user is inactive
+        if (data.status === 'inactive') {
+            hideLoading();
+            showToast('Esta conta está inativa. Entre em contato com o administrador.', 'error');
+            return false;
+        }
+
         // Simple password check (supports both plain and hashed passwords)
         const hashedPassword = btoa(password + '_ward_salt_2024');
         if (data.password_hash !== password && data.password_hash !== hashedPassword) {

@@ -198,10 +198,13 @@
                     <input type="text" id="edit-password" class="form-input" placeholder="Nova senha...">
                 </div>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-danger" onclick="deleteMember()">Excluir</button>
-                <button class="btn btn-secondary" onclick="closeModal('edit-member-modal')">Cancelar</button>
-                <button class="btn btn-primary" onclick="updateMember()">Salvar</button>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                <button class="btn btn-danger" onclick="deleteMemberPermanently()">🗑️ Excluir Permanentemente</button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-outline" onclick="inactivateMember()">Inativar</button>
+                    <button class="btn btn-secondary" onclick="closeModal('edit-member-modal')">Cancelar</button>
+                    <button class="btn btn-primary" onclick="updateMember()">Salvar</button>
+                </div>
             </div>
         </div>
     </div>
@@ -486,26 +489,74 @@
             await loadMembers();
         }
 
-        async function deleteMember() {
+        async function inactivateMember() {
             const memberId = document.getElementById('edit-member-id').value;
 
-            if (!confirm('Tem certeza que deseja excluir este membro? Esta acao nao pode ser desfeita.')) {
+            if (!confirm('Tem certeza que deseja inativar este membro? Ele nao podera fazer login, mas os dados serao mantidos.')) {
                 return;
             }
 
-            // Soft delete - just set status to inactive
+            // Soft delete - set status to inactive
             const { error } = await WardApp.db
                 .from('users')
-                .update({ status: 'inactive' })
+                .update({ status: 'inactive', updated_at: new Date().toISOString() })
                 .eq('id', memberId);
 
             if (error) {
-                WardApp.showToast('Erro ao excluir', 'error');
+                WardApp.showToast('Erro ao inativar membro: ' + error.message, 'error');
                 return;
             }
 
             closeModal('edit-member-modal');
-            WardApp.showToast('Membro desativado');
+            WardApp.showToast('Membro inativado com sucesso!');
+            await loadMembers();
+        }
+
+        async function deleteMemberPermanently() {
+            const memberId = document.getElementById('edit-member-id').value;
+            const member = allMembers.find(m => m.id == memberId);
+
+            if (!member) {
+                WardApp.showToast('Membro nao encontrado', 'error');
+                return;
+            }
+
+            const confirmText = `⚠️ ATENÇÃO: Esta acao é PERMANENTE e IRREVERSÍVEL!
+
+Você está prestes a excluir permanentemente:
+• Nome: ${member.full_name || 'Sem nome'}
+• Email: ${member.email || 'Sem email'}
+
+Todos os dados relacionados serão DELETADOS do banco de dados:
+• Cronogramas e progresso
+• Marcos e chamadas
+• Diários e check-ins
+• Comentários e posts
+• Questionários e assessments
+
+Digite "EXCLUIR" para confirmar:`;
+
+            const confirmation = prompt(confirmText);
+
+            if (confirmation !== 'EXCLUIR') {
+                WardApp.showToast('Exclusão cancelada', 'info');
+                return;
+            }
+
+            // Hard delete - remove from database (CASCADE will delete related data)
+            const { error } = await WardApp.db
+                .from('users')
+                .delete()
+                .eq('id', memberId);
+
+            if (error) {
+                console.error('Error deleting member:', error);
+                WardApp.showToast('Erro ao excluir membro: ' + error.message, 'error');
+                return;
+            }
+
+            closeModal('edit-member-modal');
+            WardApp.showToast('Membro excluído permanentemente do banco de dados');
             await loadMembers();
         }
 
