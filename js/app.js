@@ -162,7 +162,7 @@ async function checkAuth() {
 }
 
 // Login function
-async function login(email, password) {
+async function login(cpf, password) {
     showLoading();
     try {
         // Check credentials in Supabase
@@ -178,12 +178,12 @@ async function login(email, password) {
         const { data, error } = await supabaseClient
             .from('users')
             .select('*')
-            .eq('email', email)
+            .eq('cpf', cpf)
             .single();
 
         if (error || !data) {
             hideLoading();
-            showToast('Email ou senha incorretos', 'error');
+            showToast('CPF ou senha incorretos', 'error');
             return false;
         }
 
@@ -191,14 +191,14 @@ async function login(email, password) {
         const hashedPassword = btoa(password + '_ward_salt_2024');
         if (data.password_hash !== password && data.password_hash !== hashedPassword) {
             hideLoading();
-            showToast('Email ou senha incorretos', 'error');
+            showToast('CPF ou senha incorretos', 'error');
             return false;
         }
 
         // Normalize user data (handle full_name vs name field)
         const userData = {
             ...data,
-            name: data.name || data.full_name || data.email.split('@')[0]
+            name: data.name || data.full_name || data.cpf
         };
 
         // Store user data
