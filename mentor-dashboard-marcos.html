@@ -116,11 +116,14 @@
 
         <!-- Main Content -->
         <div class="admin-grid">
-            <!-- Recent Activity -->
+            <!-- Global Activity Feed -->
             <div class="card">
-                <div class="card-header">📊 Atividade Recente</div>
+                <div class="card-header">
+                    <span>🌐 Atividade Global da Plataforma</span>
+                    <button class="btn btn-sm btn-outline" onclick="loadGlobalFeed()">🔄 Atualizar</button>
+                </div>
                 <div class="card-body">
-                    <div id="recent-activity" class="activity-list">
+                    <div id="global-activity-feed" class="activity-feed">
                         <!-- Filled by JS -->
                     </div>
                 </div>
@@ -443,7 +446,7 @@ Cardiovascular	Physiology	62	FALSE
             document.getElementById('research-projects').textContent = projectsRes.data?.length || 0;
             document.getElementById('total-links').textContent = linksRes.data?.length || 0;
 
-            await loadRecentActivity();
+            await loadGlobalFeed();
             await renderStudentsTable();
             await loadPendingCalls();
             await loadScheduleDelays();
@@ -602,61 +605,216 @@ Cardiovascular	Physiology	62	FALSE
             await loadDashboardData();
         }
 
-        async function loadRecentActivity() {
-            const container = document.getElementById('recent-activity');
+        async function loadGlobalFeed() {
+            const container = document.getElementById('global-activity-feed');
+            container.innerHTML = '<p class="text-muted">Carregando atividades...</p>';
 
-            // Get recent check-ins, messages, landmarks
-            const [checkinsRes, messagesRes, landmarksRes] = await Promise.all([
-                WardApp.db.from('daily_checkins').select('*, user:users!daily_checkins_user_id_fkey(name, full_name)').order('created_at', { ascending: false }).limit(5),
-                WardApp.db.from('messages').select('*, user:users!messages_user_id_fkey(name, full_name)').order('created_at', { ascending: false }).limit(5),
-                WardApp.db.from('landmarks').select('*, user:users!landmarks_user_id_fkey(name, full_name)').eq('completed', true).order('completion_date', { ascending: false }).limit(5)
-            ]);
+            try {
+                // Load ALL platform activities
+                const [
+                    linksRes,
+                    postsRes,
+                    commentsRes,
+                    checkinsRes,
+                    studyDiaryRes,
+                    uworldDiaryRes,
+                    delaysRes,
+                    messagesRes,
+                    researchRes,
+                    landmarksRes
+                ] = await Promise.all([
+                    WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('blog_posts').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('blog_comments').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('daily_checkins').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30),
+                    WardApp.db.from('study_diary').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('uworld_diary').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('schedule_delays').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('mentor_messages').select('*, users:user_id(full_name, email), mentor:mentor_id(full_name)').order('created_at', { ascending: false }).limit(20),
+                    WardApp.db.from('research_projects').select('*, users:created_by(full_name, email)').order('updated_at', { ascending: false }).limit(15),
+                    WardApp.db.from('landmarks').select('*, users:user_id(full_name, email)').eq('completed', true).order('completion_date', { ascending: false }).limit(20)
+                ]);
 
-            const activities = [];
+                // Combine all activities into a single timeline
+                const feed = [];
 
-            (checkinsRes.data || []).forEach(c => {
-                activities.push({
-                    date: c.created_at,
-                    icon: '✅',
-                    text: `${c.user?.full_name} fez check-in`,
-                    type: 'checkin'
+                // Links added
+                (linksRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'link',
+                        icon: '🔗',
+                        color: '#2563eb',
+                        user: item.users?.full_name || item.users?.email || 'Sistema',
+                        action: 'adicionou um link',
+                        title: item.title,
+                        detail: item.category ? `Categoria: ${item.category}` : item.url,
+                        date: item.created_at
+                    });
                 });
-            });
 
-            (messagesRes.data || []).forEach(m => {
-                activities.push({
-                    date: m.created_at,
-                    icon: '💬',
-                    text: `Mensagem enviada para ${m.user?.full_name}`,
-                    type: 'message'
+                // Blog posts - FULL CONTENT
+                (postsRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'post',
+                        icon: '📝',
+                        color: '#7c3aed',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'publicou no blog',
+                        title: '',
+                        fullContent: item.content,
+                        detail: `${item.likes || 0} likes, ${item.dislikes || 0} dislikes`,
+                        date: item.created_at
+                    });
                 });
-            });
 
-            (landmarksRes.data || []).forEach(l => {
-                activities.push({
-                    date: l.completion_date,
-                    icon: '📍',
-                    text: `${l.user?.full_name} completou: ${l.title}`,
-                    type: 'landmark'
+                // Comments - FULL CONTENT
+                (commentsRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'comment',
+                        icon: '💬',
+                        color: '#059669',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'comentou em um post',
+                        title: '',
+                        fullContent: item.content,
+                        detail: '',
+                        date: item.created_at
+                    });
                 });
-            });
 
-            activities.sort((a, b) => new Date(b.date) - new Date(a.date));
+                // Check-ins
+                (checkinsRes.data || []).forEach(item => {
+                    const statusMap = { tranquilo: '🟢 Tranquilo', preciso_ajuda: '🟡 Precisa de Ajuda', parado: '🔴 Parado' };
+                    feed.push({
+                        type: 'checkin',
+                        icon: item.status === 'parado' ? '🔴' : item.status === 'preciso_ajuda' ? '🟡' : '🟢',
+                        color: item.status === 'parado' ? '#ef4444' : item.status === 'preciso_ajuda' ? '#f59e0b' : '#10b981',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'fez check-in',
+                        title: statusMap[item.status] || item.status,
+                        detail: item.message || '',
+                        date: item.created_at
+                    });
+                });
 
-            if (activities.length === 0) {
-                container.innerHTML = '<p class="text-muted">Nenhuma atividade recente</p>';
-                return;
-            }
+                // Study diary - FULL CONTENT
+                (studyDiaryRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'study',
+                        icon: '📔',
+                        color: '#f59e0b',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'atualizou diario de estudos',
+                        title: '',
+                        fullContent: item.content || item.entry_text,
+                        detail: '',
+                        date: item.created_at
+                    });
+                });
 
-            container.innerHTML = activities.slice(0, 10).map(a => `
-                <div class="activity-item">
-                    <span class="activity-icon">${a.icon}</span>
-                    <div class="activity-content">
-                        <span class="activity-text">${a.text}</span>
-                        <span class="activity-date">${WardApp.formatDate(a.date)}</span>
+                // UWorld diary - FULL CONTENT
+                (uworldDiaryRes.data || []).forEach(item => {
+                    const acertos = item.questions_correct && item.questions_total
+                        ? Math.round((item.questions_correct / item.questions_total) * 100) + '% acertos'
+                        : '';
+                    feed.push({
+                        type: 'uworld',
+                        icon: '📊',
+                        color: '#6366f1',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'registrou sessao UWorld',
+                        title: `${item.questions_total || 0} questoes ${acertos ? '- ' + acertos : ''}`,
+                        detail: item.system_name ? `System: ${item.system_name}` : '',
+                        fullContent: item.difficulties,
+                        date: item.created_at
+                    });
+                });
+
+                // Schedule delays
+                (delaysRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'delay',
+                        icon: '⚠️',
+                        color: '#ef4444',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'sinalizou atraso no cronograma',
+                        title: item.reason || 'Atraso sinalizado',
+                        detail: `${WardApp.formatDate(item.start_date)} - ${WardApp.formatDate(item.end_date)}`,
+                        date: item.created_at
+                    });
+                });
+
+                // Mentor messages - FULL CONTENT
+                (messagesRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'message',
+                        icon: '✉️',
+                        color: '#0ea5e9',
+                        user: item.mentor?.full_name || 'Mentor',
+                        action: `enviou mensagem para ${item.users?.full_name || 'aluno'}`,
+                        title: '',
+                        fullContent: item.content,
+                        detail: '',
+                        date: item.created_at
+                    });
+                });
+
+                // Research projects updates
+                (researchRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'research',
+                        icon: '🔬',
+                        color: '#8b5cf6',
+                        user: item.users?.full_name || item.users?.email || 'Pesquisador',
+                        action: 'atualizou projeto de pesquisa',
+                        title: item.title,
+                        detail: `Status: ${item.status || 'em andamento'}`,
+                        date: item.updated_at
+                    });
+                });
+
+                // Completed landmarks
+                (landmarksRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'landmark',
+                        icon: '✅',
+                        color: '#10b981',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'completou landmark',
+                        title: item.title,
+                        detail: item.group_name || '',
+                        date: item.completion_date || item.created_at
+                    });
+                });
+
+                // Sort by date descending
+                feed.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                if (feed.length === 0) {
+                    container.innerHTML = '<p class="text-muted">Nenhuma atividade recente</p>';
+                    return;
+                }
+
+                // Render feed (show last 50 items) with FULL CONTENT
+                container.innerHTML = feed.slice(0, 50).map(item => `
+                    <div class="feed-item" style="border-left-color: ${item.color}">
+                        <div class="feed-icon">${item.icon}</div>
+                        <div class="feed-content">
+                            <div class="feed-header">
+                                <strong>${item.user}</strong> ${item.action}
+                            </div>
+                            ${item.title ? `<div class="feed-title">${item.title}</div>` : ''}
+                            ${item.fullContent ? `<div class="feed-full-content">${item.fullContent}</div>` : ''}
+                            ${item.detail ? `<div class="feed-detail">${item.detail}</div>` : ''}
+                            <div class="feed-date">${WardApp.formatDate(item.date)}</div>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `).join('');
+
+            } catch (error) {
+                console.error('Error loading global feed:', error);
+                container.innerHTML = '<p class="text-muted">Erro ao carregar atividades</p>';
+            }
         }
 
         async function renderStudentsTable(students = allStudents) {
@@ -1192,16 +1350,69 @@ Cardiovascular	Physiology	62	FALSE
             }
         }
 
-        .activity-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
+        .activity-feed {
+            max-height: 500px;
+            overflow-y: auto;
         }
 
-        .activity-item {
+        .feed-item {
             display: flex;
             gap: 0.75rem;
-            align-items: flex-start;
+            padding: 0.75rem;
+            border-left: 3px solid #e5e7eb;
+            margin-bottom: 0.5rem;
+            background: var(--gray-50);
+            border-radius: 0 var(--radius-md) var(--radius-md) 0;
+            transition: background 0.2s;
+        }
+
+        .feed-item:hover {
+            background: var(--gray-100);
+        }
+
+        .feed-icon {
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .feed-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .feed-header {
+            font-size: 0.875rem;
+            color: var(--gray-700);
+            margin-bottom: 0.25rem;
+        }
+
+        .feed-title {
+            font-weight: 500;
+            color: var(--gray-900);
+            word-wrap: break-word;
+        }
+
+        .feed-detail {
+            font-size: 0.8rem;
+            color: var(--gray-500);
+            margin-top: 0.25rem;
+        }
+
+        .feed-date {
+            font-size: 0.7rem;
+            color: var(--gray-400);
+            margin-top: 0.25rem;
+        }
+
+        .feed-full-content {
+            background: #f9fafb;
+            padding: 0.75rem;
+            border-radius: 6px;
+            margin-top: 0.5rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 300px;
+            overflow-y: auto;
         }
 
         .activity-icon {
