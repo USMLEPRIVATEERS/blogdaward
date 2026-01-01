@@ -713,23 +713,38 @@
             return `${day} ${month} ${year}`;
         }
 
+        // Generate consistent color for any course name using hash
+        function getCourseColor(courseName) {
+            // Predefined nice color palettes (expanded for variety)
+            const colorPalettes = [
+                { bg: '#dbeafe', color: '#1e40af', icon: '📘' }, // Blue
+                { bg: '#f3e8ff', color: '#7c3aed', icon: '💊' }, // Purple
+                { bg: '#d1fae5', color: '#059669', icon: '🦠' }, // Green
+                { bg: '#fee2e2', color: '#dc2626', icon: '🩺' }, // Red
+                { bg: '#fed7aa', color: '#c2410c', icon: '🔬' }, // Orange
+                { bg: '#fef3c7', color: '#92400e', icon: '📖' }, // Yellow
+                { bg: '#ccfbf1', color: '#0f766e', icon: '❓' }, // Teal
+                { bg: '#fce7f3', color: '#be185d', icon: '🎯' }, // Pink
+                { bg: '#e0e7ff', color: '#4338ca', icon: '🧪' }, // Indigo
+                { bg: '#fecaca', color: '#991b1b', icon: '🔴' }, // Dark Red
+                { bg: '#bfdbfe', color: '#1e3a8a', icon: '🔵' }, // Dark Blue
+                { bg: '#d1d5db', color: '#1f2937', icon: '⚫' }  // Gray
+            ];
+
+            // Simple hash function to get consistent index for same course name
+            let hash = 0;
+            for (let i = 0; i < courseName.length; i++) {
+                hash = ((hash << 5) - hash) + courseName.charCodeAt(i);
+                hash = hash & hash; // Convert to 32bit integer
+            }
+
+            const index = Math.abs(hash) % colorPalettes.length;
+            return colorPalettes[index];
+        }
+
         // Parse and format recommended lessons by course with distinct colors
         function formatRecommendedLessons(lessonsString) {
             if (!lessonsString || !lessonsString.trim()) return '';
-
-            // Define colors for each course
-            const courseColors = {
-                'B&B': { bg: '#dbeafe', color: '#1e40af', icon: '📘' },
-                'Boards and Beyond': { bg: '#dbeafe', color: '#1e40af', icon: '📘' },
-                'Sketchy Pharm': { bg: '#f3e8ff', color: '#7c3aed', icon: '💊' },
-                'Sketchy Micro': { bg: '#d1fae5', color: '#059669', icon: '🦠' },
-                'Sketchy Path': { bg: '#fee2e2', color: '#dc2626', icon: '🩺' },
-                'Pathoma': { bg: '#fed7aa', color: '#c2410c', icon: '🔬' },
-                'First Aid': { bg: '#fef3c7', color: '#92400e', icon: '📖' },
-                'NBME': { bg: '#e5e7eb', color: '#374151', icon: '📝' },
-                'UWorld': { bg: '#ccfbf1', color: '#0f766e', icon: '❓' },
-                'Amboss': { bg: '#fce7f3', color: '#be185d', icon: '🎯' }
-            };
 
             // Split by pipe (|) to separate different courses
             const courseSections = lessonsString.split('|').map(s => s.trim()).filter(s => s);
@@ -745,8 +760,8 @@
                 const courseName = section.substring(0, colonIndex).trim();
                 const lessons = section.substring(colonIndex + 1).trim();
 
-                // Get color scheme for this course
-                const colorScheme = courseColors[courseName] || { bg: '#f3f4f6', color: '#4b5563', icon: '🎓' };
+                // Get color scheme for this course (dynamically generated based on name)
+                const colorScheme = getCourseColor(courseName);
 
                 // Split lessons by bullet points
                 const lessonList = lessons.split('•').map(l => l.trim()).filter(l => l);
