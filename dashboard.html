@@ -400,14 +400,9 @@
             // Load dashboard data
             loadDashboard();
 
-            // Check if should show check-in
-            const lastCheckIn = localStorage.getItem('last_checkin_date');
-            const today = new Date().toISOString().split('T')[0];
-
-            if (userData.first_login_completed && lastCheckIn !== today) {
-                setTimeout(() => {
-                    openModal('checkin-modal');
-                }, 500);
+            // Check if should show check-in (only for actual students, not mentors viewing as students)
+            if (userData.role === 'aluno' && !viewingAsStudent && userData.first_login_completed) {
+                await checkAndShowCheckIn();
             }
 
             // Load toggle states
@@ -666,8 +661,27 @@
         });
 
         // Check-in functions
+        async function checkAndShowCheckIn() {
+            const today = new Date().toISOString().split('T')[0];
+
+            // Check if user already submitted check-in today
+            const { data: existingCheckIn } = await WardApp.db
+                .from('daily_checkins')
+                .select('id')
+                .eq('user_id', targetUserId)
+                .eq('date', today)
+                .maybeSingle();
+
+            // If no check-in for today, show the modal
+            if (!existingCheckIn) {
+                setTimeout(() => {
+                    openModal('checkin-modal');
+                }, 500);
+            }
+        }
+
         function skipCheckIn() {
-            localStorage.setItem('last_checkin_date', new Date().toISOString().split('T')[0]);
+            // Just close the modal - don't need localStorage anymore since we check the database
             closeModal('checkin-modal');
         }
 
@@ -702,7 +716,6 @@
                 });
 
             if (!error) {
-                localStorage.setItem('last_checkin_date', new Date().toISOString().split('T')[0]);
                 closeModal('checkin-modal');
                 WardApp.showToast('Check-in registrado!');
 
