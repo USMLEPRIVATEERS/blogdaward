@@ -286,7 +286,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="skipCheckIn()">Pular</button>
-                <button class="btn btn-primary" onclick="submitCheckIn()">Enviar</button>
+                <button id="checkin-submit-btn" class="btn btn-primary" onclick="submitCheckIn()">Enviar</button>
             </div>
         </div>
     </div>
@@ -686,6 +686,9 @@
         }
 
         async function submitCheckIn() {
+            const submitBtn = document.getElementById('checkin-submit-btn');
+            const originalText = submitBtn.innerHTML;
+
             const message = document.getElementById('checkin-message').value;
             const status = document.querySelector('input[name="checkin_status"]:checked')?.value;
 
@@ -701,38 +704,53 @@
                 return;
             }
 
+            // Enable loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '⏳ Enviando...';
+
             const today = new Date().toISOString().split('T')[0];
 
-            // Use upsert to update if already exists for today
-            const { error } = await WardApp.db
-                .from('daily_checkins')
-                .upsert({
-                    user_id: targetUserId,
-                    status: status || 'custom',
-                    message: message,
-                    date: today,
-                    uworld_questions_done: uworldQuestions,
-                    uworld_correct_answers: uworldCorrect,
-                    anki_cards_today: ankiToday,
-                    anki_avg_cards: ankiAvg,
-                    anki_current_streak: ankiStreak
-                }, {
-                    onConflict: 'user_id,date',
-                    ignoreDuplicates: false
-                });
+            try {
+                // Use upsert to update if already exists for today
+                const { error } = await WardApp.db
+                    .from('daily_checkins')
+                    .upsert({
+                        user_id: targetUserId,
+                        status: status || 'custom',
+                        message: message,
+                        date: today,
+                        uworld_questions_done: uworldQuestions,
+                        uworld_correct_answers: uworldCorrect,
+                        anki_cards_today: ankiToday,
+                        anki_avg_cards: ankiAvg,
+                        anki_current_streak: ankiStreak
+                    }, {
+                        onConflict: 'user_id,date',
+                        ignoreDuplicates: false
+                    });
 
-            if (!error) {
-                closeModal('checkin-modal');
-                WardApp.showToast('✅ Check-in salvo com sucesso!');
+                if (!error) {
+                    closeModal('checkin-modal');
+                    WardApp.showToast('✅ Check-in salvo com sucesso!');
 
-                // Clear form
-                document.getElementById('checkin-message').value = '';
-                document.getElementById('checkin-uworld-questions').value = '';
-                document.getElementById('checkin-uworld-correct').value = '';
-                document.getElementById('checkin-anki-today').value = '';
-                document.getElementById('checkin-anki-avg').value = '';
-                document.getElementById('checkin-anki-streak').value = '';
-                document.querySelectorAll('input[name="checkin_status"]').forEach(r => r.checked = false);
+                    // Clear form
+                    document.getElementById('checkin-message').value = '';
+                    document.getElementById('checkin-uworld-questions').value = '';
+                    document.getElementById('checkin-uworld-correct').value = '';
+                    document.getElementById('checkin-anki-today').value = '';
+                    document.getElementById('checkin-anki-avg').value = '';
+                    document.getElementById('checkin-anki-streak').value = '';
+                    document.querySelectorAll('input[name="checkin_status"]').forEach(r => r.checked = false);
+                } else {
+                    WardApp.showToast('Erro ao salvar check-in', 'error');
+                }
+            } catch (err) {
+                console.error('Error submitting check-in:', err);
+                WardApp.showToast('Erro ao salvar check-in', 'error');
+            } finally {
+                // Restore button state
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
             }
         }
 
