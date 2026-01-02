@@ -528,10 +528,66 @@ async function finishTest() {
         })
         .eq('id', testId);
 
+    // Check if this is a retake and show comparison
+    const { data: currentTest } = await window.supabase
+        .from('flash_tests')
+        .select('retake_of_test_id')
+        .eq('id', testId)
+        .single();
+
+    let comparisonHTML = '';
+    if (currentTest && currentTest.retake_of_test_id) {
+        // Get original test results
+        const { data: originalTest } = await window.supabase
+            .from('flash_tests')
+            .select('correct_answers, total_questions, completed_at')
+            .eq('id', currentTest.retake_of_test_id)
+            .single();
+
+        if (originalTest) {
+            const originalPercentage = Math.round((originalTest.correct_answers / originalTest.total_questions) * 100);
+            const difference = percentage - originalPercentage;
+            const improvement = difference > 0 ? 'progresso' : difference < 0 ? 'regresso' : 'igual';
+            const arrow = difference > 0 ? '📈' : difference < 0 ? '📉' : '➡️';
+            const color = difference > 0 ? '#22c55e' : difference < 0 ? '#ef4444' : '#6b7280';
+
+            comparisonHTML = `
+                <div style="margin-top: 2rem; padding: 1.5rem; background: #f9fafb; border-radius: 12px; border: 2px solid ${color};">
+                    <h3 style="margin: 0 0 1rem 0; color: ${color}; display: flex; align-items: center; gap: 0.5rem;">
+                        ${arrow} Comparação com Tentativa Anterior
+                    </h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div>
+                            <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">Tentativa Anterior</div>
+                            <div style="font-size: 2rem; font-weight: 700; color: #6b7280;">${originalPercentage}%</div>
+                            <div style="font-size: 0.85rem; color: #999;">${originalTest.correct_answers}/${originalTest.total_questions} corretas</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">Esta Tentativa</div>
+                            <div style="font-size: 2rem; font-weight: 700; color: ${color};">${percentage}%</div>
+                            <div style="font-size: 0.85rem; color: #999;">${correct}/${total} corretas</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 1rem; padding: 1rem; background: white; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 1.2rem; font-weight: 600; color: ${color};">
+                            ${difference > 0 ? '+' : ''}${difference}% de ${improvement}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
     // Show results
     document.getElementById('result-correct').textContent = correct;
     document.getElementById('result-incorrect').textContent = incorrect;
     document.getElementById('result-percentage').textContent = `${percentage}%`;
+
+    // Add comparison if available
+    const comparisonContainer = document.getElementById('comparison-container');
+    if (comparisonContainer) {
+        comparisonContainer.innerHTML = comparisonHTML;
+    }
 
     document.getElementById('results-overlay').classList.add('visible');
 }

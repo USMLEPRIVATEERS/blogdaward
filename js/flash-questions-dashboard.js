@@ -194,10 +194,10 @@ async function loadRecentTests() {
     }
 }
 
-// Retake test (create new test with same filters)
+// Retake test (create new test with SAME questions for comparison)
 async function retakeTest(testId) {
     try {
-        const { data: test, error } = await window.supabase
+        const { data: originalTest, error } = await window.supabase
             .from('flash_tests')
             .select('*')
             .eq('id', testId)
@@ -205,10 +205,30 @@ async function retakeTest(testId) {
 
         if (error) throw error;
 
-        // Store filters in sessionStorage and redirect to create page
-        sessionStorage.setItem('flash_test_filters', JSON.stringify(test.filters));
-        sessionStorage.setItem('flash_test_count', test.total_questions);
-        window.location.href = 'flash-questions-create.html';
+        const user = JSON.parse(localStorage.getItem('ward_user'));
+        if (!user) {
+            window.location.href = 'index.html';
+            return;
+        }
+
+        // Create new test with SAME question_ids
+        const { data: newTest, error: createError } = await window.supabase
+            .from('flash_tests')
+            .insert({
+                user_id: user.id,
+                question_ids: originalTest.question_ids, // Same questions!
+                total_questions: originalTest.total_questions,
+                filters: originalTest.filters,
+                status: 'in_progress',
+                retake_of_test_id: testId // Track which test this is retaking
+            })
+            .select()
+            .single();
+
+        if (createError) throw createError;
+
+        // Redirect to the new test
+        window.location.href = `flash-questions-test.html?test_id=${newTest.id}`;
 
     } catch (error) {
         console.error('Error retaking test:', error);
