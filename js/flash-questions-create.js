@@ -55,26 +55,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // Check authentication
 async function checkAuth() {
-    try {
-        const { data: { session }, error } = await window.supabase.auth.getSession();
-
-        if (error) {
-            console.error('Auth error:', error);
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) {
+        if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/') {
             window.location.href = 'index.html';
-            return;
         }
-
-        if (!session) {
-            console.log('No session found, redirecting to login');
-            window.location.href = 'index.html';
-            return;
-        }
-
-        console.log('Session found, user authenticated');
-    } catch (error) {
-        console.error('Check auth error:', error);
-        window.location.href = 'index.html';
+        return null;
     }
+    return user;
 }
 
 // Load step counts
@@ -425,8 +413,8 @@ async function startFlashTest() {
         return;
     }
 
-    const { data: { session } } = await window.supabase.auth.getSession();
-    if (!session) {
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) {
         window.location.href = 'index.html';
         return;
     }
@@ -440,7 +428,7 @@ async function startFlashTest() {
         const { data: test, error } = await window.supabase
             .from('flash_tests')
             .insert({
-                user_id: session.user.id,
+                user_id: user.id,
                 question_ids: selectedQuestionIds,
                 total_questions: numQuestions,
                 filters: {

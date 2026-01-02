@@ -54,26 +54,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // Check authentication
 async function checkAuth() {
-    try {
-        const { data: { session }, error } = await window.supabase.auth.getSession();
-
-        if (error) {
-            console.error('Auth error:', error);
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) {
+        if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/') {
             window.location.href = 'index.html';
-            return;
         }
-
-        if (!session) {
-            console.log('No session found, redirecting to login');
-            window.location.href = 'index.html';
-            return;
-        }
-
-        console.log('Session found, user authenticated');
-    } catch (error) {
-        console.error('Check auth error:', error);
-        window.location.href = 'index.html';
+        return null;
     }
+    return user;
 }
 
 // Load test data
@@ -127,15 +115,15 @@ async function loadTest() {
 
 // Load existing responses
 async function loadExistingResponses() {
-    const { data: { session } } = await window.supabase.auth.getSession();
-    if (!session) return;
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) return;
 
     try {
         const { data: responses, error } = await window.supabase
             .from('flash_question_responses')
             .select('*')
             .eq('test_id', testId)
-            .eq('user_id', session.user.id);
+            .eq('user_id', user.id);
 
         if (error) throw error;
 
@@ -312,14 +300,14 @@ async function selectAnswer(letter) {
 
 // Save response to database
 async function saveResponse(questionId, selectedAnswer, isCorrect) {
-    const { data: { session } } = await window.supabase.auth.getSession();
-    if (!session) return;
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) return;
 
     try {
         const { error } = await window.supabase
             .from('flash_question_responses')
             .insert({
-                user_id: session.user.id,
+                user_id: user.id,
                 question_id: questionId,
                 selected_answer: selectedAnswer,
                 is_correct: isCorrect,
@@ -442,8 +430,8 @@ async function addComment() {
         return;
     }
 
-    const { data: { session } } = await window.supabase.auth.getSession();
-    if (!session) return;
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) return;
 
     const question = questions[currentQuestionIndex];
 
@@ -452,7 +440,7 @@ async function addComment() {
             .from('flash_question_comments')
             .insert({
                 question_id: question.question_id,
-                user_id: session.user.id,
+                user_id: user.id,
                 comment: comment
             });
 

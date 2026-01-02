@@ -45,51 +45,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // Check authentication
 async function checkAuth() {
-    try {
-        const { data: { session }, error } = await window.supabase.auth.getSession();
-
-        if (error) {
-            console.error('Auth error:', error);
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) {
+        if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/') {
             window.location.href = 'index.html';
-            return;
         }
-
-        if (!session) {
-            console.log('No session found, redirecting to login');
-            window.location.href = 'index.html';
-            return;
-        }
-
-        console.log('Session found, user authenticated');
-    } catch (error) {
-        console.error('Check auth error:', error);
-        window.location.href = 'index.html';
+        return null;
     }
+    return user;
 }
 
 // Load user name
 async function loadUserName() {
-    const { data: { session } } = await window.supabase.auth.getSession();
-    if (!session) return;
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) return;
 
-    const { data: profile } = await window.supabase
-        .from('students')
-        .select('name')
-        .eq('user_id', session.user.id)
-        .single();
-
-    if (profile && profile.name) {
-        const nameElement = document.getElementById('user-name');
-        if (nameElement) {
-            nameElement.textContent = profile.name.split(' ')[0];
-        }
+    const nameElement = document.getElementById('user-name');
+    if (nameElement) {
+        const firstName = (user.name || user.full_name || user.cpf).split(' ')[0];
+        nameElement.textContent = firstName;
     }
 }
 
 // Load statistics
 async function loadStatistics() {
-    const { data: { session } } = await window.supabase.auth.getSession();
-    if (!session) return;
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) return;
 
     try {
         // Total questions available
@@ -103,7 +84,7 @@ async function loadStatistics() {
         const { count: questionsAnswered } = await window.supabase
             .from('flash_question_responses')
             .select('*', { count: 'exact', head: true })
-            .eq('user_id', session.user.id);
+            .eq('user_id', user.id);
 
         document.getElementById('questions-answered').textContent = questionsAnswered || 0;
 
@@ -111,7 +92,7 @@ async function loadStatistics() {
         const { data: responses } = await window.supabase
             .from('flash_question_responses')
             .select('is_correct')
-            .eq('user_id', session.user.id);
+            .eq('user_id', user.id);
 
         if (responses && responses.length > 0) {
             const correctCount = responses.filter(r => r.is_correct).length;
@@ -125,7 +106,7 @@ async function loadStatistics() {
         const { count: testsCompleted } = await window.supabase
             .from('flash_tests')
             .select('*', { count: 'exact', head: true })
-            .eq('user_id', session.user.id)
+            .eq('user_id', user.id)
             .eq('status', 'completed');
 
         document.getElementById('tests-completed').textContent = testsCompleted || 0;
@@ -138,8 +119,8 @@ async function loadStatistics() {
 
 // Load recent tests
 async function loadRecentTests() {
-    const { data: { session } } = await window.supabase.auth.getSession();
-    if (!session) return;
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) return;
 
     const listContainer = document.getElementById('recent-tests-list');
 
@@ -147,7 +128,7 @@ async function loadRecentTests() {
         const { data: tests, error } = await window.supabase
             .from('flash_tests')
             .select('*')
-            .eq('user_id', session.user.id)
+            .eq('user_id', user.id)
             .order('started_at', { ascending: false })
             .limit(5);
 
