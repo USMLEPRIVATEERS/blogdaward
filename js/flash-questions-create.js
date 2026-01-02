@@ -2,6 +2,7 @@
 // FLASH QUESTIONS CREATE TEST
 // ============================================
 
+let selectedStep = 1; // Default to Step 1
 let selectedSubjects = new Set();
 let selectedSystems = new Set();
 let selectedCategories = new Set();
@@ -11,6 +12,7 @@ let subjectSystemMap = {}; // Maps subjects to their systems/categories
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
     await checkAuth();
+    await loadStepCounts();
     await loadSubjects();
     updateAvailableCount();
 
@@ -32,15 +34,70 @@ async function checkAuth() {
     }
 }
 
+// Load step counts
+async function loadStepCounts() {
+    try {
+        for (let step = 1; step <= 3; step++) {
+            const { count, error } = await window.supabase
+                .from('flash_questions')
+                .select('*', { count: 'exact', head: true })
+                .eq('step', step);
+
+            if (error) throw error;
+
+            const countElement = document.getElementById(`step-${step}-count`);
+            if (countElement) {
+                countElement.textContent = `${count || 0} questões`;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading step counts:', error);
+    }
+}
+
+// Select step
+function selectStep(step) {
+    selectedStep = step;
+
+    // Update radio button
+    const radio = document.getElementById(`step-${step}`);
+    if (radio) {
+        radio.checked = true;
+    }
+
+    // Update visual selection
+    for (let i = 1; i <= 3; i++) {
+        const radio = document.getElementById(`step-${i}`);
+        const item = radio?.closest('.subject-item');
+        if (item) {
+            if (i === step) {
+                item.classList.add('selected');
+            } else {
+                item.classList.remove('selected');
+            }
+        }
+    }
+
+    // Clear selections and reload
+    selectedSubjects.clear();
+    selectedSystems.clear();
+    selectedCategories.clear();
+
+    // Reload subjects for selected step
+    loadSubjects();
+    updateAvailableCount();
+}
+
 // Load subjects from database
 async function loadSubjects() {
     const grid = document.getElementById('subjects-grid');
 
     try {
-        // Get all questions and parse tags
+        // Get all questions for selected step and parse tags
         const { data: questions, error } = await window.supabase
             .from('flash_questions')
-            .select('question_id, question_tags');
+            .select('question_id, question_tags')
+            .eq('step', selectedStep);
 
         if (error) throw error;
 
@@ -259,10 +316,11 @@ function toggleCategory(category) {
 // Update available questions count
 async function updateAvailableCount() {
     try {
-        // Build filter based on selections
+        // Build filter based on selections including step
         let query = window.supabase
             .from('flash_questions')
-            .select('question_id, question_tags');
+            .select('question_id, question_tags')
+            .eq('step', selectedStep);
 
         const { data: questions, error } = await query;
         if (error) throw error;
@@ -343,6 +401,7 @@ async function startFlashTest() {
                 question_ids: selectedQuestionIds,
                 total_questions: numQuestions,
                 filters: {
+                    step: selectedStep,
                     subjects: Array.from(selectedSubjects),
                     categories: Array.from(selectedCategories)
                 },

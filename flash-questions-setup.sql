@@ -9,6 +9,7 @@
 CREATE TABLE IF NOT EXISTS flash_questions (
     id BIGSERIAL PRIMARY KEY,
     question_id TEXT NOT NULL UNIQUE,
+    step INTEGER NOT NULL CHECK (step IN (1, 2, 3)), -- 1 = Step 1, 2 = Step 2 CK, 3 = Step 3
     question_tags TEXT NOT NULL, -- Format: Subject::System::Category
     question TEXT NOT NULL,
     choices JSONB NOT NULL, -- Array de alternativas
@@ -78,6 +79,7 @@ CREATE TABLE IF NOT EXISTS flash_question_stats (
 -- INDEXES PARA PERFORMANCE
 -- ============================================
 
+CREATE INDEX IF NOT EXISTS idx_flash_questions_step ON flash_questions(step);
 CREATE INDEX IF NOT EXISTS idx_flash_questions_tags ON flash_questions USING gin(to_tsvector('portuguese', question_tags));
 CREATE INDEX IF NOT EXISTS idx_flash_question_responses_user ON flash_question_responses(user_id);
 CREATE INDEX IF NOT EXISTS idx_flash_question_responses_question ON flash_question_responses(question_id);
@@ -231,10 +233,11 @@ CREATE TRIGGER trigger_flash_comments_updated_at
 -- ============================================
 
 -- Inserir as 3 questões de exemplo fornecidas
-INSERT INTO flash_questions (question_id, question_tags, question, choices, correct_answer, explanation)
+INSERT INTO flash_questions (question_id, step, question_tags, question, choices, correct_answer, explanation)
 VALUES
 (
     '1',
+    1, -- Step 1
     'Physiology::Cardiovascular_System::Normal_structure_and_function',
     'A patient is treated with amlodipine for hypertension. Which point on the cardiac pressure-volume loop is most affected by this calcium channel blocker?',
     '["A. End-diastolic volume", "B. End-systolic volume", "C. Stroke volume", "D. Afterload", "E. Preload"]'::jsonb,
@@ -243,6 +246,7 @@ VALUES
 ),
 (
     '2',
+    1, -- Step 1
     'Pathology::Cardiovascular_System::Coronary_heart_disease',
     'What is the most effective intervention to reduce myocardial infarction risk in a patient with hypertension, diabetes, and smoking?',
     '["A. Alcohol abstinence", "B. Blood pressure control", "C. Exercise", "D. Smoking cessation", "E. Glucose control"]'::jsonb,
@@ -251,6 +255,7 @@ VALUES
 ),
 (
     '3',
+    1, -- Step 1
     'Pathology::Cardiovascular_System::Myopericardial_diseases',
     'A 34-year-old alcoholic presents with dyspnea and ankle swelling. Autopsy shows enlarged ventricles with mild hypertrophy and interstitial fibrosis. What is the diagnosis?',
     '["A. Cor pulmonale", "B. Dilated cardiomyopathy", "C. Hypertrophic cardiomyopathy", "D. Ischemic heart disease", "E. Restrictive cardiomyopathy"]'::jsonb,
