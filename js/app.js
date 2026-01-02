@@ -273,13 +273,22 @@ async function saveQuestionnaireProgress(step, data) {
     const user = await checkAuth();
     if (!user) return false;
 
+    // Determine which user's data to save (support view_as mode for mentors)
+    let targetUserId = user.id;
+
+    // Check if mentor is viewing as student
+    const viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+    if (viewAsData && user.role && user.role.startsWith('mentor')) {
+        targetUserId = parseInt(viewAsData.id || viewAsData.studentId);
+    }
+
     try {
         // Use questionnaire_data table with step number and data as JSONB
         // Check if record exists for this user and step
         const { data: existing, error: checkError } = await supabaseClient
             .from('questionnaire_data')
             .select('id')
-            .eq('user_id', user.id)
+            .eq('user_id', targetUserId)
             .eq('step', step)
             .maybeSingle();
 
@@ -292,7 +301,7 @@ async function saveQuestionnaireProgress(step, data) {
             const { error } = await supabaseClient
                 .from('questionnaire_data')
                 .update({ data: data, updated_at: new Date().toISOString() })
-                .eq('user_id', user.id)
+                .eq('user_id', targetUserId)
                 .eq('step', step);
 
             if (error) throw error;
@@ -301,7 +310,7 @@ async function saveQuestionnaireProgress(step, data) {
             const { error } = await supabaseClient
                 .from('questionnaire_data')
                 .insert({
-                    user_id: user.id,
+                    user_id: targetUserId,
                     step: step,
                     data: data
                 });
@@ -310,19 +319,21 @@ async function saveQuestionnaireProgress(step, data) {
         }
 
         // Update questionnaire progress on user record
-        await updateQuestionnaireProgress(user.id, step);
+        await updateQuestionnaireProgress(targetUserId, step);
 
         // Also update full_name on users table if step 1
         if (step === 1 && data.full_name) {
             await supabaseClient
                 .from('users')
                 .update({ full_name: data.full_name })
-                .eq('id', user.id);
+                .eq('id', targetUserId);
 
-            // Update local storage
-            const storedUser = JSON.parse(localStorage.getItem('ward_user') || '{}');
-            storedUser.full_name = data.full_name;
-            localStorage.setItem('ward_user', JSON.stringify(storedUser));
+            // Only update local storage if saving for current user (not when viewing as)
+            if (targetUserId === user.id) {
+                const storedUser = JSON.parse(localStorage.getItem('ward_user') || '{}');
+                storedUser.full_name = data.full_name;
+                localStorage.setItem('ward_user', JSON.stringify(storedUser));
+            }
         }
 
         showToast('Dados salvos com sucesso!', 'success');
@@ -403,11 +414,20 @@ async function loadQuestionnaireData(step) {
     const user = await checkAuth();
     if (!user) return null;
 
+    // Determine which user's data to load (support view_as mode for mentors)
+    let targetUserId = user.id;
+
+    // Check if mentor is viewing as student
+    const viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+    if (viewAsData && user.role && user.role.startsWith('mentor')) {
+        targetUserId = parseInt(viewAsData.id || viewAsData.studentId);
+    }
+
     try {
         const { data, error } = await supabaseClient
             .from('questionnaire_data')
             .select('data')
-            .eq('user_id', user.id)
+            .eq('user_id', targetUserId)
             .eq('step', step)
             .maybeSingle();
 
