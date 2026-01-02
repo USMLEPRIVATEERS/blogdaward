@@ -896,10 +896,10 @@
                     WardApp.db.from('schedules').select('*, users:user_id(full_name, email)').order('updated_at', { ascending: false }).limit(30),
                     // Schedules - completed
                     WardApp.db.from('schedules').select('*, users:user_id(full_name, email)').eq('completed', true).order('completion_date', { ascending: false }).limit(30),
-                    // Questionnaires completed
-                    WardApp.db.from('users').select('id, full_name, email, questionnaire_completed, updated_at').eq('questionnaire_completed', true).order('updated_at', { ascending: false }).limit(20),
+                    // Questionnaires completed (users who finished all 11 steps)
+                    WardApp.db.from('users').select('id, full_name, email, questionnaire_step, updated_at').gte('questionnaire_step', 11).order('updated_at', { ascending: false }).limit(20),
                     // Flash tests - created/started
-                    WardApp.db.from('flash_tests').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30),
+                    WardApp.db.from('flash_tests').select('*, users:user_id(full_name, email)').order('started_at', { ascending: false }).limit(30),
                     // Flash tests - completed
                     WardApp.db.from('flash_tests').select('*, users:user_id(full_name, email)').eq('status', 'completed').order('completed_at', { ascending: false }).limit(30),
                     // Flash question comments
@@ -1286,7 +1286,7 @@
                             action: 'iniciou um Flash Test',
                             title: `${item.total_questions} questões`,
                             detail: item.filters ? `Filtros: Step ${item.filters.step || 'N/A'}` : '',
-                            date: item.created_at
+                            date: item.started_at
                         });
                     }
                 });
@@ -1296,8 +1296,8 @@
                     const percentage = item.total_questions > 0
                         ? Math.round((item.correct_answers / item.total_questions) * 100)
                         : 0;
-                    const timeSpent = item.time_spent
-                        ? `${Math.round(item.time_spent / 60)} min`
+                    const timeSpent = item.total_time_seconds
+                        ? `${Math.round(item.total_time_seconds / 60)} min`
                         : 'tempo não registrado';
 
                     feed.push({
