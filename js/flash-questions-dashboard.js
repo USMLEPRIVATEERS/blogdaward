@@ -2,21 +2,34 @@
 // FLASH QUESTIONS DASHBOARD
 // ============================================
 
+// Wait for Supabase to be ready
+async function waitForSupabase() {
+    let attempts = 0;
+    while (!window.supabase && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+    }
+    if (!window.supabase) {
+        throw new Error('Supabase não foi carregado');
+    }
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
-    await checkAuth();
-    await loadUserName();
-    await loadStatistics();
-    await loadRecentTests();
+    try {
+        await waitForSupabase();
+        await checkAuth();
+        await loadUserName();
+        await loadStatistics();
+        await loadRecentTests();
+    } catch (error) {
+        console.error('Error initializing:', error);
+        showToast('Erro ao carregar dashboard', 'error');
+    }
 });
 
 // Check authentication
 async function checkAuth() {
-    if (!window.supabase) {
-        showToast('Erro ao conectar com o servidor', 'error');
-        return;
-    }
-
     const { data: { session } } = await window.supabase.auth.getSession();
     if (!session) {
         window.location.href = 'index.html';

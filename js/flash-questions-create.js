@@ -9,24 +9,37 @@ let selectedCategories = new Set();
 let availableQuestions = [];
 let subjectSystemMap = {}; // Maps subjects to their systems/categories
 
+// Wait for Supabase to be ready
+async function waitForSupabase() {
+    let attempts = 0;
+    while (!window.supabase && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+    }
+    if (!window.supabase) {
+        throw new Error('Supabase não foi carregado');
+    }
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
-    await checkAuth();
-    await loadStepCounts();
-    await loadSubjects();
-    updateAvailableCount();
+    try {
+        await waitForSupabase();
+        await checkAuth();
+        await loadStepCounts();
+        await loadSubjects();
+        updateAvailableCount();
 
-    // Listen for input changes
-    document.getElementById('num-questions').addEventListener('input', updateAvailableCount);
+        // Listen for input changes
+        document.getElementById('num-questions').addEventListener('input', updateAvailableCount);
+    } catch (error) {
+        console.error('Error initializing:', error);
+        showToast('Erro ao carregar página', 'error');
+    }
 });
 
 // Check authentication
 async function checkAuth() {
-    if (!window.supabase) {
-        showToast('Erro ao conectar com o servidor', 'error');
-        return;
-    }
-
     const { data: { session } } = await window.supabase.auth.getSession();
     if (!session) {
         window.location.href = 'index.html';

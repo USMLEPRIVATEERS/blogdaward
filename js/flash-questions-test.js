@@ -10,22 +10,35 @@ let startTime = null;
 let timerInterval = null;
 let testId = null;
 
+// Wait for Supabase to be ready
+async function waitForSupabase() {
+    let attempts = 0;
+    while (!window.supabase && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+    }
+    if (!window.supabase) {
+        throw new Error('Supabase não foi carregado');
+    }
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
-    await checkAuth();
-    await loadTest();
-    startTimer();
-    renderQuestion();
-    renderNavigation();
+    try {
+        await waitForSupabase();
+        await checkAuth();
+        await loadTest();
+        startTimer();
+        renderQuestion();
+        renderNavigation();
+    } catch (error) {
+        console.error('Error initializing:', error);
+        showToast('Erro ao carregar teste', 'error');
+    }
 });
 
 // Check authentication
 async function checkAuth() {
-    if (!window.supabase) {
-        showToast('Erro ao conectar com o servidor', 'error');
-        return;
-    }
-
     const { data: { session } } = await window.supabase.auth.getSession();
     if (!session) {
         window.location.href = 'index.html';
