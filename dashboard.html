@@ -720,10 +720,6 @@
         async function checkAndShowCheckIn() {
             const today = new Date().toISOString().split('T')[0];
 
-            console.log('[CHECK-IN DEBUG] Verificando check-in para hoje...');
-            console.log('[CHECK-IN DEBUG] targetUserId:', targetUserId);
-            console.log('[CHECK-IN DEBUG] Data de hoje:', today);
-
             try {
                 // Simple query: check if 'filled' column is NULL
                 const { data: checkIn, error } = await WardApp.db
@@ -734,41 +730,31 @@
                     .maybeSingle();
 
                 if (error) {
-                    console.error('[CHECK-IN DEBUG] ❌ Erro ao buscar check-in:', error);
-                    // If error, don't show modal (conservative approach)
+                    console.error('[CHECK-IN] Erro ao buscar check-in:', error);
                     return;
                 }
-
-                console.log('[CHECK-IN DEBUG] Check-in encontrado:', checkIn);
-                console.log('[CHECK-IN DEBUG] filled:', checkIn?.filled);
 
                 // SIMPLE LOGIC:
                 // - No record = cron hasn't run yet, don't show
                 // - filled = NULL → show modal (not filled yet)
                 // - filled = 0 or 1 → don't show (already interacted)
                 if (!checkIn) {
-                    console.log('[CHECK-IN DEBUG] ⚠️ Nenhum registro para hoje - cron ainda não rodou');
                     return;
                 }
 
                 if (checkIn.filled === null) {
-                    console.log('[CHECK-IN DEBUG] ✅ filled = NULL - Mostrando modal');
                     setTimeout(() => {
                         openModal('checkin-modal');
                     }, 500);
-                } else {
-                    console.log('[CHECK-IN DEBUG] ❌ filled =', checkIn.filled, '- Modal já foi preenchido/pulado hoje');
                 }
 
             } catch (err) {
-                console.error('[CHECK-IN DEBUG] ❌ Exceção ao verificar check-in:', err);
-                // Don't show modal if there's an error
+                console.error('[CHECK-IN] Exceção ao verificar check-in:', err);
             }
         }
 
         async function skipCheckIn() {
             const today = new Date().toISOString().split('T')[0];
-            console.log('[CHECK-IN DEBUG] Pulando check-in, salvando filled=0...');
 
             // UPSERT: creates if doesn't exist, updates if exists
             const { error } = await WardApp.db
@@ -785,9 +771,7 @@
                 });
 
             if (error) {
-                console.error('[CHECK-IN DEBUG] ❌ Erro ao salvar skip:', error);
-            } else {
-                console.log('[CHECK-IN DEBUG] ✅ filled=0 salvo com sucesso (UPSERT)!');
+                console.error('[CHECK-IN] Erro ao salvar skip:', error);
             }
 
             closeModal('checkin-modal');
@@ -839,8 +823,6 @@
                     });
 
                 if (!error) {
-                    console.log('[CHECK-IN DEBUG] ✅ Check-in salvo com filled=1 e dados completos (UPSERT)!');
-
                     closeModal('checkin-modal');
                     WardApp.showToast('✅ Check-in salvo com sucesso!');
 
@@ -853,11 +835,11 @@
                     document.getElementById('checkin-anki-streak').value = '';
                     document.querySelectorAll('input[name="checkin_status"]').forEach(r => r.checked = false);
                 } else {
-                    console.error('[CHECK-IN DEBUG] ❌ Erro ao salvar check-in:', error);
+                    console.error('[CHECK-IN] Erro ao salvar check-in:', error);
                     WardApp.showToast('Erro ao salvar check-in', 'error');
                 }
             } catch (err) {
-                console.error('[CHECK-IN DEBUG] ❌ Exceção ao salvar check-in:', err);
+                console.error('[CHECK-IN] Exceção ao salvar check-in:', err);
                 WardApp.showToast('Erro ao salvar check-in', 'error');
             } finally {
                 // Restore button state
