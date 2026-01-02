@@ -457,8 +457,15 @@ async function updateAvailableCount() {
 async function startFlashTest() {
     const numQuestions = parseInt(document.getElementById('num-questions').value);
 
-    if (numQuestions < 1 || numQuestions > 40) {
-        showToast('Escolha entre 1 e 40 questões', 'error');
+    // Validate number of questions
+    if (numQuestions < 1) {
+        showToast('O número de questões deve ser maior que zero', 'error');
+        return;
+    }
+
+    if (numQuestions > 40) {
+        // Show modal instead of toast
+        document.getElementById('max-questions-modal').style.display = 'flex';
         return;
     }
 
@@ -511,4 +518,11 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Close max questions modal
+function closeMaxQuestionsModal() {
+    document.getElementById('max-questions-modal').style.display = 'none';
+    // Optionally reset to max value
+    document.getElementById('num-questions').value = 40;
 }
