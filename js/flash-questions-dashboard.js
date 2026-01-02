@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await checkAuth();
         await loadUserName();
         await loadStatistics();
+        await loadPerformanceData();
         await loadRecentTests();
     } catch (error) {
         console.error('Error initializing:', error);
@@ -234,4 +235,173 @@ async function retakeTest(testId) {
         console.error('Error retaking test:', error);
         alert('Erro ao refazer teste');
     }
+}
+
+// Switch performance tab
+function switchPerformanceTab(tab) {
+    // Update tab buttons
+    document.querySelectorAll('.performance-tab').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+
+    // Update content visibility
+    document.querySelectorAll('.performance-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    document.getElementById(`performance-${tab}`).classList.add('active');
+}
+
+// Load performance data
+async function loadPerformanceData() {
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) return;
+
+    try {
+        // Get all user responses with question details
+        const { data: responses, error } = await window.supabase
+            .from('flash_question_responses')
+            .select(`
+                *,
+                flash_questions!inner (
+                    question_tags
+                )
+            `)
+            .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        if (!responses || responses.length === 0) {
+            showNoData();
+            return;
+        }
+
+        // Parse question tags and calculate performance
+        const subjectsPerf = {};
+        const systemsPerf = {};
+        const categoriesPerf = {};
+
+        responses.forEach(response => {
+            const tags = response.flash_questions.question_tags;
+            const parts = tags.split('::');
+
+            // Parse: "Subjects::Anatomy::Systems::Cardiovascular::Categories::Embryology"
+            let subject = null;
+            let system = null;
+            let category = null;
+
+            for (let i = 0; i < parts.length; i++) {
+                if (parts[i] === 'Subjects' && i + 1 < parts.length) {
+                    subject = parts[i + 1];
+                } else if (parts[i] === 'Systems' && i + 1 < parts.length) {
+                    system = parts[i + 1];
+                } else if (parts[i] === 'Categories' && i + 1 < parts.length) {
+                    category = parts[i + 1];
+                }
+            }
+
+            // Track subject performance
+            if (subject) {
+                if (!subjectsPerf[subject]) {
+                    subjectsPerf[subject] = { correct: 0, total: 0 };
+                }
+                subjectsPerf[subject].total++;
+                if (response.is_correct) subjectsPerf[subject].correct++;
+            }
+
+            // Track system performance
+            if (system) {
+                if (!systemsPerf[system]) {
+                    systemsPerf[system] = { correct: 0, total: 0 };
+                }
+                systemsPerf[system].total++;
+                if (response.is_correct) systemsPerf[system].correct++;
+            }
+
+            // Track category performance
+            if (category) {
+                if (!categoriesPerf[category]) {
+                    categoriesPerf[category] = { correct: 0, total: 0 };
+                }
+                categoriesPerf[category].total++;
+                if (response.is_correct) categoriesPerf[category].correct++;
+            }
+        });
+
+        // Render performance data
+        renderPerformanceData('subjects', subjectsPerf);
+        renderPerformanceData('systems', systemsPerf);
+        renderPerformanceData('categories', categoriesPerf);
+
+    } catch (error) {
+        console.error('Error loading performance data:', error);
+        showNoData();
+    }
+}
+
+// Render performance data
+function renderPerformanceData(type, performanceData) {
+    // Convert to array and calculate percentages
+    const items = Object.entries(performanceData).map(([name, stats]) => ({
+        name,
+        correct: stats.correct,
+        total: stats.total,
+        percentage: Math.round((stats.correct / stats.total) * 100)
+    }));
+
+    // Filter out items with less than 3 questions (not enough data)
+    const filtered = items.filter(item => item.total >= 3);
+
+    if (filtered.length === 0) {
+        document.getElementById(`best-${type}`).innerHTML = '<div class="no-data">Dados insuficientes</div>';
+        document.getElementById(`worst-${type}`).innerHTML = '<div class="no-data">Dados insuficientes</div>';
+        return;
+    }
+
+    // Sort by percentage
+    const sorted = [...filtered].sort((a, b) => b.percentage - a.percentage);
+
+    // Get best (top 5)
+    const best = sorted.slice(0, 5);
+    const bestHTML = best.map(item => `
+        <div class="performance-item">
+            <div class="performance-item-name">${escapeHtml(item.name)}</div>
+            <div class="performance-item-stats">
+                <div class="performance-item-percentage">${item.percentage}%</div>
+                <div class="performance-item-count">${item.correct}/${item.total}</div>
+            </div>
+        </div>
+    `).join('');
+
+    document.getElementById(`best-${type}`).innerHTML = bestHTML || '<div class="no-data">Sem dados</div>';
+
+    // Get worst (bottom 5, reversed)
+    const worst = sorted.slice(-5).reverse();
+    const worstHTML = worst.map(item => `
+        <div class="performance-item">
+            <div class="performance-item-name">${escapeHtml(item.name)}</div>
+            <div class="performance-item-stats">
+                <div class="performance-item-percentage">${item.percentage}%</div>
+                <div class="performance-item-count">${item.correct}/${item.total}</div>
+            </div>
+        </div>
+    `).join('');
+
+    document.getElementById(`worst-${type}`).innerHTML = worstHTML || '<div class="no-data">Sem dados</div>';
+}
+
+// Show no data message
+function showNoData() {
+    const types = ['subjects', 'systems', 'categories'];
+    types.forEach(type => {
+        document.getElementById(`best-${type}`).innerHTML = '<div class="no-data">Nenhuma questão respondida ainda</div>';
+        document.getElementById(`worst-${type}`).innerHTML = '<div class="no-data">Nenhuma questão respondida ainda</div>';
+    });
+}
+
+// Escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
