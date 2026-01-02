@@ -385,7 +385,7 @@ async function loadComments(questionId) {
             .from('flash_question_comments')
             .select(`
                 *,
-                students:user_id (name)
+                users!user_id (name, full_name)
             `)
             .eq('question_id', questionId)
             .order('created_at', { ascending: false });
@@ -402,7 +402,7 @@ async function loadComments(questionId) {
         commentsList.innerHTML = comments.map(comment => {
             const date = new Date(comment.created_at);
             const dateStr = date.toLocaleDateString('pt-BR');
-            const userName = comment.students?.name || 'Anônimo';
+            const userName = comment.users?.name || comment.users?.full_name || 'Anônimo';
 
             return `
                 <div class="comment-item">

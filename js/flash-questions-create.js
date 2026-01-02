@@ -384,8 +384,23 @@ async function updateAvailableCount() {
         const count = availableQuestions.length;
         document.getElementById('available-count').textContent = count;
 
+        // Auto-update number of questions input
+        const numQuestionsInput = document.getElementById('num-questions');
+        const currentValue = parseInt(numQuestionsInput.value) || 10;
+
+        // Set to available count or max 40, whichever is smaller
+        const suggestedValue = Math.min(count, 40);
+
+        // Update input value and max attribute
+        numQuestionsInput.max = Math.min(count, 40);
+
+        // Only auto-update if current value exceeds available or if it's the default (10)
+        if (currentValue > count || currentValue === 10) {
+            numQuestionsInput.value = suggestedValue;
+        }
+
         // Enable/disable start button
-        const numQuestions = parseInt(document.getElementById('num-questions').value) || 0;
+        const numQuestions = parseInt(numQuestionsInput.value) || 0;
         const btnStart = document.getElementById('btn-start-test');
 
         if (count > 0 && numQuestions > 0 && numQuestions <= count && numQuestions <= 40) {

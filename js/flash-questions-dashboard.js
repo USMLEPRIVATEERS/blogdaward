@@ -160,17 +160,25 @@ async function loadRecentTests() {
                 ? '<span style="color: #22c55e;">✓ Completo</span>'
                 : '<span style="color: #f59e0b;">⏸ Pausado</span>';
 
+            const actionButton = test.status === 'completed'
+                ? `<a href="flash-questions-test.html?test_id=${test.id}" style="padding: 0.5rem 1rem; background: white; color: #d97706; border: 2px solid #d97706; border-radius: 8px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block; margin-right: 0.5rem;">👁️ Revisar</a>
+                   <button onclick="retakeTest(${test.id})" style="padding: 0.5rem 1rem; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;">🔄 Refazer</button>`
+                : `<a href="flash-questions-test.html?test_id=${test.id}" style="padding: 0.5rem 1rem; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; border: none; border-radius: 8px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">▶️ Continuar</a>`;
+
             return `
-                <div class="test-item">
-                    <div class="test-info">
-                        <h4>Flash Test - ${test.total_questions} questões</h4>
-                        <p>${dateStr} às ${timeStr} | ${statusBadge}</p>
+                <div class="test-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1.2rem; margin-bottom: 1rem; background: white; border: 2px solid #f0f0f0; border-radius: 12px;">
+                    <div class="test-info" style="flex: 1;">
+                        <h4 style="margin: 0 0 0.5rem 0; font-size: 1.1rem;">Flash Test - ${test.total_questions} questões</h4>
+                        <p style="margin: 0; color: #666; font-size: 0.9rem;">${dateStr} às ${timeStr} | ${statusBadge}</p>
                     </div>
-                    <div class="test-score">
-                        <div class="percentage">${percentage}%</div>
-                        <div class="details">
-                            ${test.correct_answers}/${test.total_questions} corretas
+                    <div class="test-score" style="text-align: center; margin: 0 2rem;">
+                        <div class="percentage" style="font-size: 1.8rem; font-weight: 700; color: #d97706;">${percentage}%</div>
+                        <div class="details" style="font-size: 0.85rem; color: #666;">
+                            ${test.correct_answers || 0}/${test.total_questions} corretas
                         </div>
+                    </div>
+                    <div class="test-actions">
+                        ${actionButton}
                     </div>
                 </div>
             `;
@@ -183,5 +191,27 @@ async function loadRecentTests() {
                 <p style="color: #ef4444;">Erro ao carregar testes recentes</p>
             </div>
         `;
+    }
+}
+
+// Retake test (create new test with same filters)
+async function retakeTest(testId) {
+    try {
+        const { data: test, error } = await window.supabase
+            .from('flash_tests')
+            .select('*')
+            .eq('id', testId)
+            .single();
+
+        if (error) throw error;
+
+        // Store filters in sessionStorage and redirect to create page
+        sessionStorage.setItem('flash_test_filters', JSON.stringify(test.filters));
+        sessionStorage.setItem('flash_test_count', test.total_questions);
+        window.location.href = 'flash-questions-create.html';
+
+    } catch (error) {
+        console.error('Error retaking test:', error);
+        alert('Erro ao refazer teste');
     }
 }
