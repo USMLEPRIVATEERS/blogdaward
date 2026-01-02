@@ -289,20 +289,12 @@ async function loadPerformanceData() {
             console.log('Processing tags:', tags);
             const parts = tags.split('::');
 
-            // Parse: "Subjects::Anatomy::Systems::Cardiovascular::Categories::Embryology"
-            let subject = null;
-            let system = null;
-            let category = null;
+            // Parse: "Subject::System::Category" (simple format)
+            const subject = parts.length >= 1 ? parts[0] : null;
+            const system = parts.length >= 2 ? parts[1] : null;
+            const category = parts.length >= 3 ? parts[2] : null;
 
-            for (let i = 0; i < parts.length; i++) {
-                if (parts[i] === 'Subjects' && i + 1 < parts.length) {
-                    subject = parts[i + 1];
-                } else if (parts[i] === 'Systems' && i + 1 < parts.length) {
-                    system = parts[i + 1];
-                } else if (parts[i] === 'Categories' && i + 1 < parts.length) {
-                    category = parts[i + 1];
-                }
-            }
+            console.log('Parsed:', { subject, system, category });
 
             // Track subject performance
             if (subject) {
