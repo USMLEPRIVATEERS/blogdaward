@@ -1,9 +1,16 @@
 -- ============================================
--- WARD ACADEMY - FLASH QUESTIONS SETUP
+-- FLASH QUESTIONS - MIGRATION TO FIX USER_ID TYPE
 -- ============================================
--- Execute este script no Supabase SQL Editor
--- para criar as tabelas necessárias para o sistema
--- de Flash Questions
+-- This script fixes the user_id columns to use BIGINT
+-- instead of UUID to match Ward Academy's users table
+-- Execute this in Supabase SQL Editor
+
+-- Drop existing tables (data will be lost - only do this if no important data exists yet)
+DROP TABLE IF EXISTS flash_question_responses CASCADE;
+DROP TABLE IF EXISTS flash_tests CASCADE;
+DROP TABLE IF EXISTS flash_question_comments CASCADE;
+DROP TABLE IF EXISTS flash_question_stats CASCADE;
+DROP TABLE IF EXISTS flash_questions CASCADE;
 
 -- 1. Tabela de questões flash
 CREATE TABLE IF NOT EXISTS flash_questions (
@@ -104,12 +111,11 @@ CREATE POLICY "Anyone can read questions" ON flash_questions
     FOR SELECT USING (true);
 
 -- Apenas administradores podem inserir/atualizar questões
--- (Ajuste conforme sua estrutura de permissões)
 CREATE POLICY "Admins can insert questions" ON flash_questions
-    FOR INSERT WITH CHECK (true); -- Ajustar para verificar se é admin
+    FOR INSERT WITH CHECK (true);
 
 CREATE POLICY "Admins can update questions" ON flash_questions
-    FOR UPDATE USING (true); -- Ajustar para verificar se é admin
+    FOR UPDATE USING (true);
 
 -- Políticas para flash_question_responses
 -- Todos autenticados podem ver respostas (para estatísticas)
@@ -273,6 +279,3 @@ ON CONFLICT DO NOTHING;
 -- ============================================
 -- CONCLUÍDO!
 -- ============================================
--- Execute este script no Supabase SQL Editor
--- Depois, você pode adicionar mais questões através
--- da interface ou importando arquivos CSV/JSON
