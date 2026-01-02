@@ -356,8 +356,31 @@ async function updateAvailableCount() {
         const { data: questions, error } = await query;
         if (error) throw error;
 
+        // Get user's answered questions if "only unseen" is checked
+        let answeredQuestionIds = new Set();
+        const onlyUnseen = document.getElementById('only-unseen')?.checked;
+
+        if (onlyUnseen) {
+            const user = JSON.parse(localStorage.getItem('ward_user'));
+            if (user) {
+                const { data: responses, error: responseError } = await window.supabase
+                    .from('flash_question_responses')
+                    .select('question_id')
+                    .eq('user_id', user.id);
+
+                if (!responseError && responses) {
+                    answeredQuestionIds = new Set(responses.map(r => r.question_id));
+                }
+            }
+        }
+
         // Filter questions based on selections
         availableQuestions = questions.filter(q => {
+            // Exclude answered questions if "only unseen" is checked
+            if (onlyUnseen && answeredQuestionIds.has(q.question_id)) {
+                return false;
+            }
+
             const parts = q.question_tags.split('::');
             const subject = parts[0];
             const system = parts.length >= 2 ? parts[1] : null;
