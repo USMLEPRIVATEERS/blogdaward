@@ -178,17 +178,15 @@ async function loadSubjects() {
         const subjects = Object.keys(subjectMap).sort();
         grid.innerHTML = subjects.map(subject => `
             <div class="subject-item" onclick="toggleSubject('${escapeHtml(subject)}')">
-                <label style="cursor: pointer; display: flex; align-items: start;">
-                    <input
-                        type="checkbox"
-                        id="subject-${escapeHtml(subject)}"
-                        onchange="event.stopPropagation(); toggleSubject('${escapeHtml(subject)}')"
-                    >
-                    <div style="flex: 1;">
-                        <div class="subject-name">${escapeHtml(subject)}</div>
-                        <div class="subject-count">${subjectMap[subject].count} questões</div>
-                    </div>
-                </label>
+                <input
+                    type="checkbox"
+                    id="subject-${escapeHtml(subject)}"
+                    onchange="event.stopPropagation(); toggleSubject('${escapeHtml(subject)}')"
+                >
+                <div class="subject-name">${escapeHtml(subject)}</div>
+                <div class="subject-count">
+                    <strong>${subjectMap[subject].count}</strong> questões
+                </div>
             </div>
         `).join('');
 
