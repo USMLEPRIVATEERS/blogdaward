@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Questões Residência</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">QUESTÕES RESIDÊNCIA</div>
+            <nav class="nav">
+                <a href="dashboard.html" class="nav-link active">Dashboard</a>
+                <a href="criar-teste.html" class="nav-link">Novo Teste</a>
+                <a href="testes-anteriores.html" class="nav-link">Testes Anteriores</a>
+                <a href="ranking.html" class="nav-link">Ranking</a>
+                <a href="meu-plano.html" class="nav-link">Meu Plano</a>
+                <a href="premios.html" class="nav-link">Prêmios</a>
+                <a href="#" onclick="Utils.logout()" class="nav-link">Sair</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Bem-vindo -->
+        <div class="mb-30" style="display: flex; justify-content: space-between; align-items: center;">
+            <h1 id="welcomeMessage">Bem-vindo!</h1>
+            <button class="btn" onclick="abrirModalEditarPerfil()" style="padding: 10px 20px;">
+                ⚙️ Editar Meus Dados
+            </button>
+        </div>
+
+        <!-- Estatísticas Gerais -->
+        <div class="row">
+            <div class="col-4">
+                <div class="stat-box">
+                    <div class="stat-value" id="totalQuestoes">-</div>
+                    <div class="stat-label">Questões Restantes</div>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="stat-box">
+                    <div class="stat-value" id="questoesRealizadas">-</div>
+                    <div class="stat-label">Questões Realizadas</div>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="stat-box">
+                    <div class="stat-value" id="percentualConcluido">-</div>
+                    <div class="stat-label">% Concluído</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-4">
+                <div class="stat-box">
+                    <div class="stat-value" id="totalCorretas" style="color: var(--success-color)">-</div>
+                    <div class="stat-label">Questões Corretas</div>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="stat-box">
+                    <div class="stat-value" id="totalIncorretas" style="color: var(--error-color)">-</div>
+                    <div class="stat-label">Questões Incorretas</div>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="stat-box">
+                    <div class="stat-value" id="percentualAcertos">-</div>
+                    <div class="stat-label">% de Acertos</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Provas Selecionadas -->
+        <div class="card mt-30">
+            <div class="card-title">Provas Selecionadas</div>
+            <div class="card-body">
+                <div id="provasSelecionadas" class="mb-20">
+                    <p>Carregando...</p>
+                </div>
+                <button class="btn btn-primary" onclick="editarProvas()">Editar Provas</button>
+            </div>
+        </div>
+
+        <!-- Visitantes do Perfil -->
+        <div class="card mt-30">
+            <div class="card-title">👁️ Quem Visitou Meu Perfil (24h)</div>
+            <div class="card-body">
+                <div id="visitantesContainer">
+                    <div class="loader">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfico de Desempenho -->
+        <div class="card mt-30">
+            <div class="card-title">Desempenho ao Longo do Tempo</div>
+            <div class="card-body">
+                <!-- Controles do Gráfico -->
+                <div class="flex-between mb-20">
+                    <div>
+                        <label class="form-label">Período:</label>
+                        <select id="periodoPicker" class="form-select" onchange="atualizarGrafico()" style="width: 150px;">
+                            <option value="diario">Diário</option>
+                            <option value="semanal">Semanal</option>
+                            <option value="mensal">Mensal</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Métrica:</label>
+                        <select id="metricaPicker" class="form-select" onchange="atualizarGrafico()" style="width: 200px;">
+                            <option value="total">Total de Questões</option>
+                            <option value="corretas">Questões Corretas</option>
+                            <option value="incorretas">Questões Incorretas</option>
+                            <option value="porcentagem_acertos">% de Acertos</option>
+                            <option value="porcentagem_erros">% de Erros</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Container do Gráfico -->
+                <div class="chart-container">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para editar perfil -->
+    <div id="modalEditarPerfil" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="modal-close" onclick="fecharModalEditarPerfil()">&times;</span>
+            <h2 class="mb-20">Editar Meus Dados</h2>
+
+            <form id="formEditarPerfil" onsubmit="salvarDadosPerfil(event)">
+                <div class="form-group">
+                    <label class="form-label" for="editNome">Nome Completo</label>
+                    <input
+                        type="text"
+                        id="editNome"
+                        class="form-input"
+                        required
+                        placeholder="Seu nome completo"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="editEmail">Email</label>
+                    <input
+                        type="email"
+                        id="editEmail"
+                        class="form-input"
+                        required
+                        placeholder="seu@email.com"
+                    >
+                    <small style="color: var(--gray-600); font-size: 12px; margin-top: 5px; display: block;">
+                        ⚠️ Alterar o email requer nova confirmação
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="editWhatsapp">WhatsApp</label>
+                    <div style="display: flex; gap: 10px;">
+                        <select id="editWhatsappCountryCode" class="form-select" style="flex: 0 0 150px;" onchange="updateEditWhatsappFields()">
+                            <!-- Brasil e EUA primeiro -->
+                            <option value="+55" data-ddd-length="2">🇧🇷 Brasil +55</option>
+                            <option value="+1" data-ddd-length="3">🇺🇸 EUA/Canadá +1</option>
+
+                            <!-- Separador -->
+                            <option disabled>──────────</option>
+
+                            <!-- América do Sul -->
+                            <option value="+54" data-ddd-length="2">🇦🇷 Argentina +54</option>
+                            <option value="+591" data-ddd-length="0">🇧🇴 Bolívia +591</option>
+                            <option value="+56" data-ddd-length="1">🇨🇱 Chile +56</option>
+                            <option value="+57" data-ddd-length="1">🇨🇴 Colômbia +57</option>
+                            <option value="+593" data-ddd-length="0">🇪🇨 Equador +593</option>
+                            <option value="+592" data-ddd-length="0">🇬🇾 Guiana +592</option>
+                            <option value="+595" data-ddd-length="0">🇵🇾 Paraguai +595</option>
+                            <option value="+51" data-ddd-length="0">🇵🇪 Peru +51</option>
+                            <option value="+597" data-ddd-length="0">🇸🇷 Suriname +597</option>
+                            <option value="+598" data-ddd-length="0">🇺🇾 Uruguai +598</option>
+                            <option value="+58" data-ddd-length="0">🇻🇪 Venezuela +58</option>
+
+                            <!-- América Central e Caribe -->
+                            <option value="+52" data-ddd-length="2">🇲🇽 México +52</option>
+                            <option value="+53" data-ddd-length="0">🇨🇺 Cuba +53</option>
+                            <option value="+507" data-ddd-length="0">🇵🇦 Panamá +507</option>
+                            <option value="+506" data-ddd-length="0">🇨🇷 Costa Rica +506</option>
+                            <option value="+505" data-ddd-length="0">🇳🇮 Nicarágua +505</option>
+                            <option value="+504" data-ddd-length="0">🇭🇳 Honduras +504</option>
+                            <option value="+503" data-ddd-length="0">🇸🇻 El Salvador +503</option>
+                            <option value="+502" data-ddd-length="0">🇬🇹 Guatemala +502</option>
+                            <option value="+501" data-ddd-length="0">🇧🇿 Belize +501</option>
+                            <option value="+1809" data-ddd-length="0">🇩🇴 Rep. Dominicana +1809</option>
+
+                            <!-- Europa -->
+                            <option value="+351" data-ddd-length="0">🇵🇹 Portugal +351</option>
+                            <option value="+34" data-ddd-length="0">🇪🇸 Espanha +34</option>
+                            <option value="+33" data-ddd-length="1">🇫🇷 França +33</option>
+                            <option value="+49" data-ddd-length="0">🇩🇪 Alemanha +49</option>
+                            <option value="+39" data-ddd-length="0">🇮🇹 Itália +39</option>
+                            <option value="+44" data-ddd-length="2">🇬🇧 Reino Unido +44</option>
+                            <option value="+353" data-ddd-length="0">🇮🇪 Irlanda +353</option>
+                            <option value="+41" data-ddd-length="0">🇨🇭 Suíça +41</option>
+                            <option value="+43" data-ddd-length="0">🇦🇹 Áustria +43</option>
+                            <option value="+32" data-ddd-length="0">🇧🇪 Bélgica +32</option>
+                            <option value="+31" data-ddd-length="0">🇳🇱 Holanda +31</option>
+                            <option value="+45" data-ddd-length="0">🇩🇰 Dinamarca +45</option>
+                            <option value="+46" data-ddd-length="0">🇸🇪 Suécia +46</option>
+                            <option value="+47" data-ddd-length="0">🇳🇴 Noruega +47</option>
+                            <option value="+358" data-ddd-length="0">🇫🇮 Finlândia +358</option>
+                            <option value="+48" data-ddd-length="0">🇵🇱 Polônia +48</option>
+                            <option value="+420" data-ddd-length="0">🇨🇿 República Tcheca +420</option>
+                            <option value="+30" data-ddd-length="0">🇬🇷 Grécia +30</option>
+                            <option value="+7" data-ddd-length="0">🇷🇺 Rússia +7</option>
+
+                            <!-- África -->
+                            <option value="+27" data-ddd-length="0">🇿🇦 África do Sul +27</option>
+                            <option value="+20" data-ddd-length="0">🇪🇬 Egito +20</option>
+                            <option value="+234" data-ddd-length="0">🇳🇬 Nigéria +234</option>
+                            <option value="+254" data-ddd-length="0">🇰🇪 Quênia +254</option>
+                            <option value="+212" data-ddd-length="0">🇲🇦 Marrocos +212</option>
+                            <option value="+258" data-ddd-length="0">🇲🇿 Moçambique +258</option>
+                            <option value="+244" data-ddd-length="0">🇦🇴 Angola +244</option>
+
+                            <!-- Ásia -->
+                            <option value="+86" data-ddd-length="0">🇨🇳 China +86</option>
+                            <option value="+81" data-ddd-length="0">🇯🇵 Japão +81</option>
+                            <option value="+82" data-ddd-length="0">🇰🇷 Coreia do Sul +82</option>
+                            <option value="+91" data-ddd-length="0">🇮🇳 Índia +91</option>
+                            <option value="+92" data-ddd-length="0">🇵🇰 Paquistão +92</option>
+                            <option value="+880" data-ddd-length="0">🇧🇩 Bangladesh +880</option>
+                            <option value="+66" data-ddd-length="0">🇹🇭 Tailândia +66</option>
+                            <option value="+84" data-ddd-length="0">🇻🇳 Vietnã +84</option>
+                            <option value="+62" data-ddd-length="0">🇮🇩 Indonésia +62</option>
+                            <option value="+60" data-ddd-length="0">🇲🇾 Malásia +60</option>
+                            <option value="+65" data-ddd-length="0">🇸🇬 Singapura +65</option>
+                            <option value="+63" data-ddd-length="0">🇵🇭 Filipinas +63</option>
+                            <option value="+852" data-ddd-length="0">🇭🇰 Hong Kong +852</option>
+                            <option value="+886" data-ddd-length="0">🇹🇼 Taiwan +886</option>
+
+                            <!-- Oriente Médio -->
+                            <option value="+971" data-ddd-length="0">🇦🇪 Emirados Árabes +971</option>
+                            <option value="+966" data-ddd-length="0">🇸🇦 Arábia Saudita +966</option>
+                            <option value="+972" data-ddd-length="0">🇮🇱 Israel +972</option>
+                            <option value="+90" data-ddd-length="0">🇹🇷 Turquia +90</option>
+
+                            <!-- Oceania -->
+                            <option value="+61" data-ddd-length="0">🇦🇺 Austrália +61</option>
+                            <option value="+64" data-ddd-length="0">🇳🇿 Nova Zelândia +64</option>
+                        </select>
+                        <input
+                            type="tel"
+                            id="editWhatsappDDD"
+                            class="form-input"
+                            placeholder="DDD"
+                            maxlength="3"
+                            style="flex: 0 0 80px;"
+                            pattern="[0-9]{1,3}"
+                            oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                        >
+                        <input
+                            type="tel"
+                            id="editWhatsappNumber"
+                            class="form-input"
+                            placeholder="Número"
+                            maxlength="11"
+                            style="flex: 1;"
+                            required
+                            pattern="[0-9]{8,11}"
+                            oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                        >
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="editInstagram">Instagram (opcional)</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="color: var(--gray-600); font-weight: 600;">@</span>
+                        <input
+                            type="text"
+                            id="editInstagram"
+                            class="form-input"
+                            placeholder="seu_usuario"
+                            pattern="[a-zA-Z0-9._]{0,30}"
+                            oninput="this.value = this.value.replace(/[^a-zA-Z0-9._]/g, '')"
+                        >
+                    </div>
+                    <small style="color: var(--gray-600); font-size: 12px; margin-top: 5px; display: block;">
+                        Apenas o nome de usuário, sem o @
+                    </small>
+                </div>
+
+                <div class="flex gap-10 mt-30">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">
+                        Salvar Alterações
+                    </button>
+                    <button type="button" class="btn" onclick="fecharModalEditarPerfil()">
+                        Cancelar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para editar provas -->
+    <div id="modalProvas" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="fecharModalProvas()">&times;</span>
+            <h2 class="mb-20">Selecionar Provas</h2>
+            <div id="listaProvas">
+                <p>Carregando provas disponíveis...</p>
+            </div>
+            <div class="flex gap-10 mt-30">
+                <button class="btn btn-primary" onclick="salvarProvas()">Salvar</button>
+                <button class="btn" onclick="fecharModalProvas()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Report do Dashboard -->
+    <div id="modalReportDashboard" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>Reportar Usuário</h2>
+                <button class="modal-close" onclick="fecharModalReportDashboard()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 15px;">
+                    Você está reportando: <strong id="reportNomeUsuario"></strong>
+                </p>
+                <p style="color: var(--secondary-color); margin-bottom: 20px; font-size: 14px;">
+                    Por favor, descreva o motivo do report. Isso nos ajuda a manter a comunidade segura.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Motivo (opcional)</label>
+                    <textarea
+                        id="reportMotivoDashboard"
+                        class="form-input"
+                        rows="4"
+                        placeholder="Ex: Comportamento inadequado, spam, etc."
+                        maxlength="500"
+                    ></textarea>
+                    <small style="color: var(--secondary-color);">Máximo 500 caracteres</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="fecharModalReportDashboard()">Cancelar</button>
+                <button class="btn btn-primary" onclick="enviarReportDashboard()" style="background: var(--error-color);">
+                    Enviar Report
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>
