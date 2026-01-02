@@ -172,11 +172,20 @@ function renderNavigation() {
 
     nav.innerHTML = questions.map((q, index) => {
         const isCurrent = index === currentQuestionIndex;
-        const isAnswered = userAnswers[index] !== undefined;
+        const userAnswer = userAnswers[index];
+        const isAnswered = userAnswer !== undefined;
 
         let className = 'question-nav-btn';
-        if (isCurrent) className += ' current';
-        else if (isAnswered) className += ' answered';
+        if (isCurrent) {
+            className += ' current';
+        } else if (isAnswered) {
+            // Show green for correct, red for incorrect
+            if (userAnswer.isCorrect) {
+                className += ' correct';
+            } else {
+                className += ' incorrect';
+            }
+        }
 
         return `
             <button class="${className}" onclick="goToQuestion(${index})">
