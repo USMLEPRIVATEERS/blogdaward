@@ -652,7 +652,10 @@ Cardiovascular	Physiology	62	FALSE
                     schedulesCreatedRes,
                     schedulesUpdatedRes,
                     completedSchedulesRes,
-                    questionnaireRes
+                    questionnaireRes,
+                    flashTestsCreatedRes,
+                    flashTestsCompletedRes,
+                    flashCommentsRes
                 ] = await Promise.all([
                     // Links - new additions
                     WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('created_at', { ascending: false }).limit(20),
@@ -697,7 +700,13 @@ Cardiovascular	Physiology	62	FALSE
                     // Schedules - completed
                     WardApp.db.from('schedules').select('*, users:user_id(full_name, email)').eq('completed', true).order('completion_date', { ascending: false }).limit(30),
                     // Questionnaires completed
-                    WardApp.db.from('users').select('id, full_name, email, questionnaire_completed, updated_at').eq('questionnaire_completed', true).order('updated_at', { ascending: false }).limit(20)
+                    WardApp.db.from('users').select('id, full_name, email, questionnaire_completed, updated_at').eq('questionnaire_completed', true).order('updated_at', { ascending: false }).limit(20),
+                    // Flash tests - created/started
+                    WardApp.db.from('flash_tests').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30),
+                    // Flash tests - completed
+                    WardApp.db.from('flash_tests').select('*, users:user_id(full_name, email)').eq('status', 'completed').order('completed_at', { ascending: false }).limit(30),
+                    // Flash question comments
+                    WardApp.db.from('flash_question_comments').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30)
                 ]);
 
                 // Combine all activities into a single timeline
@@ -1066,6 +1075,58 @@ Cardiovascular	Physiology	62	FALSE
                         title: '✨ Novo perfil criado na plataforma',
                         detail: '',
                         date: item.updated_at
+                    });
+                });
+
+                // Flash tests - started/created
+                (flashTestsCreatedRes.data || []).forEach(item => {
+                    if (item.status === 'in_progress' || !item.completed_at) {
+                        feed.push({
+                            type: 'flash_test_started',
+                            icon: '⚡',
+                            color: '#d97706',
+                            user: item.users?.full_name || item.users?.email || 'Aluno',
+                            action: 'iniciou um Flash Test',
+                            title: `${item.total_questions} questões`,
+                            detail: item.filters ? `Filtros: Step ${item.filters.step || 'N/A'}` : '',
+                            date: item.created_at
+                        });
+                    }
+                });
+
+                // Flash tests - completed
+                (flashTestsCompletedRes.data || []).forEach(item => {
+                    const percentage = item.total_questions > 0
+                        ? Math.round((item.correct_answers / item.total_questions) * 100)
+                        : 0;
+                    const timeSpent = item.time_spent
+                        ? `${Math.round(item.time_spent / 60)} min`
+                        : 'tempo não registrado';
+
+                    feed.push({
+                        type: 'flash_test_completed',
+                        icon: '✅',
+                        color: '#059669',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'completou um Flash Test',
+                        title: `${item.correct_answers}/${item.total_questions} acertos (${percentage}%)`,
+                        detail: `⏱️ ${timeSpent}`,
+                        date: item.completed_at || item.updated_at
+                    });
+                });
+
+                // Flash question comments
+                (flashCommentsRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'flash_comment',
+                        icon: '💬',
+                        color: '#3b82f6',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'comentou em uma Flash Question',
+                        title: '',
+                        fullContent: item.comment_text || item.content || '',
+                        detail: '',
+                        date: item.created_at
                     });
                 });
 
