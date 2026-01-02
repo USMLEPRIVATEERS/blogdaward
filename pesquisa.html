@@ -177,12 +177,12 @@
 
     <!-- View Project Modal -->
     <div id="view-project-modal" class="modal-overlay">
-        <div class="modal modal-xl">
+        <div class="modal modal-xxl">
             <div class="modal-header">
                 <h3 class="modal-title" id="view-project-title"></h3>
                 <button class="modal-close" onclick="closeModal('view-project-modal')">&times;</button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="max-height: 80vh; overflow-y: auto;">
                 <p class="text-muted mb-3" id="view-project-description"></p>
                 <div class="project-meta mb-3" id="project-meta"></div>
 
@@ -884,11 +884,26 @@
         }
 
         async function toggleTaskComplete(taskId, completed) {
-            const newStage = completed ? 'tarefa_concluida' : 'nova_tarefa';
+            // Get the task to find its current/original stage
+            const task = currentProject.tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            let updateData = {
+                updated_at: new Date().toISOString()
+            };
+
+            if (completed) {
+                // When marking as complete, save current stage for later restoration
+                updateData.stage = 'tarefa_concluida';
+                updateData.original_stage = task.stage !== 'tarefa_concluida' ? task.stage : (task.original_stage || 'nova_tarefa');
+            } else {
+                // When unmarking, restore to original_stage or default to nova_tarefa
+                updateData.stage = task.original_stage || 'nova_tarefa';
+            }
 
             await WardApp.db
                 .from('research_tasks')
-                .update({ stage: newStage, updated_at: new Date().toISOString() })
+                .update(updateData)
                 .eq('id', taskId);
 
             // Reload project
@@ -1586,6 +1601,11 @@
 
         .modal-xl {
             max-width: 900px;
+        }
+
+        .modal-xxl {
+            max-width: 1200px;
+            width: 95%;
         }
 
         .project-meta {
