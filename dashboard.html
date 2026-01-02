@@ -770,21 +770,24 @@
             const today = new Date().toISOString().split('T')[0];
             console.log('[CHECK-IN DEBUG] Pulando check-in, salvando filled=0...');
 
-            // Update existing row: set filled = 0 (skipped)
+            // UPSERT: creates if doesn't exist, updates if exists
             const { error } = await WardApp.db
                 .from('daily_checkins')
-                .update({
+                .upsert({
+                    user_id: targetUserId,
+                    date: today,
                     filled: 0,
                     status: 'skipped',
                     message: ''
-                })
-                .eq('user_id', targetUserId)
-                .eq('date', today);
+                }, {
+                    onConflict: 'user_id,date',
+                    ignoreDuplicates: false
+                });
 
             if (error) {
                 console.error('[CHECK-IN DEBUG] ❌ Erro ao salvar skip:', error);
             } else {
-                console.log('[CHECK-IN DEBUG] ✅ filled=0 salvo com sucesso!');
+                console.log('[CHECK-IN DEBUG] ✅ filled=0 salvo com sucesso (UPSERT)!');
             }
 
             closeModal('checkin-modal');
@@ -816,10 +819,12 @@
             const today = new Date().toISOString().split('T')[0];
 
             try {
-                // Update existing row: set filled = 1 and save all data
+                // UPSERT: creates if doesn't exist, updates if exists
                 const { error } = await WardApp.db
                     .from('daily_checkins')
-                    .update({
+                    .upsert({
+                        user_id: targetUserId,
+                        date: today,
                         filled: 1,
                         status: status || 'custom',
                         message: message,
@@ -828,12 +833,13 @@
                         anki_cards_today: ankiToday,
                         anki_avg_cards: ankiAvg,
                         anki_current_streak: ankiStreak
-                    })
-                    .eq('user_id', targetUserId)
-                    .eq('date', today);
+                    }, {
+                        onConflict: 'user_id,date',
+                        ignoreDuplicates: false
+                    });
 
                 if (!error) {
-                    console.log('[CHECK-IN DEBUG] ✅ Check-in salvo com filled=1 e dados completos!');
+                    console.log('[CHECK-IN DEBUG] ✅ Check-in salvo com filled=1 e dados completos (UPSERT)!');
 
                     closeModal('checkin-modal');
                     WardApp.showToast('✅ Check-in salvo com sucesso!');
