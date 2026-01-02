@@ -678,13 +678,15 @@
             const container = document.getElementById('timeline-content');
 
             // Load various data for timeline (including diaries for Facebook-like social feed)
-            const [landmarksRes, checkinsRes, messagesRes, delaysRes, studyDiaryRes, uworldDiaryRes] = await Promise.all([
+            const [landmarksRes, checkinsRes, messagesRes, delaysRes, studyDiaryRes, uworldDiaryRes, flashTestsRes, flashResponsesRes] = await Promise.all([
                 WardApp.db.from('landmarks').select('*').eq('user_id', studentId).order('order_position', { ascending: true }),
                 WardApp.db.from('daily_checkins').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(10),
                 WardApp.db.from('messages').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(5),
                 WardApp.db.from('schedule_delays').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(5),
                 WardApp.db.from('study_diary').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(10),
-                WardApp.db.from('uworld_diary').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(10)
+                WardApp.db.from('uworld_diary').select('*').eq('user_id', studentId).order('created_at', { ascending: false }).limit(10),
+                WardApp.db.from('flash_tests').select('*').eq('user_id', studentId).eq('status', 'completed').order('completed_at', { ascending: false }),
+                WardApp.db.from('flash_question_responses').select('question_id').eq('user_id', studentId)
             ]);
 
             // Render Landmarks Section first (prominent display)
@@ -750,11 +752,14 @@
             const totalCheckins = checkinsRes.data?.length || 0;
             const totalStudyDiary = studyDiaryRes.data?.length || 0;
             const totalUWorldDiary = uworldDiaryRes.data?.length || 0;
+            const totalFlashTests = flashTestsRes.data?.length || 0;
+            const totalFlashQuestions = flashResponsesRes.data?.length || 0;
             const lastCheckin = checkinsRes.data?.[0];
             const lastActivity = [
                 ...(checkinsRes.data || []).map(c => ({ date: c.created_at, type: 'check-in' })),
                 ...(studyDiaryRes.data || []).map(d => ({ date: d.created_at, type: 'diário' })),
-                ...(uworldDiaryRes.data || []).map(d => ({ date: d.created_at, type: 'UWorld' }))
+                ...(uworldDiaryRes.data || []).map(d => ({ date: d.created_at, type: 'UWorld' })),
+                ...(flashTestsRes.data || []).map(t => ({ date: t.completed_at, type: 'Flash Questions' }))
             ].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
 
             landmarksHTML += `
@@ -772,6 +777,14 @@
                         <div style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 1rem; text-align: center;">
                             <div style="font-size: 2rem; font-weight: bold;">${totalUWorldDiary}</div>
                             <div style="font-size: 0.85rem; opacity: 0.9;">📊 Diário UWorld</div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 1rem; text-align: center;">
+                            <div style="font-size: 2rem; font-weight: bold;">${totalFlashTests}</div>
+                            <div style="font-size: 0.85rem; opacity: 0.9;">⚡ Flash Tests</div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 1rem; text-align: center;">
+                            <div style="font-size: 2rem; font-weight: bold;">${totalFlashQuestions}</div>
+                            <div style="font-size: 0.85rem; opacity: 0.9;">📝 Questões Flash</div>
                         </div>
                     </div>
                     ${lastActivity ? `
