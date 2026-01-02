@@ -1,0 +1,370 @@
+// ============================================
+// FLASH QUESTIONS CREATE TEST
+// ============================================
+
+let selectedSubjects = new Set();
+let selectedSystems = new Set();
+let selectedCategories = new Set();
+let availableQuestions = [];
+let subjectSystemMap = {}; // Maps subjects to their systems/categories
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', async () => {
+    await checkAuth();
+    await loadSubjects();
+    updateAvailableCount();
+
+    // Listen for input changes
+    document.getElementById('num-questions').addEventListener('input', updateAvailableCount);
+});
+
+// Check authentication
+async function checkAuth() {
+    if (!window.supabase) {
+        showToast('Erro ao conectar com o servidor', 'error');
+        return;
+    }
+
+    const { data: { session } } = await window.supabase.auth.getSession();
+    if (!session) {
+        window.location.href = 'index.html';
+        return;
+    }
+}
+
+// Load subjects from database
+async function loadSubjects() {
+    const grid = document.getElementById('subjects-grid');
+
+    try {
+        // Get all questions and parse tags
+        const { data: questions, error } = await window.supabase
+            .from('flash_questions')
+            .select('question_id, question_tags');
+
+        if (error) throw error;
+
+        // Parse tags and organize by subject
+        const subjectMap = {};
+
+        questions.forEach(q => {
+            const parts = q.question_tags.split('::');
+            if (parts.length >= 1) {
+                const subject = parts[0];
+                const system = parts.length >= 2 ? parts[1] : null;
+                const category = parts.length >= 3 ? parts[2] : null;
+
+                // Add to subject map
+                if (!subjectMap[subject]) {
+                    subjectMap[subject] = {
+                        count: 0,
+                        systems: {}
+                    };
+                }
+                subjectMap[subject].count++;
+
+                // Add system and category
+                if (system) {
+                    if (!subjectMap[subject].systems[system]) {
+                        subjectMap[subject].systems[system] = {
+                            count: 0,
+                            categories: {}
+                        };
+                    }
+                    subjectMap[subject].systems[system].count++;
+
+                    if (category) {
+                        if (!subjectMap[subject].systems[system].categories[category]) {
+                            subjectMap[subject].systems[system].categories[category] = 0;
+                        }
+                        subjectMap[subject].systems[system].categories[category]++;
+                    }
+                }
+            }
+        });
+
+        // Store for later use
+        subjectSystemMap = subjectMap;
+
+        // Render subjects
+        const subjects = Object.keys(subjectMap).sort();
+        grid.innerHTML = subjects.map(subject => `
+            <div class="subject-item" onclick="toggleSubject('${escapeHtml(subject)}')">
+                <label style="cursor: pointer; display: flex; align-items: start;">
+                    <input
+                        type="checkbox"
+                        id="subject-${escapeHtml(subject)}"
+                        onchange="event.stopPropagation(); toggleSubject('${escapeHtml(subject)}')"
+                    >
+                    <div style="flex: 1;">
+                        <div class="subject-name">${escapeHtml(subject)}</div>
+                        <div class="subject-count">${subjectMap[subject].count} questões</div>
+                    </div>
+                </label>
+            </div>
+        `).join('');
+
+    } catch (error) {
+        console.error('Error loading subjects:', error);
+        grid.innerHTML = '<p style="color: #ef4444;">Erro ao carregar assuntos</p>';
+    }
+}
+
+// Toggle subject selection
+function toggleSubject(subject) {
+    const checkbox = document.getElementById(`subject-${subject}`);
+    checkbox.checked = !checkbox.checked;
+
+    if (checkbox.checked) {
+        selectedSubjects.add(subject);
+    } else {
+        selectedSubjects.delete(subject);
+    }
+
+    // Update subject item styling
+    const item = checkbox.closest('.subject-item');
+    if (checkbox.checked) {
+        item.classList.add('selected');
+    } else {
+        item.classList.remove('selected');
+    }
+
+    updateSystemsSection();
+    updateAvailableCount();
+}
+
+// Select all subjects
+function selectAllSubjects() {
+    selectedSubjects.clear();
+
+    Object.keys(subjectSystemMap).forEach(subject => {
+        selectedSubjects.add(subject);
+        const checkbox = document.getElementById(`subject-${subject}`);
+        if (checkbox) {
+            checkbox.checked = true;
+            checkbox.closest('.subject-item').classList.add('selected');
+        }
+    });
+
+    updateSystemsSection();
+    updateAvailableCount();
+}
+
+// Update systems section based on selected subjects
+function updateSystemsSection() {
+    const section = document.getElementById('systems-section');
+    const systemsList = document.getElementById('systems-list');
+
+    if (selectedSubjects.size === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+
+    // Collect all systems from selected subjects
+    const systemsMap = {};
+
+    selectedSubjects.forEach(subject => {
+        const subjectData = subjectSystemMap[subject];
+        if (subjectData && subjectData.systems) {
+            Object.entries(subjectData.systems).forEach(([system, data]) => {
+                if (!systemsMap[system]) {
+                    systemsMap[system] = {
+                        count: 0,
+                        categories: {}
+                    };
+                }
+                systemsMap[system].count += data.count;
+
+                // Merge categories
+                Object.entries(data.categories).forEach(([category, count]) => {
+                    if (!systemsMap[system].categories[category]) {
+                        systemsMap[system].categories[category] = 0;
+                    }
+                    systemsMap[system].categories[category] += count;
+                });
+            });
+        }
+    });
+
+    // Render systems
+    const systems = Object.keys(systemsMap).sort();
+    systemsList.innerHTML = systems.map(system => {
+        const categories = Object.keys(systemsMap[system].categories).sort();
+
+        return `
+            <div class="system-item">
+                <div class="system-header" onclick="toggleSystem('${escapeHtml(system)}')">
+                    <div>
+                        <div class="system-name">${escapeHtml(system.replace(/_/g, ' '))}</div>
+                        <div class="system-count">${systemsMap[system].count} questões</div>
+                    </div>
+                    <span id="system-arrow-${escapeHtml(system)}">▼</span>
+                </div>
+                <div class="categories-list" id="categories-${escapeHtml(system)}">
+                    ${categories.map(category => `
+                        <div class="category-item" onclick="toggleCategory('${escapeHtml(category)}')">
+                            <label style="cursor: pointer;">
+                                <input
+                                    type="checkbox"
+                                    id="category-${escapeHtml(category)}"
+                                    onchange="event.stopPropagation(); toggleCategory('${escapeHtml(category)}')"
+                                >
+                                ${escapeHtml(category.replace(/_/g, ' '))}
+                                <span style="color: #666; font-size: 0.85rem;">
+                                    (${systemsMap[system].categories[category]} questões)
+                                </span>
+                            </label>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Toggle system expansion
+function toggleSystem(system) {
+    const categoriesList = document.getElementById(`categories-${system}`);
+    const arrow = document.getElementById(`system-arrow-${system}`);
+    const header = arrow.closest('.system-header');
+
+    categoriesList.classList.toggle('expanded');
+    arrow.textContent = categoriesList.classList.contains('expanded') ? '▲' : '▼';
+}
+
+// Toggle category selection
+function toggleCategory(category) {
+    const checkbox = document.getElementById(`category-${category}`);
+    checkbox.checked = !checkbox.checked;
+
+    if (checkbox.checked) {
+        selectedCategories.add(category);
+    } else {
+        selectedCategories.delete(category);
+    }
+
+    // Update category item styling
+    const item = checkbox.closest('.category-item');
+    if (checkbox.checked) {
+        item.classList.add('selected');
+    } else {
+        item.classList.remove('selected');
+    }
+
+    updateAvailableCount();
+}
+
+// Update available questions count
+async function updateAvailableCount() {
+    try {
+        // Build filter based on selections
+        let query = window.supabase
+            .from('flash_questions')
+            .select('question_id, question_tags');
+
+        const { data: questions, error } = await query;
+        if (error) throw error;
+
+        // Filter questions based on selections
+        availableQuestions = questions.filter(q => {
+            const parts = q.question_tags.split('::');
+            const subject = parts[0];
+            const system = parts.length >= 2 ? parts[1] : null;
+            const category = parts.length >= 3 ? parts[2] : null;
+
+            // If no subjects selected, show all
+            if (selectedSubjects.size === 0) {
+                return true;
+            }
+
+            // Check if subject matches
+            if (!selectedSubjects.has(subject)) {
+                return false;
+            }
+
+            // If categories are selected, filter by them
+            if (selectedCategories.size > 0) {
+                return category && selectedCategories.has(category);
+            }
+
+            return true;
+        });
+
+        const count = availableQuestions.length;
+        document.getElementById('available-count').textContent = count;
+
+        // Enable/disable start button
+        const numQuestions = parseInt(document.getElementById('num-questions').value) || 0;
+        const btnStart = document.getElementById('btn-start-test');
+
+        if (count > 0 && numQuestions > 0 && numQuestions <= count && numQuestions <= 40) {
+            btnStart.disabled = false;
+        } else {
+            btnStart.disabled = true;
+        }
+
+    } catch (error) {
+        console.error('Error updating available count:', error);
+    }
+}
+
+// Start flash test
+async function startFlashTest() {
+    const numQuestions = parseInt(document.getElementById('num-questions').value);
+
+    if (numQuestions < 1 || numQuestions > 40) {
+        showToast('Escolha entre 1 e 40 questões', 'error');
+        return;
+    }
+
+    if (availableQuestions.length < numQuestions) {
+        showToast(`Apenas ${availableQuestions.length} questões disponíveis`, 'error');
+        return;
+    }
+
+    const { data: { session } } = await window.supabase.auth.getSession();
+    if (!session) {
+        window.location.href = 'index.html';
+        return;
+    }
+
+    try {
+        // Randomly select questions
+        const shuffled = [...availableQuestions].sort(() => Math.random() - 0.5);
+        const selectedQuestionIds = shuffled.slice(0, numQuestions).map(q => q.question_id);
+
+        // Create test record
+        const { data: test, error } = await window.supabase
+            .from('flash_tests')
+            .insert({
+                user_id: session.user.id,
+                question_ids: selectedQuestionIds,
+                total_questions: numQuestions,
+                filters: {
+                    subjects: Array.from(selectedSubjects),
+                    categories: Array.from(selectedCategories)
+                },
+                status: 'in_progress'
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Redirect to test page
+        window.location.href = `flash-questions-test.html?test_id=${test.id}`;
+
+    } catch (error) {
+        console.error('Error starting test:', error);
+        showToast('Erro ao iniciar teste', 'error');
+    }
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
