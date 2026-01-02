@@ -455,11 +455,12 @@ async function updateAvailableCount() {
 
 // Start flash test
 async function startFlashTest() {
-    const numQuestions = parseInt(document.getElementById('num-questions').value);
+    const inputValue = document.getElementById('num-questions').value.trim();
+    const numQuestions = parseInt(inputValue);
 
     // Validate number of questions
-    if (numQuestions < 1) {
-        showToast('O número de questões deve ser maior que zero', 'error');
+    if (!inputValue || isNaN(numQuestions) || numQuestions < 1) {
+        showToast('Por favor, digite um número válido de questões (mínimo 1)', 'error');
         return;
     }
 
