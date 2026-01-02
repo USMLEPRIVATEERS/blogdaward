@@ -65,21 +65,7 @@
                     <div class="form-group" style="flex: 1;">
                         <select id="filter-category" class="form-input" onchange="filterLinks()">
                             <option value="">Todas categorias</option>
-                            <option value="uworld">UWorld</option>
-                            <option value="anki">Anki</option>
-                            <option value="amboss">Amboss</option>
-                            <option value="boards_beyond">Boards & Beyond</option>
-                            <option value="pathoma">Pathoma</option>
-                            <option value="sketchy">Sketchy</option>
-                            <option value="first_aid">First Aid</option>
-                            <option value="nbme">NBME</option>
-                            <option value="research">Pesquisa</option>
-                            <option value="visa">Visa/Imigracao</option>
-                            <option value="ecfmg">ECFMG</option>
-                            <option value="residency">Residencia</option>
-                            <option value="observership">Observership</option>
-                            <option value="tools">Ferramentas</option>
-                            <option value="other">Outros</option>
+                            <!-- Categories loaded dynamically from link_categories table -->
                         </select>
                     </div>
                 </div>
@@ -178,22 +164,7 @@
                         <label class="form-label" for="link-category">Categoria *</label>
                         <select id="link-category" class="form-input" onchange="toggleCustomCategory('add')">
                             <option value="">Selecione...</option>
-                            <option value="uworld">UWorld</option>
-                            <option value="anki">Anki</option>
-                            <option value="amboss">Amboss</option>
-                            <option value="boards_beyond">Boards & Beyond</option>
-                            <option value="pathoma">Pathoma</option>
-                            <option value="sketchy">Sketchy</option>
-                            <option value="first_aid">First Aid</option>
-                            <option value="nbme">NBME</option>
-                            <option value="research">Pesquisa</option>
-                            <option value="visa">Visa/Imigracao</option>
-                            <option value="ecfmg">ECFMG</option>
-                            <option value="residency">Residencia</option>
-                            <option value="observership">Observership</option>
-                            <option value="estagios">Estagios</option>
-                            <option value="tools">Ferramentas</option>
-                            <option value="other">Outros</option>
+                            <!-- Categories loaded dynamically from link_categories table -->
                             <option value="custom">Outra...</option>
                         </select>
                     </div>
@@ -256,22 +227,7 @@
                     <div class="form-group" style="flex: 1;">
                         <label class="form-label" for="edit-link-category">Categoria *</label>
                         <select id="edit-link-category" class="form-input" onchange="toggleCustomCategory('edit')">
-                            <option value="uworld">UWorld</option>
-                            <option value="anki">Anki</option>
-                            <option value="amboss">Amboss</option>
-                            <option value="boards_beyond">Boards & Beyond</option>
-                            <option value="pathoma">Pathoma</option>
-                            <option value="sketchy">Sketchy</option>
-                            <option value="first_aid">First Aid</option>
-                            <option value="nbme">NBME</option>
-                            <option value="research">Pesquisa</option>
-                            <option value="visa">Visa/Imigracao</option>
-                            <option value="ecfmg">ECFMG</option>
-                            <option value="residency">Residencia</option>
-                            <option value="observership">Observership</option>
-                            <option value="estagios">Estagios</option>
-                            <option value="tools">Ferramentas</option>
-                            <option value="other">Outros</option>
+                            <!-- Categories loaded dynamically from link_categories table -->
                             <option value="custom">Outra...</option>
                         </select>
                     </div>
@@ -707,7 +663,7 @@
             return categorySlug;
         }
 
-        // Load custom categories from database
+        // Load categories from database dynamically
         async function loadCustomCategories() {
             const { data: categories } = await WardApp.db
                 .from('link_categories')
@@ -715,33 +671,43 @@
                 .order('name');
 
             if (categories && categories.length > 0) {
-                // Add to both select dropdowns (before "Outra...")
+                // Populate modal selects (Add and Edit)
                 const addSelect = document.getElementById('link-category');
                 const editSelect = document.getElementById('edit-link-category');
+                const filterSelect = document.getElementById('filter-category');
 
-                // Remove existing custom options (except the default ones)
-                const selects = [addSelect, editSelect];
-                selects.forEach(select => {
-                    // Remove all custom options (those not in the default list)
-                    const optionsToRemove = [];
-                    for (let i = 0; i < select.options.length; i++) {
-                        const option = select.options[i];
-                        if (!['', 'uworld', 'anki', 'amboss', 'boards_beyond', 'pathoma',
-                              'sketchy', 'first_aid', 'nbme', 'research', 'visa', 'ecfmg',
-                              'residency', 'observership', 'estagios', 'tools', 'other', 'custom'].includes(option.value)) {
-                            optionsToRemove.push(option);
-                        }
-                    }
-                    optionsToRemove.forEach(opt => opt.remove());
-
-                    // Add custom categories before "Outra..."
+                // Clear and rebuild modal selects
+                [addSelect, editSelect].forEach(select => {
+                    // Keep only "Selecione..." and "Outra..."
+                    const selectOption = select.querySelector('option[value=""]');
                     const customOption = select.querySelector('option[value="custom"]');
+                    select.innerHTML = '';
+                    if (selectOption) select.appendChild(selectOption);
+
+                    // Add all categories from database
                     categories.forEach(cat => {
                         const option = document.createElement('option');
                         option.value = cat.slug;
                         option.textContent = cat.name;
-                        select.insertBefore(option, customOption);
+                        select.appendChild(option);
                     });
+
+                    // Add "Outra..." at the end
+                    if (customOption) select.appendChild(customOption);
+                });
+
+                // Populate filter select
+                // Keep only "Todas categorias"
+                const allOption = filterSelect.querySelector('option[value=""]');
+                filterSelect.innerHTML = '';
+                if (allOption) filterSelect.appendChild(allOption);
+
+                // Add all categories to filter
+                categories.forEach(cat => {
+                    const option = document.createElement('option');
+                    option.value = cat.slug;
+                    option.textContent = cat.name;
+                    filterSelect.appendChild(option);
                 });
             }
         }
