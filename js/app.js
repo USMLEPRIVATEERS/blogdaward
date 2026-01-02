@@ -276,10 +276,19 @@ async function saveQuestionnaireProgress(step, data) {
     // Determine which user's data to save (support view_as mode for mentors)
     let targetUserId = user.id;
 
-    // Check if mentor is viewing as student
-    const viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
-    if (viewAsData && user.role && user.role.startsWith('mentor')) {
-        targetUserId = parseInt(viewAsData.id || viewAsData.studentId);
+    // FIRST: Check URL parameter (takes priority)
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlViewAs = urlParams.get('view_as');
+
+    if (urlViewAs && user.role && user.role.startsWith('mentor')) {
+        // Mentor accessing with ?view_as parameter
+        targetUserId = parseInt(urlViewAs);
+    } else {
+        // SECOND: Check localStorage as fallback
+        const viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+        if (viewAsData && user.role && user.role.startsWith('mentor')) {
+            targetUserId = parseInt(viewAsData.id || viewAsData.studentId);
+        }
     }
 
     try {
@@ -417,10 +426,19 @@ async function loadQuestionnaireData(step) {
     // Determine which user's data to load (support view_as mode for mentors)
     let targetUserId = user.id;
 
-    // Check if mentor is viewing as student
-    const viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
-    if (viewAsData && user.role && user.role.startsWith('mentor')) {
-        targetUserId = parseInt(viewAsData.id || viewAsData.studentId);
+    // FIRST: Check URL parameter (takes priority)
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlViewAs = urlParams.get('view_as');
+
+    if (urlViewAs && user.role && user.role.startsWith('mentor')) {
+        // Mentor accessing with ?view_as parameter
+        targetUserId = parseInt(urlViewAs);
+    } else {
+        // SECOND: Check localStorage as fallback
+        const viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+        if (viewAsData && user.role && user.role.startsWith('mentor')) {
+            targetUserId = parseInt(viewAsData.id || viewAsData.studentId);
+        }
     }
 
     try {
