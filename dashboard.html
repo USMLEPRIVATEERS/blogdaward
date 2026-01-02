@@ -756,7 +756,7 @@
 
             try {
                 // Simple query: check if 'filled' column is NULL
-                const { data: checkIn, error } = await WardApp.db
+                let { data: checkIn, error } = await WardApp.db
                     .from('daily_checkins')
                     .select('id, filled, status')
                     .eq('user_id', targetUserId)
@@ -768,15 +768,33 @@
                     return;
                 }
 
-                // SIMPLE LOGIC:
-                // - No record = cron hasn't run yet, don't show
+                // IMPROVED LOGIC:
+                // - No record = create one with filled=NULL and show modal
                 // - filled = NULL → show modal (not filled yet)
                 // - filled = 0 or 1 → don't show (already interacted)
                 if (!checkIn) {
-                    return;
+                    // Create the check-in record if it doesn't exist (cron job fallback)
+                    const { data: newCheckIn, error: insertError } = await WardApp.db
+                        .from('daily_checkins')
+                        .insert({
+                            user_id: targetUserId,
+                            date: today,
+                            filled: null,
+                            status: null,
+                            message: null
+                        })
+                        .select('id, filled, status')
+                        .single();
+
+                    if (insertError) {
+                        console.error('[CHECK-IN] Erro ao criar check-in:', insertError);
+                        return;
+                    }
+
+                    checkIn = newCheckIn;
                 }
 
-                if (checkIn.filled === null) {
+                if (checkIn && checkIn.filled === null) {
                     setTimeout(() => {
                         openModal('checkin-modal');
                     }, 500);
