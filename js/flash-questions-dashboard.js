@@ -342,6 +342,7 @@ function renderPerformanceData(type, performanceData) {
         name,
         correct: stats.correct,
         total: stats.total,
+        incorrect: stats.total - stats.correct,
         percentage: Math.round((stats.correct / stats.total) * 100)
     }));
 
@@ -356,11 +357,24 @@ function renderPerformanceData(type, performanceData) {
         return;
     }
 
-    // Sort by percentage
-    const sorted = [...filtered].sort((a, b) => b.percentage - a.percentage);
+    // Sort for BEST: by number of correct answers (descending), then by percentage (descending)
+    const sortedForBest = [...filtered].sort((a, b) => {
+        if (b.correct !== a.correct) {
+            return b.correct - a.correct; // More correct answers first
+        }
+        return b.percentage - a.percentage; // If tied, higher percentage first
+    });
+
+    // Sort for WORST: by number of incorrect answers (descending), then by percentage (ascending)
+    const sortedForWorst = [...filtered].sort((a, b) => {
+        if (b.incorrect !== a.incorrect) {
+            return b.incorrect - a.incorrect; // More incorrect answers first
+        }
+        return a.percentage - b.percentage; // If tied, lower percentage first
+    });
 
     // Get best (top 5)
-    const best = sorted.slice(0, 5);
+    const best = sortedForBest.slice(0, 5);
     const bestHTML = best.map(item => `
         <div class="performance-item">
             <div class="performance-item-name">${escapeHtml(item.name)}</div>
@@ -373,8 +387,8 @@ function renderPerformanceData(type, performanceData) {
 
     document.getElementById(`best-${type}`).innerHTML = bestHTML || '<div class="no-data">Sem dados</div>';
 
-    // Get worst (bottom 5, reversed)
-    const worst = sorted.slice(-5).reverse();
+    // Get worst (top 5)
+    const worst = sortedForWorst.slice(0, 5);
     const worstHTML = worst.map(item => `
         <div class="performance-item">
             <div class="performance-item-name">${escapeHtml(item.name)}</div>
