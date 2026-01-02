@@ -200,8 +200,8 @@ async function renderQuestion() {
     // Update question text
     document.getElementById('question-text').textContent = question.question;
 
-    // Parse and render choices
-    const choices = JSON.parse(question.choices);
+    // Render choices (Supabase JSONB is already parsed)
+    const choices = question.choices;
     const choicesList = document.getElementById('choices-list');
 
     const letters = ['A', 'B', 'C', 'D', 'E'];
