@@ -247,10 +247,16 @@
                 </div>
 
                 <div id="responses-content" style="display: none;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                         <h2 id="student-name" style="margin: 0;"></h2>
                         <button class="btn btn-outline export-btn" onclick="exportResponses()">📥 Exportar Respostas</button>
                     </div>
+
+                    <!-- Student Summary Card -->
+                    <div id="student-summary" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; color: white; display: none;">
+                        <!-- Filled by JS -->
+                    </div>
+
                     <div id="responses-sections"></div>
                 </div>
             </div>
@@ -367,10 +373,93 @@
             renderStudentResponses();
         }
 
+        // Step titles and descriptions
+        const stepTitles = {
+            1: { icon: '👤', title: 'Dados Básicos', desc: 'Informações pessoais, endereço e formação acadêmica' },
+            2: { icon: '📅', title: 'Dados USMLE', desc: 'Cronograma de estudos, preparação e datas planejadas' },
+            3: { icon: '📚', title: 'UWorld Prep', desc: 'Preparação e recursos para UWorld' },
+            4: { icon: '📊', title: 'Progresso UWorld', desc: 'Categorias completadas e progresso atual' },
+            5: { icon: '🗣️', title: 'Inglês', desc: 'Nível de proficiência em leitura e compreensão' },
+            6: { icon: '🎴', title: 'Anki', desc: 'Uso e configuração do Anki para estudos' },
+            7: { icon: '🔬', title: 'Pesquisa - Parte 1', desc: 'Experiência inicial em pesquisa e publicações' },
+            8: { icon: '📝', title: 'Pesquisa - Parte 2', desc: 'Projetos de pesquisa em andamento e interesses' },
+            9: { icon: '🧪', title: 'Pesquisa - Parte 3', desc: 'Objetivos e metas de pesquisa futura' },
+            10: { icon: '🏥', title: 'Observerships', desc: 'Experiências clínicas e observações' },
+            11: { icon: '✈️', title: 'Background', desc: 'História pessoal, família e motivações' }
+        };
+
+        // Field name translations to Portuguese
+        const fieldLabels = {
+            // Step 1
+            'full_name': '📛 Nome Completo',
+            'email_confirm': '📧 Email',
+            'cpf': '🆔 CPF',
+            'orcid': '🔬 ORCID',
+            'address_line1': '🏠 Endereço (Linha 1)',
+            'address_line2': '🏠 Endereço (Linha 2)',
+            'city': '🌆 Cidade',
+            'state': '📍 Estado',
+            'zip_code': '📮 CEP',
+            'country': '🌍 País',
+            'graduation_date': '🎓 Data de Formatura',
+            'medical_school': '🏫 Faculdade de Medicina',
+            'current_institution': '🏥 Instituição Atual',
+            'current_specialty': '⚕️ Especialidade Atual',
+            'intended_specialty_usa': '🎯 Especialidade Pretendida (EUA)',
+
+            // Step 2
+            'step1_exam_date': '📅 Data Planejada Step 1',
+            'step2ck_exam_date': '📅 Data Planejada Step 2 CK',
+            'step3_exam_date': '📅 Data Planejada Step 3',
+            'first_pass_months': '⏱️ Tempo First Pass (meses)',
+            'second_pass_months': '⏱️ Tempo Second Pass (meses)',
+            'dedicated_months': '⏱️ Tempo Dedicated (meses)',
+            'no_study_days': '🚫 Dias SEM Estudo',
+            'break_periods': '🏝️ Períodos de Pausa',
+
+            // Step 3
+            'uworld_subscription': '💳 Assinatura UWorld',
+            'uworld_renewal_date': '🔄 Data de Renovação',
+
+            // Step 4
+            'completed_categories': '✅ Categorias Completadas',
+
+            // Step 5
+            'reading_level': '📖 Nível de Leitura',
+            'listening_level': '🎧 Nível de Compreensão Oral',
+            'additional_comments': '💬 Comentários Adicionais',
+
+            // Step 6
+            'uses_anki': '🎴 Usa Anki',
+            'anki_deck': '📦 Deck do Anki',
+            'cards_per_day': '📊 Cards por Dia',
+
+            // Step 7-9 Research
+            'has_publications': '📝 Tem Publicações',
+            'publication_count': '🔢 Número de Publicações',
+            'research_interests': '🔬 Interesses de Pesquisa',
+
+            // Step 10
+            'observerships': '🏥 Observerships Realizados',
+
+            // Step 11
+            'is_in_usa': '🇺🇸 Está nos EUA',
+            'how_got_usa': '✈️ Como foi para os EUA',
+            'visa_type_usa': '📋 Tipo de Visto',
+            'how_got_visa': '📄 Como conseguiu o visto',
+            'works_in_usa': '💼 Trabalha nos EUA',
+            'how_got_job': '💼 Como conseguiu o emprego',
+            'personal_story_usa': '📖 História Pessoal',
+            'family_agreement_usa': '👨‍👩‍👧‍👦 Acordo Familiar'
+        };
+
         function renderStudentResponses() {
             document.getElementById('no-student-selected').style.display = 'none';
             document.getElementById('responses-content').style.display = 'block';
             document.getElementById('student-name').textContent = currentStudent.full_name || currentStudent.email;
+
+            // Render student summary
+            renderStudentSummary();
 
             const sections = document.getElementById('responses-sections');
             sections.innerHTML = '';
@@ -390,8 +479,61 @@
                     }
                 }
 
-                sections.innerHTML += renderStep(`Step ${step}`, data);
+                const stepInfo = stepTitles[step] || { icon: '📋', title: `Step ${step}`, desc: '' };
+                sections.innerHTML += renderStep(step, stepInfo, data);
             }
+        }
+
+        function renderStudentSummary() {
+            // Extract key information from all steps
+            const step1 = currentResponses.find(r => r.step === 1)?.data || {};
+            const step2 = currentResponses.find(r => r.step === 2)?.data || {};
+            const step11 = currentResponses.find(r => r.step === 11)?.data || {};
+
+            const summaryEl = document.getElementById('student-summary');
+
+            let summaryHTML = '<h3 style="margin: 0 0 1rem 0; font-size: 1.2rem;">📊 Resumo Rápido</h3>';
+            summaryHTML += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">';
+
+            // Key info cards
+            if (step1.intended_specialty_usa) {
+                summaryHTML += `
+                    <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px;">
+                        <div style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.25rem;">🎯 Especialidade Pretendida</div>
+                        <div style="font-size: 1.1rem; font-weight: 600;">${step1.intended_specialty_usa}</div>
+                    </div>
+                `;
+            }
+
+            if (step2.step1_exam_date) {
+                summaryHTML += `
+                    <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px;">
+                        <div style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.25rem;">📅 Data Step 1</div>
+                        <div style="font-size: 1.1rem; font-weight: 600;">${new Date(step2.step1_exam_date).toLocaleDateString('pt-BR')}</div>
+                    </div>
+                `;
+            }
+
+            if (step11.is_in_usa !== undefined) {
+                summaryHTML += `
+                    <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px;">
+                        <div style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.25rem;">🇺🇸 Status EUA</div>
+                        <div style="font-size: 1.1rem; font-weight: 600;">${step11.is_in_usa ? 'Nos EUA' : 'Fora dos EUA'}</div>
+                    </div>
+                `;
+            }
+
+            const completedSteps = currentResponses.filter(r => r.data && Object.keys(r.data).length > 0).length;
+            summaryHTML += `
+                <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px;">
+                    <div style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.25rem;">✅ Progresso</div>
+                    <div style="font-size: 1.1rem; font-weight: 600;">${completedSteps}/11 etapas</div>
+                </div>
+            `;
+
+            summaryHTML += '</div>';
+            summaryEl.innerHTML = summaryHTML;
+            summaryEl.style.display = 'block';
         }
 
         // Format complex data types for display
@@ -555,11 +697,19 @@
             }).join('') + `</div>`;
         }
 
-        function renderStep(title, data) {
+        function renderStep(stepNumber, stepInfo, data) {
             if (!data || Object.keys(data).length === 0) {
                 return `
                     <div class="step-section">
-                        <div class="step-header">${title}</div>
+                        <div class="step-header">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="font-size: 1.5rem;">${stepInfo.icon}</span>
+                                <div>
+                                    <div style="font-size: 1.1rem; font-weight: 700;">${stepInfo.title}</div>
+                                    <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">${stepInfo.desc}</div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="response-item">
                             <div class="response-value empty">Nenhuma resposta registrada</div>
                         </div>
@@ -568,8 +718,8 @@
             }
 
             const items = Object.entries(data).map(([key, value]) => {
-                // Format key to be more readable
-                const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                // Use custom label if available, otherwise format the key
+                const label = fieldLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                 const formattedValue = formatValue(value, key);
 
                 return `
@@ -582,7 +732,15 @@
 
             return `
                 <div class="step-section">
-                    <div class="step-header">${title}</div>
+                    <div class="step-header">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 1.5rem;">${stepInfo.icon}</span>
+                            <div>
+                                <div style="font-size: 1.1rem; font-weight: 700;">${stepInfo.title}</div>
+                                <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">${stepInfo.desc}</div>
+                            </div>
+                        </div>
+                    </div>
                     ${items}
                 </div>
             `;
