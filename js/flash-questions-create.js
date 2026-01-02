@@ -125,7 +125,8 @@ async function loadSubjects() {
         const { data: questions, error } = await window.supabase
             .from('flash_questions')
             .select('question_id, question_tags')
-            .eq('step', selectedStep);
+            .eq('step', selectedStep)
+            .limit(10000); // Explicitly set high limit to get all questions
 
         if (error) throw error;
 
@@ -346,7 +347,8 @@ async function updateAvailableCount() {
         let query = window.supabase
             .from('flash_questions')
             .select('question_id, question_tags')
-            .eq('step', selectedStep);
+            .eq('step', selectedStep)
+            .limit(10000); // Explicitly set high limit to get all questions
 
         const { data: questions, error } = await query;
         if (error) throw error;
