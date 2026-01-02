@@ -732,7 +732,49 @@
             }
             landmarksHTML += '</div>';
             landmarksHTML += '<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 1rem 0;">';
-            landmarksHTML += '<h4 style="margin-bottom: 1rem;">📅 Timeline de Atividades</h4>';
+
+            // Student Statistics
+            const totalCheckins = checkinsRes.data?.length || 0;
+            const totalStudyDiary = studyDiaryRes.data?.length || 0;
+            const totalUWorldDiary = uworldDiaryRes.data?.length || 0;
+            const lastCheckin = checkinsRes.data?.[0];
+            const lastActivity = [
+                ...(checkinsRes.data || []).map(c => ({ date: c.created_at, type: 'check-in' })),
+                ...(studyDiaryRes.data || []).map(d => ({ date: d.created_at, type: 'diário' })),
+                ...(uworldDiaryRes.data || []).map(d => ({ date: d.created_at, type: 'UWorld' }))
+            ].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+
+            landmarksHTML += `
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; color: white;">
+                    <h4 style="margin: 0 0 1rem 0; color: white; font-size: 1rem;">📊 Estatísticas do Aluno</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                        <div style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 1rem; text-align: center;">
+                            <div style="font-size: 2rem; font-weight: bold;">${totalCheckins}</div>
+                            <div style="font-size: 0.85rem; opacity: 0.9;">✍️ Check-ins</div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 1rem; text-align: center;">
+                            <div style="font-size: 2rem; font-weight: bold;">${totalStudyDiary}</div>
+                            <div style="font-size: 0.85rem; opacity: 0.9;">📔 Diário de Estudos</div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 1rem; text-align: center;">
+                            <div style="font-size: 2rem; font-weight: bold;">${totalUWorldDiary}</div>
+                            <div style="font-size: 0.85rem; opacity: 0.9;">📊 Diário UWorld</div>
+                        </div>
+                    </div>
+                    ${lastActivity ? `
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.85rem; opacity: 0.9;">
+                            <strong>Última atividade:</strong> ${lastActivity.type} em ${WardApp.formatDate(lastActivity.date)}
+                        </div>
+                    ` : ''}
+                    ${lastCheckin ? `
+                        <div style="margin-top: 0.5rem; font-size: 0.85rem; opacity: 0.9;">
+                            <strong>Último check-in:</strong>
+                            ${lastCheckin.status === 'parado' ? '🔴 Parado' : lastCheckin.status === 'preciso_ajuda' ? '🟡 Precisa de Ajuda' : '🟢 Tranquilo'}
+                            ${lastCheckin.message ? `- "${lastCheckin.message}"` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
 
             // Combine and sort by date
             const timeline = [];
@@ -1444,9 +1486,10 @@
                 });
             });
 
-            // Render grouped landmarks
+            // Render grouped landmarks in specific order
             let html = '';
-            const sortedGroups = Object.keys(groupedLandmarks).sort();
+            const groupOrder = ['first-round', 'second-round', 'second-pass', 'dedicated', 'setup', 'system-calls', 'research', 'extras'];
+            const sortedGroups = groupOrder.filter(g => groupedLandmarks[g]);
 
             sortedGroups.forEach(groupKey => {
                 const landmarks = groupedLandmarks[groupKey];
@@ -2228,8 +2271,8 @@
         }
 
         .pending-calls-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            display: flex;
+            flex-direction: column;
             gap: 1rem;
         }
 
