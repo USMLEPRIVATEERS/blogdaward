@@ -271,7 +271,10 @@ async function loadPerformanceData() {
 
         if (error) throw error;
 
+        console.log('Loaded responses:', responses);
+
         if (!responses || responses.length === 0) {
+            console.log('No responses found');
             showNoData();
             return;
         }
@@ -283,6 +286,7 @@ async function loadPerformanceData() {
 
         responses.forEach(response => {
             const tags = response.flash_questions.question_tags;
+            console.log('Processing tags:', tags);
             const parts = tags.split('::');
 
             // Parse: "Subjects::Anatomy::Systems::Cardiovascular::Categories::Embryology"
@@ -349,8 +353,10 @@ function renderPerformanceData(type, performanceData) {
         percentage: Math.round((stats.correct / stats.total) * 100)
     }));
 
-    // Filter out items with less than 3 questions (not enough data)
-    const filtered = items.filter(item => item.total >= 3);
+    // Filter out items with less than 1 question
+    const filtered = items.filter(item => item.total >= 1);
+
+    console.log(`Performance data for ${type}:`, filtered);
 
     if (filtered.length === 0) {
         document.getElementById(`best-${type}`).innerHTML = '<div class="no-data">Dados insuficientes</div>';
