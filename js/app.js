@@ -1441,16 +1441,16 @@ document.addEventListener('DOMContentLoaded', () => {
     updateHeaderUserInfo();
     updateNavbarForRole();
 
-    // Check if should show check-in modal
-    const user = JSON.parse(localStorage.getItem('ward_user'));
-    if (user?.first_login_completed && window.location.pathname.includes('dashboard')) {
-        const lastCheckIn = localStorage.getItem('last_checkin_date');
-        const today = new Date().toISOString().split('T')[0];
-
-        if (lastCheckIn !== today) {
-            showCheckInModal();
-        }
-    }
+    // OLD CODE: Check-in modal is now handled in dashboard.html with database logic
+    // const user = JSON.parse(localStorage.getItem('ward_user'));
+    // if (user?.first_login_completed && window.location.pathname.includes('dashboard')) {
+    //     const lastCheckIn = localStorage.getItem('last_checkin_date');
+    //     const today = new Date().toISOString().split('T')[0];
+    //
+    //     if (lastCheckIn !== today) {
+    //         showCheckInModal();
+    //     }
+    // }
 });
 
 // Helper to get supabase client (ensures it's initialized)
