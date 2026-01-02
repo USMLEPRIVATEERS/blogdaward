@@ -356,19 +356,32 @@ async function updateAvailableCount() {
 
         // Get user's answered questions if "only unseen" is checked
         let answeredQuestionIds = new Set();
+        let incorrectQuestionIds = new Set();
         const onlyUnseen = document.getElementById('only-unseen')?.checked;
+        const onlyIncorrect = document.getElementById('only-incorrect')?.checked;
 
-        if (onlyUnseen) {
-            const user = JSON.parse(localStorage.getItem('ward_user'));
-            if (user) {
-                const { data: responses, error: responseError } = await window.supabase
-                    .from('flash_question_responses')
-                    .select('question_id')
-                    .eq('user_id', user.id);
+        const user = JSON.parse(localStorage.getItem('ward_user'));
 
-                if (!responseError && responses) {
-                    answeredQuestionIds = new Set(responses.map(r => r.question_id));
-                }
+        if (onlyUnseen && user) {
+            const { data: responses, error: responseError } = await window.supabase
+                .from('flash_question_responses')
+                .select('question_id')
+                .eq('user_id', user.id);
+
+            if (!responseError && responses) {
+                answeredQuestionIds = new Set(responses.map(r => r.question_id));
+            }
+        }
+
+        if (onlyIncorrect && user) {
+            const { data: incorrectResponses, error: incorrectError } = await window.supabase
+                .from('flash_question_responses')
+                .select('question_id')
+                .eq('user_id', user.id)
+                .eq('is_correct', false);
+
+            if (!incorrectError && incorrectResponses) {
+                incorrectQuestionIds = new Set(incorrectResponses.map(r => r.question_id));
             }
         }
 
@@ -376,6 +389,11 @@ async function updateAvailableCount() {
         availableQuestions = questions.filter(q => {
             // Exclude answered questions if "only unseen" is checked
             if (onlyUnseen && answeredQuestionIds.has(q.question_id)) {
+                return false;
+            }
+
+            // Include only incorrect questions if "only incorrect" is checked
+            if (onlyIncorrect && !incorrectQuestionIds.has(q.question_id)) {
                 return false;
             }
 
