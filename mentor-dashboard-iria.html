@@ -1527,11 +1527,36 @@
             container.innerHTML = html;
         }
 
+        async function acknowledgeDelay(delayId) {
+            const user = JSON.parse(localStorage.getItem('ward_user'));
+            if (!user) return;
+
+            try {
+                const { error } = await WardApp.db
+                    .from('schedule_delays')
+                    .update({
+                        acknowledged_by: user.id,
+                        acknowledged_at: new Date().toISOString()
+                    })
+                    .eq('id', delayId);
+
+                if (error) throw error;
+
+                WardApp.showToast('Atraso marcado como lido', 'success');
+                await loadScheduleDelays(); // Reload the list
+
+            } catch (error) {
+                console.error('Error acknowledging delay:', error);
+                WardApp.showToast('Erro ao marcar atraso como lido', 'error');
+            }
+        }
+
         async function loadScheduleDelays() {
-            // Load all schedule delays
+            // Load all schedule delays that haven't been acknowledged
             const { data: delayedItems } = await WardApp.db
                 .from('schedule_delays')
                 .select('*, users:user_id(full_name, email)')
+                .is('acknowledged_by', null)
                 .order('created_at', { ascending: false });
 
             if (!delayedItems || delayedItems.length === 0) {
@@ -1572,16 +1597,31 @@
                         </button>
                     </div>
                     <div style="display: grid; gap: 0.5rem;">
-                        ${student.items.map(item => `
-                            <div style="background: #fef2f2; padding: 0.75rem; border-radius: 6px; font-size: 0.9rem;">
+                        ${student.items.map(item => {
+                            const startDate = new Date(item.start_date).toLocaleDateString('pt-BR');
+                            const endDate = new Date(item.end_date).toLocaleDateString('pt-BR');
+                            const reportedDate = new Date(item.created_at).toLocaleDateString('pt-BR');
+
+                            return `
+                            <div style="background: #fef2f2; padding: 0.75rem; border-radius: 6px; font-size: 0.9rem; position: relative;">
                                 <div style="font-weight: 600; color: #dc2626; margin-bottom: 0.25rem;">
-                                    ${item.system}: ${item.category}
+                                    📅 Período: ${startDate} até ${endDate}
                                 </div>
-                                <div style="color: #6b7280; font-size: 0.85rem;">
-                                    Reportado em: ${item.delay_reported_at ? new Date(item.delay_reported_at).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : '-'}
+                                ${item.reason ? `<div style="color: #374151; margin-bottom: 0.25rem;">💬 ${item.reason}</div>` : ''}
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                                    <div style="color: #6b7280; font-size: 0.85rem;">
+                                        Reportado em: ${reportedDate}
+                                    </div>
+                                    <button
+                                        class="btn btn-sm btn-primary"
+                                        onclick="acknowledgeDelay(${item.id})"
+                                        style="padding: 0.25rem 0.75rem; font-size: 0.85rem;">
+                                        ✓ Marcar como Lido
+                                    </button>
                                 </div>
                             </div>
-                        `).join('')}
+                        `;
+                        }).join('')}
                     </div>
                 </div>
             `).join('');
