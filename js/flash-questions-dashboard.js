@@ -3,21 +3,36 @@
 // ============================================
 
 // Wait for Supabase to be ready
-async function waitForSupabase() {
+async function ensureSupabase() {
+    // If already initialized, return
+    if (window.supabase && typeof window.supabase.auth !== 'undefined') {
+        return;
+    }
+
+    // Wait for library to load
     let attempts = 0;
-    while (!window.supabase && attempts < 50) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+    while (typeof window.supabase?.createClient !== 'function' && attempts < 100) {
+        await new Promise(resolve => setTimeout(resolve, 50));
         attempts++;
     }
-    if (!window.supabase) {
-        throw new Error('Supabase não foi carregado');
+
+    // If still not loaded, throw error
+    if (typeof window.supabase?.createClient !== 'function') {
+        throw new Error('Supabase library not loaded');
+    }
+
+    // Initialize if not already done
+    if (!window.supabase.auth) {
+        const SUPABASE_URL = 'https://yxtdesthusclivjdewfl.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4dGRlc3RodXNjbGl2amRld2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxNDUzMzYsImV4cCI6MjA4MjcyMTMzNn0.OQgK2s8K7CKJKyIwx7I6jnExTdCBpgiM7KfZuqhbPbw';
+        window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     }
 }
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        await waitForSupabase();
+        await ensureSupabase();
         await checkAuth();
         await loadUserName();
         await loadStatistics();
@@ -30,10 +45,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // Check authentication
 async function checkAuth() {
-    const { data: { session } } = await window.supabase.auth.getSession();
-    if (!session) {
+    try {
+        const { data: { session }, error } = await window.supabase.auth.getSession();
+
+        if (error) {
+            console.error('Auth error:', error);
+            window.location.href = 'index.html';
+            return;
+        }
+
+        if (!session) {
+            console.log('No session found, redirecting to login');
+            window.location.href = 'index.html';
+            return;
+        }
+
+        console.log('Session found, user authenticated');
+    } catch (error) {
+        console.error('Check auth error:', error);
         window.location.href = 'index.html';
-        return;
     }
 }
 
