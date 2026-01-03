@@ -219,12 +219,15 @@
             display: flex;
             align-items: center;
             gap: 0.35rem;
+            font-size: 0.85rem;
+        }
+
+        .kanban-card-creator.mentor-created {
             color: #ea580c;
             font-weight: 600;
             background: #ffedd5;
             padding: 0.25rem 0.75rem;
             border-radius: 6px;
-            font-size: 0.8rem;
         }
 
         .kanban-empty {
@@ -855,15 +858,24 @@
             const completedTasks = project.completedTasks || 0;
             const pendingTasks = totalTasks - completedTasks;
 
+            // Extract text from HTML description (remove tags)
+            let descriptionText = '';
+            if (project.description) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = project.description;
+                descriptionText = tempDiv.textContent || tempDiv.innerText || '';
+                descriptionText = descriptionText.trim().substring(0, 120);
+            }
+
             return `
-                <div class="kanban-card ${createdByMentor ? 'created-by-mentor' : ''}"
+                <div class="kanban-card"
                      draggable="true"
                      ondragstart="drag(event)"
                      ondragend="dragEnd(event)"
                      data-project-id="${project.id}"
                      onclick="editProject(${project.id})">
                     <div class="kanban-card-title">${escapeHtml(project.title)}</div>
-                    ${project.description ? `<div class="kanban-card-description">${project.description.substring(0, 120)}...</div>` : ''}
+                    ${descriptionText ? `<div class="kanban-card-description">${escapeHtml(descriptionText)}${descriptionText.length >= 120 ? '...' : ''}</div>` : ''}
 
                     <div class="kanban-card-meta">
                         ${deadline ? `
@@ -878,11 +890,9 @@
                             </div>
                         ` : ''}
 
-                        ${createdByMentor ? `
-                            <div class="kanban-card-creator">
-                                👤 Criado por: ${escapeHtml(creatorName)}
-                            </div>
-                        ` : ''}
+                        <div class="kanban-card-creator ${createdByMentor ? 'mentor-created' : ''}">
+                            👤 ${escapeHtml(creatorName)}
+                        </div>
                     </div>
                 </div>
             `;
