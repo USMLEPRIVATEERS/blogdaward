@@ -30,21 +30,12 @@ const GENERAL_UPLOAD_FOLDER_ID = '1taSg22f7FCMJAuAeIYReRHpozBnpdQ_m';
 // ============================================
 // CORS CONFIGURATION
 // ============================================
-
-function setCorsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Max-Age': '3600'
-  };
-}
+// Google Apps Script automatically allows CORS when deployed as "Anyone"
+// No need for custom headers - just return proper JSON responses
 
 function doOptions(e) {
-  const headers = setCorsHeaders();
   return ContentService.createTextOutput('')
-    .setMimeType(ContentService.MimeType.TEXT)
-    .setHeaders(headers);
+    .setMimeType(ContentService.MimeType.TEXT);
 }
 
 // ============================================
@@ -52,8 +43,6 @@ function doOptions(e) {
 // ============================================
 
 function doPost(e) {
-  const headers = setCorsHeaders();
-
   try {
     const data = JSON.parse(e.postData.contents);
     const action = data.action;
@@ -62,8 +51,7 @@ function doPost(e) {
     if (action === 'createProjectFolder') {
       const result = createProjectFolderStructure(data.projectTitle);
       return ContentService.createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(headers);
+        .setMimeType(ContentService.MimeType.JSON);
     }
 
     // UPLOAD FILE TO SPECIFIC FOLDER
@@ -75,8 +63,7 @@ function doPost(e) {
         data.mimeType
       );
       return ContentService.createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(headers);
+        .setMimeType(ContentService.MimeType.JSON);
     }
 
     // LEGACY: Upload to general folder
@@ -87,16 +74,14 @@ function doPost(e) {
       data.mimeType
     );
     return ContentService.createTextOutput(JSON.stringify(result))
-      .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders(headers);
+      .setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {
     return ContentService.createTextOutput(JSON.stringify({
       success: false,
       error: error.toString()
     }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders(headers);
+    .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -105,8 +90,6 @@ function doPost(e) {
 // ============================================
 
 function doGet(e) {
-  const headers = setCorsHeaders();
-
   try {
     const action = e.parameter.action;
 
@@ -119,8 +102,7 @@ function doGet(e) {
         success: true,
         message: 'Arquivo movido para lixeira'
       }))
-      .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders(headers);
+      .setMimeType(ContentService.MimeType.JSON);
     }
 
     // LIST FILES IN FOLDER
@@ -142,8 +124,7 @@ function doGet(e) {
         count: fileList.length,
         files: fileList
       }))
-      .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders(headers);
+      .setMimeType(ContentService.MimeType.JSON);
     }
 
     // API STATUS
@@ -157,16 +138,14 @@ function doGet(e) {
         'GET list': 'Lista arquivos de uma pasta'
       }
     }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders(headers);
+    .setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {
     return ContentService.createTextOutput(JSON.stringify({
       success: false,
       error: error.toString()
     }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders(headers);
+    .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
