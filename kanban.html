@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kanban Board</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 1.5rem;
+            background: transparent;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .kanban-container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .kanban-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .kanban-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .kanban-user-selector {
+            display: none;
+        }
+
+        .kanban-user-selector.visible {
+            display: block;
+        }
+
+        .kanban-user-selector select {
+            padding: 0.75rem 1.25rem;
+            border: 2px solid #2563eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            background: white;
+            color: #1e293b;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .kanban-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .kanban-column {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 1.25rem;
+            min-height: 600px;
+            border: 2px solid #e2e8f0;
+        }
+
+        .kanban-column.archived-column {
+            grid-column: 1 / -1;
+            min-height: auto;
+        }
+
+        .kanban-column.archived-column.collapsed .kanban-cards {
+            display: none;
+        }
+
+        .kanban-column-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.25rem;
+            padding-bottom: 1rem;
+            border-bottom: 3px solid #cbd5e1;
+        }
+
+        .kanban-column-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .kanban-column-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .kanban-column-count {
+            background: #2563eb;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            min-width: 30px;
+            text-align: center;
+        }
+
+        .kanban-column-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .kanban-add-btn, .kanban-collapse-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            font-size: 1.3rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            font-weight: 700;
+        }
+
+        .kanban-add-btn:hover, .kanban-collapse-btn:hover {
+            background: #1d4ed8;
+            transform: scale(1.05);
+        }
+
+        .kanban-collapse-btn {
+            background: #94a3b8;
+        }
+
+        .kanban-column.collapsed .kanban-collapse-btn {
+            transform: rotate(180deg);
+        }
+
+        .kanban-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            min-height: 100px;
+        }
+
+        .kanban-card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1.25rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .kanban-card:hover {
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            transform: translateY(-4px);
+            border-color: #2563eb;
+        }
+
+        .kanban-card.dragging {
+            opacity: 0.6;
+            transform: rotate(3deg) scale(1.05);
+            cursor: grabbing;
+            box-shadow: 0 12px 24px rgba(0,0,0,0.2);
+        }
+
+        .kanban-card-title {
+            font-weight: 600;
+            font-size: 1.05rem;
+            color: #1e293b;
+            margin-bottom: 0.75rem;
+            line-height: 1.4;
+        }
+
+        .kanban-card-description {
+            font-size: 0.9rem;
+            color: #64748b;
+            margin-bottom: 0.75rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .kanban-card-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.85rem;
+            color: #64748b;
+            flex-wrap: wrap;
+        }
+
+        .kanban-card-deadline {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .kanban-card-deadline.overdue {
+            color: #dc2626;
+            font-weight: 700;
+        }
+
+        .kanban-empty {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #94a3b8;
+            font-size: 0.95rem;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 12px;
+            max-width: 900px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 2rem;
+            cursor: pointer;
+            color: #64748b;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: #f1f5f9;
+            color: #1e293b;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-footer {
+            padding: 1.5rem;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .form-input, .form-textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+
+        .rich-text-editor {
+            min-height: 200px;
+            padding: 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            overflow-y: auto;
+            max-height: 400px;
+        }
+
+        .rich-text-editor:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+
+        .rich-text-editor[contenteditable="true"]:empty:before {
+            content: attr(placeholder);
+            color: #94a3b8;
+        }
+
+        .file-drop-zone {
+            border: 3px dashed #cbd5e1;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            background: #f8fafc;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 1rem;
+        }
+
+        .file-drop-zone:hover, .file-drop-zone.drag-over {
+            border-color: #2563eb;
+            background: #eff6ff;
+        }
+
+        .file-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-name {
+            font-weight: 500;
+            color: #1e293b;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .file-link {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .file-link:hover {
+            background: #eff6ff;
+        }
+
+        .file-delete {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .file-delete:hover {
+            background: #b91c1c;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e1;
+        }
+
+        .btn-danger {
+            background: #dc2626;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+
+        .tasks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .task-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 2px solid #e2e8f0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .task-item:hover {
+            border-color: #2563eb;
+            background: white;
+        }
+
+        .task-item.completed {
+            opacity: 0.7;
+            background: #f1f5f9;
+        }
+
+        .task-item.completed .task-title {
+            text-decoration: line-through;
+        }
+
+        .btn-add-task {
+            width: 100%;
+            padding: 1rem;
+            background: #eff6ff;
+            border: 2px dashed #2563eb;
+            color: #2563eb;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-add-task:hover {
+            background: #2563eb;
+            color: white;
+        }
+
+        @media (max-width: 1024px) {
+            .kanban-board {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+
+            .kanban-board {
+                grid-template-columns: 1fr;
+            }
+
+            .kanban-column {
+                min-height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="kanban-container">
+        <div class="kanban-header">
+            <h2 class="kanban-title">📋 Meu Kanban</h2>
+            <div class="kanban-user-selector" id="kanban-user-selector">
+                <select id="kanban-user-select" onchange="switchKanbanUser()">
+                    <option value="">Meu Kanban</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="kanban-board">
+            <!-- TODO Column -->
+            <div class="kanban-column" data-status="todo" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)">
+                <div class="kanban-column-header">
+                    <div class="kanban-column-title-wrap">
+                        <span class="kanban-column-title">📝 FAZER</span>
+                        <span class="kanban-column-count" id="count-todo">0</span>
+                    </div>
+                    <div class="kanban-column-actions">
+                        <button class="kanban-add-btn" onclick="openProjectModal('todo')">+</button>
+                    </div>
+                </div>
+                <div class="kanban-cards" id="cards-todo"></div>
+            </div>
+
+            <!-- DOING Column -->
+            <div class="kanban-column" data-status="doing" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)">
+                <div class="kanban-column-header">
+                    <div class="kanban-column-title-wrap">
+                        <span class="kanban-column-title">🚀 FAZENDO</span>
+                        <span class="kanban-column-count" id="count-doing">0</span>
+                    </div>
+                    <div class="kanban-column-actions">
+                        <button class="kanban-add-btn" onclick="openProjectModal('doing')">+</button>
+                    </div>
+                </div>
+                <div class="kanban-cards" id="cards-doing"></div>
+            </div>
+
+            <!-- DONE Column -->
+            <div class="kanban-column" data-status="done" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)">
+                <div class="kanban-column-header">
+                    <div class="kanban-column-title-wrap">
+                        <span class="kanban-column-title">✅ FEITO</span>
+                        <span class="kanban-column-count" id="count-done">0</span>
+                    </div>
+                    <div class="kanban-column-actions">
+                        <button class="kanban-add-btn" onclick="openProjectModal('done')">+</button>
+                    </div>
+                </div>
+                <div class="kanban-cards" id="cards-done"></div>
+            </div>
+
+            <!-- ARCHIVED Column -->
+            <div class="kanban-column archived-column collapsed" data-status="archived" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)">
+                <div class="kanban-column-header">
+                    <div class="kanban-column-title-wrap">
+                        <span class="kanban-column-title">📦 ARQUIVADO</span>
+                        <span class="kanban-column-count" id="count-archived">0</span>
+                    </div>
+                    <div class="kanban-column-actions">
+                        <button class="kanban-collapse-btn" onclick="toggleArchived()">▼</button>
+                        <button class="kanban-add-btn" onclick="openProjectModal('archived')">+</button>
+                    </div>
+                </div>
+                <div class="kanban-cards" id="cards-archived"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project Modal -->
+    <div id="project-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="project-modal-title">Novo Projeto</h3>
+                <button class="modal-close" onclick="closeProjectModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Título do Projeto</label>
+                    <input type="text" id="project-title" class="form-input" placeholder="Nome do projeto...">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Deadline (opcional)</label>
+                    <input type="datetime-local" id="project-deadline" class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Descrição</label>
+                    <div class="rich-text-editor"
+                         id="project-description"
+                         contenteditable="true"
+                         placeholder="Cole aqui texto formatado do Claude ou escreva sua descrição...">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Arquivos</label>
+                    <div class="file-drop-zone" id="project-file-drop" onclick="document.getElementById('project-file-input').click()">
+                        <p>📁 Arraste arquivos aqui ou clique para selecionar</p>
+                        <p style="font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;">
+                            Os arquivos serão enviados para o Google Drive
+                        </p>
+                    </div>
+                    <input type="file" id="project-file-input" style="display: none;" multiple onchange="handleProjectFileSelect(event)">
+                    <div class="file-list" id="project-files-list"></div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Tarefas</label>
+                    <div class="tasks-list" id="project-tasks-list"></div>
+                    <button class="btn-add-task" onclick="openTaskModal()">+ Adicionar Tarefa</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeProjectModal()">Cancelar</button>
+                <button class="btn btn-danger" id="delete-project-btn" onclick="deleteProject()" style="display: none;">🗑️ Deletar</button>
+                <button class="btn btn-primary" onclick="saveProject()">Salvar Projeto</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Modal -->
+    <div id="task-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="task-modal-title">Nova Tarefa</h3>
+                <button class="modal-close" onclick="closeTaskModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Título da Tarefa</label>
+                    <input type="text" id="task-title" class="form-input" placeholder="Nome da tarefa...">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Deadline (opcional)</label>
+                    <input type="datetime-local" id="task-deadline" class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="task-completed" style="width: auto;">
+                        <span>Tarefa concluída</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Descrição</label>
+                    <div class="rich-text-editor"
+                         id="task-description"
+                         contenteditable="true"
+                         placeholder="Cole aqui texto formatado do Claude ou escreva sua descrição...">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Arquivos</label>
+                    <div class="file-drop-zone" id="task-file-drop" onclick="document.getElementById('task-file-input').click()">
+                        <p>📁 Arraste arquivos aqui ou clique para selecionar</p>
+                        <p style="font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;">
+                            Os arquivos serão enviados para o Google Drive
+                        </p>
+                    </div>
+                    <input type="file" id="task-file-input" style="display: none;" multiple onchange="handleTaskFileSelect(event)">
+                    <div class="file-list" id="task-files-list"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeTaskModal()">Cancelar</button>
+                <button class="btn btn-danger" id="delete-task-btn" onclick="deleteTask()" style="display: none;">🗑️ Deletar</button>
+                <button class="btn btn-primary" onclick="saveTask()">Salvar Tarefa</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js"></script>
+    <script>
+        const GOOGLE_DRIVE_UPLOAD_URL = 'https://script.google.com/macros/s/AKfycbyUaZ5Bu9SuDyA3fOJOC5nXCcVD50RlH-PAFhOVm9e2R3wT_AJqngyQXSLL02SaiO8p/exec';
+
+        let userData = null;
+        let currentKanbanUserId = null;
+        let currentProject = null;
+        let currentTask = null;
+        let projectFiles = [];
+        let taskFiles = [];
+        let draggedElement = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Check if user is Marcos or Iria
+            if (userData.role === 'mentor_marcos' || userData.role === 'mentor_iria') {
+                await loadUserSelector();
+            }
+
+            // Set current user
+            currentKanbanUserId = userData.id;
+
+            // Load kanban
+            await loadKanban();
+
+            // Setup file drop zones
+            setupFileDrop('project-file-drop', handleProjectFileDrop);
+            setupFileDrop('task-file-drop', handleTaskFileDrop);
+
+            // Cleanup old archived projects
+            await cleanupOldArchivedProjects();
+        });
+
+        async function loadUserSelector() {
+            const { data: users } = await WardApp.db
+                .from('users')
+                .select('id, full_name, name, email, role')
+                .in('role', ['aluno', 'assessoria', 'mentor_guilherme', 'mentor_romulo', 'mentor_iria', 'mentor_marcos'])
+                .order('full_name');
+
+            if (!users) return;
+
+            const select = document.getElementById('kanban-user-select');
+            users.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = user.full_name || user.name || user.email;
+                select.appendChild(option);
+            });
+
+            document.getElementById('kanban-user-selector').classList.add('visible');
+        }
+
+        function switchKanbanUser() {
+            const select = document.getElementById('kanban-user-select');
+            currentKanbanUserId = select.value || userData.id;
+            loadKanban();
+        }
+
+        async function loadKanban() {
+            const { data: projects } = await WardApp.db
+                .from('kanban_projects')
+                .select('*')
+                .eq('user_id', currentKanbanUserId)
+                .order('position');
+
+            renderKanban(projects || []);
+        }
+
+        function renderKanban(projects) {
+            const statuses = ['todo', 'doing', 'done', 'archived'];
+
+            statuses.forEach(status => {
+                const container = document.getElementById(`cards-${status}`);
+                const statusProjects = projects.filter(p => p.status === status);
+
+                document.getElementById(`count-${status}`).textContent = statusProjects.length;
+
+                if (statusProjects.length === 0) {
+                    container.innerHTML = '<div class="kanban-empty">Nenhum projeto ainda</div>';
+                } else {
+                    container.innerHTML = statusProjects.map(project => renderCard(project)).join('');
+                }
+            });
+        }
+
+        function renderCard(project) {
+            const deadline = project.deadline ? new Date(project.deadline) : null;
+            const isOverdue = deadline && deadline < new Date();
+            const deadlineStr = deadline ? deadline.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
+
+            return `
+                <div class="kanban-card"
+                     draggable="true"
+                     ondragstart="drag(event)"
+                     ondragend="dragEnd(event)"
+                     data-project-id="${project.id}"
+                     onclick="editProject(${project.id})">
+                    <div class="kanban-card-title">${escapeHtml(project.title)}</div>
+                    ${project.description ? `<div class="kanban-card-description">${project.description.substring(0, 100)}...</div>` : ''}
+                    <div class="kanban-card-meta">
+                        ${deadline ? `<div class="kanban-card-deadline ${isOverdue ? 'overdue' : ''}">📅 ${deadlineStr}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Drag and Drop
+        function allowDrop(ev) {
+            ev.preventDefault();
+            ev.currentTarget.style.background = '#eff6ff';
+        }
+
+        function dragLeave(ev) {
+            ev.currentTarget.style.background = '';
+        }
+
+        function drag(ev) {
+            draggedElement = ev.currentTarget;
+            ev.currentTarget.classList.add('dragging');
+            ev.dataTransfer.effectAllowed = 'move';
+            ev.dataTransfer.setData('text/plain', ev.currentTarget.dataset.projectId);
+        }
+
+        function dragEnd(ev) {
+            ev.currentTarget.classList.remove('dragging');
+        }
+
+        async function drop(ev) {
+            ev.preventDefault();
+            ev.currentTarget.style.background = '';
+
+            if (!draggedElement) return;
+
+            const projectId = ev.dataTransfer.getData('text/plain');
+            const newStatus = ev.currentTarget.dataset.status;
+
+            const { error } = await WardApp.db
+                .from('kanban_projects')
+                .update({ status: newStatus })
+                .eq('id', projectId);
+
+            if (error) {
+                console.error('Error updating project:', error);
+                WardApp.showToast('Erro ao mover projeto', 'error');
+                return;
+            }
+
+            await loadKanban();
+            draggedElement = null;
+            WardApp.showToast('Projeto movido!', 'success');
+        }
+
+        function toggleArchived() {
+            document.querySelector('.archived-column').classList.toggle('collapsed');
+        }
+
+        // Project Modal
+        function openProjectModal(status = 'todo') {
+            currentProject = { status };
+            projectFiles = [];
+
+            document.getElementById('project-modal-title').textContent = 'Novo Projeto';
+            document.getElementById('project-title').value = '';
+            document.getElementById('project-deadline').value = '';
+            document.getElementById('project-description').innerHTML = '';
+            document.getElementById('project-files-list').innerHTML = '';
+            document.getElementById('project-tasks-list').innerHTML = '';
+            document.getElementById('delete-project-btn').style.display = 'none';
+
+            document.getElementById('project-modal').classList.add('active');
+        }
+
+        function closeProjectModal() {
+            document.getElementById('project-modal').classList.remove('active');
+            currentProject = null;
+            projectFiles = [];
+        }
+
+        async function editProject(projectId) {
+            const { data: project } = await WardApp.db
+                .from('kanban_projects')
+                .select('*')
+                .eq('id', projectId)
+                .single();
+
+            if (!project) return;
+
+            currentProject = project;
+
+            document.getElementById('project-modal-title').textContent = 'Editar Projeto';
+            document.getElementById('project-title').value = project.title;
+            document.getElementById('project-deadline').value = project.deadline ? new Date(project.deadline).toISOString().slice(0, 16) : '';
+            document.getElementById('project-description').innerHTML = project.description || '';
+            document.getElementById('delete-project-btn').style.display = 'block';
+
+            const { data: files } = await WardApp.db
+                .from('kanban_files')
+                .select('*')
+                .eq('project_id', projectId);
+
+            projectFiles = files || [];
+            renderProjectFiles();
+
+            const { data: tasks } = await WardApp.db
+                .from('kanban_tasks')
+                .select('*')
+                .eq('project_id', projectId)
+                .order('position');
+
+            renderProjectTasks(tasks || []);
+
+            document.getElementById('project-modal').classList.add('active');
+        }
+
+        async function saveProject() {
+            const title = document.getElementById('project-title').value.trim();
+            if (!title) {
+                WardApp.showToast('Título é obrigatório', 'error');
+                return;
+            }
+
+            const deadline = document.getElementById('project-deadline').value || null;
+            const description = document.getElementById('project-description').innerHTML;
+
+            const projectData = {
+                user_id: currentKanbanUserId,
+                title,
+                deadline,
+                description,
+                status: currentProject?.status || 'todo'
+            };
+
+            if (currentProject?.id) {
+                const { error } = await WardApp.db
+                    .from('kanban_projects')
+                    .update(projectData)
+                    .eq('id', currentProject.id);
+
+                if (error) {
+                    console.error('Error updating project:', error);
+                    WardApp.showToast('Erro ao atualizar projeto', 'error');
+                    return;
+                }
+            } else {
+                const { data, error } = await WardApp.db
+                    .from('kanban_projects')
+                    .insert(projectData)
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('Error creating project:', error);
+                    WardApp.showToast('Erro ao criar projeto', 'error');
+                    return;
+                }
+
+                currentProject = data;
+
+                if (projectFiles.length > 0) {
+                    const filesToSave = projectFiles.map(f => ({
+                        project_id: data.id,
+                        file_name: f.file_name,
+                        file_url: f.file_url,
+                        file_size: f.file_size,
+                        mime_type: f.mime_type
+                    }));
+
+                    await WardApp.db.from('kanban_files').insert(filesToSave);
+                }
+            }
+
+            WardApp.showToast('Projeto salvo!', 'success');
+            closeProjectModal();
+            await loadKanban();
+        }
+
+        async function deleteProject() {
+            if (!confirm('Tem certeza que deseja deletar este projeto?')) return;
+
+            const { error } = await WardApp.db
+                .from('kanban_projects')
+                .delete()
+                .eq('id', currentProject.id);
+
+            if (error) {
+                console.error('Error deleting project:', error);
+                WardApp.showToast('Erro ao deletar projeto', 'error');
+                return;
+            }
+
+            WardApp.showToast('Projeto deletado!', 'success');
+            closeProjectModal();
+            await loadKanban();
+        }
+
+        // File Upload
+        function setupFileDrop(elementId, handler) {
+            const element = document.getElementById(elementId);
+
+            element.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                element.classList.add('drag-over');
+            });
+
+            element.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                element.classList.remove('drag-over');
+            });
+
+            element.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                element.classList.remove('drag-over');
+                handler(e.dataTransfer.files);
+            });
+        }
+
+        function handleProjectFileDrop(files) {
+            handleFileUpload(files, 'project');
+        }
+
+        function handleTaskFileDrop(files) {
+            handleFileUpload(files, 'task');
+        }
+
+        function handleProjectFileSelect(event) {
+            handleFileUpload(event.target.files, 'project');
+        }
+
+        function handleTaskFileSelect(event) {
+            handleFileUpload(event.target.files, 'task');
+        }
+
+        async function handleFileUpload(files, type) {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+
+                try {
+                    const base64 = await fileToBase64(file);
+
+                    const response = await fetch(GOOGLE_DRIVE_UPLOAD_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            fileName: file.name,
+                            fileContent: base64,
+                            mimeType: file.type || 'application/octet-stream'
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        const fileData = {
+                            file_name: file.name,
+                            file_url: data.viewLink,
+                            file_size: file.size,
+                            mime_type: file.type
+                        };
+
+                        if (type === 'project') {
+                            if (currentProject?.id) {
+                                fileData.project_id = currentProject.id;
+                                await WardApp.db.from('kanban_files').insert(fileData);
+                            }
+                            projectFiles.push(fileData);
+                            renderProjectFiles();
+                        } else {
+                            if (currentTask?.id) {
+                                fileData.task_id = currentTask.id;
+                                await WardApp.db.from('kanban_files').insert(fileData);
+                            }
+                            taskFiles.push(fileData);
+                            renderTaskFiles();
+                        }
+
+                        WardApp.showToast(`${file.name} enviado!`, 'success');
+                    } else {
+                        throw new Error(data.error || 'Erro no upload');
+                    }
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    WardApp.showToast(`Erro ao enviar ${file.name}`, 'error');
+                }
+            }
+        }
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderProjectFiles() {
+            const container = document.getElementById('project-files-list');
+            if (projectFiles.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = projectFiles.map((file, index) => `
+                <div class="file-item">
+                    <div class="file-info">
+                        <span>📎</span>
+                        <span class="file-name">${escapeHtml(file.file_name)}</span>
+                    </div>
+                    <div class="file-actions">
+                        <a href="${file.file_url}" target="_blank" class="file-link">Abrir ↗</a>
+                        <button class="file-delete" onclick="deleteProjectFile(${index})">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderTaskFiles() {
+            const container = document.getElementById('task-files-list');
+            if (taskFiles.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = taskFiles.map((file, index) => `
+                <div class="file-item">
+                    <div class="file-info">
+                        <span>📎</span>
+                        <span class="file-name">${escapeHtml(file.file_name)}</span>
+                    </div>
+                    <div class="file-actions">
+                        <a href="${file.file_url}" target="_blank" class="file-link">Abrir ↗</a>
+                        <button class="file-delete" onclick="deleteTaskFile(${index})">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function deleteProjectFile(index) {
+            const file = projectFiles[index];
+            if (file.id) {
+                await WardApp.db.from('kanban_files').delete().eq('id', file.id);
+            }
+            projectFiles.splice(index, 1);
+            renderProjectFiles();
+        }
+
+        async function deleteTaskFile(index) {
+            const file = taskFiles[index];
+            if (file.id) {
+                await WardApp.db.from('kanban_files').delete().eq('id', file.id);
+            }
+            taskFiles.splice(index, 1);
+            renderTaskFiles();
+        }
+
+        // Task Modal
+        function openTaskModal() {
+            currentTask = {};
+            taskFiles = [];
+
+            document.getElementById('task-modal-title').textContent = 'Nova Tarefa';
+            document.getElementById('task-title').value = '';
+            document.getElementById('task-deadline').value = '';
+            document.getElementById('task-completed').checked = false;
+            document.getElementById('task-description').innerHTML = '';
+            document.getElementById('task-files-list').innerHTML = '';
+            document.getElementById('delete-task-btn').style.display = 'none';
+
+            document.getElementById('task-modal').classList.add('active');
+        }
+
+        function closeTaskModal() {
+            document.getElementById('task-modal').classList.remove('active');
+            currentTask = null;
+            taskFiles = [];
+        }
+
+        async function editTask(taskId) {
+            const { data: task } = await WardApp.db
+                .from('kanban_tasks')
+                .select('*')
+                .eq('id', taskId)
+                .single();
+
+            if (!task) return;
+
+            currentTask = task;
+
+            document.getElementById('task-modal-title').textContent = 'Editar Tarefa';
+            document.getElementById('task-title').value = task.title;
+            document.getElementById('task-deadline').value = task.deadline ? new Date(task.deadline).toISOString().slice(0, 16) : '';
+            document.getElementById('task-completed').checked = task.completed || false;
+            document.getElementById('task-description').innerHTML = task.description || '';
+            document.getElementById('delete-task-btn').style.display = 'block';
+
+            const { data: files } = await WardApp.db
+                .from('kanban_files')
+                .select('*')
+                .eq('task_id', taskId);
+
+            taskFiles = files || [];
+            renderTaskFiles();
+
+            document.getElementById('task-modal').classList.add('active');
+        }
+
+        async function saveTask() {
+            if (!currentProject?.id) {
+                WardApp.showToast('Salve o projeto primeiro', 'error');
+                return;
+            }
+
+            const title = document.getElementById('task-title').value.trim();
+            if (!title) {
+                WardApp.showToast('Título é obrigatório', 'error');
+                return;
+            }
+
+            const deadline = document.getElementById('task-deadline').value || null;
+            const completed = document.getElementById('task-completed').checked;
+            const description = document.getElementById('task-description').innerHTML;
+
+            const taskData = {
+                project_id: currentProject.id,
+                title,
+                deadline,
+                completed,
+                description
+            };
+
+            if (currentTask?.id) {
+                const { error } = await WardApp.db
+                    .from('kanban_tasks')
+                    .update(taskData)
+                    .eq('id', currentTask.id);
+
+                if (error) {
+                    console.error('Error updating task:', error);
+                    WardApp.showToast('Erro ao atualizar tarefa', 'error');
+                    return;
+                }
+            } else {
+                const { data, error } = await WardApp.db
+                    .from('kanban_tasks')
+                    .insert(taskData)
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('Error creating task:', error);
+                    WardApp.showToast('Erro ao criar tarefa', 'error');
+                    return;
+                }
+
+                currentTask = data;
+
+                if (taskFiles.length > 0) {
+                    const filesToSave = taskFiles.map(f => ({
+                        task_id: data.id,
+                        file_name: f.file_name,
+                        file_url: f.file_url,
+                        file_size: f.file_size,
+                        mime_type: f.mime_type
+                    }));
+
+                    await WardApp.db.from('kanban_files').insert(filesToSave);
+                }
+            }
+
+            WardApp.showToast('Tarefa salva!', 'success');
+            closeTaskModal();
+
+            const { data: tasks } = await WardApp.db
+                .from('kanban_tasks')
+                .select('*')
+                .eq('project_id', currentProject.id)
+                .order('position');
+
+            renderProjectTasks(tasks || []);
+        }
+
+        async function deleteTask() {
+            if (!confirm('Tem certeza que deseja deletar esta tarefa?')) return;
+
+            const { error } = await WardApp.db
+                .from('kanban_tasks')
+                .delete()
+                .eq('id', currentTask.id);
+
+            if (error) {
+                console.error('Error deleting task:', error);
+                WardApp.showToast('Erro ao deletar tarefa', 'error');
+                return;
+            }
+
+            WardApp.showToast('Tarefa deletada!', 'success');
+            closeTaskModal();
+
+            const { data: tasks } = await WardApp.db
+                .from('kanban_tasks')
+                .select('*')
+                .eq('project_id', currentProject.id)
+                .order('position');
+
+            renderProjectTasks(tasks || []);
+        }
+
+        function renderProjectTasks(tasks) {
+            const container = document.getElementById('project-tasks-list');
+            if (tasks.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = tasks.map(task => {
+                const deadline = task.deadline ? new Date(task.deadline) : null;
+                const deadlineStr = deadline ? deadline.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
+
+                return `
+                    <div class="task-item ${task.completed ? 'completed' : ''}" onclick="editTask(${task.id})">
+                        <div>
+                            <div class="task-title">${escapeHtml(task.title)}</div>
+                            <div style="font-size: 0.85rem; color: #64748b; margin-top: 0.25rem;">
+                                ${deadline ? `📅 ${deadlineStr}` : ''}
+                                ${task.completed ? '✅ Concluída' : '⏳ Pendente'}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function cleanupOldArchivedProjects() {
+            try {
+                await WardApp.db.rpc('delete_old_archived_projects');
+                console.log('Old archived projects cleaned up');
+            } catch (error) {
+                console.error('Error cleaning up old projects:', error);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
