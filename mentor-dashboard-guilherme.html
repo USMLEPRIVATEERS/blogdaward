@@ -216,6 +216,19 @@
                 </div>
             </div>
         </div>
+
+        <!-- Anki Questionnaire Responses -->
+        <div class="card mt-4">
+            <div class="card-header">
+                🃏 Respostas do Questionário de Anki
+                <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Todos os alunos e membros avulsos)</span>
+            </div>
+            <div class="card-body">
+                <div id="anki-responses-list" style="display: grid; gap: 1rem;">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
     </main>
         <!-- Kanban Board (Embedded) -->
         <div style="margin-top: 3rem; padding-top: 2rem; border-top: 2px solid #e2e8f0;">
@@ -392,6 +405,7 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             renderFrequencyChart();
             renderNoAnkiList();
             renderStudentsTable();
+            renderAnkiResponses();
             loadPendingCalls();
         }
 
@@ -785,6 +799,173 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             updateDiaryLink();
             WardApp.showToast(enabled ? 'Diários ativados!' : 'Diários desativados');
         });
+
+        // Render detailed Anki questionnaire responses
+        async function renderAnkiResponses() {
+            const container = document.getElementById('anki-responses-list');
+
+            // Get all users (alunos + assessoria) with their questionnaire data
+            const { data: allUsers } = await WardApp.db
+                .from('users')
+                .select('id, full_name, name, email, role')
+                .in('role', ['aluno', 'assessoria'])
+                .order('full_name');
+
+            if (!allUsers || allUsers.length === 0) {
+                container.innerHTML = '<p class="text-muted">Nenhuma resposta ainda</p>';
+                return;
+            }
+
+            // Filter only users who have answered the questionnaire
+            const usersWithResponses = allUsers.filter(user => ankiData[user.id]);
+
+            if (usersWithResponses.length === 0) {
+                container.innerHTML = '<p class="text-muted">Nenhuma resposta ainda</p>';
+                return;
+            }
+
+            // Render each user's response
+            container.innerHTML = usersWithResponses.map(user => {
+                const data = ankiData[user.id];
+                const userName = user.full_name || user.name || user.email;
+
+                // Parse devices if it's a JSON string
+                let devices = [];
+                if (data.devices) {
+                    try {
+                        devices = typeof data.devices === 'string' ? JSON.parse(data.devices) : data.devices;
+                    } catch (e) {
+                        devices = [];
+                    }
+                }
+
+                const deviceLabels = {
+                    windows: '💻 Windows/Linux',
+                    mac: '💻 Mac',
+                    iphone: '📱 iPhone',
+                    android: '📱 Android',
+                    tablet: '📱 Tablet',
+                    ipad: '📱 iPad'
+                };
+
+                const frequencyLabels = {
+                    daily: '🔥 Todos os dias',
+                    alternate: '⚡ Dia sim, dia não',
+                    few_times: '📅 Poucas vezes/semana',
+                    rarely: '😔 Quase não usa'
+                };
+
+                const createsCardsLabels = {
+                    yes: '✍️ Cria próprios cards',
+                    no: '📚 Usa apenas AnKing',
+                    both: '🎯 Usa AnKing + cria cards'
+                };
+
+                return `
+                    <div style="padding: 1.25rem; background: ${data.downloaded ? '#f0fdf4' : '#fef2f2'};
+                                border-radius: 8px; border-left: 4px solid ${data.downloaded ? '#22c55e' : '#ef4444'};">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem 0; font-size: 1.05rem; font-weight: 600;">
+                                    ${userName}
+                                </h4>
+                                <span style="font-size: 0.8rem; color: #64748b; text-transform: uppercase;">
+                                    ${user.role === 'aluno' ? '🎓 Aluno' : '📋 Assessoria'}
+                                </span>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                ${data.downloaded ?
+                                    `<span style="padding: 0.25rem 0.75rem; background: #dcfce7; color: #166534;
+                                                   border-radius: 12px; font-size: 0.8rem; font-weight: 600;">
+                                        ✅ Baixou Anki
+                                    </span>` :
+                                    `<span style="padding: 0.25rem 0.75rem; background: #fee2e2; color: #991b1b;
+                                                   border-radius: 12px; font-size: 0.8rem; font-weight: 600;">
+                                        ❌ Não baixou
+                                    </span>`
+                                }
+                                ${data.used ?
+                                    `<span style="padding: 0.25rem 0.75rem; background: #dbeafe; color: #1e40af;
+                                                   border-radius: 12px; font-size: 0.8rem; font-weight: 600;">
+                                        🃏 Já usa
+                                    </span>` : ''
+                                }
+                            </div>
+                        </div>
+
+                        ${data.used ? `
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                                        gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+
+                                ${data.uses_anking ? `
+                                    <div>
+                                        <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.25rem;">DECK ANKING</div>
+                                        <div style="font-weight: 600;">
+                                            ${data.uses_anking === 'true' ? '✅ Usa AnKing' :
+                                              data.uses_anking === 'false' ? '❌ Não usa AnKing' :
+                                              '❓ Não conhece'}
+                                        </div>
+                                    </div>
+                                ` : ''}
+
+                                ${data.frequency ? `
+                                    <div>
+                                        <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.25rem;">FREQUÊNCIA</div>
+                                        <div style="font-weight: 600;">${frequencyLabels[data.frequency] || data.frequency}</div>
+                                    </div>
+                                ` : ''}
+
+                                ${data.creates_own_cards ? `
+                                    <div>
+                                        <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.25rem;">CRIAÇÃO DE CARDS</div>
+                                        <div style="font-weight: 600;">${createsCardsLabels[data.creates_own_cards] || data.creates_own_cards}</div>
+                                    </div>
+                                ` : ''}
+
+                                ${data.average_cards_per_day ? `
+                                    <div>
+                                        <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.25rem;">MÉDIA CARDS/DIA</div>
+                                        <div style="font-weight: 600; font-size: 1.25rem; color: #2563eb;">
+                                            ${data.average_cards_per_day} 🃏
+                                        </div>
+                                    </div>
+                                ` : ''}
+
+                                ${data.using_since ? `
+                                    <div>
+                                        <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.25rem;">USA DESDE</div>
+                                        <div style="font-weight: 600;">
+                                            ${new Date(data.using_since).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
+                                        </div>
+                                    </div>
+                                ` : ''}
+
+                                ${data.main_device ? `
+                                    <div>
+                                        <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.25rem;">DISPOSITIVO PRINCIPAL</div>
+                                        <div style="font-weight: 600;">${deviceLabels[data.main_device] || data.main_device}</div>
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                            ${devices.length > 0 ? `
+                                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+                                    <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem;">DISPOSITIVOS USADOS</div>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                        ${devices.map(d => `
+                                            <span style="padding: 0.35rem 0.75rem; background: white; border: 1px solid #e5e7eb;
+                                                         border-radius: 6px; font-size: 0.85rem;">
+                                                ${deviceLabels[d] || d}
+                                            </span>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
     </script>
 
     <style>
