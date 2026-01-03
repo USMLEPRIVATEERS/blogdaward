@@ -1435,132 +1435,81 @@ Cardiovascular	Physiology	62	FALSE
             contentEl.innerHTML = '<p class="text-muted">Carregando respostas...</p>';
 
             try {
-                // Load questionnaire responses from all tables
-                const [basicData, usmleData, uworldPrep, uworldProgress, english, anki, research1, research2, research3, observerships, background] = await Promise.all([
-                    WardApp.db.from('questionnaire_basic_data').select('*').eq('user_id', studentId).maybeSingle(),
-                    WardApp.db.from('questionnaire_usmle_data').select('*').eq('user_id', studentId).maybeSingle(),
-                    WardApp.db.from('questionnaire_uworld_prep').select('*').eq('user_id', studentId).maybeSingle(),
-                    WardApp.db.from('questionnaire_uworld_progress').select('*').eq('user_id', studentId).maybeSingle(),
-                    WardApp.db.from('questionnaire_english').select('*').eq('user_id', studentId).maybeSingle(),
-                    WardApp.db.from('questionnaire_anki').select('*').eq('user_id', studentId).maybeSingle(),
-                    WardApp.db.from('questionnaire_research_1').select('*').eq('user_id', studentId).maybeSingle(),
-                    WardApp.db.from('questionnaire_research_2').select('*').eq('user_id', studentId).maybeSingle(),
-                    WardApp.db.from('questionnaire_research_3').select('*').eq('user_id', studentId).maybeSingle(),
-                    WardApp.db.from('questionnaire_observerships').select('*').eq('user_id', studentId).maybeSingle(),
-                    WardApp.db.from('questionnaire_background').select('*').eq('user_id', studentId).maybeSingle()
-                ]);
+                // Load questionnaire responses from questionnaire_data table
+                const { data: responses, error } = await WardApp.db
+                    .from('questionnaire_data')
+                    .select('*')
+                    .eq('user_id', studentId)
+                    .order('step', { ascending: true });
 
-                // Build cards HTML
-                let html = '';
+                if (error) throw error;
 
-                // Helper function to create a response card
-                const createCard = (title, icon, data, fields) => {
-                    if (!data || !data.data) return '';
+                if (!responses || responses.length === 0) {
+                    contentEl.innerHTML = '<p class="text-muted">Este aluno ainda não preencheu o questionário.</p>';
+                    return;
+                }
 
-                    const responses = fields.map(field => {
-                        const value = data.data[field.key];
-                        if (value === null || value === undefined || value === '') return '';
+                // Step titles with icons
+                const stepInfo = {
+                    1: { icon: '👤', title: 'Dados Básicos' },
+                    2: { icon: '📚', title: 'Dados USMLE' },
+                    3: { icon: '📖', title: 'UWorld - Preparação' },
+                    4: { icon: '📊', title: 'UWorld - Progresso' },
+                    5: { icon: '🗣️', title: 'Inglês' },
+                    6: { icon: '🃏', title: 'Anki' },
+                    7: { icon: '🔬', title: 'Pesquisa - Parte 1' },
+                    8: { icon: '📝', title: 'Pesquisa - Parte 2' },
+                    9: { icon: '🎓', title: 'Pesquisa - Parte 3' },
+                    10: { icon: '🏥', title: 'Observerships' },
+                    11: { icon: '📋', title: 'Background' }
+                };
 
-                        return `
-                            <div style="margin-bottom: 0.75rem;">
-                                <div style="font-weight: 600; color: #374151; margin-bottom: 0.25rem;">${field.label}</div>
-                                <div style="color: #6b7280;">${formatValue(value, field.type)}</div>
-                            </div>
-                        `;
-                    }).filter(Boolean).join('');
+                // Build HTML with cards for each step
+                const html = responses.map(response => {
+                    const info = stepInfo[response.step] || { icon: '📄', title: `Step ${response.step}` };
+                    const data = response.data || {};
 
-                    if (!responses) return '';
+                    // Format the data fields
+                    const fields = Object.entries(data)
+                        .filter(([key, value]) => value !== null && value !== undefined && value !== '')
+                        .map(([key, value]) => {
+                            // Format field name (remove underscores, capitalize)
+                            const label = key.split('_').map(word =>
+                                word.charAt(0).toUpperCase() + word.slice(1)
+                            ).join(' ');
+
+                            // Format value
+                            let formattedValue = value;
+                            if (typeof value === 'boolean') {
+                                formattedValue = value ? '✅ Sim' : '❌ Não';
+                            } else if (Array.isArray(value)) {
+                                formattedValue = value.join(', ');
+                            } else if (typeof value === 'object') {
+                                formattedValue = JSON.stringify(value, null, 2);
+                            }
+
+                            return `
+                                <div style="margin-bottom: 0.75rem;">
+                                    <div style="font-weight: 600; color: #374151; margin-bottom: 0.25rem;">${label}</div>
+                                    <div style="color: #6b7280;">${formattedValue}</div>
+                                </div>
+                            `;
+                        }).join('');
+
+                    if (!fields) return '';
 
                     return `
                         <div style="background: white; border: 2px solid #f3f4f6; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;">
                             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 2px solid #f3f4f6;">
-                                <span style="font-size: 1.5rem;">${icon}</span>
-                                <h4 style="font-size: 1.1rem; font-weight: 700; color: #1f2937; margin: 0;">${title}</h4>
+                                <span style="font-size: 1.5rem;">${info.icon}</span>
+                                <h4 style="font-size: 1.1rem; font-weight: 700; color: #1f2937; margin: 0;">${info.title}</h4>
                             </div>
-                            ${responses}
+                            ${fields}
                         </div>
                     `;
-                };
+                }).filter(Boolean).join('');
 
-                const formatValue = (value, type) => {
-                    if (type === 'boolean') return value ? '✅ Sim' : '❌ Não';
-                    if (type === 'array' && Array.isArray(value)) return value.join(', ');
-                    if (typeof value === 'object') return JSON.stringify(value, null, 2);
-                    return value;
-                };
-
-                // Add cards for each section
-                html += createCard('Dados Básicos', '👤', basicData, [
-                    { key: 'age', label: 'Idade' },
-                    { key: 'medical_school', label: 'Faculdade de Medicina' },
-                    { key: 'graduation_year', label: 'Ano de Formatura' }
-                ]);
-
-                html += createCard('Dados USMLE', '📚', usmleData, [
-                    { key: 'preparing_for', label: 'Preparando para' },
-                    { key: 'exam_date', label: 'Data do Exame' },
-                    { key: 'has_ecfmg', label: 'Tem ECFMG', type: 'boolean' }
-                ]);
-
-                html += createCard('UWorld - Preparação', '📖', uworldPrep, [
-                    { key: 'has_uworld', label: 'Tem UWorld', type: 'boolean' },
-                    { key: 'uworld_mode', label: 'Modo UWorld' },
-                    { key: 'daily_questions', label: 'Questões por dia' }
-                ]);
-
-                html += createCard('UWorld - Progresso', '📊', uworldProgress, [
-                    { key: 'questions_done', label: 'Questões Feitas' },
-                    { key: 'current_percentage', label: 'Porcentagem Atual' },
-                    { key: 'average_score', label: 'Média de Acertos' }
-                ]);
-
-                html += createCard('Inglês', '🗣️', english, [
-                    { key: 'english_level', label: 'Nível de Inglês' },
-                    { key: 'has_certificate', label: 'Tem Certificado', type: 'boolean' },
-                    { key: 'certificate_type', label: 'Tipo de Certificado' }
-                ]);
-
-                html += createCard('Anki', '🃏', anki, [
-                    { key: 'uses_anki', label: 'Usa Anki', type: 'boolean' },
-                    { key: 'deck_name', label: 'Deck' },
-                    { key: 'cards_per_day', label: 'Cards por dia' },
-                    { key: 'frequency', label: 'Frequência' }
-                ]);
-
-                html += createCard('Pesquisa - Parte 1', '🔬', research1, [
-                    { key: 'interested_in_research', label: 'Interessado em Pesquisa', type: 'boolean' },
-                    { key: 'research_experience', label: 'Experiência em Pesquisa' },
-                    { key: 'publications', label: 'Publicações' }
-                ]);
-
-                html += createCard('Pesquisa - Parte 2', '📝', research2, [
-                    { key: 'research_areas', label: 'Áreas de Interesse', type: 'array' },
-                    { key: 'available_hours', label: 'Horas Disponíveis' }
-                ]);
-
-                html += createCard('Pesquisa - Parte 3', '🎓', research3, [
-                    { key: 'goals', label: 'Objetivos' },
-                    { key: 'timeline', label: 'Cronograma' }
-                ]);
-
-                html += createCard('Observerships', '🏥', observerships, [
-                    { key: 'has_observership', label: 'Tem Observership', type: 'boolean' },
-                    { key: 'hospital_name', label: 'Hospital' },
-                    { key: 'specialty', label: 'Especialidade' },
-                    { key: 'duration', label: 'Duração' }
-                ]);
-
-                html += createCard('Background', '📋', background, [
-                    { key: 'why_usa', label: 'Por que EUA?' },
-                    { key: 'target_specialty', label: 'Especialidade Alvo' },
-                    { key: 'family_in_usa', label: 'Família nos EUA', type: 'boolean' }
-                ]);
-
-                if (!html) {
-                    html = '<p class="text-muted">Este aluno ainda não preencheu o questionário.</p>';
-                }
-
-                contentEl.innerHTML = html;
+                contentEl.innerHTML = html || '<p class="text-muted">Nenhuma resposta encontrada.</p>';
 
             } catch (error) {
                 console.error('Error loading questionnaire:', error);
