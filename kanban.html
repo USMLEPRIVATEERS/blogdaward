@@ -767,18 +767,73 @@
             const { data: users } = await WardApp.db
                 .from('users')
                 .select('id, full_name, name, email, role')
-                .in('role', ['aluno', 'assessoria', 'mentor_guilherme', 'mentor_romulo', 'mentor_iria', 'mentor_marcos'])
+                .neq('role', 'admin')
                 .order('full_name');
 
             if (!users) return;
 
+            // Categorize users
+            const mentores = users.filter(u => u.role?.startsWith('mentor_'));
+            const alunos = users.filter(u => u.role === 'aluno');
+            const assessoria = users.filter(u => u.role === 'assessoria');
+
+            // Sort alphabetically by full_name
+            const sortByName = (a, b) => {
+                const nameA = (a.full_name || a.name || a.email || '').toLowerCase();
+                const nameB = (b.full_name || b.name || b.email || '').toLowerCase();
+                return nameA.localeCompare(nameB);
+            };
+
+            mentores.sort(sortByName);
+            alunos.sort(sortByName);
+            assessoria.sort(sortByName);
+
+            // Build select with optgroups
             const select = document.getElementById('kanban-user-select');
-            users.forEach(user => {
-                const option = document.createElement('option');
-                option.value = user.id;
-                option.textContent = user.full_name || user.name || user.email;
-                select.appendChild(option);
-            });
+
+            // Clear existing options except first one (Meu Kanban)
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+
+            // Add Mentores
+            if (mentores.length > 0) {
+                const mentorGroup = document.createElement('optgroup');
+                mentorGroup.label = '👨‍⚕️ Mentores';
+                mentores.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = user.full_name || user.name || user.email;
+                    mentorGroup.appendChild(option);
+                });
+                select.appendChild(mentorGroup);
+            }
+
+            // Add Alunos
+            if (alunos.length > 0) {
+                const alunoGroup = document.createElement('optgroup');
+                alunoGroup.label = '🎓 Alunos';
+                alunos.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = user.full_name || user.name || user.email;
+                    alunoGroup.appendChild(option);
+                });
+                select.appendChild(alunoGroup);
+            }
+
+            // Add Assessoria
+            if (assessoria.length > 0) {
+                const assessoriaGroup = document.createElement('optgroup');
+                assessoriaGroup.label = '📋 Assessoria Avulsa';
+                assessoria.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = user.full_name || user.name || user.email;
+                    assessoriaGroup.appendChild(option);
+                });
+                select.appendChild(assessoriaGroup);
+            }
 
             document.getElementById('kanban-user-selector').classList.add('visible');
         }
