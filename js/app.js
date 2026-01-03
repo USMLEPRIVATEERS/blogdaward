@@ -247,6 +247,9 @@ async function login(cpf, password) {
                 case 'mentor_romulo':
                     window.location.href = 'mentor-dashboard-romulo.html';
                     break;
+                case 'assessoria':
+                    window.location.href = 'dashboard-assessoria-avulsa.html';
+                    break;
                 default:
                     window.location.href = 'dashboard.html';
             }
