@@ -1178,6 +1178,10 @@ Cardiovascular	Physiology	62	FALSE
         async function renderStudentsTable(students = allStudents) {
             const tbody = document.getElementById('students-table-body');
 
+            // Separate students by role
+            const regularStudents = students.filter(s => s.role === 'aluno');
+            const assessoriaStudents = students.filter(s => s.role === 'assessoria');
+
             // Get last check-in for each student
             const studentIds = students.map(s => s.id);
             const { data: schedules } = await WardApp.db
@@ -1209,7 +1213,8 @@ Cardiovascular	Physiology	62	FALSE
                 }
             });
 
-            tbody.innerHTML = students.map(student => {
+            // Function to render student row
+            const renderStudentRow = (student) => {
                 const questionnaireProgress = student.questionnaire_step ? Math.round((student.questionnaire_step / 11) * 100) : 0;
                 const sp = scheduleProgress[student.id] || { total: 0, completed: 0 };
                 const schedPct = sp.total > 0 ? Math.round((sp.completed / sp.total) * 100) : 0;
@@ -1246,7 +1251,41 @@ Cardiovascular	Physiology	62	FALSE
                         </td>
                     </tr>
                 `;
-            }).join('');
+            };
+
+            // Build HTML with grouped sections
+            let html = '';
+
+            // Alunos section
+            if (regularStudents.length > 0) {
+                html += `
+                    <tr class="group-header">
+                        <td colspan="6" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; font-weight: 700; padding: 0.75rem 1rem; font-size: 1rem;">
+                            🎓 Alunos (${regularStudents.length})
+                        </td>
+                    </tr>
+                `;
+                html += regularStudents.map(renderStudentRow).join('');
+            }
+
+            // Assessoria section
+            if (assessoriaStudents.length > 0) {
+                html += `
+                    <tr class="group-header">
+                        <td colspan="6" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; font-weight: 700; padding: 0.75rem 1rem; font-size: 1rem;">
+                            📋 Assessoria Avulsa (${assessoriaStudents.length})
+                        </td>
+                    </tr>
+                `;
+                html += assessoriaStudents.map(renderStudentRow).join('');
+            }
+
+            // If no students
+            if (regularStudents.length === 0 && assessoriaStudents.length === 0) {
+                html = '<tr><td colspan="6" class="text-muted text-center">Nenhum aluno encontrado</td></tr>';
+            }
+
+            tbody.innerHTML = html;
         }
 
         async function acknowledgeDelay(delayId) {
