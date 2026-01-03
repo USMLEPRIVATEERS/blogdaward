@@ -430,6 +430,24 @@ Cardiovascular	Physiology	62	FALSE
         </div>
     </div>
 
+    <!-- Questionnaire Responses Modal -->
+    <div id="questionnaire-modal" class="modal-overlay">
+        <div class="modal modal-lg" style="max-width: 900px;">
+            <div class="modal-header">
+                <h3 class="modal-title">📋 Respostas do Questionário - <span id="modal-student-name"></span></h3>
+                <button class="modal-close" onclick="closeModal('questionnaire-modal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <div id="questionnaire-content">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('questionnaire-modal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
@@ -1402,9 +1420,152 @@ Cardiovascular	Physiology	62	FALSE
             renderStudentsTable(filtered);
         }
 
-        function viewStudent(studentId) {
-            // Use view_as parameter so profile.html shows the student's profile
-            window.open(`profile.html?view_as=${studentId}`, '_blank');
+        async function viewStudent(studentId) {
+            // Open modal with questionnaire responses
+            const student = allStudents.find(s => s.id === studentId);
+            if (!student) return;
+
+            document.getElementById('modal-student-name').textContent = student.full_name || student.email;
+            await loadQuestionnaireResponses(studentId);
+            openModal('questionnaire-modal');
+        }
+
+        async function loadQuestionnaireResponses(studentId) {
+            const contentEl = document.getElementById('questionnaire-content');
+            contentEl.innerHTML = '<p class="text-muted">Carregando respostas...</p>';
+
+            try {
+                // Load questionnaire responses from all tables
+                const [basicData, usmleData, uworldPrep, uworldProgress, english, anki, research1, research2, research3, observerships, background] = await Promise.all([
+                    WardApp.db.from('questionnaire_basic_data').select('*').eq('user_id', studentId).maybeSingle(),
+                    WardApp.db.from('questionnaire_usmle_data').select('*').eq('user_id', studentId).maybeSingle(),
+                    WardApp.db.from('questionnaire_uworld_prep').select('*').eq('user_id', studentId).maybeSingle(),
+                    WardApp.db.from('questionnaire_uworld_progress').select('*').eq('user_id', studentId).maybeSingle(),
+                    WardApp.db.from('questionnaire_english').select('*').eq('user_id', studentId).maybeSingle(),
+                    WardApp.db.from('questionnaire_anki').select('*').eq('user_id', studentId).maybeSingle(),
+                    WardApp.db.from('questionnaire_research_1').select('*').eq('user_id', studentId).maybeSingle(),
+                    WardApp.db.from('questionnaire_research_2').select('*').eq('user_id', studentId).maybeSingle(),
+                    WardApp.db.from('questionnaire_research_3').select('*').eq('user_id', studentId).maybeSingle(),
+                    WardApp.db.from('questionnaire_observerships').select('*').eq('user_id', studentId).maybeSingle(),
+                    WardApp.db.from('questionnaire_background').select('*').eq('user_id', studentId).maybeSingle()
+                ]);
+
+                // Build cards HTML
+                let html = '';
+
+                // Helper function to create a response card
+                const createCard = (title, icon, data, fields) => {
+                    if (!data || !data.data) return '';
+
+                    const responses = fields.map(field => {
+                        const value = data.data[field.key];
+                        if (value === null || value === undefined || value === '') return '';
+
+                        return `
+                            <div style="margin-bottom: 0.75rem;">
+                                <div style="font-weight: 600; color: #374151; margin-bottom: 0.25rem;">${field.label}</div>
+                                <div style="color: #6b7280;">${formatValue(value, field.type)}</div>
+                            </div>
+                        `;
+                    }).filter(Boolean).join('');
+
+                    if (!responses) return '';
+
+                    return `
+                        <div style="background: white; border: 2px solid #f3f4f6; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 2px solid #f3f4f6;">
+                                <span style="font-size: 1.5rem;">${icon}</span>
+                                <h4 style="font-size: 1.1rem; font-weight: 700; color: #1f2937; margin: 0;">${title}</h4>
+                            </div>
+                            ${responses}
+                        </div>
+                    `;
+                };
+
+                const formatValue = (value, type) => {
+                    if (type === 'boolean') return value ? '✅ Sim' : '❌ Não';
+                    if (type === 'array' && Array.isArray(value)) return value.join(', ');
+                    if (typeof value === 'object') return JSON.stringify(value, null, 2);
+                    return value;
+                };
+
+                // Add cards for each section
+                html += createCard('Dados Básicos', '👤', basicData, [
+                    { key: 'age', label: 'Idade' },
+                    { key: 'medical_school', label: 'Faculdade de Medicina' },
+                    { key: 'graduation_year', label: 'Ano de Formatura' }
+                ]);
+
+                html += createCard('Dados USMLE', '📚', usmleData, [
+                    { key: 'preparing_for', label: 'Preparando para' },
+                    { key: 'exam_date', label: 'Data do Exame' },
+                    { key: 'has_ecfmg', label: 'Tem ECFMG', type: 'boolean' }
+                ]);
+
+                html += createCard('UWorld - Preparação', '📖', uworldPrep, [
+                    { key: 'has_uworld', label: 'Tem UWorld', type: 'boolean' },
+                    { key: 'uworld_mode', label: 'Modo UWorld' },
+                    { key: 'daily_questions', label: 'Questões por dia' }
+                ]);
+
+                html += createCard('UWorld - Progresso', '📊', uworldProgress, [
+                    { key: 'questions_done', label: 'Questões Feitas' },
+                    { key: 'current_percentage', label: 'Porcentagem Atual' },
+                    { key: 'average_score', label: 'Média de Acertos' }
+                ]);
+
+                html += createCard('Inglês', '🗣️', english, [
+                    { key: 'english_level', label: 'Nível de Inglês' },
+                    { key: 'has_certificate', label: 'Tem Certificado', type: 'boolean' },
+                    { key: 'certificate_type', label: 'Tipo de Certificado' }
+                ]);
+
+                html += createCard('Anki', '🃏', anki, [
+                    { key: 'uses_anki', label: 'Usa Anki', type: 'boolean' },
+                    { key: 'deck_name', label: 'Deck' },
+                    { key: 'cards_per_day', label: 'Cards por dia' },
+                    { key: 'frequency', label: 'Frequência' }
+                ]);
+
+                html += createCard('Pesquisa - Parte 1', '🔬', research1, [
+                    { key: 'interested_in_research', label: 'Interessado em Pesquisa', type: 'boolean' },
+                    { key: 'research_experience', label: 'Experiência em Pesquisa' },
+                    { key: 'publications', label: 'Publicações' }
+                ]);
+
+                html += createCard('Pesquisa - Parte 2', '📝', research2, [
+                    { key: 'research_areas', label: 'Áreas de Interesse', type: 'array' },
+                    { key: 'available_hours', label: 'Horas Disponíveis' }
+                ]);
+
+                html += createCard('Pesquisa - Parte 3', '🎓', research3, [
+                    { key: 'goals', label: 'Objetivos' },
+                    { key: 'timeline', label: 'Cronograma' }
+                ]);
+
+                html += createCard('Observerships', '🏥', observerships, [
+                    { key: 'has_observership', label: 'Tem Observership', type: 'boolean' },
+                    { key: 'hospital_name', label: 'Hospital' },
+                    { key: 'specialty', label: 'Especialidade' },
+                    { key: 'duration', label: 'Duração' }
+                ]);
+
+                html += createCard('Background', '📋', background, [
+                    { key: 'why_usa', label: 'Por que EUA?' },
+                    { key: 'target_specialty', label: 'Especialidade Alvo' },
+                    { key: 'family_in_usa', label: 'Família nos EUA', type: 'boolean' }
+                ]);
+
+                if (!html) {
+                    html = '<p class="text-muted">Este aluno ainda não preencheu o questionário.</p>';
+                }
+
+                contentEl.innerHTML = html;
+
+            } catch (error) {
+                console.error('Error loading questionnaire:', error);
+                contentEl.innerHTML = '<p style="color: #ef4444;">Erro ao carregar respostas do questionário</p>';
+            }
         }
 
         function viewAsStudent(studentId) {
