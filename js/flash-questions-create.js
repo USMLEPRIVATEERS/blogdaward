@@ -5,7 +5,7 @@
 let selectedStep = 1; // Default to Step 1
 let selectedSubjects = new Set();
 let selectedSystems = new Set();
-let selectedCategories = new Set();
+let selectedCategories = new Set(); // Now stores "system::category" combinations
 let availableQuestions = [];
 let subjectSystemMap = {}; // Maps subjects to their systems/categories
 
@@ -303,13 +303,25 @@ function updateSystemsSection() {
                     <span id="system-arrow-${escapeHtml(system)}">▼</span>
                 </div>
                 <div class="categories-list" id="categories-${escapeHtml(system)}">
-                    ${categories.map(category => `
-                        <div class="category-item" onclick="toggleCategory('${escapeHtml(category)}')">
+                    <div class="category-item select-all-category" onclick="selectAllCategoriesInSystem('${escapeHtml(system)}')">
+                        <label style="cursor: pointer; font-weight: 600; color: #d97706;">
+                            <input
+                                type="checkbox"
+                                id="select-all-${escapeHtml(system)}"
+                                onchange="event.stopPropagation(); selectAllCategoriesInSystem('${escapeHtml(system)}')"
+                            >
+                            ✓ Selecionar Todas as Categorias
+                        </label>
+                    </div>
+                    ${categories.map(category => {
+                        const compositeKey = `${system}::${category}`;
+                        return `
+                        <div class="category-item" onclick="toggleCategory('${escapeHtml(system)}', '${escapeHtml(category)}')">
                             <label style="cursor: pointer;">
                                 <input
                                     type="checkbox"
-                                    id="category-${escapeHtml(category)}"
-                                    onchange="event.stopPropagation(); toggleCategory('${escapeHtml(category)}')"
+                                    id="category-${escapeHtml(compositeKey)}"
+                                    onchange="event.stopPropagation(); toggleCategory('${escapeHtml(system)}', '${escapeHtml(category)}')"
                                 >
                                 ${escapeHtml(category.replace(/_/g, ' '))}
                                 <span style="color: #666; font-size: 0.85rem;">
@@ -317,7 +329,7 @@ function updateSystemsSection() {
                                 </span>
                             </label>
                         </div>
-                    `).join('')}
+                    `}).join('')}
                 </div>
             </div>
         `;
@@ -335,14 +347,15 @@ function toggleSystem(system) {
 }
 
 // Toggle category selection
-function toggleCategory(category) {
-    const checkbox = document.getElementById(`category-${category}`);
+function toggleCategory(system, category) {
+    const compositeKey = `${system}::${category}`;
+    const checkbox = document.getElementById(`category-${compositeKey}`);
     checkbox.checked = !checkbox.checked;
 
     if (checkbox.checked) {
-        selectedCategories.add(category);
+        selectedCategories.add(compositeKey);
     } else {
-        selectedCategories.delete(category);
+        selectedCategories.delete(compositeKey);
     }
 
     // Update category item styling
@@ -353,7 +366,93 @@ function toggleCategory(category) {
         item.classList.remove('selected');
     }
 
+    // Update "select all" checkbox state for this system
+    updateSelectAllCheckbox(system);
+
     updateAvailableCount();
+}
+
+// Select all categories in a system
+function selectAllCategoriesInSystem(system) {
+    const selectAllCheckbox = document.getElementById(`select-all-${system}`);
+    const isChecking = !selectAllCheckbox.checked;
+    selectAllCheckbox.checked = isChecking;
+
+    // Get all categories for this system from the current systemsMap
+    const systemsMap = {};
+    selectedSubjects.forEach(subject => {
+        const subjectData = subjectSystemMap[subject];
+        if (subjectData && subjectData.systems && subjectData.systems[system]) {
+            Object.keys(subjectData.systems[system].categories).forEach(category => {
+                systemsMap[category] = true;
+            });
+        }
+    });
+
+    const categories = Object.keys(systemsMap);
+
+    // Toggle all categories
+    categories.forEach(category => {
+        const compositeKey = `${system}::${category}`;
+        const checkbox = document.getElementById(`category-${compositeKey}`);
+
+        if (checkbox) {
+            checkbox.checked = isChecking;
+            const item = checkbox.closest('.category-item');
+
+            if (isChecking) {
+                selectedCategories.add(compositeKey);
+                item.classList.add('selected');
+            } else {
+                selectedCategories.delete(compositeKey);
+                item.classList.remove('selected');
+            }
+        }
+    });
+
+    // Update styling for select-all item
+    const selectAllItem = selectAllCheckbox.closest('.category-item');
+    if (isChecking) {
+        selectAllItem.classList.add('selected');
+    } else {
+        selectAllItem.classList.remove('selected');
+    }
+
+    updateAvailableCount();
+}
+
+// Update "select all" checkbox state based on individual category selections
+function updateSelectAllCheckbox(system) {
+    const selectAllCheckbox = document.getElementById(`select-all-${system}`);
+    if (!selectAllCheckbox) return;
+
+    // Get all categories for this system
+    const systemsMap = {};
+    selectedSubjects.forEach(subject => {
+        const subjectData = subjectSystemMap[subject];
+        if (subjectData && subjectData.systems && subjectData.systems[system]) {
+            Object.keys(subjectData.systems[system].categories).forEach(category => {
+                systemsMap[category] = true;
+            });
+        }
+    });
+
+    const categories = Object.keys(systemsMap);
+
+    // Check if all categories are selected
+    const allSelected = categories.every(category => {
+        const compositeKey = `${system}::${category}`;
+        return selectedCategories.has(compositeKey);
+    });
+
+    selectAllCheckbox.checked = allSelected && categories.length > 0;
+
+    const selectAllItem = selectAllCheckbox.closest('.category-item');
+    if (allSelected && categories.length > 0) {
+        selectAllItem.classList.add('selected');
+    } else {
+        selectAllItem.classList.remove('selected');
+    }
 }
 
 // Update available questions count
@@ -440,9 +539,14 @@ async function updateAvailableCount() {
                 return false;
             }
 
-            // If categories are selected, filter by them
+            // If categories are selected, filter by system::category combination
             if (selectedCategories.size > 0) {
-                return category && selectedCategories.has(category);
+                // Build the composite key from the question's system and category
+                if (!system || !category) {
+                    return false;
+                }
+                const compositeKey = `${system}::${category}`;
+                return selectedCategories.has(compositeKey);
             }
 
             return true;
