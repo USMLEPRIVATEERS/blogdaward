@@ -533,7 +533,7 @@
     <script src="js/app.js"></script>
     <script>
         // Google Drive Integration
-        const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzRNQ27dpyy2KyEZ1XLGHTpeR2AYj8auixGwxYkdI1WP-dsIKeUcYkeuRdFMIbqcJ3J/exec';
+        const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx1NGQOIXhRgSG1qWlC4AS1mODLIiZQuWgrXy88svOJxRU-6xnHB1UTCIJhOC5O1cQfTw/exec';
         const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
         let userData = null;
@@ -1660,57 +1660,94 @@ async function uploadFileToDrive(folderId, file) {
             renderDriveFolders(folders, files || []);
         }
 
-        // Render folders with files accordion
         function renderDriveFolders(folders, files) {
-            const container = document.getElementById('drive-folders-container');
+    const container = document.getElementById('drive-folders-container');
 
-            // Group folders by parent
-            const rootFolders = folders.filter(f => f.parent_folder_name === null);
-            const childFolders = folders.filter(f => f.parent_folder_name !== null);
+    // Organize folders by hierarchy
+    const mainFolder = folders.find(f => f.parent_folder_name === null && f.folder_name.includes(currentProject.title.substring(0, 20)));
+    const rootFolders = folders.filter(f => 
+        f.parent_folder_name === mainFolder?.folder_name && 
+        f.folder_name !== mainFolder?.folder_name
+    );
+    
+    container.innerHTML = rootFolders.map(folder => {
+        // Get subfolders
+        const subfolders = folders.filter(f => f.parent_folder_name === folder.folder_name);
+        
+        return renderFolderItem(folder, subfolders, files, 0);
+    }).join('');
+}
 
-            container.innerHTML = folders.map(folder => {
-                const folderFiles = files.filter(f => f.folder_id === folder.id);
-                const hasFiles = folderFiles.length > 0;
+// Render individual folder item with subfolders
+function renderFolderItem(folder, subfolders, files, level) {
+    const folderFiles = files.filter(f => f.folder_id === folder.id);
+    const hasSubfolders = subfolders.length > 0;
+    const hasFiles = folderFiles.length > 0;
+    const indent = level * 1.5; // rem
 
-                return `
-                    <div class="folder-item">
-                        <div class="folder-header" onclick="toggleFolder(this)">
-                            <span class="folder-toggle">▶</span>
-                            <span class="folder-icon">📁</span>
-                            <span class="folder-name">${folder.folder_name}</span>
-                            <span class="folder-count">(${folderFiles.length} arquivo${folderFiles.length !== 1 ? 's' : ''})</span>
-                            <a href="${folder.folder_url}" target="_blank" class="folder-link" onclick="event.stopPropagation()">
-                                Abrir no Drive ↗
-                            </a>
-                        </div>
-                        <div class="folder-content">
-                            ${hasFiles ? `
-                                <div class="files-list">
-                                    ${folderFiles.map(file => `
-                                        <div class="file-item">
-                                            <a href="${file.file_url}" target="_blank" class="file-link">
-                                                <span class="file-icon">${getFileIcon(file.mime_type)}</span>
-                                                <span class="file-name">${file.file_name}</span>
-                                                <span class="file-size">${formatFileSize(file.file_size)}</span>
-                                            </a>
-                                            ${isMentor ? `<button class="btn btn-sm btn-danger" onclick="deleteProjectFile(${file.id}); event.stopPropagation();">🗑️</button>` : ''}
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            ` : '<p class="text-muted" style="padding: 0.5rem;">Nenhum arquivo ainda</p>'}
-                            ${isMentor ? `
-                                <div class="folder-actions">
-                                    <input type="file" id="upload-${folder.id}" style="display: none;" onchange="handleFileSelect(event, ${folder.id})">
-                                    <button class="btn btn-sm btn-primary" onclick="document.getElementById('upload-${folder.id}').click()">
-                                        📤 Fazer Upload
-                                    </button>
-                                </div>
-                            ` : ''}
-                        </div>
+    let html = `
+        <div class="folder-item" style="margin-left: ${indent}rem">
+            <div class="folder-header" onclick="toggleFolder(this)">
+                <span class="folder-toggle">▶</span>
+                <span class="folder-icon">📁</span>
+                <span class="folder-name">${folder.folder_name}</span>
+                <span class="folder-count">(${folderFiles.length} arquivo${folderFiles.length !== 1 ? 's' : ''})</span>
+                <a href="${folder.folder_url}" target="_blank" class="folder-link" onclick="event.stopPropagation()">
+                    Abrir no Drive ↗
+                </a>
+            </div>
+            <div class="folder-content">
+    `;
+
+    // Render files
+    if (hasFiles) {
+        html += `
+            <div class="files-list">
+                ${folderFiles.map(file => `
+                    <div class="file-item">
+                        <a href="${file.file_url}" target="_blank" class="file-link">
+                            <span class="file-icon">${getFileIcon(file.mime_type)}</span>
+                            <span class="file-name">${file.file_name}</span>
+                            <span class="file-size">${formatFileSize(file.file_size)}</span>
+                        </a>
+                        ${isMentor ? `<button class="btn btn-sm btn-danger" onclick="deleteProjectFile(${file.id}); event.stopPropagation();">🗑️</button>` : ''}
                     </div>
-                `;
-            }).join('');
-        }
+                `).join('')}
+            </div>
+        `;
+    } else {
+        html += '<p class="text-muted empty-folder">Nenhum arquivo ainda</p>';
+    }
+
+    // Upload button
+    if (isMentor) {
+        html += `
+            <div class="folder-actions">
+                <input type="file" id="upload-${folder.id}" style="display: none;" onchange="handleFileSelect(event, ${folder.id})">
+                <button class="btn btn-sm btn-primary" onclick="document.getElementById('upload-${folder.id}').click()">
+                    📤 Fazer Upload
+                </button>
+            </div>
+        `;
+    }
+
+    // Render subfolders recursively
+    if (hasSubfolders) {
+        html += '<div class="subfolders-container">';
+        subfolders.forEach(subfolder => {
+            const subSubfolders = files.filter(f => f.parent_folder_name === subfolder.folder_name);
+            html += renderFolderItem(subfolder, [], files, level + 1);
+        });
+        html += '</div>';
+    }
+
+    html += `
+            </div>
+        </div>
+    `;
+
+    return html;
+}
 
         // Toggle folder open/close
         function toggleFolder(header) {
@@ -2072,134 +2109,195 @@ async function uploadFileToDrive(folderId, file) {
         }
 
         /* Google Drive Folders/Files Styling */
-        .folders-accordion {
-            border: 1px solid var(--gray-200);
-            border-radius: var(--radius-md);
-            overflow: hidden;
-        }
+.folders-accordion {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
 
-        .folder-item {
-            border-bottom: 1px solid var(--gray-200);
-        }
+.folder-item {
+    border-bottom: 1px solid var(--gray-200);
+    transition: all 0.3s ease;
+}
 
-        .folder-item:last-child {
-            border-bottom: none;
-        }
+.folder-item:last-child {
+    border-bottom: none;
+}
 
-        .folder-header {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 1rem;
-            background: var(--gray-50);
-            cursor: pointer;
-            transition: background 0.2s;
-        }
+/* Indentação para hierarquia visual */
+.folder-item .folder-item {
+    margin-left: 0;
+    border-left: 2px solid #e5e7eb;
+    border-bottom: 1px solid #f3f4f6;
+}
 
-        .folder-header:hover {
-            background: var(--gray-100);
-        }
+.folder-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: var(--gray-50);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
 
-        .folder-toggle {
-            font-size: 0.75rem;
-            color: var(--gray-500);
-            transition: transform 0.2s;
-        }
+.folder-header:hover {
+    background: var(--gray-100);
+}
 
-        .folder-icon {
-            font-size: 1.25rem;
-        }
+/* Indicador de subpasta */
+.folder-item .folder-item .folder-header {
+    background: #fafafa;
+    border-left: 3px solid #3b82f6;
+}
 
-        .folder-name {
-            flex: 1;
-            font-weight: 600;
-            color: var(--text-dark);
-        }
+.folder-item .folder-item .folder-header:hover {
+    background: #f0f9ff;
+}
 
-        .folder-count {
-            font-size: 0.875rem;
-            color: var(--gray-500);
-        }
+.folder-toggle {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    transition: transform 0.2s;
+    width: 20px;
+    text-align: center;
+}
 
-        .folder-link {
-            font-size: 0.875rem;
-            color: var(--primary-color);
-            text-decoration: none;
-            padding: 0.25rem 0.5rem;
-            border-radius: var(--radius-sm);
-            transition: background 0.2s;
-        }
+.folder-item.open > .folder-header .folder-toggle {
+    transform: rotate(90deg);
+}
 
-        .folder-link:hover {
-            background: var(--primary-light);
-        }
+.folder-icon {
+    font-size: 1.25rem;
+}
 
-        .folder-content {
-            display: none;
-            padding: 1rem;
-            background: white;
-        }
+.folder-name {
+    flex: 1;
+    font-weight: 600;
+    color: var(--text-dark);
+}
 
-        .folder-item.open .folder-content {
-            display: block;
-        }
+/* Nome de subpasta com estilo diferente */
+.folder-item .folder-item .folder-name {
+    font-weight: 500;
+    font-size: 0.95rem;
+    color: #1e40af;
+}
 
-        .folder-item.open .folder-toggle {
-            transform: rotate(0deg);
-        }
+.folder-count {
+    font-size: 0.875rem;
+    color: var(--gray-500);
+    background: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+}
 
-        .files-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
+.folder-link {
+    font-size: 0.875rem;
+    color: var(--primary-color);
+    text-decoration: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+    transition: background 0.2s;
+    white-space: nowrap;
+}
 
-        .file-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0.75rem;
-            background: var(--gray-50);
-            border-radius: var(--radius-sm);
-            transition: background 0.2s;
-        }
+.folder-link:hover {
+    background: var(--primary-light);
+}
 
-        .file-item:hover {
-            background: var(--gray-100);
-        }
+.folder-content {
+    display: none;
+    padding: 1rem;
+    background: white;
+    animation: slideDown 0.2s ease;
+}
 
-        .file-link {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            text-decoration: none;
-            color: var(--text-dark);
-            flex: 1;
-        }
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: 1000px;
+    }
+}
 
-        .file-link:hover {
-            color: var(--primary-color);
-        }
+.folder-item.open > .folder-content {
+    display: block;
+}
 
-        .file-icon {
-            font-size: 1.25rem;
-        }
+.subfolders-container {
+    margin-top: 0.5rem;
+    border-top: 1px solid #f3f4f6;
+    padding-top: 0.5rem;
+}
 
-        .file-name {
-            flex: 1;
-        }
+.files-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
 
-        .file-size {
-            font-size: 0.75rem;
-            color: var(--gray-500);
-            margin-left: 0.5rem;
-        }
+.file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem;
+    background: var(--gray-50);
+    border-radius: var(--radius-sm);
+    transition: all 0.2s;
+    border-left: 3px solid transparent;
+}
 
-        .folder-actions {
-            margin-top: 1rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--gray-200);
-        }
+.file-item:hover {
+    background: var(--gray-100);
+    border-left-color: var(--primary-color);
+}
+
+.file-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: var(--text-dark);
+    flex: 1;
+}
+
+.file-link:hover {
+    color: var(--primary-color);
+}
+
+.file-icon {
+    font-size: 1.25rem;
+}
+
+.file-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-size {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    margin-left: 0.5rem;
+}
+
+.folder-actions {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--gray-200);
+}
+
+.empty-folder {
+    padding: 0.5rem;
+    font-size: 0.9rem;
+    font-style: italic;
+}
     </style>
 </body>
 </html>
