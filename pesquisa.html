@@ -167,6 +167,18 @@
                     </select>
                     <span class="form-hint">Segure Ctrl para selecionar multiplos (mentores e alunos)</span>
                 </div>
+
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="create-drive-folder" checked>
+                        <span class="form-check-label">
+                            📁 Criar estrutura de pastas no Google Drive automaticamente
+                        </span>
+                    </label>
+                    <span class="form-hint">
+                        Cria pasta do projeto com subpastas organizadas para todos os arquivos da pesquisa
+                    </span>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('new-project-modal')">Cancelar</button>
@@ -201,6 +213,16 @@
                 <div class="mb-4" id="participants-section">
                     <h4 class="mb-2">👥 Participantes</h4>
                     <div id="participants-list" class="participants-grid">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <!-- Drive Files Section -->
+                <div class="mb-4" id="drive-files-section" style="display: none;">
+                    <div class="d-flex justify-between align-center mb-2">
+                        <h4>📁 Arquivos do Projeto</h4>
+                    </div>
+                    <div id="drive-folders-container" class="folders-accordion">
                         <!-- Filled by JS -->
                     </div>
                 </div>
@@ -509,6 +531,10 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/app.js"></script>
     <script>
+        // Google Drive Integration
+        const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyCFBD58ns2u8iPAU-jkwF4c6D35CDtBrbSmTIYLSSuvJ8vLfvoj-2ka2nPgcQJFS4gQw/exec';
+        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
         let userData = null;
         let allProjects = [];
         let allUsers = [];
@@ -797,6 +823,9 @@
             // Render tasks
             renderTasks(tasks);
 
+            // Load Drive folders and files
+            await loadProjectDriveFolders(currentProject.id);
+
             // Show action buttons based on role
             const isParticipant = (currentProject.participants || []).includes(userData.id);
 
@@ -1065,32 +1094,63 @@
             const title = document.getElementById('project-title').value.trim();
             const description = document.getElementById('project-description').value.trim();
             const deadline = document.getElementById('project-deadline').value || null;
-            const driveLink = document.getElementById('project-drive-link').value.trim() || null;
+            let driveLink = document.getElementById('project-drive-link').value.trim() || null;
             const participantSelect = document.getElementById('project-participants');
             const participants = Array.from(participantSelect.selectedOptions).map(o => parseInt(o.value));
+            const createDriveFolder = document.getElementById('create-drive-folder').checked;
 
             if (!title) {
                 WardApp.showToast('Preencha os campos obrigatorios para gerar o titulo', 'warning');
                 return;
             }
 
-            const { error } = await WardApp.db.from('research_projects').insert({
-                title,
-                description,
-                project_type: projectType,
-                deadline,
-                drive_link: driveLink,
-                participants,
-                status: 'active',
-                created_by: userData.id
-            });
+            WardApp.showLoading();
+
+            // Create Drive folder structure if requested
+            let folderStructure = null;
+            if (createDriveFolder) {
+                try {
+                    folderStructure = await createProjectDriveFolder(title);
+                    driveLink = folderStructure.mainFolderUrl;
+                } catch (error) {
+                    console.error('Drive folder creation error:', error);
+                    WardApp.showToast('Erro ao criar pastas no Drive. Continuando sem integração.', 'warning');
+                }
+            }
+
+            // Insert project
+            const { data: project, error } = await WardApp.db
+                .from('research_projects')
+                .insert({
+                    title,
+                    description,
+                    project_type: projectType,
+                    deadline,
+                    drive_link: driveLink,
+                    participants,
+                    status: 'active',
+                    created_by: userData.id
+                })
+                .select()
+                .single();
 
             if (error) {
+                WardApp.hideLoading();
                 console.error('Error creating project:', error);
                 WardApp.showToast('Erro ao criar projeto', 'error');
                 return;
             }
 
+            // Save folder structure to database
+            if (folderStructure) {
+                try {
+                    await saveFolderStructure(project.id, folderStructure);
+                } catch (error) {
+                    console.error('Error saving folder structure:', error);
+                }
+            }
+
+            WardApp.hideLoading();
             closeModal('new-project-modal');
 
             // Clear form fields
@@ -1104,6 +1164,7 @@
             document.getElementById('project-description').value = '';
             document.getElementById('project-deadline').value = '';
             document.getElementById('project-drive-link').value = '';
+            document.getElementById('create-drive-folder').checked = true;
             updateTitleFields();
 
             WardApp.showToast('Projeto criado!');
@@ -1423,6 +1484,307 @@
         function closeModal(id) {
             document.getElementById(id).classList.remove('active');
         }
+
+        // ============================================
+        // GOOGLE DRIVE INTEGRATION FUNCTIONS
+        // ============================================
+
+        // Create project folder structure in Drive
+        async function createProjectDriveFolder(projectTitle) {
+            const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'createProjectFolder',
+                    projectTitle: projectTitle
+                })
+            });
+
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to create Drive folder');
+            }
+
+            return data.folderStructure;
+        }
+
+        // Flatten folder structure for database storage
+        function flattenFolderStructure(projectId, folderStructure) {
+            const records = [];
+
+            // Add main folder
+            records.push({
+                project_id: projectId,
+                folder_name: folderStructure.mainFolderName,
+                folder_id: folderStructure.mainFolderId,
+                parent_folder_name: null,
+                folder_url: folderStructure.mainFolderUrl
+            });
+
+            // Add subfolders
+            if (folderStructure.subfolders) {
+                for (const [folderName, folderData] of Object.entries(folderStructure.subfolders)) {
+                    records.push({
+                        project_id: projectId,
+                        folder_name: folderName,
+                        folder_id: folderData.id,
+                        parent_folder_name: folderStructure.mainFolderName,
+                        folder_url: folderData.url
+                    });
+
+                    // Add nested subfolders if they exist
+                    if (folderData.subfolders) {
+                        for (const [nestedName, nestedData] of Object.entries(folderData.subfolders)) {
+                            records.push({
+                                project_id: projectId,
+                                folder_name: nestedName,
+                                folder_id: nestedData.id,
+                                parent_folder_name: folderName,
+                                folder_url: nestedData.url
+                            });
+                        }
+                    }
+                }
+            }
+
+            return records;
+        }
+
+        // Save folder structure to database
+        async function saveFolderStructure(projectId, folderStructure) {
+            const folderRecords = flattenFolderStructure(projectId, folderStructure);
+
+            const { error } = await WardApp.db
+                .from('research_project_folders')
+                .insert(folderRecords);
+
+            if (error) {
+                console.error('Error saving folder structure:', error);
+                throw error;
+            }
+        }
+
+        // Load and display project Drive folders
+        async function loadProjectDriveFolders(projectId) {
+            const { data: folders } = await WardApp.db
+                .from('research_project_folders')
+                .select('*')
+                .eq('project_id', projectId)
+                .order('folder_name');
+
+            if (!folders || folders.length === 0) {
+                document.getElementById('drive-files-section').style.display = 'none';
+                return;
+            }
+
+            const { data: files } = await WardApp.db
+                .from('research_project_files')
+                .select('*')
+                .eq('project_id', projectId);
+
+            document.getElementById('drive-files-section').style.display = 'block';
+            renderDriveFolders(folders, files || []);
+        }
+
+        // Render folders with files accordion
+        function renderDriveFolders(folders, files) {
+            const container = document.getElementById('drive-folders-container');
+
+            // Group folders by parent
+            const rootFolders = folders.filter(f => f.parent_folder_name === null);
+            const childFolders = folders.filter(f => f.parent_folder_name !== null);
+
+            container.innerHTML = folders.map(folder => {
+                const folderFiles = files.filter(f => f.folder_id === folder.id);
+                const hasFiles = folderFiles.length > 0;
+
+                return `
+                    <div class="folder-item">
+                        <div class="folder-header" onclick="toggleFolder(this)">
+                            <span class="folder-toggle">▶</span>
+                            <span class="folder-icon">📁</span>
+                            <span class="folder-name">${folder.folder_name}</span>
+                            <span class="folder-count">(${folderFiles.length} arquivo${folderFiles.length !== 1 ? 's' : ''})</span>
+                            <a href="${folder.folder_url}" target="_blank" class="folder-link" onclick="event.stopPropagation()">
+                                Abrir no Drive ↗
+                            </a>
+                        </div>
+                        <div class="folder-content">
+                            ${hasFiles ? `
+                                <div class="files-list">
+                                    ${folderFiles.map(file => `
+                                        <div class="file-item">
+                                            <a href="${file.file_url}" target="_blank" class="file-link">
+                                                <span class="file-icon">${getFileIcon(file.mime_type)}</span>
+                                                <span class="file-name">${file.file_name}</span>
+                                                <span class="file-size">${formatFileSize(file.file_size)}</span>
+                                            </a>
+                                            ${isMentor ? `<button class="btn btn-sm btn-danger" onclick="deleteProjectFile(${file.id}); event.stopPropagation();">🗑️</button>` : ''}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : '<p class="text-muted" style="padding: 0.5rem;">Nenhum arquivo ainda</p>'}
+                            ${isMentor ? `
+                                <div class="folder-actions">
+                                    <input type="file" id="upload-${folder.id}" style="display: none;" onchange="handleFileSelect(event, ${folder.id})">
+                                    <button class="btn btn-sm btn-primary" onclick="document.getElementById('upload-${folder.id}').click()">
+                                        📤 Fazer Upload
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Toggle folder open/close
+        function toggleFolder(header) {
+            const folderItem = header.parentElement;
+            const toggle = header.querySelector('.folder-toggle');
+
+            folderItem.classList.toggle('open');
+            toggle.textContent = folderItem.classList.contains('open') ? '▼' : '▶';
+        }
+
+        // Get file icon based on mime type
+        function getFileIcon(mimeType) {
+            if (!mimeType) return '📄';
+            if (mimeType.includes('pdf')) return '📕';
+            if (mimeType.includes('image')) return '🖼️';
+            if (mimeType.includes('word') || mimeType.includes('document')) return '📘';
+            if (mimeType.includes('sheet') || mimeType.includes('excel')) return '📊';
+            if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return '📙';
+            if (mimeType.includes('video')) return '🎥';
+            if (mimeType.includes('zip') || mimeType.includes('rar')) return '📦';
+            return '📄';
+        }
+
+        // Format file size
+        function formatFileSize(bytes) {
+            if (!bytes) return '';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        // Handle file selection for upload
+        async function handleFileSelect(event, folderId) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (file.size > MAX_FILE_SIZE) {
+                WardApp.showToast('Arquivo muito grande (máximo 10MB)', 'error');
+                return;
+            }
+
+            WardApp.showLoading();
+
+            try {
+                await handleProjectFileUpload(file, folderId);
+                WardApp.showToast('Arquivo enviado com sucesso!');
+                await loadProjectDriveFolders(currentProject.id);
+            } catch (error) {
+                console.error('Upload error:', error);
+                WardApp.showToast('Erro ao fazer upload do arquivo', 'error');
+            } finally {
+                WardApp.hideLoading();
+                event.target.value = ''; // Reset file input
+            }
+        }
+
+        // Upload file to project folder
+        async function handleProjectFileUpload(file, folderId) {
+            // Get folder Google Drive ID
+            const { data: folder } = await WardApp.db
+                .from('research_project_folders')
+                .select('folder_id')
+                .eq('id', folderId)
+                .single();
+
+            if (!folder) {
+                throw new Error('Folder not found');
+            }
+
+            // Convert file to base64
+            const base64 = await fileToBase64(file);
+
+            // Upload to Google Drive
+            const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'uploadToFolder',
+                    folderId: folder.folder_id,
+                    fileName: file.name,
+                    fileContent: base64,
+                    mimeType: file.type
+                })
+            });
+
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to upload file');
+            }
+
+            // Save reference to database
+            await WardApp.db.from('research_project_files').insert({
+                project_id: currentProject.id,
+                folder_id: folderId,
+                file_name: data.fileName,
+                file_id: data.fileId,
+                file_url: data.viewLink,
+                mime_type: data.mimeType,
+                file_size: data.size,
+                uploaded_by: userData.id
+            });
+        }
+
+        // Delete project file
+        async function deleteProjectFile(fileId) {
+            if (!confirm('Excluir este arquivo?')) return;
+
+            WardApp.showLoading();
+
+            try {
+                const { data: file } = await WardApp.db
+                    .from('research_project_files')
+                    .select('file_id')
+                    .eq('id', fileId)
+                    .single();
+
+                if (!file) {
+                    throw new Error('File not found');
+                }
+
+                // Delete from Google Drive
+                await fetch(`${GOOGLE_APPS_SCRIPT_URL}?action=deleteFile&fileId=${file.file_id}`);
+
+                // Delete from database
+                await WardApp.db
+                    .from('research_project_files')
+                    .delete()
+                    .eq('id', fileId);
+
+                WardApp.showToast('Arquivo excluído!');
+                await loadProjectDriveFolders(currentProject.id);
+            } catch (error) {
+                console.error('Delete error:', error);
+                WardApp.showToast('Erro ao excluir arquivo', 'error');
+            } finally {
+                WardApp.hideLoading();
+            }
+        }
+
+        // Convert file to Base64
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
     </script>
 
     <style>
@@ -1633,6 +1995,136 @@
 
         .project-meta-item.link:hover {
             background: var(--primary-light);
+        }
+
+        /* Google Drive Folders/Files Styling */
+        .folders-accordion {
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+        }
+
+        .folder-item {
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .folder-item:last-child {
+            border-bottom: none;
+        }
+
+        .folder-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: var(--gray-50);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .folder-header:hover {
+            background: var(--gray-100);
+        }
+
+        .folder-toggle {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            transition: transform 0.2s;
+        }
+
+        .folder-icon {
+            font-size: 1.25rem;
+        }
+
+        .folder-name {
+            flex: 1;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .folder-count {
+            font-size: 0.875rem;
+            color: var(--gray-500);
+        }
+
+        .folder-link {
+            font-size: 0.875rem;
+            color: var(--primary-color);
+            text-decoration: none;
+            padding: 0.25rem 0.5rem;
+            border-radius: var(--radius-sm);
+            transition: background 0.2s;
+        }
+
+        .folder-link:hover {
+            background: var(--primary-light);
+        }
+
+        .folder-content {
+            display: none;
+            padding: 1rem;
+            background: white;
+        }
+
+        .folder-item.open .folder-content {
+            display: block;
+        }
+
+        .folder-item.open .folder-toggle {
+            transform: rotate(0deg);
+        }
+
+        .files-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem;
+            background: var(--gray-50);
+            border-radius: var(--radius-sm);
+            transition: background 0.2s;
+        }
+
+        .file-item:hover {
+            background: var(--gray-100);
+        }
+
+        .file-link {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            color: var(--text-dark);
+            flex: 1;
+        }
+
+        .file-link:hover {
+            color: var(--primary-color);
+        }
+
+        .file-icon {
+            font-size: 1.25rem;
+        }
+
+        .file-name {
+            flex: 1;
+        }
+
+        .file-size {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            margin-left: 0.5rem;
+        }
+
+        .folder-actions {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--gray-200);
         }
     </style>
 </body>
