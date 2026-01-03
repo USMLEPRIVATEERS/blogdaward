@@ -159,10 +159,21 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
+        .kanban-card.created-by-mentor {
+            background: #fff7ed;
+            border: 2px solid #ea580c;
+            box-shadow: 0 2px 8px rgba(234, 88, 12, 0.15);
+        }
+
         .kanban-card:hover {
             box-shadow: 0 8px 16px rgba(0,0,0,0.1);
             transform: translateY(-4px);
             border-color: #2563eb;
+        }
+
+        .kanban-card.created-by-mentor:hover {
+            border-color: #c2410c;
+            box-shadow: 0 8px 16px rgba(234, 88, 12, 0.2);
         }
 
         .kanban-card.dragging {
@@ -207,6 +218,24 @@
         .kanban-card-deadline.overdue {
             color: #dc2626;
             font-weight: 700;
+        }
+
+        .kanban-card-tasks {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .kanban-card-creator {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            color: #ea580c;
+            font-weight: 600;
+            background: #ffedd5;
+            padding: 0.25rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
         }
 
         .kanban-empty {
@@ -769,13 +798,36 @@
         }
 
         async function loadKanban() {
+            // Load projects with creator info and task counts
             const { data: projects } = await WardApp.db
                 .from('kanban_projects')
-                .select('*')
+                .select(`
+                    *,
+                    creator:created_by(id, full_name, name, email, role),
+                    owner:user_id(id, full_name, name, email, role)
+                `)
                 .eq('user_id', currentKanbanUserId)
                 .order('position');
 
-            renderKanban(projects || []);
+            if (!projects) {
+                renderKanban([]);
+                return;
+            }
+
+            // Load task counts for each project
+            for (const project of projects) {
+                const { data: tasks } = await WardApp.db
+                    .from('kanban_tasks')
+                    .select('completed')
+                    .eq('project_id', project.id);
+
+                if (tasks) {
+                    project.totalTasks = tasks.length;
+                    project.completedTasks = tasks.filter(t => t.completed).length;
+                }
+            }
+
+            renderKanban(projects);
         }
 
         function renderKanban(projects) {
@@ -798,19 +850,50 @@
         function renderCard(project) {
             const deadline = project.deadline ? new Date(project.deadline) : null;
             const isOverdue = deadline && deadline < new Date();
-            const deadlineStr = deadline ? deadline.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
+            const deadlineStr = deadline ? deadline.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+
+            // Check if created by a mentor for someone else
+            const createdByMentor = project.creator &&
+                                   project.creator.id !== project.user_id &&
+                                   (project.creator.role?.startsWith('mentor_'));
+
+            const creatorName = project.creator ?
+                (project.creator.full_name || project.creator.name || project.creator.email?.split('@')[0]) :
+                'Você';
+
+            // Task progress
+            const totalTasks = project.totalTasks || 0;
+            const completedTasks = project.completedTasks || 0;
+            const pendingTasks = totalTasks - completedTasks;
 
             return `
-                <div class="kanban-card"
+                <div class="kanban-card ${createdByMentor ? 'created-by-mentor' : ''}"
                      draggable="true"
                      ondragstart="drag(event)"
                      ondragend="dragEnd(event)"
                      data-project-id="${project.id}"
                      onclick="editProject(${project.id})">
                     <div class="kanban-card-title">${escapeHtml(project.title)}</div>
-                    ${project.description ? `<div class="kanban-card-description">${project.description.substring(0, 100)}...</div>` : ''}
+                    ${project.description ? `<div class="kanban-card-description">${project.description.substring(0, 120)}...</div>` : ''}
+
                     <div class="kanban-card-meta">
-                        ${deadline ? `<div class="kanban-card-deadline ${isOverdue ? 'overdue' : ''}">📅 ${deadlineStr}</div>` : ''}
+                        ${deadline ? `
+                            <div class="kanban-card-deadline ${isOverdue ? 'overdue' : ''}">
+                                📅 ${deadlineStr}
+                            </div>
+                        ` : ''}
+
+                        ${totalTasks > 0 ? `
+                            <div class="kanban-card-tasks">
+                                ✅ ${pendingTasks}/${totalTasks} pendentes
+                            </div>
+                        ` : ''}
+
+                        ${createdByMentor ? `
+                            <div class="kanban-card-creator">
+                                👤 Criado por: ${escapeHtml(creatorName)}
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
@@ -939,7 +1022,8 @@
                 title,
                 deadline,
                 description,
-                status: currentProject?.status || 'todo'
+                status: currentProject?.status || 'todo',
+                created_by: currentProject?.created_by || userData.id // Track who created it
             };
 
             if (currentProject?.id) {
