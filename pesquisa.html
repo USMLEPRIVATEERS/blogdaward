@@ -1661,35 +1661,66 @@ async function uploadFileToDrive(folderId, file) {
     renderDriveFolders(folders, files || []);
 }
 
-        function renderDriveFolders(folders, files) {
+// Render folders with hierarchical structure
+function renderDriveFolders(folders, files) {
     const container = document.getElementById('drive-folders-container');
 
-    // Organize folders by hierarchy
-    const mainFolder = folders.find(f => f.parent_folder_name === null && f.folder_name.includes(currentProject.title.substring(0, 20)));
-    const rootFolders = folders.filter(f => 
-        f.parent_folder_name === mainFolder?.folder_name && 
-        f.folder_name !== mainFolder?.folder_name
-    );
+    // Find main project folder (parent = null)
+    const mainFolder = folders.find(f => f.parent_folder_name === null);
     
-    container.innerHTML = rootFolders.map(folder => {
-        // Get subfolders
-        const subfolders = folders.filter(f => f.parent_folder_name === folder.folder_name);
-        
-        return renderFolderItem(folder, subfolders, files, 0);
-    }).join('');
+    if (!mainFolder) {
+        container.innerHTML = '<p class="text-muted">Nenhuma pasta encontrada</p>';
+        return;
+    }
+
+    // Count total files in project
+    const totalFiles = files.length;
+    const totalSubfolders = folders.length - 1; // Exclude main folder
+
+    // Render main folder with all subfolders inside
+    container.innerHTML = `
+        <div class="folder-item main-project-folder">
+            <div class="folder-header" onclick="toggleFolder(this)">
+                <span class="folder-toggle">▶</span>
+                <span class="folder-icon">📂</span>
+                <span class="folder-name">${mainFolder.folder_name}</span>
+                <span class="folder-count">(${totalSubfolders} pastas, ${totalFiles} arquivos)</span>
+                <a href="${mainFolder.folder_url}" target="_blank" class="folder-link" onclick="event.stopPropagation()">
+                    Abrir no Drive ↗
+                </a>
+            </div>
+            <div class="folder-content">
+                ${renderSubfolders(folders, files, mainFolder.folder_name)}
+            </div>
+        </div>
+    `;
+}
+
+// Render subfolders of a parent
+function renderSubfolders(allFolders, allFiles, parentFolderName) {
+    // Get direct children of this parent
+    const subfolders = allFolders.filter(f => f.parent_folder_name === parentFolderName);
+    
+    if (subfolders.length === 0) {
+        return '<p class="text-muted empty-folder">Nenhuma subpasta</p>';
+    }
+
+    return subfolders.map(folder => 
+        renderFolderItem(folder, allFolders, allFiles, 0)
+    ).join('');
 }
 
 // Render individual folder item with subfolders
-function renderFolderItem(folder, subfolders, files, level) {
-    const folderFiles = files.filter(f => f.folder_id === folder.id);
+function renderFolderItem(folder, allFolders, allFiles, level) {
+    const folderFiles = allFiles.filter(f => f.folder_id === folder.id);
+    const subfolders = allFolders.filter(f => f.parent_folder_name === folder.folder_name);
     const hasSubfolders = subfolders.length > 0;
     const hasFiles = folderFiles.length > 0;
-    const indent = level * 1.5; // rem
 
     let html = `
-        <div class="folder-item" style="margin-left: ${indent}rem">
+        <div class="folder-item level-${level}">
             <div class="folder-header" onclick="toggleFolder(this)">
-                <span class="folder-toggle">▶</span>
+                <span class="folder-toggle">${hasSubfolders ? '▶' : '　'}</span>
                 <span class="folder-icon">📁</span>
                 <span class="folder-name">${folder.folder_name}</span>
                 <span class="folder-count">(${folderFiles.length} arquivo${folderFiles.length !== 1 ? 's' : ''})</span>
@@ -1700,7 +1731,16 @@ function renderFolderItem(folder, subfolders, files, level) {
             <div class="folder-content">
     `;
 
-    // Render files
+    // Render subfolders FIRST
+    if (hasSubfolders) {
+        html += '<div class="subfolders-container">';
+        subfolders.forEach(subfolder => {
+            html += renderFolderItem(subfolder, allFolders, allFiles, level + 1);
+        });
+        html += '</div>';
+    }
+
+    // Then render files
     if (hasFiles) {
         html += `
             <div class="files-list">
@@ -1716,11 +1756,9 @@ function renderFolderItem(folder, subfolders, files, level) {
                 `).join('')}
             </div>
         `;
-    } else {
-        html += '<p class="text-muted empty-folder">Nenhum arquivo ainda</p>';
     }
 
-    // Upload button
+    // Upload button (only if mentor)
     if (isMentor) {
         html += `
             <div class="folder-actions">
@@ -1730,16 +1768,6 @@ function renderFolderItem(folder, subfolders, files, level) {
                 </button>
             </div>
         `;
-    }
-
-    // Render subfolders recursively
-    if (hasSubfolders) {
-        html += '<div class="subfolders-container">';
-        subfolders.forEach(subfolder => {
-            const subSubfolders = files.filter(f => f.parent_folder_name === subfolder.folder_name);
-            html += renderFolderItem(subfolder, [], files, level + 1);
-        });
-        html += '</div>';
     }
 
     html += `
@@ -2116,45 +2144,93 @@ function renderFolderItem(folder, subfolders, files, level) {
     overflow: hidden;
 }
 
-.folder-item {
-    border-bottom: 1px solid var(--gray-200);
-    transition: all 0.3s ease;
+/* Pasta principal do projeto */
+.main-project-folder {
+    border: none;
 }
 
-.folder-item:last-child {
+.main-project-folder > .folder-header {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    padding: 1.25rem;
+    font-size: 1.05rem;
+}
+
+.main-project-folder > .folder-header .folder-icon {
+    font-size: 1.5rem;
+}
+
+.main-project-folder > .folder-header .folder-name {
+    font-weight: 700;
+    color: white;
+}
+
+.main-project-folder > .folder-header .folder-count {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.main-project-folder > .folder-header .folder-link {
+    color: white;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.main-project-folder > .folder-header .folder-link:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.main-project-folder > .folder-header .folder-toggle {
+    color: white;
+}
+
+/* Subpastas nível 0 (PROTOCOL, DATABASES, etc) */
+.folder-item.level-0 {
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.folder-item.level-0:last-child {
     border-bottom: none;
 }
 
-/* Indentação para hierarquia visual */
-.folder-item .folder-item {
-    margin-left: 0;
-    border-left: 2px solid #e5e7eb;
+.folder-item.level-0 > .folder-header {
+    background: var(--gray-50);
+    padding: 1rem;
+    padding-left: 2rem;
+}
+
+/* Subpastas nível 1 (FOREST PLOTS, TABLES, FIGURES) */
+.folder-item.level-1 {
+    border-left: 3px solid #3b82f6;
+    margin-left: 1.5rem;
     border-bottom: 1px solid #f3f4f6;
 }
 
+.folder-item.level-1 > .folder-header {
+    background: #fafafa;
+    padding: 0.875rem;
+    padding-left: 1.5rem;
+}
+
+.folder-item.level-1 > .folder-header .folder-name {
+    font-weight: 500;
+    font-size: 0.95rem;
+    color: #1e40af;
+}
+
+/* Headers gerais */
 .folder-header {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 1rem;
-    background: var(--gray-50);
     cursor: pointer;
     transition: all 0.2s;
     position: relative;
 }
 
 .folder-header:hover {
-    background: var(--gray-100);
-}
-
-/* Indicador de subpasta */
-.folder-item .folder-item .folder-header {
-    background: #fafafa;
-    border-left: 3px solid #3b82f6;
-}
-
-.folder-item .folder-item .folder-header:hover {
-    background: #f0f9ff;
+    background: var(--gray-100) !important;
 }
 
 .folder-toggle {
@@ -2163,6 +2239,7 @@ function renderFolderItem(folder, subfolders, files, level) {
     transition: transform 0.2s;
     width: 20px;
     text-align: center;
+    user-select: none;
 }
 
 .folder-item.open > .folder-header .folder-toggle {
@@ -2179,19 +2256,13 @@ function renderFolderItem(folder, subfolders, files, level) {
     color: var(--text-dark);
 }
 
-/* Nome de subpasta com estilo diferente */
-.folder-item .folder-item .folder-name {
-    font-weight: 500;
-    font-size: 0.95rem;
-    color: #1e40af;
-}
-
 .folder-count {
     font-size: 0.875rem;
     color: var(--gray-500);
     background: white;
     padding: 0.25rem 0.5rem;
     border-radius: 12px;
+    white-space: nowrap;
 }
 
 .folder-link {
@@ -2210,19 +2281,18 @@ function renderFolderItem(folder, subfolders, files, level) {
 
 .folder-content {
     display: none;
-    padding: 1rem;
     background: white;
-    animation: slideDown 0.2s ease;
+    animation: slideDown 0.3s ease;
 }
 
 @keyframes slideDown {
     from {
         opacity: 0;
-        max-height: 0;
+        transform: translateY(-10px);
     }
     to {
         opacity: 1;
-        max-height: 1000px;
+        transform: translateY(0);
     }
 }
 
@@ -2231,15 +2301,14 @@ function renderFolderItem(folder, subfolders, files, level) {
 }
 
 .subfolders-container {
-    margin-top: 0.5rem;
-    border-top: 1px solid #f3f4f6;
-    padding-top: 0.5rem;
+    /* Container para subpastas */
 }
 
 .files-list {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    padding: 1rem;
 }
 
 .file-item {
@@ -2256,6 +2325,7 @@ function renderFolderItem(folder, subfolders, files, level) {
 .file-item:hover {
     background: var(--gray-100);
     border-left-color: var(--primary-color);
+    transform: translateX(2px);
 }
 
 .file-link {
@@ -2290,12 +2360,13 @@ function renderFolderItem(folder, subfolders, files, level) {
 
 .folder-actions {
     margin-top: 1rem;
-    padding-top: 1rem;
+    padding: 1rem;
+    padding-top: 0.75rem;
     border-top: 1px solid var(--gray-200);
 }
 
 .empty-folder {
-    padding: 0.5rem;
+    padding: 1rem;
     font-size: 0.9rem;
     font-style: italic;
 }
