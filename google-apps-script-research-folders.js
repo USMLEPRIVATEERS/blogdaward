@@ -16,6 +16,7 @@
 // 9. Copie a URL gerada (deve ser a mesma que você já tem)
 //
 // IMPORTANTE: Este script precisa de permissões para acessar seu Google Drive
+// NOTA: Google Apps Script tem limite de ~50MB por requisição
 
 // ============================================
 // CONFIGURAÇÕES
