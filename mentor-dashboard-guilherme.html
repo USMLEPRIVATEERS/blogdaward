@@ -432,7 +432,7 @@ Dica: Use as tags do AnKing em vez de decks separados!`
                 return;
             }
 
-            // Load scheduled calls from scheduled_calls table
+            // Load scheduled calls from scheduled_calls table - ONLY for this mentor
             const { data: scheduledCallsData } = await WardApp.db
                 .from('scheduled_calls')
                 .select('*, landmark:landmarks(*), student:users!scheduled_calls_student_id_fkey(id, full_name, email)')
@@ -441,14 +441,21 @@ Dica: Use as tags do AnKing em vez de decks separados!`
                 .order('scheduled_date', { ascending: true })
                 .order('scheduled_time', { ascending: true });
 
+            // Additional safety filter: Only show calls where landmark_type includes this mentor's name
+            const filteredScheduledCalls = (scheduledCallsData || []).filter(item => {
+                const landmarkType = item.landmark?.landmark_type || '';
+                // Only show if landmark_type includes 'guilherme' OR 'extra_guilherme'
+                return landmarkType.includes('guilherme');
+            });
+
             const callsContainer = document.getElementById('pending-calls-list');
             const landmarksContainer = document.getElementById('pending-landmarks-list');
 
             // Render scheduled calls (ordered by nearest date first)
-            if (!scheduledCallsData || scheduledCallsData.length === 0) {
+            if (!filteredScheduledCalls || filteredScheduledCalls.length === 0) {
                 callsContainer.innerHTML = '<p class="text-muted">Nenhuma call agendada!</p>';
             } else {
-                callsContainer.innerHTML = scheduledCallsData.map(item => {
+                callsContainer.innerHTML = filteredScheduledCalls.map(item => {
                     const landmark = item.landmark;
                     const student = item.student;
                     return `
@@ -466,7 +473,7 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             }
 
             // Filter out landmarks that are already scheduled
-            const scheduledLandmarkIds = new Set((scheduledCallsData || []).map(s => s.landmark_id));
+            const scheduledLandmarkIds = new Set((filteredScheduledCalls || []).map(s => s.landmark_id));
             const unscheduledLandmarks = (allPending || []).filter(l => !scheduledLandmarkIds.has(l.id));
 
             if (unscheduledLandmarks.length === 0) {
