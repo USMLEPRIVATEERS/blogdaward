@@ -38,17 +38,23 @@
 
     <main class="main-container">
         <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
-            <h1>📞 Chamadas e Marcos</h1>
+            <div>
+                <h1>📞 Chamadas com Mentores</h1>
+                <p class="text-muted" style="margin-top: 0.5rem;">
+                    Acompanhe sua jornada através de chamadas agendadas com seus mentores. Cada evento abaixo representa uma chamada importante para sua preparação.
+                </p>
+            </div>
             <div class="btn-group">
                 <button class="btn btn-primary" onclick="openAvailabilityModal()">🕐 Ver Disponibilidades dos Mentores</button>
             </div>
         </div>
 
         <div class="alert alert-info mb-4">
-            <span class="alert-icon">ℹ️</span>
+            <span class="alert-icon">💡</span>
             <div class="alert-content">
-                <strong>Legenda:</strong> ✅ Concluido | ⏳ Pendente | ⚠️ Urgente | 📝 Com Observacoes
-                <br><small>Arraste os itens para reorganizar a ordem</small>
+                <strong>Como funciona:</strong> Cada item representa uma chamada com mentor. Clique em um item para adicionar observações ou agendar a chamada.
+                <br><strong>Legenda:</strong> ✅ Chamada Concluída | ⏳ Aguardando Agendamento | ⚠️ Urgente | 📝 Com Anotações
+                <br><small>💡 Dica: Arraste os itens para reorganizar a ordem conforme sua preferência</small>
             </div>
         </div>
 
@@ -650,6 +656,27 @@
         }
     </style>
 
+    <style>
+        /* Enhanced styling for scheduled calls */
+        .landmark-scheduled {
+            background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+            border-left: 4px solid #10b981 !important;
+        }
+
+        .landmark-scheduled:hover {
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15) !important;
+        }
+
+        .landmark-item .landmark-status {
+            font-size: 1.75rem;
+        }
+
+        .landmark-meta {
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+    </style>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/app.js"></script>
     <script>
@@ -814,6 +841,7 @@
         }
 
         async function loadLandmarks() {
+            // Load landmarks with scheduled calls information
             const { data: landmarks } = await WardApp.db
                 .from('landmarks')
                 .select('*')
@@ -825,6 +853,30 @@
                 await createDefaultLandmarks();
                 return loadLandmarks();
             }
+
+            // Load scheduled calls for these landmarks
+            const landmarkIds = landmarks.map(lm => lm.id);
+            const { data: scheduledCalls } = await WardApp.db
+                .from('scheduled_calls')
+                .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, name)')
+                .in('landmark_id', landmarkIds)
+                .eq('status', 'scheduled');
+
+            // Map scheduled calls to landmarks
+            const callsMap = {};
+            if (scheduledCalls) {
+                scheduledCalls.forEach(call => {
+                    if (!callsMap[call.landmark_id]) {
+                        callsMap[call.landmark_id] = [];
+                    }
+                    callsMap[call.landmark_id].push(call);
+                });
+            }
+
+            // Add scheduled calls to landmarks
+            landmarks.forEach(lm => {
+                lm.scheduled_calls = callsMap[lm.id] || [];
+            });
 
             // Render landmarks
             renderLandmarks(landmarks);
@@ -879,30 +931,49 @@
                     else if (lm.title.includes('Marcos')) mentorHint = 'marcos';
                     else if (lm.title.includes('Guilherme')) mentorHint = 'guilherme';
 
+                    // Check if there's a scheduled call
+                    const hasScheduledCall = lm.scheduled_calls && lm.scheduled_calls.length > 0;
+                    const scheduledCall = hasScheduledCall ? lm.scheduled_calls[0] : null;
+
+                    // Format scheduled call info
+                    let scheduledInfo = '';
+                    if (scheduledCall) {
+                        const callDate = new Date(scheduledCall.scheduled_date + 'T' + scheduledCall.scheduled_time);
+                        const dateStr = callDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+                        const timeStr = callDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                        const mentorName = scheduledCall.mentor?.full_name || scheduledCall.mentor?.name || 'Mentor';
+                        scheduledInfo = `📹 Agendada: ${dateStr} às ${timeStr} com ${mentorName}`;
+                    }
+
                     return `
-                    <div class="landmark-item ${lm.is_urgent ? 'landmark-urgent' : ''}"
+                    <div class="landmark-item ${lm.is_urgent ? 'landmark-urgent' : ''} ${hasScheduledCall ? 'landmark-scheduled' : ''}"
                          data-id="${lm.id}" draggable="true">
                         <span class="landmark-status">
-                            ${lm.completed ? '✅' : (lm.is_urgent ? '⚠️' : '⏳')}
+                            ${lm.completed ? '✅' : (hasScheduledCall ? '📹' : (lm.is_urgent ? '⚠️' : '📞'))}
                         </span>
                         <div class="landmark-content" onclick="openEditLandmarkModal(${lm.id})" style="cursor: pointer;">
-                            <div class="landmark-title">${lm.title}</div>
+                            <div class="landmark-title">
+                                <span style="font-weight: 600;">${lm.title}</span>
+                                ${hasScheduledCall ? '<span style="color: #10b981; font-size: 0.75rem; margin-left: 0.5rem; background: #d1fae5; padding: 0.15rem 0.5rem; border-radius: 4px;">✓ AGENDADA</span>' : ''}
+                            </div>
                             <div class="landmark-meta">
-                                ${lm.completed ? 'Concluido em ' + WardApp.formatDate(lm.completion_date) : 'Pendente'}
-                                ${lm.notes?.length > 0 ? ' | 📝 ' + lm.notes.length + ' obs.' : ''}
+                                ${scheduledInfo ? scheduledInfo : (lm.completed ? 'Concluida em ' + WardApp.formatDate(lm.completion_date) : '⏳ Aguardando agendamento')}
+                                ${lm.notes?.length > 0 ? ' | 📝 ' + lm.notes.length + ' anota' + (lm.notes.length === 1 ? 'ção' : 'ções') : ''}
                             </div>
                         </div>
                         <div class="landmark-actions">
                             ${!lm.completed && lm.title.toLowerCase().includes('chamada') ? `
-                                <button class="btn btn-sm btn-primary" onclick="openScheduleModal(${lm.id}, '${lm.title.replace(/'/g, "\\'")}', '${mentorHint}')" title="Agendar">📅</button>
+                                <button class="btn btn-sm ${hasScheduledCall ? 'btn-outline' : 'btn-primary'}" onclick="openScheduleModal(${lm.id}, '${lm.title.replace(/'/g, "\\'")}', '${mentorHint}')" title="${hasScheduledCall ? 'Reagendar' : 'Agendar chamada'}">
+                                    ${hasScheduledCall ? '📅 Reagendar' : '📅 Agendar'}
+                                </button>
                             ` : ''}
                             <button class="btn btn-sm" onclick="openEditLandmarkModal(${lm.id})" title="Editar">✏️</button>
                             ${!lm.completed ? `
-                                <button class="btn btn-sm btn-success" onclick="markComplete(${lm.id})" title="Marcar concluido">✓</button>
+                                <button class="btn btn-sm btn-success" onclick="markComplete(${lm.id})" title="Marcar como concluida">✓</button>
                             ` : ''}
                         </div>
                     </div>
-                `}).join('') || '<p class="text-muted p-2">Nenhum item neste grupo</p>';
+                `}).join('') || '<p class="text-muted p-2">Nenhuma chamada neste grupo</p>';
             });
         }
 

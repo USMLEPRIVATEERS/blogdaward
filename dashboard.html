@@ -211,15 +211,15 @@
             <!-- Landmarks Preview -->
             <div class="dashboard-card">
                 <div class="dashboard-card-header">
-                    <span class="dashboard-card-icon">🎯</span>
-                    <span class="dashboard-card-title">Landmarks - Chamadas e Marcos</span>
+                    <span class="dashboard-card-icon">📞</span>
+                    <span class="dashboard-card-title">Próximas Chamadas com Mentores</span>
                 </div>
                 <div id="landmarks-preview">
                     <div class="empty-state">
                         <p class="text-muted">Carregando...</p>
                     </div>
                 </div>
-                <a href="landmarks.html" class="btn btn-outline btn-sm mt-2">Ver Todos os Landmarks →</a>
+                <a href="landmarks.html" class="btn btn-outline btn-sm mt-2">Ver Todas as Chamadas →</a>
             </div>
         </div>
 
@@ -613,25 +613,65 @@
                     <div style="padding: 1.5rem; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 8px; border-left: 4px solid #22c55e; text-align: center;">
                         <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎉</div>
                         <div style="font-size: 1.1rem; font-weight: 700; color: #166534; margin-bottom: 0.5rem;">
-                            Tudo concluído até o momento!
+                            Todas as chamadas concluídas!
                         </div>
                         <div style="font-size: 0.9rem; color: #15803d;">
-                            Fique à vontade para agendar novas chamadas com nossos mentores
+                            Você pode agendar novas chamadas com os mentores a qualquer momento
                         </div>
                     </div>
                 `;
                 return;
             }
 
-            container.innerHTML = landmarks.map(lm => `
-                <div class="landmark-item ${lm.is_urgent ? 'landmark-urgent' : ''}" style="cursor: default;">
-                    <span class="landmark-status">${lm.completed ? '✅' : (lm.is_urgent ? '⚠️' : '⏳')}</span>
-                    <div class="landmark-content">
-                        <div class="landmark-title">${lm.title}</div>
-                        <div class="landmark-meta">${lm.completed ? WardApp.formatDate(lm.completion_date) : 'Pendente'}</div>
+            // Load scheduled calls for these landmarks
+            const landmarkIds = landmarks.map(lm => lm.id);
+            const { data: scheduledCalls } = await WardApp.db
+                .from('scheduled_calls')
+                .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, name)')
+                .in('landmark_id', landmarkIds)
+                .eq('status', 'scheduled');
+
+            // Map scheduled calls to landmarks
+            const callsMap = {};
+            if (scheduledCalls) {
+                scheduledCalls.forEach(call => {
+                    if (!callsMap[call.landmark_id]) {
+                        callsMap[call.landmark_id] = [];
+                    }
+                    callsMap[call.landmark_id].push(call);
+                });
+            }
+
+            container.innerHTML = landmarks.map(lm => {
+                const hasScheduledCall = callsMap[lm.id] && callsMap[lm.id].length > 0;
+                const scheduledCall = hasScheduledCall ? callsMap[lm.id][0] : null;
+
+                let scheduledInfo = '';
+                if (scheduledCall) {
+                    const callDate = new Date(scheduledCall.scheduled_date + 'T' + scheduledCall.scheduled_time);
+                    const dateStr = callDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+                    const timeStr = callDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    const mentorName = scheduledCall.mentor?.full_name || scheduledCall.mentor?.name || 'Mentor';
+                    scheduledInfo = `📹 ${dateStr} às ${timeStr} - ${mentorName}`;
+                }
+
+                return `
+                    <div class="landmark-item ${lm.is_urgent ? 'landmark-urgent' : ''}" style="cursor: pointer;" onclick="window.location.href='landmarks.html'">
+                        <span class="landmark-status" style="font-size: 1.5rem;">
+                            ${hasScheduledCall ? '📹' : (lm.is_urgent ? '⚠️' : '📞')}
+                        </span>
+                        <div class="landmark-content">
+                            <div class="landmark-title" style="font-weight: 600;">
+                                ${lm.title}
+                                ${hasScheduledCall ? '<span style="color: #10b981; font-size: 0.7rem; margin-left: 0.5rem; background: #d1fae5; padding: 0.15rem 0.4rem; border-radius: 3px;">✓ AGENDADA</span>' : ''}
+                            </div>
+                            <div class="landmark-meta" style="font-size: 0.85rem; margin-top: 0.25rem;">
+                                ${scheduledInfo ? scheduledInfo : '⏳ Aguardando agendamento'}
+                            </div>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `
+            }).join('');
         }
 
         async function loadPrepStatus() {

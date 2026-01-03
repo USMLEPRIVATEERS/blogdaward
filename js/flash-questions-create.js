@@ -122,13 +122,29 @@ async function loadSubjects() {
 
     try {
         // Get all questions for selected step and parse tags
-        const { data: questions, error } = await window.supabase
-            .from('flash_questions')
-            .select('question_id, question_tags')
-            .eq('step', selectedStep)
-            .limit(10000); // Explicitly set high limit to get all questions
+        // Fetch in batches to avoid any limits
+        let questions = [];
+        let offset = 0;
+        const batchSize = 1000;
 
-        if (error) throw error;
+        while (true) {
+            const { data: batch, error } = await window.supabase
+                .from('flash_questions')
+                .select('question_id, question_tags')
+                .eq('step', selectedStep)
+                .range(offset, offset + batchSize - 1);
+
+            if (error) throw error;
+
+            if (!batch || batch.length === 0) break;
+
+            questions = questions.concat(batch);
+
+            // If we got fewer than batchSize, we've reached the end
+            if (batch.length < batchSize) break;
+
+            offset += batchSize;
+        }
 
         // Parse tags and organize by subject
         const subjectMap = {};
@@ -343,15 +359,28 @@ function toggleCategory(category) {
 // Update available questions count
 async function updateAvailableCount() {
     try {
-        // Build filter based on selections including step
-        let query = window.supabase
-            .from('flash_questions')
-            .select('question_id, question_tags')
-            .eq('step', selectedStep)
-            .limit(10000); // Explicitly set high limit to get all questions
+        // Fetch all questions for selected step in batches
+        let questions = [];
+        let offset = 0;
+        const batchSize = 1000;
 
-        const { data: questions, error } = await query;
-        if (error) throw error;
+        while (true) {
+            const { data: batch, error } = await window.supabase
+                .from('flash_questions')
+                .select('question_id, question_tags')
+                .eq('step', selectedStep)
+                .range(offset, offset + batchSize - 1);
+
+            if (error) throw error;
+
+            if (!batch || batch.length === 0) break;
+
+            questions = questions.concat(batch);
+
+            if (batch.length < batchSize) break;
+
+            offset += batchSize;
+        }
 
         // Get user's answered questions if "only unseen" is checked
         let answeredQuestionIds = new Set();
@@ -464,9 +493,21 @@ async function startFlashTest() {
     }
 
     try {
-        // Randomly select questions
-        const shuffled = [...availableQuestions].sort(() => Math.random() - 0.5);
-        const selectedQuestionIds = shuffled.slice(0, numQuestions).map(q => q.question_id);
+        // Get question IDs that match filters (already computed in availableQuestions)
+        const availableQuestionIds = availableQuestions.map(q => q.question_id);
+
+        // Fetch random questions from database using PostgreSQL's random()
+        // This ensures true randomization and prevents repetition in small batches
+        const { data: randomQuestions, error: randomError } = await window.supabase
+            .from('flash_questions')
+            .select('question_id')
+            .in('question_id', availableQuestionIds)
+            .order('random()')
+            .limit(numQuestions);
+
+        if (randomError) throw randomError;
+
+        const selectedQuestionIds = randomQuestions.map(q => q.question_id);
 
         // Create test record
         const { data: test, error } = await window.supabase
