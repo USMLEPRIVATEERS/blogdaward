@@ -597,21 +597,17 @@ async function startFlashTest() {
     }
 
     try {
-        // Get question IDs that match filters (already computed in availableQuestions)
-        const availableQuestionIds = availableQuestions.map(q => q.question_id);
-
-        // Fetch random questions from database using PostgreSQL's random()
+        // Randomly select questions using Fisher-Yates shuffle algorithm
         // This ensures true randomization and prevents repetition in small batches
-        const { data: randomQuestions, error: randomError } = await window.supabase
-            .from('flash_questions')
-            .select('question_id')
-            .in('question_id', availableQuestionIds)
-            .order('random()')
-            .limit(numQuestions);
+        const shuffled = [...availableQuestions];
 
-        if (randomError) throw randomError;
+        // Fisher-Yates shuffle - more efficient and truly random than .sort()
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
 
-        const selectedQuestionIds = randomQuestions.map(q => q.question_id);
+        const selectedQuestionIds = shuffled.slice(0, numQuestions).map(q => q.question_id);
 
         // Create test record
         const { data: test, error } = await window.supabase
