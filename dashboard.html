@@ -598,6 +598,34 @@
         }
 
         async function loadLandmarksPreview() {
+            // First check if user has any landmarks at all
+            const { data: allLandmarks } = await WardApp.db
+                .from('landmarks')
+                .select('id')
+                .eq('user_id', userData.id);
+
+            const container = document.getElementById('landmarks-preview');
+
+            // If no landmarks exist at all, user needs to visit landmarks page first
+            if (!allLandmarks || allLandmarks.length === 0) {
+                container.innerHTML = `
+                    <div style="padding: 1.5rem; background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%); border-radius: 8px; border-left: 4px solid #d97706; text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 0.5rem;">📞</div>
+                        <div style="font-size: 1.1rem; font-weight: 700; color: #92400e; margin-bottom: 0.5rem;">
+                            Configure suas chamadas
+                        </div>
+                        <div style="font-size: 0.9rem; color: #9a3412; margin-bottom: 1rem;">
+                            Acesse a página de Chamadas para visualizar e agendar suas reuniões com os mentores
+                        </div>
+                        <a href="landmarks.html" style="display: inline-block; padding: 0.5rem 1rem; background: #d97706; color: white; border-radius: 6px; text-decoration: none; font-weight: 600;">
+                            Ir para Chamadas →
+                        </a>
+                    </div>
+                `;
+                return;
+            }
+
+            // Now load only uncompleted landmarks
             const { data: landmarks } = await WardApp.db
                 .from('landmarks')
                 .select('*')
@@ -606,8 +634,7 @@
                 .order('order_position', { ascending: true })
                 .limit(5);
 
-            const container = document.getElementById('landmarks-preview');
-
+            // If no uncompleted landmarks, all are done
             if (!landmarks || landmarks.length === 0) {
                 container.innerHTML = `
                     <div style="padding: 1.5rem; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 8px; border-left: 4px solid #22c55e; text-align: center;">
