@@ -232,7 +232,21 @@
         <div class="questionnaire-grid">
             <!-- Sidebar com lista de alunos -->
             <div class="students-sidebar">
-                <h3 style="margin-bottom: 1rem; font-size: 1rem;">Selecione um Aluno</h3>
+                <h3 style="margin-bottom: 0.5rem; font-size: 1rem;">Selecione um Aluno</h3>
+
+                <!-- Filter buttons -->
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                    <button id="filter-all" class="btn btn-xs btn-primary" onclick="filterByRole('all')" style="flex: 1; font-size: 0.75rem; padding: 0.35rem 0.5rem;">
+                        Todos
+                    </button>
+                    <button id="filter-aluno" class="btn btn-xs btn-outline" onclick="filterByRole('aluno')" style="flex: 1; font-size: 0.75rem; padding: 0.35rem 0.5rem;">
+                        🎓 Alunos
+                    </button>
+                    <button id="filter-assessoria" class="btn btn-xs btn-outline" onclick="filterByRole('assessoria')" style="flex: 1; font-size: 0.75rem; padding: 0.35rem 0.5rem;">
+                        📋 Assessoria
+                    </button>
+                </div>
+
                 <div id="students-list">
                     <p class="text-muted">Carregando alunos...</p>
                 </div>
@@ -278,6 +292,7 @@
         let allStudents = [];
         let currentStudent = null;
         let currentResponses = [];
+        let currentRoleFilter = 'all';
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
@@ -325,17 +340,50 @@
             renderStudentsList();
         }
 
+        function filterByRole(role) {
+            currentRoleFilter = role;
+
+            // Update button styles
+            document.getElementById('filter-all').classList.toggle('btn-primary', role === 'all');
+            document.getElementById('filter-all').classList.toggle('btn-outline', role !== 'all');
+
+            document.getElementById('filter-aluno').classList.toggle('btn-primary', role === 'aluno');
+            document.getElementById('filter-aluno').classList.toggle('btn-outline', role !== 'aluno');
+
+            document.getElementById('filter-assessoria').classList.toggle('btn-primary', role === 'assessoria');
+            document.getElementById('filter-assessoria').classList.toggle('btn-outline', role !== 'assessoria');
+
+            renderStudentsList();
+        }
+
         function renderStudentsList() {
             const container = document.getElementById('students-list');
 
-            container.innerHTML = allStudents.map(student => {
+            // Apply filter
+            let filteredStudents = allStudents;
+            if (currentRoleFilter !== 'all') {
+                filteredStudents = allStudents.filter(s => s.role === currentRoleFilter);
+            }
+
+            if (filteredStudents.length === 0) {
+                container.innerHTML = '<p class="text-muted">Nenhum aluno encontrado</p>';
+                return;
+            }
+
+            container.innerHTML = filteredStudents.map(student => {
                 const step = student.questionnaire_step || 0;
                 const completed = student.first_login_completed && step >= 11;
                 const progress = Math.round((step / 11) * 100);
 
+                // Add role indicator
+                const roleIcon = student.role === 'aluno' ? '🎓' : '📋';
+                const roleLabel = student.role === 'aluno' ? 'Aluno' : 'Assessoria';
+
                 return `
                     <div class="student-item" onclick="selectStudent(${student.id})">
-                        <div class="student-item-name">${student.full_name || student.email}</div>
+                        <div class="student-item-name">
+                            ${roleIcon} ${student.full_name || student.email}
+                        </div>
                         <div class="student-item-progress">
                             ${completed ? '✅ Completo' : `📊 ${progress}% (${step}/11 etapas)`}
                         </div>
