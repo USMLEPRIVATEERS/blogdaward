@@ -42,10 +42,21 @@
                 <span>👥 Selecionar Aluno</span>
             </div>
             <div class="card-body">
-                <div class="form-group">
-                    <select id="student-select" class="form-input" onchange="loadStudentSchedule()">
-                        <option value="">-- Selecione um aluno --</option>
-                    </select>
+                <div class="input-group" style="gap: 1rem;">
+                    <div class="form-group" style="flex: 2;">
+                        <label class="form-label">Aluno</label>
+                        <select id="student-select" class="form-input" onchange="loadStudentSchedule()">
+                            <option value="">-- Selecione um aluno --</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Tipo de Pass</label>
+                        <select id="pass-type-select" class="form-input" onchange="savePassType()">
+                            <option value="first">First Pass</option>
+                            <option value="second">Second Pass</option>
+                            <option value="third">Third Pass</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
@@ -305,6 +316,10 @@ CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
             document.getElementById('selected-student-name').textContent = student?.full_name || student?.email;
             document.getElementById('schedule-section').style.display = 'block';
 
+            // Load pass_type
+            const passType = student?.pass_type || 'first';
+            document.getElementById('pass-type-select').value = passType;
+
             // Load schedule
             const { data: schedule } = await WardApp.db
                 .from('schedules')
@@ -355,22 +370,42 @@ CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
             document.getElementById('schedule-progress-text').textContent = progress + '%';
             document.getElementById('schedule-progress-fill').style.width = progress + '%';
 
-            tbody.innerHTML = scheduleData.map(item => `
-                <tr class="${item.completed ? 'completed-row' : ''}">
-                    <td>${item.system || '-'}</td>
-                    <td>${item.category || '-'}</td>
-                    <td>${item.questions || '-'}</td>
-                    <td>${item.start_date ? WardApp.formatDate(item.start_date) : '-'}</td>
-                    <td>${item.end_date ? WardApp.formatDate(item.end_date) : '-'}</td>
-                    <td class="text-center">
-                        <input type="checkbox" ${item.completed ? 'checked' : ''}
-                            onchange="toggleCompleted(${item.id}, this.checked)">
-                    </td>
-                    <td>
-                        <button class="btn btn-sm btn-outline" onclick="editItem(${item.id})">✏️</button>
-                    </td>
-                </tr>
-            `).join('');
+            // Check for overdue items
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            tbody.innerHTML = scheduleData.map(item => {
+                let rowClass = '';
+                let isOverdue = false;
+
+                if (item.completed) {
+                    rowClass = 'completed-row';
+                } else if (item.end_date) {
+                    const endDate = new Date(item.end_date);
+                    endDate.setHours(23, 59, 59, 999);
+                    if (endDate < today) {
+                        rowClass = 'overdue-row';
+                        isOverdue = true;
+                    }
+                }
+
+                return `
+                    <tr class="${rowClass}">
+                        <td>${isOverdue ? '⚠️ ' : ''}${item.system || '-'}</td>
+                        <td>${item.category || '-'}</td>
+                        <td>${item.questions || '-'}</td>
+                        <td>${item.start_date ? WardApp.formatDate(item.start_date) : '-'}</td>
+                        <td>${item.end_date ? WardApp.formatDate(item.end_date) : '-'}</td>
+                        <td class="text-center">
+                            <input type="checkbox" ${item.completed ? 'checked' : ''}
+                                onchange="toggleCompleted(${item.id}, this.checked)">
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline" onclick="editItem(${item.id})">✏️</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         }
 
         async function toggleCompleted(itemId, completed) {
@@ -629,6 +664,25 @@ CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
         function closeModal(id) {
             document.getElementById(id).classList.remove('active');
         }
+
+        async function savePassType() {
+            if (!selectedStudentId) return;
+
+            const passType = document.getElementById('pass-type-select').value;
+
+            const { error } = await WardApp.db
+                .from('users')
+                .update({ pass_type: passType })
+                .eq('id', selectedStudentId);
+
+            if (error) {
+                console.error('Error saving pass type:', error);
+                WardApp.showToast('Erro ao salvar tipo de pass', 'error');
+                return;
+            }
+
+            WardApp.showToast('Tipo de pass salvo!');
+        }
     </script>
 
     <style>
@@ -652,6 +706,15 @@ CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
 
         .schedule-table tr:hover {
             background: var(--gray-50);
+        }
+
+        .overdue-row {
+            background: #fee2e2 !important;
+            border-left: 4px solid #dc2626 !important;
+        }
+
+        .overdue-row:hover {
+            background: #fecaca !important;
         }
 
         .schedule-table .completed-row {

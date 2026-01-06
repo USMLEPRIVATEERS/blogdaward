@@ -230,6 +230,19 @@
             </div>
         </div>
 
+        <!-- Schedule Status Section -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-between align-center">
+                <span>📅 Status do Cronograma dos Alunos</span>
+                <a href="mentor-cronograma.html" class="btn btn-sm btn-primary">Gerenciar Cronogramas →</a>
+            </div>
+            <div class="card-body">
+                <div id="schedule-status-list" class="schedule-status-grid">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
         <!-- Pending Scheduled Calls Section - Only students who booked with mentors -->
         <div class="card mt-4">
             <div class="card-header">
@@ -494,8 +507,106 @@ Cardiovascular	Physiology	62	FALSE
 
             await loadGlobalFeed();
             await renderStudentsTable();
+            await loadScheduleStatus();
             await loadPendingCalls();
             await loadScheduleDelays();
+        }
+
+        async function loadScheduleStatus() {
+            const container = document.getElementById('schedule-status-list');
+
+            // Load all schedules for students
+            const { data: schedules } = await WardApp.db
+                .from('schedules')
+                .select('user_id, end_date, completed');
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            // Calculate status for each student
+            const studentStatus = allStudents.map(student => {
+                const studentSchedules = (schedules || []).filter(s => s.user_id === student.id);
+
+                if (studentSchedules.length === 0) {
+                    return {
+                        ...student,
+                        status: 'no_schedule',
+                        overdueCount: 0,
+                        totalCount: 0,
+                        completedCount: 0
+                    };
+                }
+
+                const overdueItems = studentSchedules.filter(s => {
+                    if (s.completed) return false;
+                    if (!s.end_date) return false;
+                    const endDate = new Date(s.end_date);
+                    endDate.setHours(23, 59, 59, 999);
+                    return endDate < today;
+                });
+
+                const completedCount = studentSchedules.filter(s => s.completed).length;
+
+                return {
+                    ...student,
+                    status: overdueItems.length > 0 ? 'overdue' : 'on_track',
+                    overdueCount: overdueItems.length,
+                    totalCount: studentSchedules.length,
+                    completedCount
+                };
+            });
+
+            // Sort: overdue first, then no schedule, then on track
+            const sorted = studentStatus.sort((a, b) => {
+                if (a.status === 'overdue' && b.status !== 'overdue') return -1;
+                if (a.status !== 'overdue' && b.status === 'overdue') return 1;
+                if (a.status === 'no_schedule' && b.status === 'on_track') return -1;
+                if (a.status === 'on_track' && b.status === 'no_schedule') return 1;
+                return 0;
+            });
+
+            container.innerHTML = sorted.map(student => {
+                let statusBadge = '';
+                let statusColor = '';
+
+                if (student.status === 'overdue') {
+                    statusBadge = `<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">⚠️ ${student.overdueCount} ${student.overdueCount === 1 ? 'item atrasado' : 'itens atrasados'}</span>`;
+                    statusColor = '#fee2e2';
+                } else if (student.status === 'no_schedule') {
+                    statusBadge = '<span style="background: #fef3c7; color: #d97706; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">📋 Sem cronograma</span>';
+                    statusColor = '#fef3c7';
+                } else {
+                    statusBadge = '<span style="background: #d1fae5; color: #059669; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">✅ Em dia</span>';
+                    statusColor = '#d1fae5';
+                }
+
+                const progress = student.totalCount > 0 ? Math.round((student.completedCount / student.totalCount) * 100) : 0;
+                const passType = student.pass_type || 'first';
+                const passLabel = passType === 'first' ? 'First Pass' : passType === 'second' ? 'Second Pass' : 'Third Pass';
+
+                return `
+                    <div style="background: ${statusColor}; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; margin-bottom: 0.25rem;">${student.full_name || student.email}</div>
+                                <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.5rem;">${passLabel}</div>
+                                ${statusBadge}
+                            </div>
+                        </div>
+                        ${student.totalCount > 0 ? `
+                            <div style="margin-top: 0.5rem;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">
+                                    <span>Progresso</span>
+                                    <span>${student.completedCount}/${student.totalCount} (${progress}%)</span>
+                                </div>
+                                <div style="background: #e5e7eb; height: 6px; border-radius: 3px; overflow: hidden;">
+                                    <div style="background: #10b981; height: 100%; width: ${progress}%;"></div>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
         }
 
         async function loadPendingCalls() {
@@ -2169,6 +2280,14 @@ Cardiovascular	Physiology	62	FALSE
 
         .modal-lg {
             max-width: 700px;
+        }
+
+        .schedule-status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+            max-height: 500px;
+            overflow-y: auto;
         }
 
         .pending-calls-grid {
