@@ -264,6 +264,40 @@
             max-height: 90vh;
             overflow-y: auto;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .modal.fullscreen {
+            max-width: 100%;
+            width: 100%;
+            max-height: 100vh;
+            height: 100vh;
+            border-radius: 0;
+            margin: 0;
+        }
+
+        .fullscreen-iframe {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 9999 !important;
+            border: none !important;
+        }
+
+        .modal-fullscreen-btn {
+            background: transparent;
+            border: none;
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            color: #64748b;
+            transition: color 0.2s;
+        }
+
+        .modal-fullscreen-btn:hover {
+            color: #1e293b;
         }
 
         .modal-header {
@@ -344,7 +378,7 @@
             border-radius: 8px;
             background: white;
             overflow-y: auto;
-            max-height: 400px;
+            /* Removed max-height to allow unlimited growth */
         }
 
         .rich-text-editor:focus {
@@ -621,7 +655,10 @@
         <div class="modal">
             <div class="modal-header">
                 <h3 class="modal-title" id="project-modal-title">Novo Projeto</h3>
-                <button class="modal-close" onclick="closeProjectModal()">&times;</button>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="modal-fullscreen-btn" onclick="toggleFullscreen('project-modal')" title="Full Screen">⛶</button>
+                    <button class="modal-close" onclick="closeProjectModal()">&times;</button>
+                </div>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -674,7 +711,10 @@
         <div class="modal">
             <div class="modal-header">
                 <h3 class="modal-title" id="task-modal-title">Nova Tarefa</h3>
-                <button class="modal-close" onclick="closeTaskModal()">&times;</button>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="modal-fullscreen-btn" onclick="toggleFullscreen('task-modal')" title="Full Screen">⛶</button>
+                    <button class="modal-close" onclick="closeTaskModal()">&times;</button>
+                </div>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -1326,6 +1366,39 @@
             currentTask = null;
             taskFiles = [];
         }
+
+        function toggleFullscreen(modalId) {
+            const modalOverlay = document.getElementById(modalId);
+            const modal = modalOverlay.querySelector('.modal');
+
+            // Check if we're in an iframe
+            const isInIframe = window.self !== window.top;
+
+            if (isInIframe) {
+                // If in iframe, request parent to go fullscreen
+                try {
+                    window.parent.postMessage({
+                        type: 'toggleFullscreen',
+                        modalId: modalId
+                    }, '*');
+                } catch (e) {
+                    console.error('Error communicating with parent:', e);
+                }
+            } else {
+                // Standalone page - toggle modal fullscreen
+                modal.classList.toggle('fullscreen');
+            }
+        }
+
+        // Listen for fullscreen messages from iframe
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'toggleFullscreen') {
+                const iframe = document.querySelector('iframe');
+                if (iframe) {
+                    iframe.classList.toggle('fullscreen-iframe');
+                }
+            }
+        });
 
         async function editTask(taskId) {
             const { data: task } = await WardApp.db
