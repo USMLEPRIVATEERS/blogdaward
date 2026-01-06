@@ -449,7 +449,12 @@ Cardiovascular	Physiology	62	FALSE
         <div class="modal modal-lg" style="max-width: 900px;">
             <div class="modal-header">
                 <h3 class="modal-title">📋 Respostas do Questionário - <span id="modal-student-name"></span></h3>
-                <button class="modal-close" onclick="closeModal('questionnaire-modal')">&times;</button>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="btn btn-sm btn-outline" onclick="downloadModalAsPNG()" title="Baixar como imagem">
+                        📷 Baixar PNG
+                    </button>
+                    <button class="modal-close" onclick="closeModal('questionnaire-modal')">&times;</button>
+                </div>
             </div>
             <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                 <div id="questionnaire-content">
@@ -465,6 +470,7 @@ Cardiovascular	Physiology	62	FALSE
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/app.js"></script>
     <script>
@@ -1768,6 +1774,84 @@ Cardiovascular	Physiology	62	FALSE
             } catch (error) {
                 console.error('Error loading questionnaire:', error);
                 contentEl.innerHTML = '<p style="color: #ef4444;">Erro ao carregar respostas do questionário</p>';
+            }
+        }
+
+        async function downloadModalAsPNG() {
+            const studentName = document.getElementById('modal-student-name').textContent;
+            const contentEl = document.getElementById('questionnaire-content');
+
+            if (!contentEl || !contentEl.innerHTML.trim()) {
+                WardApp.showToast('Nenhum conteúdo para baixar', 'warning');
+                return;
+            }
+
+            // Show loading message
+            WardApp.showToast('Gerando imagem...', 'info');
+
+            try {
+                // Create a container for the capture with proper styling
+                const captureContainer = document.createElement('div');
+                captureContainer.style.cssText = `
+                    position: fixed;
+                    left: -9999px;
+                    top: 0;
+                    background: white;
+                    padding: 2rem;
+                    width: 900px;
+                    font-family: Inter, system-ui, -apple-system, sans-serif;
+                `;
+
+                // Add title
+                const title = document.createElement('h2');
+                title.textContent = `📋 Respostas do Questionário - ${studentName}`;
+                title.style.cssText = 'margin: 0 0 1.5rem 0; font-size: 1.5rem; color: #1f2937;';
+                captureContainer.appendChild(title);
+
+                // Clone the content
+                const contentClone = contentEl.cloneNode(true);
+                contentClone.style.maxHeight = 'none';
+                contentClone.style.overflow = 'visible';
+                captureContainer.appendChild(contentClone);
+
+                document.body.appendChild(captureContainer);
+
+                // Capture with html2canvas
+                const canvas = await html2canvas(captureContainer, {
+                    backgroundColor: '#ffffff',
+                    scale: 2, // Higher quality
+                    logging: false,
+                    windowWidth: 900,
+                    onclone: (clonedDoc) => {
+                        // Ensure all styles are applied in the cloned document
+                        const clonedContainer = clonedDoc.querySelector('[style*="position: fixed"]');
+                        if (clonedContainer) {
+                            clonedContainer.style.position = 'relative';
+                            clonedContainer.style.left = '0';
+                        }
+                    }
+                });
+
+                // Remove temporary container
+                document.body.removeChild(captureContainer);
+
+                // Convert to blob and download
+                canvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `questionario_${studentName.replace(/\s+/g, '_')}_${new Date().getTime()}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    WardApp.showToast('✅ Imagem baixada com sucesso!', 'success');
+                }, 'image/png');
+
+            } catch (error) {
+                console.error('Error generating image:', error);
+                WardApp.showToast('Erro ao gerar imagem', 'error');
             }
         }
 
