@@ -2381,7 +2381,7 @@ Cardiovascular	Physiology	62	FALSE
                 folder.lessons.forEach(lesson => {
                     const lessonHidden = lesson.is_hidden ? ' (🙈 oculto)' : '';
                     html += `
-                        <div class="tree-node lesson-node" data-id="${lesson.id}" data-type="lesson" style="margin-left: ${(level + 1) * 1.5}rem;">
+                        <div class="tree-node lesson-node" data-id="${lesson.id}" data-type="lesson" data-path="${folder.path}" style="margin-left: ${(level + 1) * 1.5}rem;">
                             <div class="tree-node-content" onclick="selectNode(${lesson.id}, 'lesson')">
                                 <span class="tree-icon">🎬</span>
                                 <span class="tree-label">${lesson.title}${lessonHidden}</span>
@@ -2771,35 +2771,236 @@ Cardiovascular	Physiology	62	FALSE
             renderCourseTree();
         }
 
+        let draggedElement = null;
+        let draggedData = null;
+
         function initializeDragAndDrop() {
-            // Simple drag and drop implementation
-            // Will be enhanced later with SortableJS if needed
             const nodes = document.querySelectorAll('.tree-node');
 
             nodes.forEach(node => {
                 node.draggable = true;
 
-                node.addEventListener('dragstart', (e) => {
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/html', node.innerHTML);
-                    node.classList.add('dragging');
-                });
-
-                node.addEventListener('dragend', () => {
-                    node.classList.remove('dragging');
-                });
-
-                node.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                });
-
-                node.addEventListener('drop', async (e) => {
-                    e.preventDefault();
-                    // Handle reordering logic here
-                    WardApp.showToast('Drag and drop em breve!', 'info');
-                });
+                node.addEventListener('dragstart', handleDragStart);
+                node.addEventListener('dragend', handleDragEnd);
+                node.addEventListener('dragover', handleDragOver);
+                node.addEventListener('dragleave', handleDragLeave);
+                node.addEventListener('drop', handleDrop);
             });
+        }
+
+        function handleDragStart(e) {
+            draggedElement = e.currentTarget;
+            draggedData = {
+                id: draggedElement.dataset.id,
+                type: draggedElement.dataset.type,
+                path: draggedElement.dataset.path
+            };
+
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', draggedElement.innerHTML);
+
+            // Add dragging class after a tiny delay to allow transition
+            setTimeout(() => {
+                draggedElement.classList.add('dragging');
+            }, 0);
+        }
+
+        function handleDragEnd(e) {
+            e.currentTarget.classList.remove('dragging');
+
+            // Remove all drag-over classes
+            document.querySelectorAll('.drag-over, .drag-over-top, .drag-over-bottom, .drag-over-inside').forEach(el => {
+                el.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom', 'drag-over-inside');
+            });
+
+            draggedElement = null;
+            draggedData = null;
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+
+            if (!draggedElement || e.currentTarget === draggedElement) return;
+
+            const targetElement = e.currentTarget;
+            const targetType = targetElement.dataset.type;
+
+            // Remove previous drag-over classes
+            document.querySelectorAll('.drag-over, .drag-over-top, .drag-over-bottom, .drag-over-inside').forEach(el => {
+                el.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom', 'drag-over-inside');
+            });
+
+            // Determine drop position based on mouse Y position
+            const rect = targetElement.getBoundingClientRect();
+            const midpoint = rect.top + (rect.height / 2);
+            const mouseY = e.clientY;
+
+            if (targetType === 'folder' && draggedData.type === 'lesson') {
+                // Can drop lesson inside folder or before/after it
+                if (mouseY < rect.top + rect.height * 0.25) {
+                    targetElement.classList.add('drag-over', 'drag-over-top');
+                } else if (mouseY > rect.top + rect.height * 0.75) {
+                    targetElement.classList.add('drag-over', 'drag-over-bottom');
+                } else {
+                    targetElement.classList.add('drag-over-inside');
+                }
+            } else if (targetType === 'lesson') {
+                // Can only drop before or after lessons
+                if (mouseY < midpoint) {
+                    targetElement.classList.add('drag-over', 'drag-over-top');
+                } else {
+                    targetElement.classList.add('drag-over', 'drag-over-bottom');
+                }
+            } else if (targetType === 'folder' && draggedData.type === 'folder') {
+                // Folders can be dropped before or after other folders
+                if (mouseY < midpoint) {
+                    targetElement.classList.add('drag-over', 'drag-over-top');
+                } else {
+                    targetElement.classList.add('drag-over', 'drag-over-bottom');
+                }
+            }
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom', 'drag-over-inside');
+        }
+
+        async function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (!draggedElement || e.currentTarget === draggedElement) return;
+
+            const targetElement = e.currentTarget;
+            const targetType = targetElement.dataset.type;
+            const targetId = targetElement.dataset.id;
+            const targetPath = targetElement.dataset.path;
+
+            // Determine drop position
+            const rect = targetElement.getBoundingClientRect();
+            const mouseY = e.clientY;
+            let dropPosition = 'after';
+
+            if (targetType === 'folder') {
+                if (mouseY < rect.top + rect.height * 0.25) {
+                    dropPosition = 'before';
+                } else if (mouseY > rect.top + rect.height * 0.75) {
+                    dropPosition = 'after';
+                } else {
+                    dropPosition = 'inside';
+                }
+            } else {
+                const midpoint = rect.top + (rect.height / 2);
+                dropPosition = mouseY < midpoint ? 'before' : 'after';
+            }
+
+            // Remove drag-over classes
+            targetElement.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom', 'drag-over-inside');
+
+            try {
+                if (draggedData.type === 'lesson') {
+                    await handleLessonDrop(draggedData.id, targetId, targetType, targetPath, dropPosition);
+                } else if (draggedData.type === 'folder') {
+                    WardApp.showToast('⚠️ Mover pastas ainda não implementado. Foque em reordenar aulas primeiro.', 'info');
+                }
+            } catch (error) {
+                console.error('Drop error:', error);
+                WardApp.showToast('Erro ao mover item', 'error');
+            }
+        }
+
+        async function handleLessonDrop(lessonId, targetId, targetType, targetPath, dropPosition) {
+            // Get the lesson being moved
+            const { data: lesson, error: fetchError } = await WardApp.db
+                .from('course_videos')
+                .select('*')
+                .eq('id', lessonId)
+                .single();
+
+            if (fetchError) throw fetchError;
+
+            let newTags = lesson.tags;
+            let newOrderPosition = lesson.order_position;
+
+            if (dropPosition === 'inside' && targetType === 'folder') {
+                // Moving lesson into a folder
+                newTags = targetPath;
+
+                // Get max order_position in target folder
+                const { data: siblings } = await WardApp.db
+                    .from('course_videos')
+                    .select('order_position')
+                    .eq('tags', targetPath)
+                    .order('order_position', { ascending: false })
+                    .limit(1);
+
+                newOrderPosition = siblings && siblings.length > 0 ? siblings[0].order_position + 1 : 0;
+
+            } else {
+                // Moving before or after another item
+                const { data: targetLesson } = await WardApp.db
+                    .from('course_videos')
+                    .select('*')
+                    .eq('id', targetType === 'lesson' ? targetId : targetId)
+                    .single();
+
+                if (targetLesson) {
+                    newTags = targetLesson.tags;
+                    newOrderPosition = dropPosition === 'before'
+                        ? targetLesson.order_position - 0.5
+                        : targetLesson.order_position + 0.5;
+                }
+            }
+
+            // Update the lesson
+            const { error: updateError } = await WardApp.db
+                .from('course_videos')
+                .update({
+                    tags: newTags,
+                    order_position: newOrderPosition
+                })
+                .eq('id', lessonId);
+
+            if (updateError) throw updateError;
+
+            // Rebalance order_positions in the target folder
+            await rebalanceOrderPositions(newTags);
+
+            // If moved from different folder, rebalance old folder too
+            if (lesson.tags !== newTags) {
+                await rebalanceOrderPositions(lesson.tags);
+            }
+
+            WardApp.showToast('✅ Aula movida com sucesso!');
+
+            // Reload structure
+            await loadCourseStructure();
+        }
+
+        async function rebalanceOrderPositions(tags) {
+            // Get all lessons in folder
+            const { data: lessons } = await WardApp.db
+                .from('course_videos')
+                .select('id, order_position')
+                .eq('tags', tags)
+                .order('order_position');
+
+            if (!lessons || lessons.length === 0) return;
+
+            // Rebalance to clean integers
+            const updates = lessons.map((lesson, index) => ({
+                id: lesson.id,
+                order_position: index * 10
+            }));
+
+            // Update all at once
+            for (const update of updates) {
+                await WardApp.db
+                    .from('course_videos')
+                    .update({ order_position: update.order_position })
+                    .eq('id', update.id);
+            }
         }
 
         // Diary preference functions
@@ -3332,7 +3533,50 @@ Cardiovascular	Physiology	62	FALSE
         }
 
         .tree-node.dragging {
-            opacity: 0.5;
+            opacity: 0.4;
+            transform: scale(0.95);
+            transition: all 0.2s ease;
+        }
+
+        .tree-node.dragging .tree-node-content {
+            background: #dbeafe;
+            border: 2px dashed #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .tree-node.drag-over {
+            position: relative;
+        }
+
+        .tree-node.drag-over::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            border-radius: 2px;
+            animation: pulse-line 1s infinite;
+            z-index: 10;
+        }
+
+        .tree-node.drag-over-top::before {
+            top: -2px;
+        }
+
+        .tree-node.drag-over-bottom::before {
+            bottom: -2px;
+        }
+
+        .tree-node.drag-over-inside .tree-node-content {
+            background: #dbeafe !important;
+            border: 2px dashed #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+
+        @keyframes pulse-line {
+            0%, 100% { opacity: 1; transform: scaleX(1); }
+            50% { opacity: 0.7; transform: scaleX(0.95); }
         }
 
         .folder-node {
@@ -3351,6 +3595,15 @@ Cardiovascular	Physiology	62	FALSE
         .lesson-node .tree-node-content.selected {
             background: #fef3c7;
             border-left-color: #f59e0b;
+        }
+
+        /* Drag cursor */
+        .tree-node[draggable="true"] .tree-node-content {
+            cursor: grab;
+        }
+
+        .tree-node[draggable="true"] .tree-node-content:active {
+            cursor: grabbing;
         }
     </style>
 </body>
