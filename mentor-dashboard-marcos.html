@@ -526,6 +526,18 @@ Cardiovascular	Physiology	62	FALSE
                 .from('schedules')
                 .select('user_id, end_date, completed');
 
+            // Load pass_type for all students to ensure we have the latest value
+            const { data: userPassTypes } = await WardApp.db
+                .from('users')
+                .select('id, pass_type')
+                .eq('role', 'aluno');
+
+            // Create a map of user_id to pass_type for quick lookup
+            const passTypeMap = {};
+            (userPassTypes || []).forEach(u => {
+                passTypeMap[u.id] = u.pass_type || 'first';
+            });
+
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
@@ -587,7 +599,7 @@ Cardiovascular	Physiology	62	FALSE
                 }
 
                 const progress = student.totalCount > 0 ? Math.round((student.completedCount / student.totalCount) * 100) : 0;
-                const passType = student.pass_type || 'first';
+                const passType = passTypeMap[student.id] || 'first';
                 const passLabel = passType === 'first' ? 'First Pass' : passType === 'second' ? 'Second Pass' : 'Third Pass';
 
                 return `
