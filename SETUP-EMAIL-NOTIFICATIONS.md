@@ -19,7 +19,7 @@ Quando um aluno agenda uma chamada em `landmarks.html`, o sistema **automaticame
 ## 🔧 Passo 1: Configurar Gmail App Password
 
 1. **Acesse:** https://myaccount.google.com/apppasswords
-2. **Login:** usmle.wardacademy@gmail.com
+2. **Login:** marcosantoniodv@gmail.com
 3. **Criar App Password:**
    - Nome: "Ward Academy Supabase Notifications"
    - Copie a senha de 16 caracteres (algo como: `xxxx xxxx xxxx xxxx`)
@@ -78,13 +78,13 @@ supabase link --project-ref SEU_PROJECT_REF
 
 ```bash
 # SMTP Username (seu email)
-supabase secrets set SMTP_USERNAME=usmle.wardacademy@gmail.com
+supabase secrets set SMTP_USERNAME=marcosantoniodv@gmail.com
 
 # SMTP Password (App Password do Gmail - 16 caracteres)
 supabase secrets set SMTP_PASSWORD="xxxx xxxx xxxx xxxx"
 
 # SMTP From (email que aparece como remetente)
-supabase secrets set SMTP_FROM="Ward Academy <usmle.wardacademy@gmail.com>"
+supabase secrets set SMTP_FROM="Ward Academy <marcosantoniodv@gmail.com>"
 ```
 
 ### 3.5 Deploy da função
@@ -279,7 +279,7 @@ ORDER BY se.send_at;
 
 1. **Configure SPF do domínio** (se usar domínio customizado)
 2. **Configure DKIM** (Gmail faz isso automaticamente com App Password)
-3. **Peça aos usuários** para adicionarem `usmle.wardacademy@gmail.com` aos contatos
+3. **Peça aos usuários** para adicionarem `marcosantoniodv@gmail.com` aos contatos
 
 ### Limite de envios do Gmail
 

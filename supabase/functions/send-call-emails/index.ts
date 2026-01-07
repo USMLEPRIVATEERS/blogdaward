@@ -89,7 +89,7 @@ serve(async (req) => {
 
         // Send email via SMTP
         await client.send({
-          from: Deno.env.get('SMTP_FROM') ?? 'usmle.wardacademy@gmail.com',
+          from: Deno.env.get('SMTP_FROM') ?? 'marcosantoniodv@gmail.com',
           to: email.recipient_email,
           subject: template.subject,
           content: template.html,
