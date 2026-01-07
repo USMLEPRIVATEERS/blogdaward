@@ -3044,13 +3044,17 @@ Cardiovascular	Physiology	62	FALSE
             }
 
             try {
-                // Get all lessons that belong to this folder and its subfolders
-                const { data: lessons, error: fetchError } = await WardApp.db
+                // Get all lessons (we'll filter in JS to avoid Supabase query syntax issues)
+                const { data: allLessons, error: fetchError } = await WardApp.db
                     .from('course_videos')
-                    .select('*')
-                    .or(`tags.eq.${folderPath},tags.like.${folderPath}::%`);
+                    .select('*');
 
                 if (fetchError) throw fetchError;
+
+                // Filter lessons that belong to this folder and its subfolders
+                const lessons = allLessons.filter(lesson =>
+                    lesson.tags === folderPath || lesson.tags.startsWith(folderPath + '::')
+                );
 
                 if (!lessons || lessons.length === 0) {
                     WardApp.showToast('ℹ️ Esta pasta está vazia', 'info');
