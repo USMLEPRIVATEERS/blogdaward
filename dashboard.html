@@ -36,6 +36,19 @@
         .viewing-as-banner button:hover {
             background: rgba(255,255,255,0.3);
         }
+
+        /* Shake animation for favorites counter */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+
+        /* Pulse animation for star icon */
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
     </style>
 </head>
 <body>
@@ -454,7 +467,33 @@
                 <button class="modal-close" onclick="closeModal('edit-favorites-modal')">&times;</button>
             </div>
             <div class="modal-body">
-                <p style="color: #6b7280; margin-bottom: 1.5rem;">Selecione até 6 ferramentas para aparecerem como favoritos no seu dashboard:</p>
+                <!-- Instructions with visual example -->
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; color: white;">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem;">
+                        <div style="font-size: 2rem;">👆</div>
+                        <div>
+                            <h4 style="margin: 0; font-size: 1.1rem; font-weight: 700;">Como funciona:</h4>
+                            <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; opacity: 0.95;">Clique nos cards abaixo para adicionar/remover das suas ferramentas favoritas</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 1rem; align-items: center; font-size: 0.85rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.25rem;">☆</span>
+                            <span>Não selecionado</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.25rem;">⭐</span>
+                            <span>Favorito marcado!</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Counter -->
+                <div id="favorites-counter" style="text-align: center; margin-bottom: 1.5rem; padding: 0.75rem; background: #f3f4f6; border-radius: 8px; border: 2px solid #e5e7eb;">
+                    <span style="font-size: 1.5rem; font-weight: 700; color: #3b82f6;">0</span>
+                    <span style="font-size: 1rem; color: #6b7280;"> / 6 favoritos selecionados</span>
+                </div>
+
                 <div id="all-apps-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
                     <!-- Filled by JavaScript -->
                 </div>
@@ -1357,7 +1396,25 @@
         async function openEditFavorites() {
             selectedFavorites = [...userFavorites];
             renderAllAppsGrid();
+            updateFavoritesCounter();
             openModal('edit-favorites-modal');
+        }
+
+        function updateFavoritesCounter() {
+            const counterEl = document.getElementById('favorites-counter');
+            if (!counterEl) return;
+
+            const count = selectedFavorites.length;
+            const isAtLimit = count >= 6;
+
+            counterEl.innerHTML = `
+                <span style="font-size: 1.5rem; font-weight: 700; color: ${isAtLimit ? '#ef4444' : '#3b82f6'};">${count}</span>
+                <span style="font-size: 1rem; color: #6b7280;"> / 6 favoritos selecionados</span>
+                ${isAtLimit ? '<div style="margin-top: 0.5rem; color: #ef4444; font-size: 0.85rem; font-weight: 600;">⚠️ Limite máximo atingido</div>' : ''}
+            `;
+
+            counterEl.style.borderColor = isAtLimit ? '#ef4444' : '#e5e7eb';
+            counterEl.style.background = isAtLimit ? '#fee2e2' : '#f3f4f6';
         }
 
         function renderAllAppsGrid() {
@@ -1367,13 +1424,28 @@
             grid.innerHTML = AVAILABLE_APPS.map(app => {
                 const isSelected = selectedFavorites.includes(app.id);
                 return `
-                    <div onclick="toggleFavorite('${app.id}')" style="background: ${isSelected ? '#dbeafe' : '#f9fafb'}; border: 2px solid ${isSelected ? '#3b82f6' : '#e5e7eb'}; border-radius: 8px; padding: 1rem; cursor: pointer; transition: all 0.2s; position: relative;" id="app-card-${app.id}">
-                        <div style="position: absolute; top: 0.5rem; right: 0.5rem; font-size: 1.25rem;">
+                    <div
+                        onclick="toggleFavorite('${app.id}')"
+                        onmouseover="this.style.transform='translateY(-4px) scale(1.02)'; this.style.boxShadow='0 8px 16px rgba(0,0,0,0.15)';"
+                        onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';"
+                        style="
+                            background: ${isSelected ? '#dbeafe' : '#f9fafb'};
+                            border: 3px solid ${isSelected ? '#3b82f6' : '#e5e7eb'};
+                            border-radius: 12px;
+                            padding: 1.25rem;
+                            cursor: pointer;
+                            transition: all 0.3s ease;
+                            position: relative;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                        "
+                        id="app-card-${app.id}">
+                        <div style="position: absolute; top: 0.75rem; right: 0.75rem; font-size: 1.75rem; transition: transform 0.2s ease;">
                             ${isSelected ? '⭐' : '☆'}
                         </div>
-                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">${app.icon}</div>
-                        <div style="font-weight: 600; color: #374151; font-size: 0.9rem; margin-bottom: 0.25rem;">${app.name}</div>
-                        <div style="font-size: 0.75rem; color: #6b7280; text-transform: capitalize;">${app.category}</div>
+                        <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">${app.icon}</div>
+                        <div style="font-weight: 700; color: ${isSelected ? '#1e40af' : '#374151'}; font-size: 1rem; margin-bottom: 0.25rem;">${app.name}</div>
+                        <div style="font-size: 0.8rem; color: #6b7280; text-transform: capitalize; font-weight: 500;">${app.category}</div>
+                        ${isSelected ? '<div style="margin-top: 0.5rem; font-size: 0.75rem; color: #3b82f6; font-weight: 600;">✓ Selecionado</div>' : '<div style="margin-top: 0.5rem; font-size: 0.75rem; color: #9ca3af; font-weight: 500;">Clique para selecionar</div>'}
                     </div>
                 `;
             }).join('');
@@ -1381,21 +1453,44 @@
 
         function toggleFavorite(appId) {
             const index = selectedFavorites.indexOf(appId);
+            const card = document.getElementById(`app-card-${appId}`);
 
             if (index > -1) {
                 // Remove from favorites
                 selectedFavorites.splice(index, 1);
+
+                // Animate removal
+                if (card) {
+                    card.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        renderAllAppsGrid();
+                        updateFavoritesCounter();
+                    }, 150);
+                }
             } else {
                 // Add to favorites (limit to 6)
                 if (selectedFavorites.length >= 6) {
-                    WardApp.showToast('Você pode ter no máximo 6 favoritos', 'warning');
+                    WardApp.showToast('⚠️ Você pode ter no máximo 6 favoritos. Remova algum para adicionar outro.', 'warning');
+
+                    // Shake animation on counter
+                    const counter = document.getElementById('favorites-counter');
+                    if (counter) {
+                        counter.style.animation = 'shake 0.5s';
+                        setTimeout(() => counter.style.animation = '', 500);
+                    }
                     return;
                 }
                 selectedFavorites.push(appId);
-            }
 
-            // Re-render
-            renderAllAppsGrid();
+                // Animate addition
+                if (card) {
+                    card.style.transform = 'scale(1.05)';
+                    setTimeout(() => {
+                        renderAllAppsGrid();
+                        updateFavoritesCounter();
+                    }, 150);
+                }
+            }
         }
 
         async function saveFavorites() {
