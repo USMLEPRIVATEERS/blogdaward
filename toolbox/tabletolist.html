@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Tabela para Lista</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .input-section {
+            background: #f8f9ff;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 2px dashed #ddd;
+            transition: all 0.3s ease;
+        }
+
+        .input-section:hover {
+            border-color: #4facfe;
+            background: #f0f8ff;
+        }
+
+        .input-tabs {
+            display: flex;
+            margin-bottom: 20px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 15px;
+            background: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            color: #666;
+        }
+
+        .tab-button.active {
+            background: #4facfe;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .paste-area {
+            width: 100%;
+            height: 200px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.3s ease;
+        }
+
+        .paste-area:focus {
+            border-color: #4facfe;
+            outline: none;
+        }
+
+        .file-upload {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .file-upload:hover {
+            border-color: #4facfe;
+            background: rgba(79, 172, 254, 0.05);
+        }
+
+        .file-upload.dragover {
+            border-color: #4facfe;
+            background: rgba(79, 172, 254, 0.1);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            color: #4facfe;
+            margin-bottom: 15px;
+        }
+
+        .process-btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.3s ease;
+        }
+
+        .process-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .process-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .table-section {
+            display: none;
+            margin-bottom: 30px;
+        }
+
+        .table-controls {
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .control-group label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .control-group select {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .data-table th {
+            background: #4facfe;
+            color: white;
+            padding: 15px 10px;
+            text-align: left;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            cursor: move;
+            user-select: none;
+        }
+
+        .data-table th:hover {
+            background: #3a8bfd;
+        }
+
+        .data-table th.dragging {
+            opacity: 0.5;
+        }
+
+        .data-table td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #eee;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            position: relative;
+            cursor: help;
+        }
+
+        .data-table td:hover {
+            background: #f0f8ff;
+        }
+
+        .cell-tooltip {
+            position: absolute;
+            background: #333;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            max-width: 300px;
+            white-space: pre-wrap;
+            z-index: 1000;
+            top: 100%;
+            left: 0;
+            margin-top: 5px;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .cell-tooltip::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: 10px;
+            border: 5px solid transparent;
+            border-bottom-color: #333;
+        }
+
+        .data-table tr:hover {
+            background: #f8f9ff;
+        }
+
+        .convert-section {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .convert-btn {
+            background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%);
+            color: white;
+            border: none;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .convert-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(255, 107, 107, 0.3);
+        }
+
+        .result-section {
+            display: none;
+        }
+
+        .result-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .result-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s ease;
+        }
+
+        .result-btn:hover {
+            background: #218838;
+        }
+
+        .result-container {
+            background: #f8f9fa;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 25px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4facfe;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .stats {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #1565c0;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #f44336;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 20px;
+            }
+            
+            .table-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .control-group select {
+                min-width: auto;
+            }
+            
+            .result-controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔄 Conversor de Tabela para Lista</h1>
+            <p>Transforme suas planilhas em listas organizadas de forma inteligente</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Seção de Input -->
+            <div class="input-section">
+                <div class="input-tabs">
+                    <button class="tab-button active" onclick="switchTab('paste')">📋 Colar Dados</button>
+                    <button class="tab-button" onclick="switchTab('upload')">📁 Upload Excel</button>
+                </div>
+
+                <div id="paste-tab" class="tab-content active">
+                    <h3>Cole seus dados aqui (separados por tab):</h3>
+                    <textarea id="pasteArea" class="paste-area" 
+                              placeholder="Cole aqui os dados da sua planilha... 
+Exemplo:
+NOME	IDADE	SEXO
+MARCOS	24	MASCULINO
+GEOVANA	30	FEMININO"></textarea>
+                    <button class="process-btn" onclick="processData()">🔍 Processar Dados</button>
+                </div>
+
+                <div id="upload-tab" class="tab-content">
+                    <div class="file-upload" onclick="document.getElementById('fileInput').click()">
+                        <div class="upload-icon">📁</div>
+                        <h3>Arraste um arquivo Excel aqui ou clique para selecionar</h3>
+                        <p>Suporta arquivos .xlsx e .xls</p>
+                        <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls" onchange="handleFile(this.files[0])">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading -->
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Processando dados...</p>
+            </div>
+
+            <!-- Seção da Tabela -->
+            <div id="tableSection" class="table-section">
+                <div class="stats" id="dataStats"></div>
+                
+                <div class="table-controls">
+                    <div class="control-group">
+                        <label for="labelColumn">🏷️ Coluna de Labels:</label>
+                        <select id="labelColumn">
+                            <option value="">Selecione a coluna de labels...</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="maxRows">📊 Máximo de linhas para visualizar:</label>
+                        <select id="maxRows">
+                            <option value="100">100 linhas</option>
+                            <option value="500">500 linhas</option>
+                            <option value="1000">1000 linhas</option>
+                            <option value="all">Todas as linhas</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <button class="result-btn" onclick="cleanData()">🧹 Limpar Dados</button>
+                    </div>
+                </div>
+
+                <p><strong>💡 Dica:</strong> Arraste os cabeçalhos das colunas para reordená-las</p>
+                
+                <div class="table-container">
+                    <table id="dataTable" class="data-table">
+                        <thead id="tableHead"></thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Seção de Conversão -->
+            <div class="convert-section">
+                <button id="convertBtn" class="convert-btn" onclick="convertToList()" disabled>
+                    ✨ Converter para Lista
+                </button>
+            </div>
+
+            <!-- Seção de Resultado -->
+            <div id="resultSection" class="result-section">
+                <h2>📋 Resultado da Conversão</h2>
+                <div class="result-controls">
+                    <button class="result-btn" onclick="copyResult()">📋 Copiar Resultado</button>
+                    <button class="result-btn" onclick="downloadResult()">💾 Baixar como TXT</button>
+                    <button class="result-btn" onclick="clearAll()">🔄 Reiniciar</button>
+                </div>
+                <div id="resultContainer" class="result-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentData = [];
+        let columnOrder = [];
+        let draggedColumn = null;
+
+        // Configuração do drag and drop para upload
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileUpload = document.querySelector('.file-upload');
+            
+            fileUpload.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                fileUpload.classList.add('dragover');
+            });
+            
+            fileUpload.addEventListener('dragleave', () => {
+                fileUpload.classList.remove('dragover');
+            });
+            
+            fileUpload.addEventListener('drop', (e) => {
+                e.preventDefault();
+                fileUpload.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFile(files[0]);
+                }
+            });
+        });
+
+        function switchTab(tab) {
+            // Esconder todas as abas
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Mostrar aba selecionada
+            document.getElementById(tab + '-tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('tableSection').style.display = 'none';
+            document.getElementById('resultSection').style.display = 'none';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            document.querySelector('.main-content').insertBefore(errorDiv, document.querySelector('.input-section').nextSibling);
+            
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+
+        function processData() {
+            const pasteData = document.getElementById('pasteArea').value.trim();
+            if (!pasteData) {
+                showError('Por favor, cole alguns dados primeiro!');
+                return;
+            }
+
+            showLoading();
+            
+            setTimeout(() => {
+                try {
+                    // Usar parsing mais robusto para dados complexos
+                    const parsedData = parseComplexTSV(pasteData);
+                    
+                    if (!parsedData || parsedData.length < 2) {
+                        throw new Error('Dados insuficientes');
+                    }
+                    
+                    const headers = parsedData[0];
+                    const rows = parsedData.slice(1);
+                    
+                    const data = rows.map(row => {
+                        const rowObj = {};
+                        headers.forEach((header, index) => {
+                            rowObj[String(header || `Coluna${index + 1}`).trim()] = 
+                                row[index] !== undefined ? String(row[index]).trim() : '';
+                        });
+                        return rowObj;
+                    }).filter(row => Object.values(row).some(val => val.trim()));
+
+                    currentData = data;
+                    columnOrder = headers.map(h => String(h || 'Sem Nome').trim());
+                    
+                    displayTable();
+                    hideLoading();
+                } catch (error) {
+                    hideLoading();
+                    showError('Erro ao processar os dados. Verifique o formato. Detalhes: ' + error.message);
+                }
+            }, 100);
+        }
+
+        function parseComplexTSV(data) {
+            try {
+                // Primeiro, tentar com parsing simples
+                const lines = data.split('\n');
+                const firstLineColumns = lines[0].split('\t').length;
+                
+                // Se todas as linhas têm o mesmo número de colunas, usar parsing simples
+                const allLinesValid = lines.slice(0, Math.min(10, lines.length))
+                    .every(line => line.split('\t').length === firstLineColumns);
+                
+                if (allLinesValid) {
+                    return lines.filter(line => line.trim()).map(line => line.split('\t'));
+                }
+                
+                // Parsing mais complexo para dados com quebras de linha e aspas
+                const result = [];
+                let currentRow = [];
+                let currentCell = '';
+                let insideQuotes = false;
+                let i = 0;
+                
+                while (i < data.length) {
+                    const char = data[i];
+                    
+                    if (char === '"' && !insideQuotes) {
+                        insideQuotes = true;
+                    } else if (char === '"' && insideQuotes) {
+                        // Verificar se é escape de aspas duplas
+                        if (i + 1 < data.length && data[i + 1] === '"') {
+                            currentCell += '"';
+                            i++; // Pular a próxima aspa
+                        } else {
+                            insideQuotes = false;
+                        }
+                    } else if (char === '\t' && !insideQuotes) {
+                        currentRow.push(currentCell);
+                        currentCell = '';
+                    } else if (char === '\n' && !insideQuotes) {
+                        if (currentCell.trim() || currentRow.length > 0) {
+                            currentRow.push(currentCell);
+                            if (currentRow.some(cell => cell.trim())) {
+                                result.push([...currentRow]);
+                            }
+                            currentRow = [];
+                            currentCell = '';
+                        }
+                    } else {
+                        currentCell += char;
+                    }
+                    
+                    i++;
+                }
+                
+                // Adicionar última linha se existir
+                if (currentCell.trim() || currentRow.length > 0) {
+                    currentRow.push(currentCell);
+                    if (currentRow.some(cell => cell.trim())) {
+                        result.push(currentRow);
+                    }
+                }
+                
+                // Normalizar número de colunas
+                if (result.length > 0) {
+                    const maxColumns = Math.max(...result.map(row => row.length));
+                    return result.map(row => {
+                        while (row.length < maxColumns) {
+                            row.push('');
+                        }
+                        return row;
+                    });
+                }
+                
+                return result;
+                
+            } catch (error) {
+                // Fallback para parsing simples se algo der errado
+                return data.split('\n')
+                    .filter(line => line.trim())
+                    .map(line => line.split('\t'));
+            }
+        }
+
+        function handleFile(file) {
+            if (!file) return;
+            
+            if (!file.name.match(/\.(xlsx|xls)$/)) {
+                showError('Por favor, selecione um arquivo Excel (.xlsx ou .xls)');
+                return;
+            }
+
+            showLoading();
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                    
+                    if (jsonData.length < 2) {
+                        hideLoading();
+                        showError('O arquivo deve ter pelo menos uma linha de cabeçalho e uma linha de dados.');
+                        return;
+                    }
+                    
+                    const headers = jsonData[0];
+                    const rows = jsonData.slice(1);
+                    
+                    const processedData = rows.map(row => {
+                        const rowObj = {};
+                        headers.forEach((header, index) => {
+                            rowObj[String(header || `Coluna${index + 1}`)] = row[index] !== undefined ? String(row[index]) : '';
+                        });
+                        return rowObj;
+                    }).filter(row => Object.values(row).some(val => val.trim()));
+                    
+                    currentData = processedData;
+                    columnOrder = headers.map(h => String(h || 'Sem Nome'));
+                    
+                    displayTable();
+                    hideLoading();
+                } catch (error) {
+                    hideLoading();
+                    showError('Erro ao ler o arquivo Excel. Verifique se o arquivo está correto.');
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        function displayTable() {
+            if (!currentData.length) return;
+
+            // Atualizar estatísticas
+            const stats = document.getElementById('dataStats');
+            stats.innerHTML = `
+                📊 <strong>${currentData.length.toLocaleString()}</strong> linhas | 
+                📈 <strong>${columnOrder.length}</strong> colunas | 
+                💾 <strong>${(JSON.stringify(currentData).length / 1024).toFixed(1)} KB</strong> de dados
+            `;
+
+            // Preencher dropdown de colunas de label
+            const labelSelect = document.getElementById('labelColumn');
+            labelSelect.innerHTML = '<option value="">Selecione a coluna de labels...</option>';
+            columnOrder.forEach(col => {
+                const option = document.createElement('option');
+                option.value = col;
+                option.textContent = col;
+                labelSelect.appendChild(option);
+            });
+
+            // Atualizar tabela
+            updateTableDisplay();
+            
+            // Mostrar seção da tabela
+            document.getElementById('tableSection').style.display = 'block';
+            
+            // Event listener para mudança de coluna de label
+            labelSelect.onchange = function() {
+                document.getElementById('convertBtn').disabled = !this.value;
+            };
+        }
+
+        function updateTableDisplay() {
+            const maxRows = document.getElementById('maxRows').value;
+            const displayData = maxRows === 'all' ? currentData : currentData.slice(0, parseInt(maxRows));
+            
+            const thead = document.getElementById('tableHead');
+            const tbody = document.getElementById('tableBody');
+            
+            // Cabeçalho
+            thead.innerHTML = '';
+            const headerRow = document.createElement('tr');
+            columnOrder.forEach((col, index) => {
+                const th = document.createElement('th');
+                th.textContent = col;
+                th.draggable = true;
+                th.dataset.columnIndex = index;
+                
+                th.addEventListener('dragstart', handleDragStart);
+                th.addEventListener('dragover', handleDragOver);
+                th.addEventListener('drop', handleDrop);
+                th.addEventListener('dragend', handleDragEnd);
+                
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            
+            // Corpo da tabela
+            tbody.innerHTML = '';
+            displayData.forEach(row => {
+                const tr = document.createElement('tr');
+                columnOrder.forEach(col => {
+                    const td = document.createElement('td');
+                    const cellValue = row[col] || '';
+                    
+                    // Mostrar versão truncada
+                    td.textContent = cellValue.length > 50 ? 
+                        cellValue.substring(0, 50) + '...' : cellValue;
+                    
+                    // Adicionar tooltip para células longas
+                    if (cellValue.length > 50) {
+                        const tooltip = document.createElement('div');
+                        tooltip.className = 'cell-tooltip';
+                        tooltip.textContent = cellValue;
+                        td.appendChild(tooltip);
+                        
+                        td.addEventListener('mouseenter', function() {
+                            tooltip.style.display = 'block';
+                        });
+                        
+                        td.addEventListener('mouseleave', function() {
+                            tooltip.style.display = 'none';
+                        });
+                    }
+                    
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+
+            // Event listener para maxRows
+            document.getElementById('maxRows').onchange = updateTableDisplay;
+        }
+
+        function handleDragStart(e) {
+            draggedColumn = parseInt(e.target.dataset.columnIndex);
+            e.target.classList.add('dragging');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const targetColumn = parseInt(e.target.dataset.columnIndex);
+            
+            if (draggedColumn !== null && targetColumn !== draggedColumn) {
+                // Reordenar colunas
+                const draggedCol = columnOrder[draggedColumn];
+                columnOrder.splice(draggedColumn, 1);
+                columnOrder.splice(targetColumn, 0, draggedCol);
+                
+                updateTableDisplay();
+            }
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+            draggedColumn = null;
+        }
+
+        function convertToList() {
+            const labelColumn = document.getElementById('labelColumn').value;
+            if (!labelColumn) {
+                showError('Por favor, selecione uma coluna de labels!');
+                return;
+            }
+
+            showLoading();
+            
+            setTimeout(() => {
+                try {
+                    let result = '';
+                    const otherColumns = columnOrder.filter(col => col !== labelColumn);
+                    const totalColumns = otherColumns.length;
+                    
+                    otherColumns.forEach((column, index) => {
+                        if (index > 0) result += '\n\n';
+                        
+                        // Limpar nome da coluna
+                        const cleanColumnName = column.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+                        result += `${cleanColumnName.toUpperCase()}:\n`;
+                        
+                        // Filtrar apenas linhas que têm dados válidos
+                        const validRows = currentData.filter(row => {
+                            const label = row[labelColumn];
+                            const value = row[column];
+                            return label && label.trim() && value && value.trim();
+                        });
+                        
+                        validRows.forEach(row => {
+                            const label = row[labelColumn].trim();
+                            const value = row[column].trim();
+                            
+                            // Limpar quebras de linha nos valores se necessário
+                            const cleanLabel = label.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+                            const cleanValue = value.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+                            
+                            result += `${cleanLabel} - ${cleanValue}\n`;
+                        });
+                        
+                        // Adicionar estatística da coluna
+                        if (validRows.length === 0) {
+                            result += `(Nenhum dado válido encontrado)\n`;
+                        }
+                    });
+
+                    // Adicionar estatísticas gerais no final
+                    result += `\n\n=== ESTATÍSTICAS ===\n`;
+                    result += `📊 Total de colunas processadas: ${totalColumns}\n`;
+                    result += `📋 Total de registros: ${currentData.length}\n`;
+                    result += `🏷️ Coluna de labels usada: ${labelColumn}\n`;
+                    result += `📅 Gerado em: ${new Date().toLocaleString('pt-BR')}\n`;
+
+                    document.getElementById('resultContainer').textContent = result;
+                    document.getElementById('resultSection').style.display = 'block';
+                    
+                    // Scroll para o resultado
+                    document.getElementById('resultSection').scrollIntoView({behavior: 'smooth'});
+                    
+                    hideLoading();
+                } catch (error) {
+                    hideLoading();
+                    showError('Erro ao converter os dados: ' + error.message);
+                }
+            }, 100);
+        }
+
+        function copyResult() {
+            const result = document.getElementById('resultContainer').textContent;
+            navigator.clipboard.writeText(result).then(() => {
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Copiado!';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+            });
+        }
+
+        function downloadResult() {
+            const result = document.getElementById('resultContainer').textContent;
+            const blob = new Blob([result], {type: 'text/plain'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'lista_convertida.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function clearAll() {
+            currentData = [];
+            columnOrder = [];
+            document.getElementById('pasteArea').value = '';
+            document.getElementById('fileInput').value = '';
+            document.getElementById('tableSection').style.display = 'none';
+            document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('convertBtn').disabled = true;
+            
+            // Remover erros
+            document.querySelectorAll('.error').forEach(error => error.remove());
+        }
+
+        function cleanData() {
+            if (!currentData.length) {
+                showError('Não há dados para limpar!');
+                return;
+            }
+
+            showLoading();
+            
+            setTimeout(() => {
+                try {
+                    // Limpar dados: remover aspas desnecessárias, normalizar quebras de linha
+                    currentData = currentData.map(row => {
+                        const cleanedRow = {};
+                        Object.keys(row).forEach(key => {
+                            let value = row[key];
+                            
+                            // Remover aspas duplas no início e fim
+                            if (value.startsWith('"') && value.endsWith('"')) {
+                                value = value.slice(1, -1);
+                            }
+                            
+                            // Normalizar quebras de linha (substituir por espaços)
+                            value = value.replace(/\n/g, ' ').replace(/\r/g, ' ');
+                            
+                            // Remover espaços múltiplos
+                            value = value.replace(/\s+/g, ' ').trim();
+                            
+                            cleanedRow[key] = value;
+                        });
+                        return cleanedRow;
+                    });
+                    
+                    updateTableDisplay();
+                    hideLoading();
+                    
+                    // Mostrar feedback
+                    const btn = event.target;
+                    const originalText = btn.textContent;
+                    btn.textContent = '✅ Dados Limpos!';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                    }, 2000);
+                    
+                } catch (error) {
+                    hideLoading();
+                    showError('Erro ao limpar os dados.');
+                }
+            }, 100);
+        }
+    </script>
+</body>
+</html>

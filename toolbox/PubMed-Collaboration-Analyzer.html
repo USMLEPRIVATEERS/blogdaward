@@ -1,0 +1,1979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PubMed Collaboration Network Analyzer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #151b2d;
+            --bg-tertiary: #1e2a47;
+            --accent-primary: #00d4ff;
+            --accent-secondary: #ff6b9d;
+            --accent-tertiary: #c471f5;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a9c0;
+            --text-muted: #6b7280;
+            --border-color: #2d3748;
+            --shadow-glow: 0 0 30px rgba(0, 212, 255, 0.3);
+            --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-accent: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* Animated background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(0, 212, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 107, 157, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 80%, rgba(196, 113, 245, 0.1) 0%, transparent 50%);
+            z-index: -1;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            33% { transform: translateY(-20px) rotate(1deg); }
+            66% { transform: translateY(10px) rotate(-1deg); }
+        }
+
+        /* Header */
+        .header {
+            padding: 2rem;
+            text-align: center;
+            background: rgba(21, 27, 45, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+            text-shadow: var(--shadow-glow);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* File Upload */
+        .upload-section {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .upload-area {
+            border: 3px dashed var(--accent-primary);
+            border-radius: 20px;
+            padding: 3rem;
+            text-align: center;
+            background: rgba(21, 27, 45, 0.5);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(transparent, rgba(0, 212, 255, 0.1), transparent 30%);
+            animation: rotate 4s linear infinite;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .upload-area:hover::before {
+            opacity: 1;
+        }
+
+        .upload-area:hover {
+            border-color: var(--accent-secondary);
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-glow);
+        }
+
+        @keyframes rotate {
+            100% { transform: rotate(360deg); }
+        }
+
+        .upload-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            display: block;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .upload-button {
+            background: var(--gradient-primary);
+            border: none;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 1rem 0;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .upload-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        /* Main Dashboard */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 2rem;
+            padding: 2rem;
+            max-width: 1800px;
+            margin: 0 auto;
+            min-height: 80vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: rgba(21, 27, 45, 0.8);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 2rem;
+            height: fit-content;
+            sticky: 0;
+            top: 2rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .control-group {
+            margin-bottom: 2rem;
+        }
+
+        .control-group h3 {
+            color: var(--accent-primary);
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .control-item {
+            margin-bottom: 1rem;
+        }
+
+        .control-item label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .control-item input, .control-item select {
+            width: 100%;
+            padding: 0.8rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .control-item input:focus, .control-item select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+        }
+
+        .stats-panel {
+            background: rgba(30, 42, 71, 0.6);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.8rem;
+        }
+
+        .stat-value {
+            color: var(--accent-primary);
+            font-weight: 600;
+        }
+
+        /* Main Content */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        /* View Tabs */
+        .view-tabs {
+            display: flex;
+            background: rgba(21, 27, 45, 0.8);
+            border-radius: 15px;
+            padding: 0.5rem;
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 1rem;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 10px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tab.active {
+            background: var(--gradient-primary);
+            color: white;
+            transform: scale(1.02);
+        }
+
+        .tab:not(.active):hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+        }
+
+        /* Network View */
+        .network-container {
+            background: rgba(21, 27, 45, 0.6);
+            border-radius: 20px;
+            padding: 2rem;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(20px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        #networkViz {
+            width: 100%;
+            height: 600px;
+            border-radius: 15px;
+            background: rgba(10, 14, 26, 0.8);
+            border: 1px solid var(--border-color);
+        }
+
+        /* Studies Panel */
+        .studies-panel {
+            background: rgba(21, 27, 45, 0.6);
+            border-radius: 20px;
+            padding: 2rem;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(20px);
+            margin-top: 2rem;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .studies-panel h3 {
+            color: var(--accent-primary);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .selected-authors {
+            background: rgba(30, 42, 71, 0.6);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .selected-authors h4 {
+            color: var(--accent-secondary);
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .author-tag {
+            display: inline-block;
+            background: var(--gradient-primary);
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin: 0.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .author-tag:hover {
+            transform: scale(1.05);
+            opacity: 0.8;
+        }
+
+        .study-item {
+            background: rgba(30, 42, 71, 0.4);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .study-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .study-title {
+            color: var(--text-primary);
+            font-weight: 600;
+            margin-bottom: 0.8rem;
+            font-size: 1.1rem;
+            line-height: 1.4;
+        }
+
+        .study-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .study-meta span {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .pubmed-link {
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .pubmed-link:hover {
+            color: var(--accent-secondary);
+            text-decoration: underline;
+        }
+
+        .abstract-toggle {
+            background: none;
+            border: 1px solid var(--accent-primary);
+            color: var(--accent-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+            margin-top: 0.5rem;
+        }
+
+        .abstract-toggle:hover {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .abstract-content {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(10, 14, 26, 0.6);
+            border-radius: 10px;
+            border-left: 3px solid var(--accent-primary);
+            color: var(--text-secondary);
+            line-height: 1.6;
+            display: none;
+        }
+
+        .abstract-content.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .collaborating-authors {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .collaborating-authors h5 {
+            color: var(--accent-tertiary);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .author-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .author-chip {
+            background: rgba(196, 113, 245, 0.2);
+            color: var(--accent-tertiary);
+            padding: 0.2rem 0.6rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            border: 1px solid var(--accent-tertiary);
+        }
+
+        .clear-selection {
+            background: var(--gradient-accent);
+            border: none;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-left: auto;
+            transition: all 0.3s ease;
+        }
+
+        .clear-selection:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(240, 147, 251, 0.3);
+        }
+
+        /* Heatmap View */
+        .heatmap-container {
+            background: rgba(21, 27, 45, 0.6);
+            border-radius: 20px;
+            padding: 2rem;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(20px);
+        }
+
+        #heatmapViz {
+            width: 100%;
+            height: 500px;
+            border-radius: 15px;
+            background: rgba(10, 14, 26, 0.8);
+            border: 1px solid var(--border-color);
+            overflow: auto;
+        }
+
+        /* Timeline View */
+        .timeline-container {
+            background: rgba(21, 27, 45, 0.6);
+            border-radius: 20px;
+            padding: 2rem;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(20px);
+        }
+
+        #timelineViz {
+            width: 100%;
+            height: 400px;
+            border-radius: 15px;
+            background: rgba(10, 14, 26, 0.8);
+            border: 1px solid var(--border-color);
+        }
+
+        /* Research Areas View */
+        .research-container {
+            background: rgba(21, 27, 45, 0.6);
+            border-radius: 20px;
+            padding: 2rem;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(20px);
+        }
+
+        .research-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .research-item {
+            background: rgba(30, 42, 71, 0.6);
+            border-radius: 15px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            height: 300px;
+        }
+
+        /* Loading Animation */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            flex-direction: column;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            background: rgba(21, 27, 45, 0.95);
+            border: 1px solid var(--accent-primary);
+            border-radius: 10px;
+            padding: 1rem;
+            font-size: 0.9rem;
+            pointer-events: none;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            max-width: 300px;
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin: 2rem 0;
+            justify-content: center;
+        }
+
+        .action-btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 50px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: white;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--gradient-accent);
+            color: white;
+            box-shadow: 0 10px 30px rgba(240, 147, 251, 0.3);
+        }
+
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+        }
+
+        /* Hidden class */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .research-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Node styles for network */
+        .node {
+            cursor: pointer;
+            stroke-width: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .node:hover {
+            stroke-width: 4px;
+            filter: brightness(1.2);
+        }
+
+        .node.selected {
+            stroke: var(--accent-secondary);
+            stroke-width: 4px;
+            filter: brightness(1.3);
+        }
+
+        .link {
+            stroke: var(--accent-primary);
+            stroke-opacity: 0.3;
+            transition: all 0.3s ease;
+        }
+
+        .link:hover {
+            stroke-opacity: 0.8;
+            stroke-width: 3px;
+        }
+
+        .node-label {
+            font-size: 12px;
+            fill: var(--text-primary);
+            text-anchor: middle;
+            pointer-events: none;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧬 Collaboration Network Analyzer</h1>
+    </div>
+
+    <div class="upload-section">
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-content">
+                <span class="upload-icon">📊</span>
+                <h3>Upload PubMed Data Files</h3>
+                <p>Drop your .txt files here or click to browse</p>
+                <button class="upload-button" onclick="document.getElementById('fileInput').click()">
+                    Choose Files
+                </button>
+                <input type="file" id="fileInput" multiple accept=".txt">
+                <div id="fileStatus">No files selected</div>
+            </div>
+        </div>
+
+        <div class="action-buttons hidden" id="actionButtons">
+            <button class="action-btn btn-primary" id="analyzeBtn">🔍 Analyze Collaborations</button>
+            <button class="action-btn btn-secondary" id="exportBtn">📊 Export Network Data</button>
+        </div>
+    </div>
+
+    <div class="dashboard hidden" id="dashboard">
+        <div class="sidebar">
+            <div class="control-group">
+                <h3>🎯 Network Controls</h3>
+                <div class="control-item">
+                    <label>Minimum Collaborations</label>
+                    <input type="range" id="minCollabs" min="1" max="10" value="2">
+                    <span id="minCollabsValue">2</span>
+                </div>
+                <div class="control-item">
+                    <label>Node Size Factor</label>
+                    <input type="range" id="nodeSize" min="1" max="5" value="2">
+                </div>
+                <div class="control-item">
+                    <label>Link Strength</label>
+                    <input type="range" id="linkStrength" min="0.1" max="2" step="0.1" value="1">
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>🎨 Visual Settings</h3>
+                <div class="control-item">
+                    <label>Color Scheme</label>
+                    <select id="colorScheme">
+                        <option value="gradient">Gradient</option>
+                        <option value="institution">By Institution</option>
+                        <option value="productivity">By Productivity</option>
+                        <option value="centrality">By Centrality</option>
+                    </select>
+                </div>
+                <div class="control-item">
+                    <label>Layout Algorithm</label>
+                    <select id="layoutAlgo">
+                        <option value="force">Force-directed</option>
+                        <option value="circular">Circular</option>
+                        <option value="hierarchical">Hierarchical</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>🔍 Filters</h3>
+                <div class="control-item">
+                    <label>Institution</label>
+                    <select id="institutionFilter">
+                        <option value="all">All Institutions</option>
+                    </select>
+                </div>
+                <div class="control-item">
+                    <label>Year Range</label>
+                    <input type="range" id="yearFilter" min="2000" max="2024" value="2000">
+                    <span id="yearValue">2000+</span>
+                </div>
+            </div>
+
+            <div class="stats-panel">
+                <h3>📈 Network Statistics</h3>
+                <div class="stat-item">
+                    <span>Total Authors:</span>
+                    <span class="stat-value" id="totalAuthors">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Collaborations:</span>
+                    <span class="stat-value" id="totalCollabs">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Studies:</span>
+                    <span class="stat-value" id="totalStudies">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Avg. Team Size:</span>
+                    <span class="stat-value" id="avgTeamSize">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Max Collaborations:</span>
+                    <span class="stat-value" id="maxCollabs">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="view-tabs">
+                <button class="tab active" data-view="network">🕸️ Network Graph</button>
+                <button class="tab" data-view="heatmap">🔥 Collaboration Matrix</button>
+                <button class="tab" data-view="timeline">📈 Timeline Analysis</button>
+                <button class="tab" data-view="research">🧪 Research Areas</button>
+            </div>
+
+            <div id="networkView" class="view-content">
+                <div class="network-container">
+                    <h3>🕸️ Collaboration Network</h3>
+                    <div id="networkViz"></div>
+                </div>
+                
+                <!-- Studies Panel - Initially Hidden -->
+                <div class="studies-panel hidden" id="studiesPanel">
+                    <h3>
+                        📚 Selected Authors' Studies
+                        <button class="clear-selection" id="clearSelection">Clear Selection</button>
+                    </h3>
+                    
+                    <div class="selected-authors" id="selectedAuthorsInfo">
+                        <h4>Selected Authors:</h4>
+                        <div id="selectedAuthorsList"></div>
+                    </div>
+                    
+                    <div id="studiesList"></div>
+                </div>
+            </div>
+
+            <div id="heatmapView" class="view-content hidden">
+                <div class="heatmap-container">
+                    <h3>🔥 Collaboration Intensity Matrix</h3>
+                    <div id="heatmapViz"></div>
+                </div>
+            </div>
+
+            <div id="timelineView" class="view-content hidden">
+                <div class="timeline-container">
+                    <h3>📈 Collaboration Timeline</h3>
+                    <div id="timelineViz"></div>
+                </div>
+            </div>
+
+            <div id="researchView" class="view-content hidden">
+                <div class="research-container">
+                    <h3>🧪 Research Area Collaborations</h3>
+                    <div class="research-grid">
+                        <div class="research-item">
+                            <canvas id="researchPie"></canvas>
+                        </div>
+                        <div class="research-item">
+                            <canvas id="institutionNetwork"></canvas>
+                        </div>
+                        <div class="research-item">
+                            <canvas id="yearTrends"></canvas>
+                        </div>
+                        <div class="research-item">
+                            <canvas id="collaborationPatterns"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip" style="display: none;"></div>
+
+    <script>
+        // Global variables
+        let rawData = [];
+        let processedData = {
+            authors: new Map(),
+            collaborations: new Map(),
+            studies: [],
+            institutions: new Set(),
+            years: new Set()
+        };
+        let currentNetwork = null;
+        let currentView = 'network';
+        let selectedAuthors = new Set(); // Track selected authors
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeEventListeners();
+            setupFileUpload();
+        });
+
+        function initializeEventListeners() {
+            // Tab switching
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => switchView(tab.dataset.view));
+            });
+
+            // Control panel listeners
+            document.getElementById('minCollabs').addEventListener('input', updateNetwork);
+            document.getElementById('nodeSize').addEventListener('input', updateNetwork);
+            document.getElementById('linkStrength').addEventListener('input', updateNetwork);
+            document.getElementById('colorScheme').addEventListener('change', updateNetwork);
+            document.getElementById('layoutAlgo').addEventListener('change', updateNetwork);
+            document.getElementById('institutionFilter').addEventListener('change', updateNetwork);
+            document.getElementById('yearFilter').addEventListener('input', updateNetwork);
+
+            // Update value displays
+            document.getElementById('minCollabs').addEventListener('input', function() {
+                document.getElementById('minCollabsValue').textContent = this.value;
+            });
+
+            document.getElementById('yearFilter').addEventListener('input', function() {
+                document.getElementById('yearValue').textContent = this.value + '+';
+            });
+
+            // Action buttons
+            document.getElementById('analyzeBtn').addEventListener('click', analyzeCollaborations);
+            document.getElementById('exportBtn').addEventListener('click', exportNetworkData);
+            
+            // Clear selection button
+            document.getElementById('clearSelection').addEventListener('click', clearAuthorSelection);
+        }
+
+        function setupFileUpload() {
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            const fileStatus = document.getElementById('fileStatus');
+
+            // Drag and drop handlers
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, () => {
+                    uploadArea.style.borderColor = 'var(--accent-secondary)';
+                    uploadArea.style.backgroundColor = 'rgba(255, 107, 157, 0.1)';
+                });
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, () => {
+                    uploadArea.style.borderColor = 'var(--accent-primary)';
+                    uploadArea.style.backgroundColor = 'rgba(21, 27, 45, 0.5)';
+                });
+            });
+
+            uploadArea.addEventListener('drop', handleDrop);
+            fileInput.addEventListener('change', handleFileSelect);
+
+            function handleDrop(e) {
+                const files = e.dataTransfer.files;
+                processFiles(files);
+            }
+
+            function handleFileSelect(e) {
+                const files = e.target.files;
+                processFiles(files);
+            }
+
+            async function processFiles(files) {
+                if (files.length === 0) return;
+
+                fileStatus.innerHTML = `📁 Processing ${files.length} files...`;
+                
+                try {
+                    rawData = [];
+                    const filePromises = Array.from(files).map(file => file.text());
+                    const fileContents = await Promise.all(filePromises);
+                    
+                    fileContents.forEach(content => {
+                        const studies = parsePubmedText(content);
+                        rawData.push(...studies);
+                    });
+
+                    fileStatus.innerHTML = `✅ Loaded ${rawData.length} studies from ${files.length} files`;
+                    document.getElementById('actionButtons').classList.remove('hidden');
+                    
+                } catch (error) {
+                    fileStatus.innerHTML = `❌ Error processing files: ${error.message}`;
+                    console.error('File processing error:', error);
+                }
+            }
+        }
+
+        function parsePubmedText(text) {
+            const records = text.split('PMID- ').slice(1);
+            const studies = [];
+
+            const USA_STATES = {
+                "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
+                "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware", "FL": "Florida", "GA": "Georgia",
+                "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa",
+                "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+                "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi",
+                "MO": "Missouri", "MT": "Montana", "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire",
+                "NJ": "New Jersey", "NM": "New Mexico", "NY": "New York", "NC": "North Carolina",
+                "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania",
+                "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota", "TN": "Tennessee",
+                "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": "Washington",
+                "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming", "DC": "District of Columbia"
+            };
+
+            const USA_SYNONYMS = ['USA', 'U.S.A', 'U.S.', 'US', 'United States of America', 'United States'];
+
+            for (const record of records) {
+                const lines = record.split('\n');
+                let currentStudy = { 
+                    pmid: lines[0].trim(), 
+                    authors: [], 
+                    title: '', 
+                    year: null,
+                    isUSAResearch: false,
+                    abstract: ''
+                };
+                let currentField = '';
+                let lastFauAuthor = null;
+
+                for (const line of lines.slice(1)) {
+                    const tagMatch = line.match(/^([A-Z]{2,4}) {1,2}- /);
+                    if (tagMatch) {
+                        currentField = tagMatch[1];
+                        const content = line.substring(tagMatch[0].length).trim();
+                        
+                        switch(currentField) {
+                            case 'TI':
+                                currentStudy.title += content + ' ';
+                                break;
+                            case 'AB':
+                                currentStudy.abstract += content + ' ';
+                                break;
+                            case 'FAU':
+                                lastFauAuthor = { 
+                                    name: content, 
+                                    affiliations: [],
+                                    institution: null,
+                                    department: null,
+                                    isUSA: false
+                                };
+                                currentStudy.authors.push(lastFauAuthor);
+                                break;
+                            case 'AD':
+                                if (lastFauAuthor) {
+                                    const affiliation = parseAffiliation(content);
+                                    if (affiliation.isUSA) {
+                                        currentStudy.isUSAResearch = true;
+                                        lastFauAuthor.isUSA = true;
+                                        lastFauAuthor.institution = affiliation.institution;
+                                        lastFauAuthor.department = affiliation.department;
+                                    }
+                                    lastFauAuthor.affiliations.push(affiliation);
+                                }
+                                break;
+                            case 'DP':
+                                const yearMatch = content.match(/(\d{4})/);
+                                if (yearMatch) {
+                                    currentStudy.year = parseInt(yearMatch[1]);
+                                }
+                                break;
+                        }
+                    } else if (line.trim()) {
+                        switch(currentField) {
+                            case 'TI':
+                                currentStudy.title += line.trim() + ' ';
+                                break;
+                            case 'AB':
+                                currentStudy.abstract += line.trim() + ' ';
+                                break;
+                            case 'AD':
+                                if (lastFauAuthor && lastFauAuthor.affiliations.length > 0) {
+                                    const lastAffiliation = lastFauAuthor.affiliations[lastFauAuthor.affiliations.length - 1];
+                                    lastAffiliation.full += ' ' + line.trim();
+                                    const reparsedAffiliation = parseAffiliation(lastAffiliation.full);
+                                    if (reparsedAffiliation.isUSA) {
+                                        currentStudy.isUSAResearch = true;
+                                        lastFauAuthor.isUSA = true;
+                                        lastFauAuthor.institution = reparsedAffiliation.institution;
+                                        lastFauAuthor.department = reparsedAffiliation.department;
+                                    }
+                                    lastFauAuthor.affiliations[lastFauAuthor.affiliations.length - 1] = reparsedAffiliation;
+                                }
+                                break;
+                        }
+                    }
+                }
+                
+                if (currentStudy.isUSAResearch && currentStudy.authors.length > 1) {
+                    currentStudy.title = currentStudy.title.trim();
+                    currentStudy.abstract = currentStudy.abstract.trim();
+                    currentStudy.link = `https://pubmed.ncbi.nlm.nih.gov/${currentStudy.pmid}/`;
+                    studies.push(currentStudy);
+                }
+            }
+
+            function parseAffiliation(affiliationText) {
+                const result = { 
+                    full: affiliationText.trim(), 
+                    isUSA: false, 
+                    institution: null, 
+                    department: null,
+                    state: null
+                };
+                
+                const parts = result.full.split(',').map(p => p.trim());
+                
+                // Check for USA
+                const countryPart = parts.find(p => USA_SYNONYMS.some(syn => p.includes(syn)));
+                if (countryPart) {
+                    result.isUSA = true;
+                    
+                    // Extract state
+                    for (let i = parts.length - 1; i >= 0; i--) {
+                        const part = parts[i].split(' ')[0];
+                        if (Object.keys(USA_STATES).includes(part)) {
+                            result.state = USA_STATES[part];
+                            break;
+                        }
+                    }
+                    
+                    // Extract institution (usually the first substantial part)
+                    const institutionPart = parts.find(p => 
+                        p.length > 10 && 
+                        !USA_SYNONYMS.some(syn => p.includes(syn)) &&
+                        !Object.keys(USA_STATES).includes(p.split(' ')[0])
+                    );
+                    
+                    if (institutionPart) {
+                        result.institution = institutionPart;
+                        // Department is often part of institution or separate
+                        result.department = parts[0] || institutionPart;
+                    }
+                }
+                
+                return result;
+            }
+
+            return studies;
+        }
+
+        function analyzeCollaborations() {
+            if (rawData.length === 0) {
+                alert('Please upload some PubMed data files first!');
+                return;
+            }
+
+            // Show loading
+            document.getElementById('dashboard').classList.remove('hidden');
+            showLoading();
+
+            // Clear any previous selections
+            selectedAuthors.clear();
+            document.getElementById('studiesPanel').classList.add('hidden');
+
+            // Process data for collaboration analysis
+            setTimeout(() => {
+                processCollaborationData();
+                populateFilters();
+                updateStatistics();
+                createNetworkVisualization();
+                hideLoading();
+            }, 500);
+        }
+
+        function processCollaborationData() {
+            processedData = {
+                authors: new Map(),
+                collaborations: new Map(),
+                studies: rawData,
+                institutions: new Set(),
+                years: new Set()
+            };
+
+            // Process each study
+            rawData.forEach(study => {
+                if (study.year) processedData.years.add(study.year);
+                
+                const usaAuthors = study.authors.filter(author => author.isUSA);
+                
+                // Add authors to map
+                usaAuthors.forEach(author => {
+                    if (!processedData.authors.has(author.name)) {
+                        processedData.authors.set(author.name, {
+                            name: author.name,
+                            collaborations: new Set(),
+                            studies: [],
+                            institution: author.institution || 'Unknown',
+                            department: author.department || 'Unknown',
+                            totalCollaborators: 0
+                        });
+                    }
+                    
+                    const authorData = processedData.authors.get(author.name);
+                    authorData.studies.push(study);
+                    
+                    if (author.institution) {
+                        processedData.institutions.add(author.institution);
+                        authorData.institution = author.institution;
+                    }
+                });
+
+                // Create collaboration pairs
+                for (let i = 0; i < usaAuthors.length; i++) {
+                    for (let j = i + 1; j < usaAuthors.length; j++) {
+                        const author1 = usaAuthors[i].name;
+                        const author2 = usaAuthors[j].name;
+                        
+                        const collabKey = [author1, author2].sort().join('|');
+                        
+                        if (!processedData.collaborations.has(collabKey)) {
+                            processedData.collaborations.set(collabKey, {
+                                authors: [author1, author2],
+                                studies: [],
+                                strength: 0
+                            });
+                        }
+                        
+                        const collaboration = processedData.collaborations.get(collabKey);
+                        collaboration.studies.push(study);
+                        collaboration.strength++;
+                        
+                        // Update author collaboration sets
+                        processedData.authors.get(author1).collaborations.add(author2);
+                        processedData.authors.get(author2).collaborations.add(author1);
+                    }
+                }
+            });
+
+            // Update total collaborators count
+            processedData.authors.forEach(author => {
+                author.totalCollaborators = author.collaborations.size;
+            });
+        }
+
+        function populateFilters() {
+            const institutionFilter = document.getElementById('institutionFilter');
+            institutionFilter.innerHTML = '<option value="all">All Institutions</option>';
+            
+            Array.from(processedData.institutions).sort().forEach(institution => {
+                const option = document.createElement('option');
+                option.value = institution;
+                option.textContent = institution.length > 50 ? institution.substring(0, 50) + '...' : institution;
+                institutionFilter.appendChild(option);
+            });
+
+            // Update year filter range
+            const years = Array.from(processedData.years);
+            const minYear = Math.min(...years);
+            const maxYear = Math.max(...years);
+            
+            const yearFilter = document.getElementById('yearFilter');
+            yearFilter.min = minYear;
+            yearFilter.max = maxYear;
+            yearFilter.value = minYear;
+            document.getElementById('yearValue').textContent = minYear + '+';
+        }
+
+        function updateStatistics() {
+            document.getElementById('totalAuthors').textContent = processedData.authors.size;
+            document.getElementById('totalCollabs').textContent = processedData.collaborations.size;
+            document.getElementById('totalStudies').textContent = processedData.studies.length;
+            
+            const teamSizes = processedData.studies.map(study => 
+                study.authors.filter(a => a.isUSA).length
+            );
+            const avgTeamSize = teamSizes.reduce((a, b) => a + b, 0) / teamSizes.length;
+            document.getElementById('avgTeamSize').textContent = avgTeamSize.toFixed(1);
+            
+            const maxCollabs = Math.max(...Array.from(processedData.authors.values()).map(a => a.totalCollaborators));
+            document.getElementById('maxCollabs').textContent = maxCollabs;
+        }
+
+        function createNetworkVisualization() {
+            const container = document.getElementById('networkViz');
+            container.innerHTML = '';
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            const svg = d3.select(container)
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height);
+
+            const g = svg.append('g');
+
+            // Add zoom behavior
+            const zoom = d3.zoom()
+                .scaleExtent([0.1, 10])
+                .on('zoom', (event) => {
+                    g.attr('transform', event.transform);
+                });
+
+            svg.call(zoom);
+
+            // Create network data
+            const networkData = createNetworkData();
+            
+            // Create force simulation
+            const simulation = d3.forceSimulation(networkData.nodes)
+                .force('link', d3.forceLink(networkData.links).id(d => d.id).distance(100))
+                .force('charge', d3.forceManyBody().strength(-300))
+                .force('center', d3.forceCenter(width / 2, height / 2));
+
+            // Create links
+            const link = g.append('g')
+                .selectAll('line')
+                .data(networkData.links)
+                .enter().append('line')
+                .attr('class', 'link')
+                .attr('stroke-width', d => Math.sqrt(d.strength) * 2)
+                .style('stroke', 'var(--accent-primary)')
+                .style('stroke-opacity', 0.3);
+
+            // Create nodes
+            const node = g.append('g')
+                .selectAll('circle')
+                .data(networkData.nodes)
+                .enter().append('circle')
+                .attr('class', 'node')
+                .attr('r', d => Math.sqrt(d.totalCollaborators) * 5 + 5)
+                .attr('fill', d => getNodeColor(d))
+                .attr('stroke', 'var(--accent-primary)')
+                .attr('stroke-width', 2)
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended))
+                .on('click', function(event, d) {
+                    handleAuthorClick(d.name, this);
+                });
+
+            // Add labels
+            const label = g.append('g')
+                .selectAll('text')
+                .data(networkData.nodes)
+                .enter().append('text')
+                .attr('class', 'node-label')
+                .text(d => d.name.split(' ').slice(-1)[0]) // Show last name only
+                .style('font-size', '12px')
+                .style('fill', 'var(--text-primary)')
+                .style('text-anchor', 'middle')
+                .attr('dy', '.35em');
+
+            // Add tooltips
+            node.on('mouseover', function(event, d) {
+                showTooltip(event, d);
+            }).on('mouseout', hideTooltip);
+
+            // Update positions on tick
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+
+                node
+                    .attr('cx', d => d.x)
+                    .attr('cy', d => d.y);
+
+                label
+                    .attr('x', d => d.x)
+                    .attr('y', d => d.y);
+            });
+
+            function dragstarted(event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+
+            function dragged(event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+
+            function dragended(event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            }
+
+            currentNetwork = { svg, simulation, networkData, nodeElements: node };
+        }
+
+        function handleAuthorClick(authorName, nodeElement) {
+            // Toggle author selection
+            if (selectedAuthors.has(authorName)) {
+                selectedAuthors.delete(authorName);
+                d3.select(nodeElement).classed('selected', false);
+            } else {
+                selectedAuthors.add(authorName);
+                d3.select(nodeElement).classed('selected', true);
+            }
+
+            // Update studies display
+            updateStudiesDisplay();
+        }
+
+        function updateStudiesDisplay() {
+            const studiesPanel = document.getElementById('studiesPanel');
+            const selectedAuthorsList = document.getElementById('selectedAuthorsList');
+            const studiesList = document.getElementById('studiesList');
+
+            if (selectedAuthors.size === 0) {
+                studiesPanel.classList.add('hidden');
+                return;
+            }
+
+            // Show panel
+            studiesPanel.classList.remove('hidden');
+
+            // Update selected authors list
+            selectedAuthorsList.innerHTML = '';
+            selectedAuthors.forEach(authorName => {
+                const tag = document.createElement('span');
+                tag.className = 'author-tag';
+                tag.textContent = authorName;
+                tag.addEventListener('click', () => {
+                    selectedAuthors.delete(authorName);
+                    // Update node visual state
+                    if (currentNetwork && currentNetwork.nodeElements) {
+                        currentNetwork.nodeElements
+                            .filter(d => d.name === authorName)
+                            .classed('selected', false);
+                    }
+                    updateStudiesDisplay();
+                });
+                selectedAuthorsList.appendChild(tag);
+            });
+
+            // Find collaborative studies
+            const collaborativeStudies = findCollaborativeStudies(Array.from(selectedAuthors));
+
+            // Display studies
+            studiesList.innerHTML = '';
+            
+            if (collaborativeStudies.length === 0) {
+                studiesList.innerHTML = `
+                    <div style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                        <p>No collaborative studies found between the selected authors.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            collaborativeStudies.forEach((study, index) => {
+                const studyElement = createStudyElement(study, index);
+                studiesList.appendChild(studyElement);
+            });
+        }
+
+        function findCollaborativeStudies(authorNames) {
+            if (authorNames.length === 0) return [];
+
+            // Find studies that include all selected authors
+            const studies = [];
+            
+            processedData.studies.forEach(study => {
+                const studyAuthorNames = study.authors
+                    .filter(author => author.isUSA)
+                    .map(author => author.name);
+                
+                // Check if all selected authors are in this study
+                const hasAllAuthors = authorNames.every(authorName => 
+                    studyAuthorNames.includes(authorName)
+                );
+                
+                if (hasAllAuthors) {
+                    studies.push(study);
+                }
+            });
+
+            // Sort by year (newest first)
+            return studies.sort((a, b) => (b.year || 0) - (a.year || 0));
+        }
+
+        function createStudyElement(study, index) {
+            const studyDiv = document.createElement('div');
+            studyDiv.className = 'study-item';
+            
+            const usaAuthors = study.authors.filter(author => author.isUSA);
+            const collaboratingAuthors = usaAuthors
+                .filter(author => !selectedAuthors.has(author.name))
+                .map(author => author.name);
+
+            studyDiv.innerHTML = `
+                <div class="study-title">${study.title || 'No title available'}</div>
+                
+                <div class="study-meta">
+                    <span>📅 ${study.year || 'Unknown year'}</span>
+                    <span>👥 ${usaAuthors.length} authors</span>
+                    <span>🆔 PMID: ${study.pmid}</span>
+                    <a href="${study.link}" target="_blank" class="pubmed-link">🔗 View on PubMed</a>
+                </div>
+                
+                ${collaboratingAuthors.length > 0 ? `
+                    <div class="collaborating-authors">
+                        <h5>Other collaborating authors:</h5>
+                        <div class="author-list">
+                            ${collaboratingAuthors.map(name => 
+                                `<span class="author-chip">${name}</span>`
+                            ).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                ${study.abstract ? `
+                    <button class="abstract-toggle" onclick="toggleAbstract(${index})">
+                        📖 Show Abstract
+                    </button>
+                    <div class="abstract-content" id="abstract-${index}">
+                        ${study.abstract}
+                    </div>
+                ` : ''}
+            `;
+
+            return studyDiv;
+        }
+
+        function toggleAbstract(index) {
+            const abstractElement = document.getElementById(`abstract-${index}`);
+            const toggleButton = abstractElement.previousElementSibling;
+            
+            if (abstractElement.classList.contains('show')) {
+                abstractElement.classList.remove('show');
+                toggleButton.textContent = '📖 Show Abstract';
+            } else {
+                abstractElement.classList.add('show');
+                toggleButton.textContent = '📖 Hide Abstract';
+            }
+        }
+
+        function clearAuthorSelection() {
+            selectedAuthors.clear();
+            
+            // Update node visual states
+            if (currentNetwork && currentNetwork.nodeElements) {
+                currentNetwork.nodeElements.classed('selected', false);
+            }
+            
+            // Hide studies panel
+            document.getElementById('studiesPanel').classList.add('hidden');
+        }
+
+        function createNetworkData() {
+            const minCollabs = parseInt(document.getElementById('minCollabs').value);
+            const yearFilter = parseInt(document.getElementById('yearFilter').value);
+            const institutionFilter = document.getElementById('institutionFilter').value;
+
+            // Filter authors and collaborations
+            const filteredAuthors = Array.from(processedData.authors.values()).filter(author => {
+                if (author.totalCollaborators < minCollabs) return false;
+                if (institutionFilter !== 'all' && author.institution !== institutionFilter) return false;
+                
+                // Check if author has studies in the year range
+                const hasRecentStudies = author.studies.some(study => 
+                    study.year && study.year >= yearFilter
+                );
+                return hasRecentStudies;
+            });
+
+            const authorNames = new Set(filteredAuthors.map(a => a.name));
+
+            const filteredCollabs = Array.from(processedData.collaborations.values()).filter(collab => {
+                if (collab.strength < minCollabs) return false;
+                if (!authorNames.has(collab.authors[0]) || !authorNames.has(collab.authors[1])) return false;
+                
+                // Check if collaboration has studies in the year range
+                const hasRecentStudies = collab.studies.some(study => 
+                    study.year && study.year >= yearFilter
+                );
+                return hasRecentStudies;
+            });
+
+            const nodes = filteredAuthors.map(author => ({
+                id: author.name,
+                name: author.name,
+                totalCollaborators: author.totalCollaborators,
+                studies: author.studies.length,
+                institution: author.institution,
+                department: author.department
+            }));
+
+            const links = filteredCollabs.map(collab => ({
+                source: collab.authors[0],
+                target: collab.authors[1],
+                strength: collab.strength,
+                studies: collab.studies.length
+            }));
+
+            return { nodes, links };
+        }
+
+        function getNodeColor(node) {
+            const colorScheme = document.getElementById('colorScheme').value;
+            
+            switch (colorScheme) {
+                case 'gradient':
+                    const intensity = node.totalCollaborators / 20;
+                    return d3.interpolateViridis(Math.min(intensity, 1));
+                case 'institution':
+                    return d3.schemeCategory10[node.institution.charCodeAt(0) % 10];
+                case 'productivity':
+                    const productivity = node.studies / 10;
+                    return d3.interpolateWarm(Math.min(productivity, 1));
+                case 'centrality':
+                    const centrality = node.totalCollaborators / 30;
+                    return d3.interpolateCool(Math.min(centrality, 1));
+                default:
+                    return 'var(--accent-primary)';
+            }
+        }
+
+        function updateNetwork() {
+            if (currentNetwork) {
+                // Clear selections when network updates
+                selectedAuthors.clear();
+                document.getElementById('studiesPanel').classList.add('hidden');
+                createNetworkVisualization();
+            }
+        }
+
+        function switchView(viewName) {
+            // Update active tab
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelector(`[data-view="${viewName}"]`).classList.add('active');
+
+            // Hide all views
+            document.querySelectorAll('.view-content').forEach(view => view.classList.add('hidden'));
+            
+            // Show selected view
+            document.getElementById(viewName + 'View').classList.remove('hidden');
+            currentView = viewName;
+
+            // Clear author selections when switching views
+            if (viewName !== 'network') {
+                selectedAuthors.clear();
+                if (currentNetwork && currentNetwork.nodeElements) {
+                    currentNetwork.nodeElements.classed('selected', false);
+                }
+            }
+
+            // Create visualization for the selected view
+            switch (viewName) {
+                case 'network':
+                    if (processedData.authors.size > 0) createNetworkVisualization();
+                    break;
+                case 'heatmap':
+                    createHeatmapVisualization();
+                    break;
+                case 'timeline':
+                    createTimelineVisualization();
+                    break;
+                case 'research':
+                    createResearchVisualization();
+                    break;
+            }
+        }
+
+        function createHeatmapVisualization() {
+            const container = document.getElementById('heatmapViz');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Generating collaboration matrix...</p></div>';
+
+            setTimeout(() => {
+                const authors = Array.from(processedData.authors.values())
+                    .sort((a, b) => b.totalCollaborators - a.totalCollaborators)
+                    .slice(0, 20); // Top 20 most collaborative authors
+
+                const matrix = [];
+                const authorNames = authors.map(a => a.name);
+
+                // Create collaboration matrix
+                authors.forEach((author1, i) => {
+                    matrix[i] = [];
+                    authors.forEach((author2, j) => {
+                        if (i === j) {
+                            matrix[i][j] = author1.studies.length; // Self-collaboration (total studies)
+                        } else {
+                            const collabKey = [author1.name, author2.name].sort().join('|');
+                            const collaboration = processedData.collaborations.get(collabKey);
+                            matrix[i][j] = collaboration ? collaboration.strength : 0;
+                        }
+                    });
+                });
+
+                // Create SVG heatmap
+                container.innerHTML = '';
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+                const cellSize = Math.min(width / authors.length, height / authors.length) * 0.8;
+
+                const svg = d3.select(container)
+                    .append('svg')
+                    .attr('width', width)
+                    .attr('height', height);
+
+                const g = svg.append('g')
+                    .attr('transform', `translate(${(width - cellSize * authors.length) / 2}, ${(height - cellSize * authors.length) / 2})`);
+
+                const maxValue = d3.max(matrix.flat());
+                const colorScale = d3.scaleSequential(d3.interpolateBlues)
+                    .domain([0, maxValue]);
+
+                // Create cells
+                matrix.forEach((row, i) => {
+                    row.forEach((value, j) => {
+                        g.append('rect')
+                            .attr('x', j * cellSize)
+                            .attr('y', i * cellSize)
+                            .attr('width', cellSize)
+                            .attr('height', cellSize)
+                            .attr('fill', colorScale(value))
+                            .attr('stroke', 'var(--border-color)')
+                            .attr('stroke-width', 1)
+                            .style('cursor', 'pointer')
+                            .on('mouseover', function(event) {
+                                showTooltip(event, {
+                                    author1: authorNames[i],
+                                    author2: authorNames[j],
+                                    collaborations: value
+                                });
+                            })
+                            .on('mouseout', hideTooltip);
+
+                        // Add text for non-zero values
+                        if (value > 0) {
+                            g.append('text')
+                                .attr('x', j * cellSize + cellSize / 2)
+                                .attr('y', i * cellSize + cellSize / 2)
+                                .attr('text-anchor', 'middle')
+                                .attr('dy', '.35em')
+                                .style('font-size', '10px')
+                                .style('fill', value > maxValue / 2 ? 'white' : 'var(--text-primary)')
+                                .text(value);
+                        }
+                    });
+                });
+
+                // Add author labels
+                authorNames.forEach((name, i) => {
+                    // Y-axis labels
+                    g.append('text')
+                        .attr('x', -10)
+                        .attr('y', i * cellSize + cellSize / 2)
+                        .attr('text-anchor', 'end')
+                        .attr('dy', '.35em')
+                        .style('font-size', '10px')
+                        .style('fill', 'var(--text-primary)')
+                        .text(name.split(' ').slice(-1)[0]);
+
+                    // X-axis labels
+                    g.append('text')
+                        .attr('x', i * cellSize + cellSize / 2)
+                        .attr('y', authors.length * cellSize + 20)
+                        .attr('text-anchor', 'middle')
+                        .style('font-size', '10px')
+                        .style('fill', 'var(--text-primary)')
+                        .text(name.split(' ').slice(-1)[0]);
+                });
+            }, 500);
+        }
+
+        function createTimelineVisualization() {
+            const container = document.getElementById('timelineViz');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Creating timeline...</p></div>';
+
+            setTimeout(() => {
+                const yearData = {};
+                const collaborationsByYear = {};
+
+                processedData.studies.forEach(study => {
+                    if (study.year) {
+                        if (!yearData[study.year]) yearData[study.year] = 0;
+                        if (!collaborationsByYear[study.year]) collaborationsByYear[study.year] = 0;
+                        
+                        yearData[study.year]++;
+                        
+                        const usaAuthors = study.authors.filter(a => a.isUSA);
+                        if (usaAuthors.length > 1) {
+                            collaborationsByYear[study.year] += usaAuthors.length * (usaAuthors.length - 1) / 2;
+                        }
+                    }
+                });
+
+                const years = Object.keys(yearData).map(Number).sort();
+                const data = years.map(year => ({
+                    year,
+                    studies: yearData[year],
+                    collaborations: collaborationsByYear[year] || 0
+                }));
+
+                container.innerHTML = '';
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+                const margin = { top: 20, right: 80, bottom: 30, left: 50 };
+
+                const svg = d3.select(container)
+                    .append('svg')
+                    .attr('width', width)
+                    .attr('height', height);
+
+                const g = svg.append('g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+
+                const xScale = d3.scaleLinear()
+                    .domain(d3.extent(years))
+                    .range([0, width - margin.left - margin.right]);
+
+                const yScale = d3.scaleLinear()
+                    .domain([0, d3.max(data, d => Math.max(d.studies, d.collaborations))])
+                    .range([height - margin.top - margin.bottom, 0]);
+
+                // Create line generators
+                const studiesLine = d3.line()
+                    .x(d => xScale(d.year))
+                    .y(d => yScale(d.studies))
+                    .curve(d3.curveMonotoneX);
+
+                const collaborationsLine = d3.line()
+                    .x(d => xScale(d.year))
+                    .y(d => yScale(d.collaborations))
+                    .curve(d3.curveMonotoneX);
+
+                // Add axes
+                g.append('g')
+                    .attr('transform', `translate(0,${height - margin.top - margin.bottom})`)
+                    .call(d3.axisBottom(xScale).tickFormat(d3.format('d')))
+                    .selectAll('text')
+                    .style('fill', 'var(--text-primary)');
+
+                g.append('g')
+                    .call(d3.axisLeft(yScale))
+                    .selectAll('text')
+                    .style('fill', 'var(--text-primary)');
+
+                // Add lines
+                g.append('path')
+                    .datum(data)
+                    .attr('fill', 'none')
+                    .attr('stroke', 'var(--accent-primary)')
+                    .attr('stroke-width', 3)
+                    .attr('d', studiesLine);
+
+                g.append('path')
+                    .datum(data)
+                    .attr('fill', 'none')
+                    .attr('stroke', 'var(--accent-secondary)')
+                    .attr('stroke-width', 3)
+                    .attr('d', collaborationsLine);
+
+                // Add legend
+                const legend = g.append('g')
+                    .attr('transform', `translate(${width - margin.left - margin.right - 100}, 20)`);
+
+                legend.append('line')
+                    .attr('x1', 0).attr('x2', 20)
+                    .attr('y1', 0).attr('y2', 0)
+                    .attr('stroke', 'var(--accent-primary)')
+                    .attr('stroke-width', 3);
+
+                legend.append('text')
+                    .attr('x', 25).attr('y', 0).attr('dy', '0.35em')
+                    .style('fill', 'var(--text-primary)')
+                    .style('font-size', '12px')
+                    .text('Studies');
+
+                legend.append('line')
+                    .attr('x1', 0).attr('x2', 20)
+                    .attr('y1', 20).attr('y2', 20)
+                    .attr('stroke', 'var(--accent-secondary)')
+                    .attr('stroke-width', 3);
+
+                legend.append('text')
+                    .attr('x', 25).attr('y', 20).attr('dy', '0.35em')
+                    .style('fill', 'var(--text-primary)')
+                    .style('font-size', '12px')
+                    .text('Collaborations');
+            }, 500);
+        }
+
+        function createResearchVisualization() {
+            // This would create various research-focused visualizations
+            // For now, show a placeholder
+            const containers = ['researchPie', 'institutionNetwork', 'yearTrends', 'collaborationPatterns'];
+            containers.forEach(id => {
+                const canvas = document.getElementById(id);
+                if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = canvas.offsetWidth;
+                    canvas.height = canvas.offsetHeight;
+                    
+                    ctx.fillStyle = 'var(--text-muted)';
+                    ctx.font = '14px Inter';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Visualization Coming Soon', canvas.width/2, canvas.height/2);
+                }
+            });
+        }
+
+        function showTooltip(event, data) {
+            const tooltip = document.getElementById('tooltip');
+            
+            let content = '';
+            if (data.name) {
+                // Author node
+                content = `
+                    <strong>${data.name}</strong><br>
+                    Institution: ${data.institution}<br>
+                    Studies: ${data.studies}<br>
+                    Collaborators: ${data.totalCollaborators}
+                `;
+            } else if (data.author1) {
+                // Heatmap cell
+                content = `
+                    <strong>${data.author1}</strong><br>
+                    <strong>${data.author2}</strong><br>
+                    Collaborations: ${data.collaborations}
+                `;
+            }
+            
+            tooltip.innerHTML = content;
+            tooltip.style.display = 'block';
+            tooltip.style.left = (event.pageX + 10) + 'px';
+            tooltip.style.top = (event.pageY + 10) + 'px';
+        }
+
+        function hideTooltip() {
+            document.getElementById('tooltip').style.display = 'none';
+        }
+
+        function showLoading() {
+            // Add loading indicators to views as needed
+        }
+
+        function hideLoading() {
+            // Remove loading indicators
+        }
+
+        function exportNetworkData() {
+            if (processedData.authors.size === 0) {
+                alert('No data to export. Please analyze some data first!');
+                return;
+            }
+
+            // Prepare data for export
+            const authorData = Array.from(processedData.authors.values()).map(author => ({
+                Name: author.name,
+                Institution: author.institution,
+                Department: author.department,
+                'Total Studies': author.studies.length,
+                'Total Collaborators': author.totalCollaborators,
+                'Collaboration List': Array.from(author.collaborations).join('; ')
+            }));
+
+            const collaborationData = Array.from(processedData.collaborations.values()).map(collab => ({
+                'Author 1': collab.authors[0],
+                'Author 2': collab.authors[1],
+                'Collaboration Strength': collab.strength,
+                'Shared Studies': collab.studies.length,
+                'Study PMIDs': collab.studies.map(s => s.pmid).join('; ')
+            }));
+
+            // Create workbook with multiple sheets
+            const wb = XLSX.utils.book_new();
+            
+            const authorWs = XLSX.utils.json_to_sheet(authorData);
+            XLSX.utils.book_append_sheet(wb, authorWs, 'Authors');
+            
+            const collabWs = XLSX.utils.json_to_sheet(collaborationData);
+            XLSX.utils.book_append_sheet(wb, collabWs, 'Collaborations');
+
+            // Export file
+            const timestamp = new Date().toISOString().split('T')[0];
+            XLSX.writeFile(wb, `collaboration_network_${timestamp}.xlsx`);
+        }
+
+        // Make toggleAbstract available globally for onclick handlers
+        window.toggleAbstract = toggleAbstract;
+    </script>
+</body>
+</html>

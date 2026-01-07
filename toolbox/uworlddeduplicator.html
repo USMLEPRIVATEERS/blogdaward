@@ -1,0 +1,1703 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - UWorld Question IDs Únicos</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .input-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+
+        .input-section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .tab-button.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            resize: vertical;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .file-upload {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .file-upload:hover {
+            background: #f0f4ff;
+            border-color: #764ba2;
+        }
+
+        .file-upload.drag-over {
+            background: #e7eeff;
+            border-color: #764ba2;
+            border-style: solid;
+            transform: scale(1.02);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .file-upload.drag-over .file-upload-icon {
+            transform: scale(1.2);
+            animation: bounce 0.5s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: scale(1.2) translateY(0); }
+            50% { transform: scale(1.2) translateY(-10px); }
+        }
+
+        .file-upload input {
+            display: none;
+        }
+
+        .file-upload-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+            transition: transform 0.3s ease;
+        }
+
+        .file-name {
+            margin-top: 15px;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .process-button {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.2em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 20px;
+        }
+
+        .process-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .process-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .results-section {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .results-section.show {
+            display: block;
+        }
+
+        .summary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+        }
+
+        .summary h3 {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            background: rgba(255,255,255,0.2);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .lesson-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 5px solid #667eea;
+        }
+
+        .lesson-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            cursor: pointer;
+        }
+
+        .lesson-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #333;
+            flex: 1;
+        }
+
+        .lesson-badge {
+            background: #667eea;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+            margin-right: 10px;
+        }
+
+        .toggle-icon {
+            font-size: 1.5em;
+            color: #667eea;
+            transition: transform 0.3s;
+        }
+
+        .toggle-icon.open {
+            transform: rotate(180deg);
+        }
+
+        .lesson-content {
+            display: none;
+            padding-top: 15px;
+            border-top: 2px solid #ddd;
+        }
+
+        .lesson-content.show {
+            display: block;
+        }
+
+        .question-ids {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+
+        .question-ids-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .question-id {
+            background: #e7eeff;
+            color: #667eea;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .copy-button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+
+        .copy-button:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        .export-section {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .export-button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .export-excel {
+            background: #28a745;
+            color: white;
+        }
+
+        .export-csv {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .export-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .help-text {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .help-text strong {
+            color: #856404;
+        }
+
+        .info-button {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 15px;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(23, 162, 184, 0.4);
+            background: linear-gradient(135deg, #138496 0%, #17a2b8 100%);
+        }
+
+        .info-button:active {
+            transform: translateY(0);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            animation: fadeIn 0.3s;
+        }
+
+        .modal.show {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 0;
+            max-width: 900px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideIn 0.3s;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            scrollbar-width: thin;
+            scrollbar-color: #667eea #f1f1f1;
+        }
+
+        .modal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .modal-content::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+
+        .modal-content::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+
+        .modal-content::-webkit-scrollbar-thumb:hover {
+            background: #764ba2;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px 30px;
+            border-radius: 20px 20px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.8em;
+        }
+
+        .close-button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            font-size: 2em;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            line-height: 1;
+        }
+
+        .close-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: rotate(90deg);
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        .example-section {
+            margin-bottom: 30px;
+        }
+
+        .example-section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .example-section p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .spreadsheet-example {
+            background: #f8f9fa;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #ddd;
+            margin: 20px 0;
+        }
+
+        .spreadsheet-header {
+            display: grid;
+            grid-template-columns: 100px 120px 2fr 100px 2fr;
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .spreadsheet-header div {
+            padding: 12px 10px;
+            border-right: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .spreadsheet-row {
+            display: grid;
+            grid-template-columns: 100px 120px 2fr 100px 2fr;
+            border-bottom: 1px solid #ddd;
+            font-size: 0.85em;
+        }
+
+        .spreadsheet-row:hover {
+            background: #e7eeff;
+        }
+
+        .spreadsheet-row div {
+            padding: 12px 10px;
+            border-right: 1px solid #ddd;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .spreadsheet-row .highlight {
+            background: #fff3cd;
+            font-weight: 600;
+        }
+
+        .checkbox-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .checkbox-checked {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #28a745;
+            background: #28a745;
+            border-radius: 3px;
+            position: relative;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .checkbox-checked::after {
+            content: '✓';
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            line-height: 1;
+        }
+
+        .checkbox-unchecked {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #999;
+            background: white;
+            border-radius: 3px;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .spreadsheet-row:hover .checkbox-checked,
+        .spreadsheet-row:hover .checkbox-unchecked {
+            transform: scale(1.1);
+            transition: transform 0.2s ease;
+        }
+
+        .note-box {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .note-box strong {
+            color: #155724;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .warning-box strong {
+            color: #856404;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        @media (max-width: 768px) {
+            .spreadsheet-header,
+            .spreadsheet-row {
+                grid-template-columns: 70px 90px 1.2fr 60px 1.2fr;
+                font-size: 0.7em;
+            }
+
+            .spreadsheet-header div,
+            .spreadsheet-row div {
+                padding: 8px 5px;
+            }
+
+            .checkbox-checked,
+            .checkbox-unchecked {
+                width: 14px;
+                height: 14px;
+            }
+
+            .checkbox-checked::after {
+                font-size: 10px;
+            }
+
+            .modal-content {
+                width: 95%;
+                max-height: 95vh;
+            }
+
+            .modal-header {
+                padding: 20px;
+            }
+
+            .modal-header h2 {
+                font-size: 1.3em;
+            }
+
+            .modal-body {
+                padding: 20px;
+            }
+
+            .example-section h3 {
+                font-size: 1.1em;
+            }
+
+            .info-button {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        .success-message {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
+        .column-selection-section {
+            display: none;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 2px solid #667eea;
+        }
+
+        .column-selection-section.show {
+            display: block;
+        }
+
+        .column-selection-section h3 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+        }
+
+        .preview-table {
+            overflow-x: auto;
+            margin: 20px 0;
+            border-radius: 10px;
+            border: 2px solid #ddd;
+        }
+
+        .preview-table table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            font-size: 0.85em;
+        }
+
+        .preview-table th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        .preview-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #ddd;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            transition: background 0.3s;
+        }
+
+        .preview-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .preview-table td.highlight-lesson {
+            background: #d4edda !important;
+            font-weight: 600;
+            border-left: 3px solid #28a745;
+            border-right: 3px solid #28a745;
+        }
+
+        .preview-table th.highlight-lesson {
+            background: #28a745 !important;
+        }
+
+        .preview-table td.highlight-ids {
+            background: #fff3cd !important;
+            font-weight: 600;
+            border-left: 3px solid #ffc107;
+            border-right: 3px solid #ffc107;
+        }
+
+        .preview-table th.highlight-ids {
+            background: #ffc107 !important;
+            color: #333 !important;
+        }
+
+        .column-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .selector-group {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #ddd;
+        }
+
+        .selector-group label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1em;
+        }
+
+        .selector-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .selector-group select:hover {
+            border-color: #667eea;
+        }
+
+        .selector-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .selector-group .hint {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 8px;
+            font-weight: normal;
+        }
+
+        .confirm-button {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #28a745 0%, #20a03a 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.2em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 15px;
+        }
+
+        .confirm-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(40, 167, 69, 0.4);
+        }
+
+        .confirm-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .auto-detected {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+            color: #155724;
+        }
+
+        .auto-detected strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .column-selector {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .preview-table {
+                font-size: 0.75em;
+            }
+
+            .preview-table th,
+            .preview-table td {
+                padding: 8px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.5em;
+            }
+
+            .summary-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .lesson-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .lesson-badge {
+                margin: 10px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Ward Academy - UWorld Question IDs Únicos</h1>
+            <p>Identifique questões exclusivas de cada aula do seu cronograma USMLE</p>
+        </div>
+
+        <div class="content">
+            <div class="input-section">
+                <h2>📥 Como você quer importar seus dados?</h2>
+                
+                <div class="help-text">
+                    <strong>💡 Dica:</strong> Este app identifica Question IDs que aparecem APENAS em uma aula específica, ajudando você a focar nas questões mais relevantes para cada tópico!
+                </div>
+
+                <button class="info-button" onclick="openModal()">
+                    ℹ️ Ver Exemplo de Planilha Suportada
+                </button>
+
+                <div id="successMessage" class="success-message">
+                    ✅ Arquivo carregado com sucesso! Clique em "Processar" para analisar.
+                </div>
+
+                <div class="tabs">
+                    <button class="tab-button active" onclick="switchTab('paste')">
+                        📋 Colar Dados
+                    </button>
+                    <button class="tab-button" onclick="switchTab('upload')">
+                        📁 Upload Excel
+                    </button>
+                </div>
+
+                <div id="paste-tab" class="tab-content active">
+                    <p style="margin-bottom: 15px; color: #666;">
+                        Cole seus dados com 3 colunas separadas por tabulação (TAB): <strong>Aulas | Concluído | Anotações</strong>
+                    </p>
+                    <textarea id="pasteData" placeholder="Cole aqui os dados copiados da sua planilha...
+Exemplo:
+Cardiology › Anatomy and Physiology: Cardiac Anatomy	TRUE	179, 232, 236, 1623
+Cardiology › Anatomy and Physiology: Cardiac Physiology	TRUE	137, 138, 141, 148"></textarea>
+                </div>
+
+                <div id="upload-tab" class="tab-content">
+                    <div class="file-upload" id="dropZone">
+                        <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileUpload(event)">
+                        <div class="file-upload-icon">📂</div>
+                        <h3 id="dropZoneTitle">Clique ou arraste seu arquivo Excel aqui</h3>
+                        <p style="margin-top: 10px; color: #666;">Formatos aceitos: .xlsx, .xls</p>
+                        <p style="margin-top: 5px; font-size: 0.9em; color: #999;">✨ Funciona perfeitamente com o Cronograma Ward Academy!</p>
+                        <div id="fileName" class="file-name"></div>
+                    </div>
+                </div>
+
+                <button class="process-button" onclick="processData()">
+                    🚀 Carregar Dados e Selecionar Colunas
+                </button>
+            </div>
+
+            <div id="columnSelection" class="column-selection-section">
+                <h3>📋 Selecione as Colunas da sua Planilha</h3>
+                
+                <div id="autoDetectedMessage" class="auto-detected" style="display: none;">
+                    <strong>✅ Colunas detectadas automaticamente!</strong>
+                    <span id="detectedInfo"></span>
+                    <p style="margin-top: 8px; margin-bottom: 0;">Confira se está correto. Você pode ajustar as seleções abaixo se necessário.</p>
+                </div>
+
+                <p style="margin-bottom: 15px; color: #666;">
+                    <strong>👁️ Visualize suas colunas abaixo</strong> e indique qual contém as <strong style="color: #667eea;">Aulas/Tópicos</strong> e qual contém os <strong style="color: #667eea;">Question IDs</strong> (números separados por vírgula):
+                </p>
+
+                <div style="background: #e7f3ff; border: 2px solid #667eea; border-radius: 8px; padding: 12px 15px; margin-bottom: 15px; font-size: 0.9em;">
+                    <strong style="color: #667eea;">💡 Dica:</strong> Ao selecionar uma coluna, ela ficará destacada na tabela abaixo para você confirmar visualmente!
+                </div>
+
+                <div class="preview-table">
+                    <table id="previewTable">
+                        <thead id="previewHead"></thead>
+                        <tbody id="previewBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="column-selector">
+                    <div class="selector-group">
+                        <label for="lessonColumn">
+                            📚 Coluna de Aulas
+                        </label>
+                        <select id="lessonColumn">
+                            <option value="">Selecione a coluna...</option>
+                        </select>
+                        <div class="hint">
+                            Escolha a coluna que contém os nomes das aulas/tópicos
+                        </div>
+                        <div style="background: #d4edda; padding: 8px; border-radius: 5px; margin-top: 8px; font-size: 0.85em; color: #155724;">
+                            <strong>Verde</strong> = Coluna de aulas selecionada
+                        </div>
+                    </div>
+
+                    <div class="selector-group">
+                        <label for="idsColumn">
+                            🎯 Coluna de Question IDs
+                        </label>
+                        <select id="idsColumn">
+                            <option value="">Selecione a coluna...</option>
+                        </select>
+                        <div class="hint">
+                            Escolha a coluna que contém os IDs separados por vírgula
+                        </div>
+                        <div style="background: #fff3cd; padding: 8px; border-radius: 5px; margin-top: 8px; font-size: 0.85em; color: #856404;">
+                            <strong>Amarelo</strong> = Coluna de IDs selecionada
+                        </div>
+                    </div>
+                </div>
+
+                <button class="confirm-button" onclick="confirmAndProcess()" id="confirmBtn" disabled>
+                    ✅ Confirmar e Processar
+                </button>
+            </div>
+
+            <div id="results" class="results-section">
+                <div class="summary">
+                    <h3>📊 Resumo da Análise</h3>
+                    <div class="summary-stats">
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalLessons">0</div>
+                            <div class="stat-label">Aulas Analisadas</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalQuestions">0</div>
+                            <div class="stat-label">Total de Question IDs</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="uniqueQuestions">0</div>
+                            <div class="stat-label">IDs Únicos Encontrados</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="export-section">
+                    <button class="export-button export-excel" onclick="exportToExcel()">
+                        📊 Exportar para Excel
+                    </button>
+                    <button class="export-button export-csv" onclick="exportToCSV()">
+                        📄 Exportar para CSV
+                    </button>
+                </div>
+
+                <div id="lessonsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Exemplo -->
+    <div id="exampleModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📋 Formato de Planilha Suportado</h2>
+                <button class="close-button" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="example-section">
+                    <h3>🎯 Como sua planilha deve estar formatada:</h3>
+                    <p>O app funciona perfeitamente com o <strong>Cronograma Ward Academy</strong> e qualquer planilha Excel que siga este formato:</p>
+                    <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                        💡 <em>Nota: No Excel, a coluna "Concluído" aparece como checkboxes (☑️/☐). O app lê isso automaticamente como TRUE/FALSE.</em>
+                    </p>
+                </div>
+
+                <div class="spreadsheet-example">
+                    <div class="spreadsheet-header">
+                        <div>Semana</div>
+                        <div>Data</div>
+                        <div>Aulas</div>
+                        <div>Concluído</div>
+                        <div>Anotações (Question IDs)</div>
+                    </div>
+                    <div class="spreadsheet-row">
+                        <div>Semana 1</div>
+                        <div>07/10/2025</div>
+                        <div>Cardiology › Cardiac Anatomy</div>
+                        <div class="checkbox-cell"><div class="checkbox-checked"></div></div>
+                        <div class="highlight">179, 232, 236, 1623, 1699, 1871</div>
+                    </div>
+                    <div class="spreadsheet-row">
+                        <div>Semana 1</div>
+                        <div>07/10/2025</div>
+                        <div>Cardiology › Cardiac Physiology</div>
+                        <div class="checkbox-cell"><div class="checkbox-checked"></div></div>
+                        <div class="highlight">137, 138, 141, 148, 951, 1344</div>
+                    </div>
+                    <div class="spreadsheet-row">
+                        <div>Semana 1</div>
+                        <div>08/10/2025</div>
+                        <div>Cardiology › Blood Flow Mechanics</div>
+                        <div class="checkbox-cell"><div class="checkbox-unchecked"></div></div>
+                        <div class="highlight">96, 181, 232, 236, 237, 238</div>
+                    </div>
+                    <div class="spreadsheet-row">
+                        <div>Semana 2</div>
+                        <div>14/10/2025</div>
+                        <div>Cardiology › EKG Basics</div>
+                        <div class="checkbox-cell"><div class="checkbox-unchecked"></div></div>
+                        <div class="highlight">445, 678, 892, 1024, 1567</div>
+                    </div>
+                </div>
+
+                <div style="background: #f8f9fa; padding: 12px 15px; border-radius: 8px; margin-top: 10px; font-size: 0.9em; color: #666;">
+                    <strong style="color: #333;">Legenda:</strong><br>
+                    <div style="display: flex; gap: 20px; margin-top: 8px; flex-wrap: wrap;">
+                        <span style="display: flex; align-items: center; gap: 8px;">
+                            <div class="checkbox-checked" style="flex-shrink: 0;"></div>
+                            = Aula concluída (TRUE)
+                        </span>
+                        <span style="display: flex; align-items: center; gap: 8px;">
+                            <div class="checkbox-unchecked" style="flex-shrink: 0;"></div>
+                            = Aula pendente (FALSE)
+                        </span>
+                        <span style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 60px; height: 20px; background: #fff3cd; border-radius: 3px; flex-shrink: 0;"></div>
+                            = Question IDs (coluna mais importante!)
+                        </span>
+                    </div>
+                </div>
+
+                <div class="note-box">
+                    <strong>✅ O que o app precisa:</strong>
+                    <p style="margin: 0; color: #155724;">
+                        • <strong>Coluna "Aulas"</strong>: Nome das aulas/tópicos<br>
+                        • <strong>Coluna "Concluído"</strong>: ☑️ Checkbox marcada/desmarcada, TRUE/FALSE ou qualquer texto<br>
+                        • <strong>Coluna "Anotações"</strong>: Question IDs separados por vírgula (ex: 179, 232, 236)<br>
+                        • As outras colunas (Semana, Data) são opcionais e ignoradas
+                    </p>
+                </div>
+
+                <div class="example-section">
+                    <h3>📊 Como o app funciona:</h3>
+                    <p><strong>1. Identifica questões repetidas:</strong> O app analisa TODAS as aulas e identifica quais Question IDs aparecem em múltiplas aulas.</p>
+                    <p><strong>2. Encontra IDs únicos:</strong> Para cada aula, mostra apenas os IDs que aparecem SOMENTE naquela aula específica.</p>
+                    <p><strong>3. Exemplo prático:</strong></p>
+                    <ul style="margin-left: 20px; color: #666;">
+                        <li>Se o ID <strong>232</strong> aparece em "Cardiac Anatomy" E em "Blood Flow Mechanics", ele NÃO é único</li>
+                        <li>Se o ID <strong>179</strong> aparece APENAS em "Cardiac Anatomy", ele É ÚNICO dessa aula! 🎯</li>
+                    </ul>
+                </div>
+
+                <div class="warning-box">
+                    <strong>⚠️ Importante:</strong>
+                    <p style="margin: 0; color: #856404;">
+                        • Os Question IDs devem ser <strong>números inteiros</strong> (ex: 179, 1623, 10467)<br>
+                        • Devem estar <strong>separados por vírgula</strong><br>
+                        • Pode ter ou não espaços após as vírgulas<br>
+                        • A coluna "Concluído" pode ter checkboxes (☑️), TRUE/FALSE ou qualquer texto - o app ignora essa coluna<br>
+                        • O app ignora linhas sem Question IDs automaticamente
+                    </p>
+                </div>
+
+                <div class="example-section">
+                    <h3>💡 Formatos aceitos para Question IDs:</h3>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-family: monospace;">
+                        ✅ <strong style="color: #28a745;">Correto:</strong><br>
+                        • 179, 232, 236, 1623<br>
+                        • 179,232,236,1623<br>
+                        • 179, 232, 236, 1623, 1699<br><br>
+                        
+                        ❌ <strong style="color: #dc3545;">Incorreto:</strong><br>
+                        • Q179, Q232 (não pode ter letras)<br>
+                        • 179; 232; 236 (use vírgulas, não ponto e vírgula)<br>
+                        • 179.5, 232.8 (não pode ter decimais)
+                    </div>
+                </div>
+
+                <div class="note-box">
+                    <strong>🚀 Pronto para usar!</strong>
+                    <p style="margin: 0; color: #155724;">
+                        Se sua planilha tem essas colunas com Question IDs separados por vírgula, basta fazer upload e processar! O app faz o resto. 💪
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let processedData = [];
+        let uploadedData = null;
+        let currentRawData = [];
+        let currentHeaders = [];
+
+        function openModal() {
+            const modal = document.getElementById('exampleModal');
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+            
+            // Garantir que o modal abre no topo
+            setTimeout(() => {
+                const modalContent = modal.querySelector('.modal-content');
+                if (modalContent) {
+                    modalContent.scrollTop = 0;
+                }
+            }, 100);
+        }
+
+        function closeModal() {
+            document.getElementById('exampleModal').classList.remove('show');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Fechar modal ao clicar fora dele
+        window.onclick = function(event) {
+            const modal = document.getElementById('exampleModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // Fechar modal com tecla ESC
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            if (tab === 'paste') {
+                document.querySelector('.tab-button:nth-child(1)').classList.add('active');
+                document.getElementById('paste-tab').classList.add('active');
+            } else {
+                document.querySelector('.tab-button:nth-child(2)').classList.add('active');
+                document.getElementById('upload-tab').classList.add('active');
+            }
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            processFile(file);
+        }
+
+        function processFile(file) {
+            if (!file.name.match(/\.(xlsx|xls)$/i)) {
+                alert('❌ Por favor, selecione um arquivo Excel (.xlsx ou .xls)');
+                return;
+            }
+
+            document.getElementById('fileName').textContent = `📄 ${file.name}`;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+                
+                uploadedData = jsonData;
+                
+                document.getElementById('successMessage').classList.add('show');
+                setTimeout(() => {
+                    document.getElementById('successMessage').classList.remove('show');
+                }, 3000);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Setup drag and drop
+        document.addEventListener('DOMContentLoaded', function() {
+            const dropZone = document.querySelector('.file-upload');
+            const fileInput = document.getElementById('fileInput');
+            const dropZoneTitle = document.getElementById('dropZoneTitle');
+            const originalTitle = dropZoneTitle.textContent;
+            
+            // Clique para abrir seletor de arquivo
+            dropZone.addEventListener('click', function(e) {
+                if (e.target !== fileInput) {
+                    fileInput.click();
+                }
+            });
+
+            // Prevenir comportamentos padrão do navegador
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, preventDefaults, false);
+                document.body.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            // Highlight ao arrastar sobre a zona
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.add('drag-over');
+                    dropZoneTitle.textContent = '🎯 Solte o arquivo aqui!';
+                }, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.remove('drag-over');
+                    dropZoneTitle.textContent = originalTitle;
+                }, false);
+            });
+
+            // Processar arquivo ao soltar
+            dropZone.addEventListener('drop', handleDrop, false);
+
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+
+                if (files.length > 0) {
+                    const file = files[0];
+                    
+                    // Verificar se é um arquivo Excel
+                    if (!file.name.match(/\.(xlsx|xls)$/i)) {
+                        dropZoneTitle.textContent = '❌ Arquivo inválido! Use apenas .xlsx ou .xls';
+                        dropZoneTitle.style.color = '#dc3545';
+                        setTimeout(() => {
+                            dropZoneTitle.textContent = originalTitle;
+                            dropZoneTitle.style.color = '';
+                        }, 3000);
+                        return;
+                    }
+                    
+                    processFile(file);
+                }
+            }
+        });
+
+        function extractQuestionIDs(text) {
+            if (!text) return [];
+            const ids = text.toString().split(',').map(id => id.trim()).filter(id => id && /^\d+$/.test(id));
+            return [...new Set(ids)];
+        }
+
+        function processData() {
+            currentRawData = [];
+            let headers = [];
+
+            if (document.getElementById('paste-tab').classList.contains('active')) {
+                const pasteText = document.getElementById('pasteData').value.trim();
+                if (!pasteText) {
+                    alert('❌ Por favor, cole seus dados antes de processar!');
+                    return;
+                }
+
+                const lines = pasteText.split('\n').filter(line => line.trim());
+                if (lines.length === 0) {
+                    alert('❌ Nenhum dado encontrado!');
+                    return;
+                }
+
+                // Primeira linha como cabeçalho
+                const firstLine = lines[0].split('\t');
+                headers = firstLine.map((h, i) => h || `Coluna ${i + 1}`);
+                
+                currentRawData = lines.slice(1).map(line => {
+                    const parts = line.split('\t');
+                    return parts;
+                });
+            } else {
+                if (!uploadedData || uploadedData.length < 2) {
+                    alert('❌ Por favor, faça upload de um arquivo Excel válido!');
+                    return;
+                }
+
+                // Encontrar linha de cabeçalho
+                let headerRow = 0;
+                for (let i = 0; i < Math.min(10, uploadedData.length); i++) {
+                    const row = uploadedData[i];
+                    if (row.some(cell => cell && cell.toString().trim())) {
+                        // Procurar por palavras-chave comuns
+                        const rowText = row.join('').toLowerCase();
+                        if (rowText.includes('aula') || rowText.includes('semana') || rowText.includes('data')) {
+                            headerRow = i;
+                            break;
+                        }
+                    }
+                }
+
+                headers = uploadedData[headerRow].map((h, i) => {
+                    if (h && h.toString().trim()) {
+                        return h.toString().trim();
+                    }
+                    return `Coluna ${i + 1}`;
+                });
+
+                currentRawData = uploadedData.slice(headerRow + 1).filter(row => 
+                    row.some(cell => cell && cell.toString().trim())
+                );
+            }
+
+            if (currentRawData.length === 0) {
+                alert('❌ Nenhum dado encontrado para processar!');
+                return;
+            }
+
+            currentHeaders = headers;
+            showColumnSelection(headers, currentRawData);
+        }
+
+        function showColumnSelection(headers, data) {
+            // Preencher preview da tabela
+            const previewHead = document.getElementById('previewHead');
+            const previewBody = document.getElementById('previewBody');
+            
+            previewHead.innerHTML = '<tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
+            
+            // Mostrar primeiras 5 linhas
+            previewBody.innerHTML = data.slice(0, 5).map(row => 
+                '<tr>' + row.map(cell => `<td>${cell || ''}</td>`).join('') + '</tr>'
+            ).join('');
+
+            // Preencher dropdowns
+            const lessonSelect = document.getElementById('lessonColumn');
+            const idsSelect = document.getElementById('idsColumn');
+            
+            lessonSelect.innerHTML = '<option value="">Selecione a coluna...</option>' + 
+                headers.map((h, i) => `<option value="${i}">${h}</option>`).join('');
+            
+            idsSelect.innerHTML = '<option value="">Selecione a coluna...</option>' + 
+                headers.map((h, i) => `<option value="${i}">${h}</option>`).join('');
+
+            // Tentar detectar automaticamente
+            autoDetectColumns(headers, data);
+
+            // Mostrar seção de seleção
+            document.getElementById('columnSelection').classList.add('show');
+            document.getElementById('columnSelection').scrollIntoView({ behavior: 'smooth' });
+
+            // Habilitar botão quando ambas seleções forem feitas
+            lessonSelect.onchange = idsSelect.onchange = checkSelections;
+        }
+
+        function autoDetectColumns(headers, data) {
+            let lessonCol = -1;
+            let idsCol = -1;
+
+            // Detectar coluna de aulas
+            headers.forEach((h, i) => {
+                const lower = h.toLowerCase();
+                if (lower.includes('aula') || lower.includes('lesson') || lower.includes('topic') || lower.includes('tópico')) {
+                    lessonCol = i;
+                }
+            });
+
+            // Detectar coluna de IDs
+            headers.forEach((h, i) => {
+                const lower = h.toLowerCase();
+                if (lower.includes('anota') || lower.includes('id') || lower.includes('question') || lower.includes('questão') || lower.includes('nota')) {
+                    idsCol = i;
+                }
+            });
+
+            // Se não detectou pela header, tentar pelo conteúdo
+            if (idsCol === -1) {
+                data.slice(0, 5).forEach(row => {
+                    row.forEach((cell, i) => {
+                        if (cell && /^\d+(\s*,\s*\d+)+/.test(cell.toString())) {
+                            idsCol = i;
+                        }
+                    });
+                });
+            }
+
+            // Aplicar detecção
+            if (lessonCol !== -1) {
+                document.getElementById('lessonColumn').value = lessonCol;
+            }
+            if (idsCol !== -1) {
+                document.getElementById('idsColumn').value = idsCol;
+            }
+
+            // Mostrar mensagem se detectou
+            if (lessonCol !== -1 || idsCol !== -1) {
+                const detectedInfo = document.getElementById('detectedInfo');
+                let msg = '';
+                if (lessonCol !== -1) msg += `Aulas: "${headers[lessonCol]}"`;
+                if (idsCol !== -1) msg += (msg ? ' | ' : '') + `Question IDs: "${headers[idsCol]}"`;
+                detectedInfo.textContent = msg;
+                document.getElementById('autoDetectedMessage').style.display = 'block';
+            }
+
+            checkSelections();
+        }
+
+        function checkSelections() {
+            const lessonCol = document.getElementById('lessonColumn').value;
+            const idsCol = document.getElementById('idsColumn').value;
+            const confirmBtn = document.getElementById('confirmBtn');
+            
+            // Remover highlights anteriores
+            document.querySelectorAll('.preview-table th, .preview-table td').forEach(cell => {
+                cell.classList.remove('highlight-lesson', 'highlight-ids');
+            });
+
+            // Adicionar highlights para colunas selecionadas
+            if (lessonCol !== '') {
+                const lessonIdx = parseInt(lessonCol);
+                document.querySelectorAll(`#previewTable thead th:nth-child(${lessonIdx + 1})`).forEach(th => {
+                    th.classList.add('highlight-lesson');
+                });
+                document.querySelectorAll(`#previewTable tbody td:nth-child(${lessonIdx + 1})`).forEach(td => {
+                    td.classList.add('highlight-lesson');
+                });
+            }
+
+            if (idsCol !== '') {
+                const idsIdx = parseInt(idsCol);
+                document.querySelectorAll(`#previewTable thead th:nth-child(${idsIdx + 1})`).forEach(th => {
+                    th.classList.add('highlight-ids');
+                });
+                document.querySelectorAll(`#previewTable tbody td:nth-child(${idsIdx + 1})`).forEach(td => {
+                    td.classList.add('highlight-ids');
+                });
+            }
+            
+            if (lessonCol !== '' && idsCol !== '' && lessonCol !== idsCol) {
+                confirmBtn.disabled = false;
+            } else {
+                confirmBtn.disabled = true;
+            }
+        }
+
+        function confirmAndProcess() {
+            const lessonColIdx = parseInt(document.getElementById('lessonColumn').value);
+            const idsColIdx = parseInt(document.getElementById('idsColumn').value);
+
+            if (isNaN(lessonColIdx) || isNaN(idsColIdx)) {
+                alert('❌ Por favor, selecione ambas as colunas!');
+                return;
+            }
+
+            if (lessonColIdx === idsColIdx) {
+                alert('❌ As colunas de Aulas e Question IDs devem ser diferentes!');
+                return;
+            }
+
+            // Processar com as colunas selecionadas
+            const lessons = currentRawData.map(row => ({
+                lesson: row[lessonColIdx] ? row[lessonColIdx].toString().trim() : '',
+                questionIDs: extractQuestionIDs(row[idsColIdx])
+            })).filter(item => item.lesson && item.questionIDs.length > 0);
+
+            if (lessons.length === 0) {
+                alert('❌ Nenhuma aula com Question IDs encontrada!\n\nVerifique se:\n• A coluna de Question IDs tem números separados por vírgula\n• Há dados nas linhas selecionadas');
+                return;
+            }
+
+            const allQuestionIDs = {};
+            lessons.forEach(lesson => {
+                lesson.questionIDs.forEach(id => {
+                    if (!allQuestionIDs[id]) {
+                        allQuestionIDs[id] = [];
+                    }
+                    allQuestionIDs[id].push(lesson.lesson);
+                });
+            });
+
+            processedData = lessons.map(lesson => {
+                const uniqueIDs = lesson.questionIDs.filter(id => allQuestionIDs[id].length === 1);
+                return {
+                    lesson: lesson.lesson,
+                    completed: '', // Não usamos mais essa coluna
+                    totalIDs: lesson.questionIDs.length,
+                    uniqueIDs: uniqueIDs,
+                    uniqueCount: uniqueIDs.length
+                };
+            });
+
+            displayResults();
+        }
+
+        function displayResults() {
+            // Esconder seção de seleção
+            document.getElementById('columnSelection').classList.remove('show');
+
+            const totalLessons = processedData.length;
+            const totalQuestions = processedData.reduce((sum, item) => sum + item.totalIDs, 0);
+            const uniqueQuestions = processedData.reduce((sum, item) => sum + item.uniqueCount, 0);
+
+            document.getElementById('totalLessons').textContent = totalLessons;
+            document.getElementById('totalQuestions').textContent = totalQuestions;
+            document.getElementById('uniqueQuestions').textContent = uniqueQuestions;
+
+            const lessonsList = document.getElementById('lessonsList');
+            lessonsList.innerHTML = processedData.map((item, index) => `
+                <div class="lesson-card">
+                    <div class="lesson-header" onclick="toggleLesson(${index})">
+                        <div class="lesson-title">${item.lesson}</div>
+                        <div style="display: flex; align-items: center;">
+                            <span class="lesson-badge">${item.uniqueCount} únicos de ${item.totalIDs}</span>
+                            <span class="toggle-icon" id="toggle-${index}">▼</span>
+                        </div>
+                    </div>
+                    <div class="lesson-content" id="content-${index}">
+                        <div class="question-ids">
+                            <strong>🎯 Question IDs Únicos desta Aula:</strong>
+                            ${item.uniqueCount > 0 ? `
+                                <div class="question-ids-list">
+                                    ${item.uniqueIDs.map(id => `<span class="question-id">${id}</span>`).join('')}
+                                </div>
+                                <button class="copy-button" onclick="copyIDs(${index})">
+                                    📋 Copiar IDs (${item.uniqueCount})
+                                </button>
+                            ` : '<p style="margin-top: 10px; color: #999;">Nenhum ID único encontrado - todos os IDs desta aula aparecem em outras aulas também.</p>'}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('results').classList.add('show');
+            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function toggleLesson(index) {
+            const content = document.getElementById(`content-${index}`);
+            const toggle = document.getElementById(`toggle-${index}`);
+            
+            content.classList.toggle('show');
+            toggle.classList.toggle('open');
+        }
+
+        function copyIDs(index) {
+            const ids = processedData[index].uniqueIDs.join(', ');
+            navigator.clipboard.writeText(ids).then(() => {
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = '✅ Copiado!';
+                button.style.background = '#28a745';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = '';
+                }, 2000);
+            });
+        }
+
+        function exportToExcel() {
+            const exportData = [
+                ['Aula', 'Total de IDs', 'Quantidade de IDs Únicos', 'IDs Únicos']
+            ];
+
+            processedData.forEach(item => {
+                exportData.push([
+                    item.lesson,
+                    item.totalIDs,
+                    item.uniqueCount,
+                    item.uniqueIDs.join(', ')
+                ]);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(exportData);
+            
+            // Ajustar largura das colunas
+            ws['!cols'] = [
+                { wch: 50 }, // Aula
+                { wch: 12 }, // Total de IDs
+                { wch: 20 }, // Quantidade Única
+                { wch: 80 }  // IDs Únicos
+            ];
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'IDs Únicos');
+            XLSX.writeFile(wb, 'Ward_Academy_Question_IDs_Unicos.xlsx');
+        }
+
+        function exportToCSV() {
+            const csvData = [
+                ['Aula', 'Total de IDs', 'Quantidade Única', 'IDs Únicos']
+            ];
+
+            processedData.forEach(item => {
+                csvData.push([
+                    item.lesson,
+                    item.totalIDs,
+                    item.uniqueCount,
+                    item.uniqueIDs.join(', ')
+                ]);
+            });
+
+            const csv = Papa.unparse(csvData);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'Ward_Academy_Question_IDs_Unicos.csv';
+            link.click();
+        }
+    </script>
+</body>
+</html>

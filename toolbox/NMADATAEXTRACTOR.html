@@ -1,0 +1,2515 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <script
+      type="text/javascript"
+      src="https://cdn.jsdelivr.net/npm/algoliasearch@4.17.0/dist/algoliasearch.umd.js"
+    ></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>Advanced Network Meta-Analysis Data Extraction Tool</title>
+    <!-- Tailwind CSS for styling -->
+    <link
+      href="https://unpkg.com/tailwindcss@^2.2/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <!-- Font Awesome for icons -->
+    <script
+      src="https://kit.fontawesome.com/a076d05399.js"
+      crossorigin="anonymous"
+    ></script>
+
+    <!-- SheetJS for .xlsx export -->
+    <script
+      src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"
+      integrity="sha384-..."
+      crossorigin="anonymous"
+    ></script>
+
+    <!-- JSZip for bundling multiple CSVs into a "folder" (zip) -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+    <style>
+      :root {
+        --bg-primary: #0c0c0c;
+        --bg-secondary: #1a1a1a;
+        --text-primary: #e8e8e8;
+        --border-primary: #454545;
+        --accent-primary: #60a5fa;
+        --error: #f87171;
+        --success: #10b981;
+        --warning: #fbbf24;
+        --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      body.light {
+        --bg-primary: #f0f0f0;
+        --bg-secondary: #ffffff;
+        --text-primary: #000000;
+        --border-primary: #d1d5db;
+        --accent-primary: #3b82f6;
+        --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      }
+      body {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-family: "Inter", sans-serif;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        padding: 0;
+        transition: var(--transition);
+      }
+      #root > div {
+        background: var(--bg-secondary);
+        border-radius: 1.25rem;
+        padding: 1.5rem;
+        width: 100%;
+        max-width: 1536px;
+        box-shadow: var(--shadow);
+        transition: var(--transition);
+      }
+      #root > div.light {
+        border: 1px solid var(--border-primary);
+      }
+      .light button,
+      .light h1,
+      .light h2,
+      .light h3,
+      .light label,
+      .light select,
+      .light input,
+      .light textarea,
+      .light option,
+      .light p,
+      .light span {
+        color: var(--text-primary) !important;
+      }
+      .light ::placeholder {
+        color: #9ca3af !important;
+      }
+      button {
+        padding: 0.75rem 1.25rem;
+        border-radius: 0.75rem;
+        cursor: pointer;
+        transition: var(--transition), transform 0.2s ease;
+        border: none;
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: #ffffff;
+        font-weight: 500;
+        box-shadow: var(--shadow);
+      }
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.1),
+          0 4px 6px -2px rgba(59, 130, 246, 0.05);
+      }
+      button.light {
+        background: linear-gradient(135deg, #e5e7eb, #d1d5db);
+        color: #1f2937;
+      }
+      input,
+      select,
+      textarea {
+        padding: 0.75rem 1rem;
+        border-radius: 0.75rem;
+        background: rgba(45, 55, 72, 0.5);
+        border: 1px solid var(--border-primary);
+        color: var(--text-primary);
+        font-family: "Inter", sans-serif;
+        transition: var(--transition);
+        backdrop-filter: blur(4px);
+      }
+      input.light,
+      select.light,
+      textarea.light {
+        background: rgba(255, 255, 255, 0.8);
+        border: 1px solid var(--border-primary);
+      }
+      input:focus,
+      select:focus,
+      textarea:focus {
+        border-color: var(--accent-primary);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+      }
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        margin-top: 1rem;
+        border-radius: 0.75rem;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+      }
+      table.light th,
+      table.light td {
+        border: 1px solid var(--border-primary);
+      }
+      th,
+      td {
+        border: 1px solid var(--border-primary);
+        padding: 1rem;
+        text-align: center;
+        transition: background 0.2s ease;
+      }
+      th {
+        background: rgba(31, 41, 55, 0.8);
+        font-weight: 600;
+      }
+      td:hover {
+        background: rgba(55, 65, 81, 0.5);
+      }
+      .draggable {
+        cursor: move;
+        transition: var(--transition);
+      }
+      .draggable:hover {
+        background: rgba(55, 65, 81, 0.8);
+        transform: translateY(-1px);
+      }
+      .error {
+        border-color: var(--error) !important;
+        box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2);
+      }
+      .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(8px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        transition: opacity 0.3s ease;
+      }
+      .modal.light {
+        background: rgba(255, 255, 255, 0.6);
+      }
+      .modal-content {
+        background: var(--bg-secondary);
+        padding: 2.5rem;
+        border-radius: 1rem;
+        max-width: 32rem;
+        width: 90%;
+        box-shadow: var(--shadow), 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        transition: var(--transition);
+      }
+      .covariable-section {
+        margin-top: 1.5rem;
+        padding: 1.5rem;
+        border: 1px solid var(--border-primary);
+        border-radius: 1rem;
+        background: rgba(45, 55, 72, 0.3);
+        backdrop-filter: blur(4px);
+        box-shadow: inset var(--shadow);
+      }
+      .covariable-section.light {
+        background: rgba(243, 244, 246, 0.5);
+      }
+      .start-new-project-button {
+        background: linear-gradient(
+          135deg,
+          transparent,
+          rgba(251, 191, 36, 0.1)
+        );
+        border: 2px solid var(--warning);
+        color: var(--text-primary);
+        padding: 1rem 1.5rem;
+        border-radius: 0.75rem;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        transition: var(--transition);
+        box-shadow: var(--shadow);
+      }
+      .start-new-project-button:hover {
+        background: linear-gradient(
+          135deg,
+          transparent,
+          rgba(250, 204, 21, 0.2)
+        );
+        border-color: #facc15;
+        transform: translateY(-2px);
+      }
+      .start-new-project-button .icon {
+        margin-right: 0.75rem;
+        color: var(--warning);
+      }
+      .import-project-button {
+        background: linear-gradient(
+          135deg,
+          transparent,
+          rgba(16, 185, 129, 0.1)
+        );
+        border: 2px solid var(--success);
+        color: var(--text-primary);
+        padding: 1rem 1.5rem;
+        border-radius: 0.75rem;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        transition: var(--transition);
+        box-shadow: var(--shadow);
+      }
+      .import-project-button:hover {
+        background: linear-gradient(
+          135deg,
+          transparent,
+          rgba(52, 211, 153, 0.2)
+        );
+        border-color: #34d399;
+        transform: translateY(-2px);
+      }
+      .import-project-button .icon {
+        margin-right: 0.75rem;
+        color: var(--success);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" class="w-full p-6"></div>
+
+    <!-- React and ReactDOM -->
+    <script
+      src="https://unpkg.com/react@17/umd/react.development.js"
+      crossorigin
+    ></script>
+    <script
+      src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"
+      crossorigin
+    ></script>
+    <!-- Babel for JSX compilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- All code below in one file -->
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+
+      function App() {
+        const [screen, setScreen] = useState("home");
+        const [studyIds, setStudyIds] = useState([]);
+        const [variables, setVariables] = useState({
+          baseline: {},
+          outcomes: {},
+        });
+        const [input, setInput] = useState({
+          studyIdText: "",
+          studyId: "",
+          varLabel: "",
+          varType: "dichotomous",
+          varValue: {},
+          intervention: "",
+          description: "",
+          covariables: [],
+        });
+        const [varCategory, setVarCategory] = useState("baseline");
+        const [labelCovariableMap, setLabelCovariableMap] = useState({});
+        const [editVarId, setEditVarId] = useState(null);
+        const [dragId, setDragId] = useState(null);
+        const [errors, setErrors] = useState({});
+        const [settings, setSettings] = useState({
+          theme: "dark",
+          decimalPlaces: 2,
+          requireDescription: false,
+          autoSave: true,
+        });
+        const [history, setHistory] = useState([]);
+        const [showSettings, setShowSettings] = useState(false);
+        const [searchQuery, setSearchQuery] = useState("");
+        const [varLabelSuggestions, setVarLabelSuggestions] = useState({
+          baseline: [],
+          outcomes: [],
+        });
+        const [interventionSuggestions, setInterventionSuggestions] = useState(
+          []
+        );
+
+        // Store label -> type for automatic assignment
+        const [labelTypeMap, setLabelTypeMap] = useState({});
+
+        // Load from localStorage on mount
+        useEffect(() => {
+          const savedData = localStorage.getItem("nma_data_v2");
+          if (savedData) {
+            const parsed = JSON.parse(savedData);
+            setStudyIds(parsed.studyIds || []);
+            setVariables(parsed.variables || { baseline: {}, outcomes: {} });
+            setSettings(parsed.settings || settings);
+            setScreen(parsed.screen || "home");
+            setInput(parsed.input || input);
+            if (parsed.labelTypeMap) {
+              setLabelTypeMap(parsed.labelTypeMap);
+            }
+            if (parsed.labelCovariableMap) {
+              setLabelCovariableMap(parsed.labelCovariableMap);
+            }
+          }
+        }, []);
+
+        // Auto-save
+        useEffect(() => {
+          if (settings.autoSave) {
+            autoSave();
+          }
+        }, [
+          studyIds,
+          variables,
+          settings,
+          screen,
+          labelTypeMap,
+          labelCovariableMap,
+          input,
+        ]);
+
+        function autoSave() {
+          const dataToSave = {
+            studyIds,
+            variables,
+            settings,
+            screen,
+            labelTypeMap,
+            labelCovariableMap,
+          };
+          localStorage.setItem("nma_data_v2", JSON.stringify(dataToSave));
+        }
+
+        // Attempt auto-download on page close/refresh
+        useEffect(() => {
+          const handleBeforeUnload = () => {
+            triggerAutoDownload();
+          };
+          window.addEventListener("beforeunload", handleBeforeUnload);
+          return () => {
+            window.removeEventListener("beforeunload", handleBeforeUnload);
+          };
+        }, [studyIds, variables, settings, screen, labelTypeMap]);
+
+        // Apply theme
+        useEffect(() => {
+          document.body.className = settings.theme;
+          const mainDiv = document.querySelector("#root > div");
+          if (mainDiv) mainDiv.className = `w-full p-6 ${settings.theme}`;
+        }, [settings.theme]);
+
+        // Recompute suggestions if variables change
+        useEffect(() => {
+          const baselineLabels = [
+            ...new Set(
+              Object.values(variables.baseline)
+                .flat()
+                .map((v) => v.label)
+            ),
+          ];
+          const outcomesLabels = [
+            ...new Set(
+              Object.values(variables.outcomes)
+                .flat()
+                .map((v) => v.label)
+            ),
+          ];
+          setVarLabelSuggestions({
+            baseline: baselineLabels,
+            outcomes: outcomesLabels,
+          });
+
+          const allVars = [
+            ...Object.values(variables.baseline).flat(),
+            ...Object.values(variables.outcomes).flat(),
+          ];
+          const interventions = [
+            ...new Set(allVars.map((v) => v.intervention)),
+          ];
+          setInterventionSuggestions(interventions);
+        }, [variables]);
+
+        // Populate input if editing
+        useEffect(() => {
+          if (editVarId) {
+            const studyVars = variables[varCategory][input.studyId] || [];
+            const varToEdit = studyVars.find((v) => v.id === editVarId);
+            if (varToEdit) {
+              setInput({
+                ...input,
+                varLabel: varToEdit.label,
+                varType: varToEdit.type,
+                varValue: varToEdit.value,
+                intervention: varToEdit.intervention,
+                description: varToEdit.description || "",
+                covariables: varToEdit.covariables || [],
+              });
+            }
+          } else {
+            // reset
+            setInput({
+              ...input,
+              varLabel: "",
+              varValue: {},
+              intervention: "",
+              description: "",
+              covariables: [],
+            });
+          }
+          // eslint-disable-next-line
+        }, [editVarId]);
+
+        const addToHistory = (action) => {
+          setHistory((prev) =>
+            [...prev, { ...action, timestamp: Date.now() }].slice(-50)
+          );
+        };
+
+        function triggerAutoDownload() {
+          const data = {
+            studyIds,
+            variables,
+            settings,
+            screen,
+            labelTypeMap,
+            labelCovariableMap,
+          };
+          const dataStr = JSON.stringify(data, null, 2);
+          const blob = new Blob([dataStr], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "nma_data_backup.json";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
+
+        function exportData() {
+          triggerAutoDownload();
+          addToHistory({ type: "export_data" });
+        }
+
+        function importData() {
+          const fileInput = document.createElement("input");
+          fileInput.type = "file";
+          fileInput.accept = ".json";
+          fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const data = JSON.parse(event.target.result);
+              setStudyIds(data.studyIds || []);
+              setVariables(data.variables || { baseline: {}, outcomes: {} });
+              setSettings(data.settings || settings);
+              setScreen(data.screen || "home");
+              if (data.labelTypeMap) {
+                setLabelTypeMap(data.labelTypeMap);
+              }
+              addToHistory({ type: "import_data", file: file.name });
+            };
+            reader.readAsText(file);
+          };
+          fileInput.click();
+        }
+
+        return (
+          <div
+            className={`max-w-8xl mx-auto px-4 md:px-6 relative ${settings.theme}`}
+          >
+            <nav className="flex justify-between items-center mb-6">
+              <h1 className="text-2xl font-bold">NMA Data Extractor</h1>
+              <div className="space-x-4">
+                <button
+                  onClick={() => setScreen("home")}
+                  className="text-gray-400 hover:text-white"
+                >
+                  Home
+                </button>
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  Settings
+                </button>
+                <button
+                  onClick={exportData}
+                  className="text-gray-400 hover:text-white"
+                >
+                  Export
+                </button>
+                <button
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Are you sure you want to clear all data? This action cannot be undone."
+                      )
+                    ) {
+                      localStorage.clear();
+                      window.location.reload();
+                    }
+                  }}
+                  className="text-gray-400 hover:text-white"
+                >
+                  Clear Data
+                </button>
+              </div>
+            </nav>
+
+            {screen === "home" && (
+              <HomeScreen
+                onStart={() => setScreen("studyIds")}
+                onImport={importData}
+              />
+            )}
+            {screen === "studyIds" && (
+              <StudyIdScreen
+                input={input}
+                setInput={setInput}
+                errors={errors}
+                setErrors={setErrors}
+                onSubmit={(ids) => {
+                  setStudyIds(ids);
+                  addToHistory({ type: "add_study_ids", data: ids });
+                  setScreen("variables");
+                }}
+                onBack={() => setScreen("home")}
+              />
+            )}
+            {screen === "variables" && (
+              <VariableScreen
+                studyIds={studyIds}
+                variables={variables}
+                setVariables={setVariables}
+                input={input}
+                setInput={setInput}
+                varCategory={varCategory}
+                setVarCategory={setVarCategory}
+                editVarId={editVarId}
+                setEditVarId={setEditVarId}
+                dragId={dragId}
+                setDragId={setDragId}
+                errors={errors}
+                setErrors={setErrors}
+                settings={settings}
+                addToHistory={addToHistory}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                varLabelSuggestions={varLabelSuggestions[varCategory]}
+                interventionSuggestions={interventionSuggestions}
+                onPreview={() => setScreen("preview")}
+                onBack={() => setScreen("studyIds")}
+                labelTypeMap={labelTypeMap}
+                setLabelTypeMap={setLabelTypeMap}
+                labelCovariableMap={labelCovariableMap}
+                setLabelCovariableMap={setLabelCovariableMap}
+              />
+            )}
+            {screen === "preview" && (
+              <PreviewScreen
+                studyIds={studyIds}
+                variables={variables}
+                settings={settings}
+                onBack={() => setScreen("variables")}
+              />
+            )}
+            {showSettings && (
+              <SettingsModal
+                settings={settings}
+                setSettings={setSettings}
+                onClose={() => setShowSettings(false)}
+              />
+            )}
+          </div>
+        );
+      }
+
+      function HomeScreen({ onStart, onImport }) {
+        return (
+          <div className="text-center space-y-8">
+            <h1 className="text-4xl font-extrabold mb-2">
+              Network Meta-Analysis Data Extraction
+            </h1>
+            <p className="text-gray-400 mb-6">
+              A comprehensive tool for extracting and managing NMA data.
+            </p>
+            <div className="flex justify-center space-x-6">
+              <button onClick={onStart} class="start-new-project-button">
+                <span class="icon">📊</span> Start New Project
+              </button>
+
+              <button onClick={onImport} class="import-project-button">
+                <span class="icon">📂</span> Import Project
+              </button>
+            </div>
+            <div className="mt-10 w-full max-w-2xl mx-auto px-4">
+              <p>
+                <strong>Acknowledgements:</strong> This app was developed by
+                Marcos Antônio Dias Vilela (ORCID:{" "}
+                <a href="https://orcid.org/0000-0001-9303-504X" target="_blank">
+                  0000-0001-9303-504X
+                </a>
+                , PubMed: Vilela MAD) at FAMERP (Faculdade de Medicina de São
+                José do Rio Preto). For inquiries, please contact{" "}
+                <a href="mailto:marcos.vilela@edu.famerp.br">
+                  marcos.vilela@edu.famerp.br
+                </a>
+                .
+              </p>
+            </div>
+          </div>
+        );
+      }
+
+      function StudyIdScreen({
+        input,
+        setInput,
+        errors,
+        setErrors,
+        onSubmit,
+        onBack,
+      }) {
+        const handleSubmit = () => {
+          const ids = input.studyIdText
+            .split("\n")
+            .map((id) => id.trim())
+            .filter((id) => id);
+          if (ids.length === 0) {
+            setErrors({ studyIdText: "Please enter at least one study ID." });
+            return;
+          }
+          setErrors({});
+          onSubmit(ids);
+        };
+
+        return (
+          <div className="space-y-6">
+            <h1 className="text-2xl font-bold">Enter Study IDs</h1>
+            <textarea
+              value={input.studyIdText}
+              onChange={(e) =>
+                setInput({ ...input, studyIdText: e.target.value })
+              }
+              rows="10"
+              className={`w-full p-4 ${errors.studyIdText ? "error" : ""}`}
+              placeholder="Enter study IDs (one per line)..."
+            />
+            {errors.studyIdText && (
+              <p className="text-red-400">{errors.studyIdText}</p>
+            )}
+            <div className="flex justify-between">
+              <button onClick={onBack} className="bg-gray-700 text-white">
+                Back
+              </button>
+              <button onClick={handleSubmit} className="bg-blue-600 text-white">
+                Next
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      function VariableScreen({
+        studyIds,
+        variables,
+        setVariables,
+        input,
+        setInput,
+        varCategory,
+        setVarCategory,
+        editVarId,
+        setEditVarId,
+        dragId,
+        setDragId,
+        errors,
+        setErrors,
+        settings,
+        addToHistory,
+        searchQuery,
+        setSearchQuery,
+        varLabelSuggestions,
+        interventionSuggestions,
+        onPreview,
+        onBack,
+        labelTypeMap,
+        setLabelTypeMap,
+        labelCovariableMap,
+        setLabelCovariableMap,
+      }) {
+        const getAvailableCovLabels = () => {
+          const sid = input.studyId || studyIds[0];
+          const intervention = input.intervention;
+          if (!intervention) return [];
+          const allVars = [
+            ...(variables.baseline[sid] || []),
+            ...(variables.outcomes[sid] || []),
+          ];
+          const labels = allVars
+            .filter((v) => v.intervention === intervention)
+            .map((v) => v.label);
+          return [...new Set(labels)];
+        };
+        const validateInput = () => {
+          const newErrors = {};
+
+          if (!input.varLabel)
+            newErrors.varLabel = "Variable label is required.";
+          if (!input.intervention)
+            newErrors.intervention = "Intervention name is required.";
+          if (settings.requireDescription && !input.description) {
+            newErrors.description = "Description is required.";
+          }
+
+          if (input.varType === "dichotomous") {
+            if (!input.varValue.events || input.varValue.events < 0) {
+              newErrors.events = "Events must be a non-negative number.";
+            }
+            if (!input.varValue.total || input.varValue.total < 0) {
+              newErrors.total = "Total must be a non-negative number.";
+            }
+            if (Number(input.varValue.events) > Number(input.varValue.total)) {
+              newErrors.events = "Events cannot exceed total.";
+            }
+          } else if (input.varType === "continuous") {
+            if (
+              input.varValue.mean === undefined ||
+              input.varValue.mean === ""
+            ) {
+              newErrors.mean = "Mean is required.";
+            }
+            if (input.varValue.sd === undefined || input.varValue.sd < 0) {
+              newErrors.sd = "SD must be non-negative.";
+            }
+            if (!input.varValue.total || input.varValue.total < 0) {
+              newErrors.total = "Total must be a non-negative number.";
+            }
+          } else if (input.varType === "text") {
+            if (!input.varValue.text) {
+              newErrors.text = "Text value is required.";
+            }
+          }
+
+          // Covariables
+          input.covariables.forEach((cov, i) => {
+            if (!cov.label) {
+              newErrors[`covLabel${i}`] = "Covariable label is required.";
+            }
+            if (cov.type === "dichotomous") {
+              if (!cov.value.events || cov.value.events < 0) {
+                newErrors[`covEvents${i}`] =
+                  "Events must be a non-negative number.";
+              }
+              if (!cov.value.total || cov.value.total < 0) {
+                newErrors[`covTotal${i}`] =
+                  "Total must be a non-negative number.";
+              }
+              if (Number(cov.value.events) > Number(cov.value.total)) {
+                newErrors[`covEvents${i}`] = "Events cannot exceed total.";
+              }
+            } else if (cov.type === "continuous") {
+              if (cov.value.mean === undefined || cov.value.mean === "") {
+                newErrors[`covMean${i}`] = "Mean is required.";
+              }
+              if (cov.value.sd === undefined || cov.value.sd < 0) {
+                newErrors[`covSd${i}`] = "SD must be non-negative.";
+              }
+              if (!cov.value.total || cov.value.total < 0) {
+                newErrors[`covTotal${i}`] =
+                  "Total must be a non-negative number.";
+              }
+            } else if (cov.type === "text") {
+              if (!cov.value.text) {
+                newErrors[`covText${i}`] = "Text value is required.";
+              }
+            }
+          });
+
+          setErrors(newErrors);
+          return Object.keys(newErrors).length === 0;
+        };
+
+        const addVariable = () => {
+          if (!validateInput()) return;
+          const sid = input.studyId || studyIds[0];
+          const currentVars = variables[varCategory][sid] || [];
+
+          const newVar = {
+            id: editVarId || Date.now(),
+            label: input.varLabel,
+            type: input.varType,
+            value:
+              input.varType === "dichotomous"
+                ? {
+                    events: input.varValue.events || "",
+                    total: input.varValue.total || "",
+                  }
+                : input.varType === "continuous"
+                ? {
+                    mean: input.varValue.mean || "",
+                    sd: input.varValue.sd || "",
+                    total: input.varValue.total || "",
+                  }
+                : { text: input.varValue.text || "" },
+            intervention: input.intervention,
+            description: input.description,
+            covariables: input.covariables.map((cov) => ({
+              ...cov,
+              value:
+                cov.type === "dichotomous"
+                  ? {
+                      events: cov.value.events || "",
+                      total: cov.value.total || "",
+                    }
+                  : cov.type === "continuous"
+                  ? {
+                      mean: cov.value.mean || "",
+                      sd: cov.value.sd || "",
+                      total: cov.value.total || "",
+                    }
+                  : { text: cov.value.text || "" },
+            })),
+          };
+
+          // Store the label->type mapping
+          setLabelTypeMap((prev) => ({
+            ...prev,
+            [input.varLabel]: input.varType,
+          }));
+
+          // Store the label->covariables mapping
+          if (input.covariables.length > 0) {
+            setLabelCovariableMap((prev) => ({
+              ...prev,
+              [input.varLabel]: input.covariables.map((cov) => ({
+                label: cov.label,
+                type: cov.type,
+                value: { ...cov.value },
+              })),
+            }));
+          }
+
+          if (editVarId) {
+            const updatedVars = currentVars.map((v) =>
+              v.id === editVarId ? newVar : v
+            );
+            setVariables({
+              ...variables,
+              [varCategory]: {
+                ...variables[varCategory],
+                [sid]: updatedVars,
+              },
+            });
+            addToHistory({
+              type: "edit_variable",
+              studyId: sid,
+              varId: editVarId,
+            });
+            setEditVarId(null);
+          } else {
+            setVariables({
+              ...variables,
+              [varCategory]: {
+                ...variables[varCategory],
+                [sid]: [...currentVars, newVar],
+              },
+            });
+            addToHistory({
+              type: "add_variable",
+              studyId: sid,
+              variable: newVar,
+            });
+          }
+
+          // Reset input
+          setInput({
+            ...input,
+            varLabel: "",
+            varValue: {},
+            intervention: "",
+            description: "",
+            covariables: [],
+          });
+        };
+
+        const deleteVariable = (sid, varId) => {
+          const updatedVars = variables[varCategory][sid].filter(
+            (v) => v.id !== varId
+          );
+          setVariables({
+            ...variables,
+            [varCategory]: {
+              ...variables[varCategory],
+              [sid]: updatedVars,
+            },
+          });
+          addToHistory({ type: "delete_variable", studyId: sid, varId });
+        };
+
+        const handleDragStart = (e, varId) => {
+          setDragId(varId);
+        };
+
+        const handleDrop = (e, targetId) => {
+          e.preventDefault();
+          if (dragId === targetId) return;
+          const sid = input.studyId || studyIds[0];
+          const arr = [...(variables[varCategory][sid] || [])];
+          const dragIndex = arr.findIndex((v) => v.id === dragId);
+          const dropIndex = arr.findIndex((v) => v.id === targetId);
+          const [dragged] = arr.splice(dragIndex, 1);
+          arr.splice(dropIndex, 0, dragged);
+
+          setVariables({
+            ...variables,
+            [varCategory]: {
+              ...variables[varCategory],
+              [sid]: arr,
+            },
+          });
+          addToHistory({ type: "reorder_variables", studyId: sid });
+          setDragId(null);
+        };
+
+        const filteredVariables = (vars) => {
+          if (!searchQuery) return vars;
+          return vars.filter(
+            (v) =>
+              v.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              v.intervention
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase()) ||
+              (v.description || "")
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase())
+          );
+        };
+
+        // Covariables
+        const addCovariable = () => {
+          setInput({
+            ...input,
+            covariables: [
+              ...input.covariables,
+              {
+                label: "",
+                type: "dichotomous",
+                description: "",
+                value: { events: "", total: "" },
+              },
+            ],
+          });
+        };
+
+        const updateCovariable = (i, updates) => {
+          const arr = input.covariables.map((cov, idx) =>
+            idx === i ? { ...cov, ...updates } : cov
+          );
+          setInput({ ...input, covariables: arr });
+        };
+
+        const removeCovariable = (i) => {
+          const arr = input.covariables.filter((_, idx) => idx !== i);
+          setInput({ ...input, covariables: arr });
+        };
+
+        const handleVarLabelChange = (e) => {
+          const newLabel = e.target.value;
+          const knownType = labelTypeMap[newLabel];
+          const knownCovariables = labelCovariableMap[newLabel] || [];
+
+          // Update input's varLabel and optionally type and covariables
+          setInput((prev) => ({
+            ...prev,
+            varLabel: newLabel,
+            varType: knownType || prev.varType,
+            varValue: knownType ? {} : prev.varValue,
+            covariables:
+              knownCovariables.length > 0 ? knownCovariables : prev.covariables,
+          }));
+        };
+
+        return (
+          <div className="space-y-6">
+            <h1 className="text-2xl font-bold">Manage Variables</h1>
+            <div className="flex space-x-4">
+              <button
+                onClick={() => setVarCategory("baseline")}
+                className={`py-2 px-4 ${
+                  varCategory === "baseline" ? "bg-blue-600" : "bg-gray-700"
+                } ${settings.theme}`}
+              >
+                Baseline
+              </button>
+              <button
+                onClick={() => setVarCategory("outcomes")}
+                className={`py-2 px-4 ${
+                  varCategory === "outcomes" ? "bg-blue-600" : "bg-gray-700"
+                } ${settings.theme}`}
+              >
+                Outcomes
+              </button>
+            </div>
+
+            <select
+              value={input.studyId}
+              onChange={(e) => setInput({ ...input, studyId: e.target.value })}
+              className={`w-full p-3 ${settings.theme}`}
+            >
+              {studyIds.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+
+            <input
+              list="varLabelSuggestions"
+              value={input.varLabel}
+              onChange={handleVarLabelChange}
+              placeholder="Variable Label"
+              className={`w-full p-3 ${errors.varLabel ? "error" : ""} ${
+                settings.theme
+              }`}
+            />
+            <datalist id="varLabelSuggestions">
+              {varLabelSuggestions.map((lbl, i) => (
+                <option key={i} value={lbl} />
+              ))}
+            </datalist>
+            {errors.varLabel && (
+              <p className="text-red-400">{errors.varLabel}</p>
+            )}
+
+            <select
+              value={input.varType}
+              onChange={(e) =>
+                setInput({ ...input, varType: e.target.value, varValue: {} })
+              }
+              className={`w-full p-3 ${settings.theme}`}
+            >
+              <option value="dichotomous">Dichotomous</option>
+              <option value="continuous">Continuous</option>
+              <option value="text">Text</option>
+            </select>
+
+            <input
+              list="interventionSuggestions"
+              value={input.intervention}
+              onChange={(e) =>
+                setInput({ ...input, intervention: e.target.value })
+              }
+              placeholder="Intervention Name"
+              className={`w-full p-3 ${errors.intervention ? "error" : ""} ${
+                settings.theme
+              }`}
+            />
+            <datalist id="interventionSuggestions">
+              {interventionSuggestions.map((intv, i) => (
+                <option key={i} value={intv} />
+              ))}
+            </datalist>
+            {errors.intervention && (
+              <p className="text-red-400">{errors.intervention}</p>
+            )}
+
+            <textarea
+              value={input.description}
+              onChange={(e) =>
+                setInput({ ...input, description: e.target.value })
+              }
+              placeholder="Description (optional)"
+              rows="3"
+              className={`w-full p-3 ${errors.description ? "error" : ""} ${
+                settings.theme
+              }`}
+            />
+            {errors.description && (
+              <p className="text-red-400">{errors.description}</p>
+            )}
+
+            {/* Covariables section */}
+            <div className={`covariable-section ${settings.theme}`}>
+              <h3 className="text-lg font-semibold mb-2">Covariables</h3>
+              {input.covariables.map((cov, index) => (
+                <div
+                  key={index}
+                  className="space-y-2 mb-4 bg-gray-700 p-3 rounded"
+                >
+                  <input
+                    value={cov.label}
+                    onChange={(e) =>
+                      updateCovariable(index, { label: e.target.value })
+                    }
+                    placeholder="Covariable Label"
+                    className={`w-full p-2 ${
+                      errors["covLabel" + index] ? "error" : ""
+                    } ${settings.theme}`}
+                  />
+                  {errors["covLabel" + index] && (
+                    <p className="text-red-400">{errors["covLabel" + index]}</p>
+                  )}
+
+                  <select
+                    value={cov.type}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      let newValue = {};
+                      if (newType === "dichotomous") {
+                        newValue = {
+                          events: cov.value.events || "",
+                          total: cov.value.total || "",
+                        };
+                      } else if (newType === "continuous") {
+                        newValue = {
+                          mean: cov.value.mean || "",
+                          sd: cov.value.sd || "",
+                          total: cov.value.total || "",
+                        };
+                      } else {
+                        newValue = { text: cov.value.text || "" };
+                      }
+                      updateCovariable(index, {
+                        type: newType,
+                        value: newValue,
+                      });
+                    }}
+                    className={`w-full p-2 ${settings.theme}`}
+                  >
+                    <option value="dichotomous">Dichotomous</option>
+                    <option value="continuous">Continuous</option>
+                    <option value="text">Text</option>
+                  </select>
+
+                  <textarea
+                    value={cov.description}
+                    onChange={(e) =>
+                      updateCovariable(index, { description: e.target.value })
+                    }
+                    placeholder="Description (optional)"
+                    rows="2"
+                    className={`w-full p-2 ${settings.theme}`}
+                  />
+
+                  {/* Covariable Values */}
+                  {cov.type === "dichotomous" && (
+                    <>
+                      <input
+                        type="number"
+                        value={input.varValue.events || ""}
+                        onChange={(e) =>
+                          setInput({
+                            ...input,
+                            varValue: {
+                              ...input.varValue,
+                              events: e.target.value,
+                            },
+                          })
+                        }
+                        onWheel={(e) => e.target.blur()}
+                        placeholder="Events"
+                        className={`w-full p-3 ${
+                          errors.events ? "error" : ""
+                        } ${settings.theme}`}
+                      />
+                      {errors["covEvents" + index] && (
+                        <p className="text-red-400">
+                          {errors["covEvents" + index]}
+                        </p>
+                      )}
+
+                      <input
+                        type="number"
+                        value={input.varValue.total || ""}
+                        onChange={(e) =>
+                          setInput({
+                            ...input,
+                            varValue: {
+                              ...input.varValue,
+                              total: e.target.value,
+                            },
+                          })
+                        }
+                        onWheel={(e) => e.target.blur()}
+                        placeholder="Total"
+                        className={`w-full p-3 ${errors.total ? "error" : ""} ${
+                          settings.theme
+                        }`}
+                      />
+                      {errors["covTotal" + index] && (
+                        <p className="text-red-400">
+                          {errors["covTotal" + index]}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {cov.type === "continuous" && (
+                    <>
+                      <input
+                        type="number"
+                        value={cov.value.mean || ""}
+                        onChange={(e) =>
+                          updateCovariable(index, {
+                            value: { ...cov.value, mean: e.target.value },
+                          })
+                        }
+                        placeholder="Mean"
+                        className={`w-full p-2 ${
+                          errors["covMean" + index] ? "error" : ""
+                        } ${settings.theme}`}
+                      />
+                      {errors["covMean" + index] && (
+                        <p className="text-red-400">
+                          {errors["covMean" + index]}
+                        </p>
+                      )}
+
+                      <input
+                        type="number"
+                        value={cov.value.sd || ""}
+                        onChange={(e) =>
+                          updateCovariable(index, {
+                            value: { ...cov.value, sd: e.target.value },
+                          })
+                        }
+                        placeholder="SD"
+                        className={`w-full p-2 ${
+                          errors["covSd" + index] ? "error" : ""
+                        } ${settings.theme}`}
+                      />
+                      {errors["covSd" + index] && (
+                        <p className="text-red-400">
+                          {errors["covSd" + index]}
+                        </p>
+                      )}
+
+                      <input
+                        type="number"
+                        value={cov.value.total || ""}
+                        onChange={(e) =>
+                          updateCovariable(index, {
+                            value: { ...cov.value, total: e.target.value },
+                          })
+                        }
+                        placeholder="Total"
+                        className={`w-full p-2 ${
+                          errors["covTotal" + index] ? "error" : ""
+                        } ${settings.theme}`}
+                      />
+                      {errors["covTotal" + index] && (
+                        <p className="text-red-400">
+                          {errors["covTotal" + index]}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {cov.type === "text" && (
+                    <>
+                      <input
+                        value={cov.value.text || ""}
+                        onChange={(e) =>
+                          updateCovariable(index, {
+                            value: { text: e.target.value },
+                          })
+                        }
+                        placeholder="Text"
+                        className={`w-full p-2 ${
+                          errors["covText" + index] ? "error" : ""
+                        } ${settings.theme}`}
+                      />
+                      {errors["covText" + index] && (
+                        <p className="text-red-400">
+                          {errors["covText" + index]}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  <button
+                    onClick={() => removeCovariable(index)}
+                    className="bg-red-600 text-white px-2 py-1 rounded"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+              <div className="mt-4">
+                <label className="block mb-2">Add as Covariable</label>
+                <select
+                  onChange={(e) => {
+                    const selectedLabel = e.target.value;
+                    if (selectedLabel) {
+                      const sid = input.studyId || studyIds[0];
+                      const allVars = [
+                        ...(variables.baseline[sid] || []),
+                        ...(variables.outcomes[sid] || []),
+                      ];
+                      const selectedVar = allVars.find(
+                        (v) =>
+                          v.label === selectedLabel &&
+                          v.intervention === input.intervention
+                      );
+                      if (selectedVar) {
+                        const newCov = {
+                          label: selectedVar.label,
+                          type: selectedVar.type,
+                          description: "",
+                          value: { ...selectedVar.value },
+                        };
+                        setInput({
+                          ...input,
+                          covariables: [...input.covariables, newCov],
+                        });
+                      }
+                      e.target.value = ""; // Reset dropdown
+                    }
+                  }}
+                  className={`w-full p-2 ${settings.theme}`}
+                >
+                  <option value="">Select a variable</option>
+                  {getAvailableCovLabels().map((lbl, i) => (
+                    <option key={i} value={lbl}>
+                      {lbl}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={addCovariable}
+                className="bg-green-600 text-white px-4 py-2 rounded mt-2"
+              >
+                Add Manual Covariable
+              </button>
+            </div>
+
+            {/* Main variable inputs */}
+            {input.varType === "dichotomous" && (
+              <div className="space-y-4">
+                <input
+                  type="number"
+                  value={input.varValue.events || ""}
+                  onChange={(e) =>
+                    setInput({
+                      ...input,
+                      varValue: { ...input.varValue, events: e.target.value },
+                    })
+                  }
+                  placeholder="Events"
+                  className={`w-full p-3 ${errors.events ? "error" : ""} ${
+                    settings.theme
+                  }`}
+                />
+                {errors.events && (
+                  <p className="text-red-400">{errors.events}</p>
+                )}
+
+                <input
+                  type="number"
+                  value={input.varValue.total || ""}
+                  onChange={(e) =>
+                    setInput({
+                      ...input,
+                      varValue: { ...input.varValue, total: e.target.value },
+                    })
+                  }
+                  placeholder="Total"
+                  className={`w-full p-3 ${errors.total ? "error" : ""} ${
+                    settings.theme
+                  }`}
+                />
+                {errors.total && <p className="text-red-400">{errors.total}</p>}
+              </div>
+            )}
+            {input.varType === "continuous" && (
+              <div className="space-y-4">
+                <input
+                  type="number"
+                  value={input.varValue.mean || ""}
+                  onChange={(e) =>
+                    setInput({
+                      ...input,
+                      varValue: { ...input.varValue, mean: e.target.value },
+                    })
+                  }
+                  placeholder="Mean"
+                  className={`w-full p-3 ${errors.mean ? "error" : ""} ${
+                    settings.theme
+                  }`}
+                />
+                {errors.mean && <p className="text-red-400">{errors.mean}</p>}
+
+                <input
+                  type="number"
+                  value={input.varValue.sd || ""}
+                  onChange={(e) =>
+                    setInput({
+                      ...input,
+                      varValue: { ...input.varValue, sd: e.target.value },
+                    })
+                  }
+                  placeholder="Standard Deviation"
+                  className={`w-full p-3 ${errors.sd ? "error" : ""} ${
+                    settings.theme
+                  }`}
+                />
+                {errors.sd && <p className="text-red-400">{errors.sd}</p>}
+
+                <input
+                  type="number"
+                  value={input.varValue.total || ""}
+                  onChange={(e) =>
+                    setInput({
+                      ...input,
+                      varValue: { ...input.varValue, total: e.target.value },
+                    })
+                  }
+                  placeholder="Total"
+                  className={`w-full p-3 ${errors.total ? "error" : ""} ${
+                    settings.theme
+                  }`}
+                />
+                {errors.total && <p className="text-red-400">{errors.total}</p>}
+              </div>
+            )}
+            {input.varType === "text" && (
+              <div className="space-y-4">
+                <input
+                  value={input.varValue.text || ""}
+                  onChange={(e) =>
+                    setInput({
+                      ...input,
+                      varValue: { ...input.varValue, text: e.target.value },
+                    })
+                  }
+                  placeholder="Text Value"
+                  className={`w-full p-3 ${errors.text ? "error" : ""} ${
+                    settings.theme
+                  }`}
+                />
+                {errors.text && <p className="text-red-400">{errors.text}</p>}
+              </div>
+            )}
+
+            <button
+              onClick={addVariable}
+              className={`bg-blue-600 text-white w-full py-3 ${settings.theme}`}
+            >
+              {editVarId ? "Update Variable" : "Add Variable"}
+            </button>
+
+            <div className="flex justify-between mt-4">
+              <button
+                onClick={onBack}
+                className={`bg-gray-700 text-white ${settings.theme}`}
+              >
+                Back
+              </button>
+              <button
+                onClick={onPreview}
+                className={`bg-green-600 text-white ${settings.theme}`}
+              >
+                Preview
+              </button>
+            </div>
+
+            {/* Existing variables list */}
+            <div className="mt-6">
+              <h2 className="text-xl font-bold mb-4">Variable List</h2>
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search variables..."
+                className={`w-full p-3 mb-4 ${settings.theme}`}
+              />
+              {studyIds.map((id) => {
+                const varArr = variables[varCategory][id] || [];
+                const filtered = filteredVariables(varArr);
+                if (!filtered.length) return null;
+
+                return (
+                  <div key={id} className="mb-6">
+                    <h3 className="font-semibold text-lg mt-4">{id}</h3>
+                    <ul className="space-y-2">
+                      {filtered.map((v) => (
+                        <li
+                          key={v.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, v.id)}
+                          onDrop={(e) => handleDrop(e, v.id)}
+                          onDragOver={(e) => e.preventDefault()}
+                          className="draggable bg-gray-800 p-3 rounded flex justify-between items-center"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium">{v.label}</span>
+                            <span>({v.intervention})</span>
+                            {v.description && (
+                              <span
+                                className="text-gray-400 text-sm cursor-pointer"
+                                title={v.description}
+                              >
+                                ℹ️
+                              </span>
+                            )}
+                            {v.covariables.length > 0 && (
+                              <span className="text-gray-400 text-sm">
+                                [Covariables: {v.covariables.length}]
+                              </span>
+                            )}
+                          </div>
+                          <div className="space-x-2">
+                            <button
+                              onClick={() => {
+                                setInput({ ...input, studyId: id });
+                                setEditVarId(v.id);
+                              }}
+                              className="text-blue-400 hover:text-blue-300"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => deleteVariable(id, v.id)}
+                              className="text-red-400 hover:text-red-300"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      }
+
+      function PreviewScreen({ studyIds, variables, settings, onBack }) {
+        const [previewType, setPreviewType] = useState("baseline");
+        const tableRef = useRef(null);
+
+        // missing data representation
+        const [missingMode, setMissingMode] = useState("Empty");
+        const [customMissingValue, setCustomMissingValue] = useState("");
+
+        // Helper: format numeric
+        const formatNumber = (num) =>
+          num === "" || num === null || num === undefined
+            ? ""
+            : Number(num).toFixed(settings.decimalPlaces);
+
+        // Decide how to display missing values
+        function missingString() {
+          switch (missingMode) {
+            case "Empty":
+              return "";
+            case "NA":
+              return "NA";
+            case "N/A":
+              return "N/A";
+            case ".":
+              return ".";
+            case "-":
+              return "-";
+            case "Custom":
+              return customMissingValue;
+            default:
+              return "";
+          }
+        }
+
+        // Build set of "recurrent" labels if needed
+        const buildRecurrentLabelSet = () => {
+          const freq = {};
+          ["baseline", "outcomes"].forEach((cat) => {
+            const catMap = variables[cat] || {};
+            Object.entries(catMap).forEach(([studyId, varList]) => {
+              varList.forEach((v) => {
+                if (!freq[v.label]) freq[v.label] = new Set();
+                freq[v.label].add(studyId);
+              });
+            });
+          });
+          return new Set(
+            Object.keys(freq).filter((lbl) => freq[lbl].size >= 2)
+          );
+        };
+
+        // Decide categories
+        let includedLabels = null;
+        let includeBaseline = false;
+        let includeOutcomes = false;
+        if (previewType === "baseline") {
+          includeBaseline = true;
+        } else if (previewType === "outcomes") {
+          includeOutcomes = true;
+        } else if (previewType === "both") {
+          includeBaseline = true;
+          includeOutcomes = true;
+        } else if (previewType === "recurrent") {
+          includeBaseline = true;
+          includeOutcomes = true;
+          includedLabels = buildRecurrentLabelSet();
+        }
+
+        // Gather variables from each category
+        function gatherVariables(cat) {
+          const result = {};
+          const catMap = variables[cat] || {};
+          Object.entries(catMap).forEach(([studyId, varList]) => {
+            varList.forEach((v) => {
+              if (includedLabels && !includedLabels.has(v.label)) return;
+
+              // Initialize top-level structure for this label if needed
+              if (!result[v.label]) {
+                result[v.label] = {
+                  // We'll store an array of data rows
+                  rows: [],
+                  // to detect if multiple types exist
+                  typeSet: new Set(),
+                };
+              }
+
+              // gather row data
+              const rowData = {
+                study: studyId,
+                intervention: v.intervention,
+                type: v.type,
+                description: v.description || "",
+                value: { ...v.value },
+                covariables: (v.covariables || []).map((c) => ({
+                  label: c.label,
+                  type: c.type,
+                  description: c.description || "",
+                  value: { ...c.value },
+                })),
+              };
+
+              result[v.label].rows.push(rowData);
+              result[v.label].typeSet.add(v.type);
+            });
+          });
+          return result;
+        }
+
+        const baselineData = includeBaseline ? gatherVariables("baseline") : {};
+        const outcomesData = includeOutcomes ? gatherVariables("outcomes") : {};
+
+        // Combine baselineData & outcomesData by label
+        function mergeData() {
+          const allLabels = new Set([
+            ...Object.keys(baselineData),
+            ...Object.keys(outcomesData),
+          ]);
+          const merged = {};
+          allLabels.forEach((lbl) => {
+            merged[lbl] = {
+              rows: [],
+              typeSet: new Set(),
+            };
+            if (baselineData[lbl]) {
+              merged[lbl].rows.push(...baselineData[lbl].rows);
+              baselineData[lbl].typeSet.forEach((t) =>
+                merged[lbl].typeSet.add(t)
+              );
+            }
+            if (outcomesData[lbl]) {
+              merged[lbl].rows.push(...outcomesData[lbl].rows);
+              outcomesData[lbl].typeSet.forEach((t) =>
+                merged[lbl].typeSet.add(t)
+              );
+            }
+          });
+          return merged;
+        }
+
+        const mergedData = mergeData();
+
+        // Renders the main HTML preview table
+        // We keep the logic from your existing "toArrayStructure"
+        // But for the HTML preview, we just replicate the old style.
+        // We'll reuse some of your code:
+
+        // Build final column structure for each label
+        function buildColumnsForLabel(rows) {
+          // find a union of covariable labels from all rows
+          const covarLabels = new Set();
+          rows.forEach((r) => {
+            (r.covariables || []).forEach((cv) => {
+              covarLabels.add(cv.label);
+            });
+          });
+          return Array.from(covarLabels);
+        }
+
+        // We'll just produce a single table with the old approach
+        // (like you had). But now we handle merged data with possible multiple types.
+
+        // Let's gather for table preview:
+        const labelsUsed = Object.keys(mergedData).sort();
+        // We'll create a big structure or replicate your approach.
+        // For simplicity: We'll do a single multi-label table as before:
+        // This is simpler: we just keep your old approach that grouped baseline/outcomes.
+
+        // For the existing final output table, we'll keep it as is (the 4-level header).
+        // So let's build data for baseline/outcomes as you originally did:
+
+        function gatherCategoryData(catData) {
+          // catData is e.g. baselineData
+          // We replicate your original approach that computed label->(interventions, covSet, etc)
+          const result = {};
+          Object.entries(catData).forEach(([lbl, dataObj]) => {
+            // we produce an object with .type, .covSet, .interventions => ...
+            // But now we might have multiple types in dataObj.typeSet. We'll handle that carefully
+            // We'll consider them all the same if there's only 1 or else we skip.
+            // But let's do a simpler approach: if multiple types, we treat them as separate "type" for preview
+            // For the HTML preview, let's just take the first type in the set or something.
+            // We'll do that for the table preview.
+            const rowList = dataObj.rows;
+            const types = Array.from(dataObj.typeSet);
+            types.forEach((t) => {
+              // filter rows for that type
+              const typedRows = rowList.filter((r) => r.type === t);
+              // build new key = lbl + '##' + t to keep them distinct
+              const key = types.length > 1 ? lbl + " (type: " + t + ")" : lbl;
+              if (!result[key]) {
+                result[key] = {
+                  type: t,
+                  covSet: {},
+                  interventions: {},
+                };
+              }
+              typedRows.forEach((r) => {
+                // accumulate covariables
+                r.covariables.forEach((cv) => {
+                  result[key].covSet[cv.label] = cv.type;
+                });
+                // prepare interventions
+                if (!result[key].interventions[r.intervention]) {
+                  result[key].interventions[r.intervention] = {
+                    type: t,
+                    hasAnyDescription: false,
+                    covDescNeeded: {},
+                  };
+                }
+                const iDef = result[key].interventions[r.intervention];
+                if (r.description.trim() !== "") iDef.hasAnyDescription = true;
+                r.covariables.forEach((cv) => {
+                  if (!iDef.covDescNeeded[cv.label])
+                    iDef.covDescNeeded[cv.label] = false;
+                  if (cv.description.trim() !== "")
+                    iDef.covDescNeeded[cv.label] = true;
+                });
+              });
+            });
+          });
+          return result;
+        }
+
+        const baselineStruct = gatherCategoryData(baselineData);
+        const outcomesStruct = gatherCategoryData(outcomesData);
+
+        function countLabelColSpan(lblDef) {
+          return Object.values(lblDef.interventions).reduce((acc, iDef) => {
+            // we replicate your logic from before
+            let baseCols = [];
+            if (iDef.hasAnyDescription) {
+              baseCols.push("description");
+            }
+            baseCols.push("varName", "treatment");
+            if (iDef.type === "dichotomous") {
+              baseCols.push("events", "total");
+            } else if (iDef.type === "continuous") {
+              baseCols.push("mean", "sd", "total");
+            } else {
+              baseCols.push("text");
+            }
+            // now covars
+            const covars = Object.keys(iDef.covDescNeeded);
+            covars.forEach((cv) => {
+              if (iDef.covDescNeeded[cv]) {
+                baseCols.push(`cov_${cv}_desc`);
+              }
+              // figure out type from lblDef's covSet?
+              const ctype = lblDef.covSet[cv];
+              if (ctype === "dichotomous") {
+                baseCols.push(`cov_${cv}_events`, `cov_${cv}_total`);
+              } else if (ctype === "continuous") {
+                baseCols.push(
+                  `cov_${cv}_mean`,
+                  `cov_${cv}_sd`,
+                  `cov_${cv}_total`
+                );
+              } else {
+                baseCols.push(`cov_${cv}_text`);
+              }
+            });
+            return acc + baseCols.length;
+          }, 0);
+        }
+
+        const baselineKeys = Object.keys(baselineStruct);
+        const outcomesKeys = Object.keys(outcomesStruct);
+        const baselineTotalCols = baselineKeys.reduce(
+          (acc, k) => acc + countLabelColSpan(baselineStruct[k]),
+          0
+        );
+        const outcomesTotalCols = outcomesKeys.reduce(
+          (acc, k) => acc + countLabelColSpan(outcomesStruct[k]),
+          0
+        );
+
+        const row1 = (
+          <tr>
+            <th rowSpan={4} className="border px-4 py-2">
+              Study ID
+            </th>
+            {baselineTotalCols > 0 && (
+              <th colSpan={baselineTotalCols} className="border px-4 py-2">
+                Baseline
+              </th>
+            )}
+            {outcomesTotalCols > 0 && (
+              <th colSpan={outcomesTotalCols} className="border px-4 py-2">
+                Outcomes
+              </th>
+            )}
+          </tr>
+        );
+
+        const row2 = (
+          <tr>
+            {baselineKeys.map((k, i) => (
+              <th
+                key={`base-lbl-${k}-${i}`}
+                colSpan={countLabelColSpan(baselineStruct[k])}
+                className="border px-4 py-2"
+              >
+                {k}
+              </th>
+            ))}
+            {outcomesKeys.map((k, i) => (
+              <th
+                key={`out-lbl-${k}-${i}`}
+                colSpan={countLabelColSpan(outcomesStruct[k])}
+                className="border px-4 py-2"
+              >
+                {k}
+              </th>
+            ))}
+          </tr>
+        );
+
+        function buildColsArray(iDef, covSet) {
+          let base = [];
+          if (iDef.hasAnyDescription) {
+            base.push({ key: "description", header: "Description" });
+          }
+          base.push({ key: "varName", header: "Variable" });
+          base.push({ key: "treatment", header: "Treatment" });
+          if (iDef.type === "dichotomous") {
+            base.push({ key: "events", header: "Events" });
+            base.push({ key: "total", header: "Total" });
+          } else if (iDef.type === "continuous") {
+            base.push({ key: "mean", header: "Mean" });
+            base.push({ key: "sd", header: "SD" });
+            base.push({ key: "total", header: "Total" });
+          } else {
+            // text
+            base.push({ key: "text", header: "Text" });
+          }
+          const covLabels = Object.keys(iDef.covDescNeeded);
+          covLabels.forEach((cv) => {
+            if (iDef.covDescNeeded[cv]) {
+              base.push({
+                key: `cov_${cv}_desc`,
+                header: `covar.${cv}(Description)`,
+              });
+            }
+            const ctype = covSet[cv];
+            if (ctype === "dichotomous") {
+              base.push({
+                key: `cov_${cv}_events`,
+                header: `covar.${cv}(Events)`,
+              });
+              base.push({
+                key: `cov_${cv}_total`,
+                header: `covar.${cv}(Total)`,
+              });
+            } else if (ctype === "continuous") {
+              base.push({ key: `cov_${cv}_mean`, header: `covar.${cv}(Mean)` });
+              base.push({ key: `cov_${cv}_sd`, header: `covar.${cv}(SD)` });
+              base.push({
+                key: `cov_${cv}_total`,
+                header: `covar.${cv}(Total)`,
+              });
+            } else {
+              base.push({ key: `cov_${cv}_text`, header: `covar.${cv}(Text)` });
+            }
+          });
+          return base;
+        }
+
+        const row3 = (
+          <tr>
+            {baselineKeys.flatMap((k) => {
+              const lblDef = baselineStruct[k];
+              return Object.entries(lblDef.interventions || {}).map(
+                ([intv, iDef]) => {
+                  const cArr = buildColsArray(iDef, lblDef.covSet);
+                  return (
+                    <th
+                      key={`base-intv-${k}-${intv}`}
+                      colSpan={cArr.length}
+                      className="border px-4 py-2"
+                    >
+                      {intv}
+                    </th>
+                  );
+                }
+              );
+            })}
+            {outcomesKeys.flatMap((k) => {
+              const lblDef = outcomesStruct[k];
+              return Object.entries(lblDef.interventions || {}).map(
+                ([intv, iDef]) => {
+                  const cArr = buildColsArray(iDef, lblDef.covSet);
+                  return (
+                    <th
+                      key={`out-intv-${k}-${intv}`}
+                      colSpan={cArr.length}
+                      className="border px-4 py-2"
+                    >
+                      {intv}
+                    </th>
+                  );
+                }
+              );
+            })}
+          </tr>
+        );
+
+        const row4 = (
+          <tr>
+            {baselineKeys.flatMap((k) => {
+              const lblDef = baselineStruct[k];
+              return Object.entries(lblDef.interventions || {}).flatMap(
+                ([intv, iDef]) => {
+                  const cArr = buildColsArray(iDef, lblDef.covSet);
+                  return cArr.map((col, idx) => (
+                    <th
+                      key={`base-sub-${k}-${intv}-${idx}`}
+                      className="border px-4 py-2"
+                    >
+                      {col.header}
+                    </th>
+                  ));
+                }
+              );
+            })}
+            {outcomesKeys.flatMap((k) => {
+              const lblDef = outcomesStruct[k];
+              return Object.entries(lblDef.interventions || {}).flatMap(
+                ([intv, iDef]) => {
+                  const cArr = buildColsArray(iDef, lblDef.covSet);
+                  return cArr.map((col, idx) => (
+                    <th
+                      key={`out-sub-${k}-${intv}-${idx}`}
+                      className="border px-4 py-2"
+                    >
+                      {col.header}
+                    </th>
+                  ));
+                }
+              );
+            })}
+          </tr>
+        );
+
+        function getRowValue(
+          studyId,
+          labelWithType,
+          intervention,
+          colKey,
+          catStruct
+        ) {
+          const lblDef = catStruct[labelWithType];
+          if (!lblDef) return "";
+          // we need to find the row that has study=studyId & intervention
+          // but the original code had direct lookups. We'll do a quick approach:
+          // we didn't store the actual row data in this structure, only iDef metadata.
+          // So let's gather from baselineData or outcomesData row sets. We'll do a simpler approach:
+          // We'll just re-scan the data we had.
+          // Because for large data, you might want indexing, but let's keep it simple.
+
+          const baseCat =
+            catStruct === baselineStruct ? baselineData : outcomesData;
+          // find if the label was "lbl (type: x)" or just "lbl"
+          // we need to revert that if it had " (type: x)". We'll parse it out
+          let realLabel = labelWithType;
+          let realType = null;
+          const match = labelWithType.match(
+            /^(.*) \(type: (dichotomous|continuous|text)\)$/
+          );
+          if (match) {
+            realLabel = match[1];
+            realType = match[2];
+          }
+          const dataObj = baseCat[realLabel];
+          if (!dataObj) return "";
+          // filter rows: study=studyId, intervention=..., type=realType or if realType is null we skip
+          const foundRow = dataObj.rows.find(
+            (r) =>
+              r.study === studyId &&
+              r.intervention === intervention &&
+              (realType ? r.type === realType : true)
+          );
+          if (!foundRow) return "";
+
+          // now interpret colKey
+          if (colKey === "description") return foundRow.description;
+          if (colKey === "varName") return realLabel;
+          if (colKey === "treatment") return foundRow.intervention;
+
+          if (colKey === "events") return formatNumber(foundRow.value.events);
+          if (colKey === "total") return formatNumber(foundRow.value.total);
+          if (colKey === "mean") return formatNumber(foundRow.value.mean);
+          if (colKey === "sd") return formatNumber(foundRow.value.sd);
+          if (colKey === "text") return foundRow.value.text || "";
+
+          if (colKey.startsWith("cov_")) {
+            const parts = colKey.split("_"); // e.g. [cov, age, mean]
+            const cLabel = parts[1];
+            const cSub = parts[2]; // could be desc, events, total, mean, sd, text...
+            const cRow = foundRow.covariables.find((cc) => cc.label === cLabel);
+            if (!cRow) return "";
+            if (cSub === "desc") return cRow.description;
+            if (cRow.type === "dichotomous") {
+              if (cSub === "events") return formatNumber(cRow.value.events);
+              if (cSub === "total") return formatNumber(cRow.value.total);
+            } else if (cRow.type === "continuous") {
+              if (cSub === "mean") return formatNumber(cRow.value.mean);
+              if (cSub === "sd") return formatNumber(cRow.value.sd);
+              if (cSub === "total") return formatNumber(cRow.value.total);
+            } else {
+              // text
+              if (cSub === "text") return cRow.value.text || "";
+            }
+          }
+
+          return "";
+        }
+
+        const bodyRows = studyIds.map((sId) => (
+          <tr key={sId}>
+            <td className="border px-4 py-2">{sId}</td>
+            {baselineKeys.flatMap((k) => {
+              const lblDef = baselineStruct[k];
+              if (!lblDef) return [];
+              return Object.entries(lblDef.interventions || {}).flatMap(
+                ([intv, iDef]) => {
+                  const cArr = buildColsArray(iDef, lblDef.covSet);
+                  return cArr.map((col) => {
+                    const rawVal = getRowValue(
+                      sId,
+                      k,
+                      intv,
+                      col.key,
+                      baselineStruct
+                    );
+                    return (
+                      <td
+                        key={`base-cell-${sId}-${k}-${intv}-${col.key}`}
+                        className="border px-4 py-2"
+                      >
+                        {displayValue(rawVal)}
+                      </td>
+                    );
+                  });
+                }
+              );
+            })}
+            {outcomesKeys.flatMap((k) => {
+              const lblDef = outcomesStruct[k];
+              if (!lblDef) return [];
+              return Object.entries(lblDef.interventions || {}).flatMap(
+                ([intv, iDef]) => {
+                  const cArr = buildColsArray(iDef, lblDef.covSet);
+                  return cArr.map((col) => {
+                    const rawVal = getRowValue(
+                      sId,
+                      k,
+                      intv,
+                      col.key,
+                      outcomesStruct
+                    );
+                    return (
+                      <td
+                        key={`out-cell-${sId}-${k}-${intv}-${col.key}`}
+                        className="border px-4 py-2"
+                      >
+                        {displayValue(rawVal)}
+                      </td>
+                    );
+                  });
+                }
+              );
+            })}
+          </tr>
+        ));
+
+        function displayValue(val) {
+          if (val === "" || val === null || val === undefined) {
+            return missingString();
+          }
+          return val;
+        }
+
+        // XLSX export
+        const exportToXLSX = () => {
+          if (!tableRef.current) return;
+          const ws = XLSX.utils.table_to_sheet(tableRef.current, { raw: true });
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "Preview");
+          XLSX.writeFile(wb, "preview.xlsx");
+        };
+
+        // NEW: Download Folder (zip of CSVs)
+        const downloadCsvFolder = async () => {
+          const JSZipInstance = new JSZip();
+
+          // We have "mergedData" => label => { rows: [...], typeSet: Set(...) }
+          // For each label, if there's more than one type, we create multiple CSV files, one for each type.
+          // We'll gather a union of all covariables for that (label, type).
+          // Then produce the CSV lines in the pattern the user wants.
+
+          function csvEscape(val) {
+            if (val == null) return "";
+            // if it has a comma or quote, we wrap in quotes
+            const s = val.toString();
+            if (/[",\n]/.test(s)) {
+              return '"' + s.replace(/"/g, '""') + '"';
+            }
+            return s;
+          }
+
+          function fillMissing(val) {
+            // use the same logic as displayValue
+            if (val === "" || val === null || val === undefined) {
+              return missingString();
+            }
+            return val;
+          }
+
+          // Build one CSV for each (label, type)
+          Object.entries(mergedData).forEach(([label, dataObj]) => {
+            const rows = dataObj.rows;
+            const types = Array.from(dataObj.typeSet);
+
+            types.forEach((type) => {
+              const typedRows = rows.filter((r) => r.type === type);
+
+              // gather all covariable labels that appear in typedRows
+              const covarLabels = new Set();
+              typedRows.forEach((r) => {
+                r.covariables.forEach((cv) => {
+                  covarLabels.add(cv.label);
+                });
+              });
+              const covarArr = Array.from(covarLabels);
+
+              // Build header
+              let headers = ["Study", "T"];
+              if (type === "dichotomous") {
+                // columns => Study,T,N,R plus covariables
+                headers.push("N", "R");
+              } else if (type === "continuous") {
+                // columns => Study,T,Mean,SD,N plus covariables
+                headers.push("Mean", "SD", "N");
+              } else {
+                // text
+                headers.push("TEXT");
+              }
+              // Then each covariate is "covar.xxx"
+              covarArr.forEach((cov) => {
+                headers.push("covar." + cov);
+              });
+
+              const lines = [];
+              // first line => headers
+              lines.push(headers.map(csvEscape).join(","));
+
+              // produce row data
+              typedRows.forEach((r) => {
+                // for each intervention in that row
+                const rowVals = [];
+                rowVals.push(fillMissing(r.study));
+                rowVals.push(fillMissing(r.intervention));
+                if (type === "dichotomous") {
+                  rowVals.push(fillMissing(formatNumber(r.value.total))); // "N"
+                  rowVals.push(fillMissing(formatNumber(r.value.events))); // "R"
+                } else if (type === "continuous") {
+                  rowVals.push(fillMissing(formatNumber(r.value.mean)));
+                  rowVals.push(fillMissing(formatNumber(r.value.sd)));
+                  rowVals.push(fillMissing(formatNumber(r.value.total))); // "N"
+                } else {
+                  // text
+                  rowVals.push(fillMissing(r.value.text));
+                }
+
+                // now each cov
+                covarArr.forEach((covLbl) => {
+                  // find that cov in r.covariables
+                  const foundCov = r.covariables.find(
+                    (c) => c.label === covLbl
+                  );
+                  if (!foundCov) {
+                    rowVals.push(missingString());
+                  } else {
+                    // we produce a single cell, based on type
+                    if (foundCov.type === "dichotomous") {
+                      // user example might or might not want both "N" & "R"?
+                      // The user example is ambiguous.
+                      // The problem statement only shows a single covar => we show it as a single column.
+                      // But from your statement, you said "covar.xxx" => presumably a single column with ???
+                      // The examples only show one covar column. Let's assume we only store "foundCov.value.mean" or ???
+                      // Actually, from user examples, the covar just has one numeric value (like 8.30).
+                      // So let's guess the user manually stores "events" in that single cov. We'll output it.
+                      // We'll assume "foundCov.value.events" is the numeric.
+                      // In your "dichotomous" pattern for covar, you have events + total, but user examples show a single numeric?
+                      // We'll pick "events" as the single numeric.
+                      // If user needs something else, they'd rename.
+                      const val = foundCov.value.events;
+                      rowVals.push(fillMissing(formatNumber(val)));
+                    } else if (foundCov.type === "continuous") {
+                      // from user example: "covar.age => 45.00" => that was the 'mean' probably.
+                      const val = foundCov.value.mean;
+                      rowVals.push(fillMissing(formatNumber(val)));
+                    } else {
+                      // text
+                      const val = foundCov.value.text;
+                      rowVals.push(fillMissing(val));
+                    }
+                  }
+                });
+
+                lines.push(
+                  lines.length === 1 && lines[0] === ""
+                    ? ""
+                    : rowVals.map(csvEscape).join(",")
+                );
+              });
+
+              const csvContent = lines.join("\n");
+              // Name => label_type.csv
+              let filename = label.replace(/\s+/g, "_") + "_" + type + ".csv";
+              JSZipInstance.file(filename, csvContent);
+            });
+          });
+
+          // generate zip
+          const content = await JSZipInstance.generateAsync({ type: "blob" });
+          const blobUrl = URL.createObjectURL(content);
+          const a = document.createElement("a");
+          a.href = blobUrl;
+          a.download = "nma_variables.zip";
+          a.click();
+          URL.revokeObjectURL(blobUrl);
+        };
+
+        return (
+          <div className="space-y-6">
+            <h1 className="text-2xl font-bold">Preview Dataset</h1>
+
+            <div className="flex space-x-2 mb-4">
+              <button
+                onClick={() => setPreviewType("baseline")}
+                className={`px-3 py-2 ${
+                  previewType === "baseline" ? "bg-blue-600" : "bg-gray-700"
+                }`}
+              >
+                Baseline
+              </button>
+              <button
+                onClick={() => setPreviewType("outcomes")}
+                className={`px-3 py-2 ${
+                  previewType === "outcomes" ? "bg-blue-600" : "bg-gray-700"
+                }`}
+              >
+                Outcomes
+              </button>
+              <button
+                onClick={() => setPreviewType("both")}
+                className={`px-3 py-2 ${
+                  previewType === "both" ? "bg-blue-600" : "bg-gray-700"
+                }`}
+              >
+                Both
+              </button>
+              <button
+                onClick={() => setPreviewType("recurrent")}
+                className={`px-3 py-2 ${
+                  previewType === "recurrent" ? "bg-blue-600" : "bg-gray-700"
+                }`}
+              >
+                Recurrent
+              </button>
+            </div>
+
+            {/* Missing data representation controls */}
+            <div className="flex items-center space-x-4 mb-4">
+              <label>Missing Data Representation:</label>
+              <select
+                value={missingMode}
+                onChange={(e) => setMissingMode(e.target.value)}
+                className="p-2 bg-gray-700 rounded text-white"
+              >
+                <option value="Empty">Empty</option>
+                <option value="NA">NA</option>
+                <option value="N/A">N/A</option>
+                <option value=".">.</option>
+                <option value="-">-</option>
+                <option value="Custom">Custom</option>
+              </select>
+              {missingMode === "Custom" && (
+                <input
+                  type="text"
+                  value={customMissingValue}
+                  onChange={(e) => setCustomMissingValue(e.target.value)}
+                  placeholder="Enter custom value"
+                  className="p-2 rounded bg-gray-700 text-white"
+                />
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table ref={tableRef} className={settings.theme}>
+                <thead>
+                  {row1}
+                  {row2}
+                  {row3}
+                  {row4}
+                </thead>
+                <tbody>{bodyRows}</tbody>
+              </table>
+            </div>
+
+            <div className="flex space-x-4">
+              <button
+                onClick={onBack}
+                className={`bg-gray-700 text-white ${settings.theme}`}
+              >
+                Back
+              </button>
+              <button
+                onClick={exportToXLSX}
+                className={`bg-blue-600 text-white ${settings.theme}`}
+              >
+                Download Spreadsheet
+              </button>
+              {/* NEW: Download Folder Button */}
+              <button
+                onClick={downloadCsvFolder}
+                className={`bg-purple-600 text-white ${settings.theme}`}
+              >
+                Download Folder
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      function SettingsModal({ settings, setSettings, onClose }) {
+        return (
+          <div className={`modal ${settings.theme}`}>
+            <div className={`modal-content ${settings.theme} space-y-6`}>
+              <h2 className="text-xl font-bold">Settings</h2>
+              <div>
+                <label className="block mb-2">Theme</label>
+                <select
+                  value={settings.theme}
+                  onChange={(e) =>
+                    setSettings({ ...settings, theme: e.target.value })
+                  }
+                  className={`w-full p-3 ${settings.theme}`}
+                >
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2">Decimal Places</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="6"
+                  value={settings.decimalPlaces}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      decimalPlaces: Number(e.target.value),
+                    })
+                  }
+                  className={`w-full p-3 ${settings.theme}`}
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={settings.requireDescription}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        requireDescription: e.target.checked,
+                      })
+                    }
+                  />
+                  <span>Require Variable Description</span>
+                </label>
+              </div>
+
+              <div>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoSave}
+                    onChange={(e) =>
+                      setSettings({ ...settings, autoSave: e.target.checked })
+                    }
+                  />
+                  <span>Enable Auto-Save</span>
+                </label>
+              </div>
+
+              <div className="flex justify-end space-x-4">
+                <button
+                  onClick={onClose}
+                  className={`bg-gray-700 text-white ${settings.theme}`}
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.setItem(
+                      "nma_settings_v2",
+                      JSON.stringify(settings)
+                    );
+                    onClose();
+                  }}
+                  className={`bg-blue-600 text-white ${settings.theme}`}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      ReactDOM.render(<App />, document.getElementById("root"));
+    </script>
+  </body>
+</html>

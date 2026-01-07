@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOI to Sci-Hub Manager</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #4a5568;
+            margin-bottom: 10px;
+            font-size: 2.2em;
+        }
+        
+        .disclaimer {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            font-size: 0.9em;
+            color: #856404;
+        }
+        
+        .input-section {
+            margin: 25px 0;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #4a5568;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fab1a0 100%);
+            color: #2d3436;
+        }
+        
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(250, 177, 160, 0.4);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(232, 67, 147, 0.4);
+        }
+        
+        .status {
+            margin: 20px 0;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #cce7ff;
+            color: #004085;
+            border: 1px solid #b3d9ff;
+        }
+        
+        .doi-list {
+            margin: 25px 0;
+        }
+        
+        .doi-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            margin: 8px 0;
+            background: #f8f9fc;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s;
+        }
+        
+        .doi-item:hover {
+            background: #e8ecf7;
+            transform: translateX(5px);
+        }
+        
+        .doi-text {
+            font-family: 'Courier New', monospace;
+            color: #4a5568;
+            flex-grow: 1;
+            margin-right: 15px;
+            word-break: break-all;
+        }
+        
+        .doi-btn {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .doi-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 3px 10px rgba(102, 126, 234, 0.4);
+        }
+        
+        .progress {
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+            border-radius: 10px;
+        }
+        
+        .mirror-selector {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .mirror-selector label {
+            margin-bottom: 10px;
+            color: #4a5568;
+        }
+        
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .stat-item {
+            padding: 15px;
+            background: #f8f9fc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            min-width: 100px;
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 DOI to Sci-Hub Manager</h1>
+        
+        <div class="disclaimer">
+            <strong>⚠️ Important:</strong> Please ensure you have proper access rights to academic papers. This tool is intended for researchers with legitimate access needs. Respect copyright laws and institutional policies.
+        </div>
+        
+        <div class="mirror-selector">
+            <label for="sciHubMirror">🌐 Sci-Hub Mirror:</label>
+            <select id="sciHubMirror">
+                <option value="https://sci-hub.se/">sci-hub.se (Primary)</option>
+                <option value="https://sci-hub.st/">sci-hub.st</option>
+                <option value="https://sci-hub.ru/">sci-hub.ru</option>
+                <option value="https://sci-hub.hkvisa.net/">sci-hub.hkvisa.net</option>
+                <option value="https://sci-hub.mksa.top/">sci-hub.mksa.top</option>
+                <option value="https://sci-hub.yncjkj.com/">sci-hub.yncjkj.com</option>
+            </select>
+        </div>
+        
+        <div class="input-section">
+            <label for="doiInput">📋 Paste DOI Links (one per line):</label>
+            <textarea 
+                id="doiInput" 
+                placeholder="Paste your DOI links here, one per line. Format examples:
+https://doi.org/10.1234/example
+doi.org/10.1234/example
+10.1234/example"
+            ></textarea>
+        </div>
+        
+        <div class="button-group">
+            <button class="btn-primary" onclick="processDOIs()">🔄 Process DOIs</button>
+            <button class="btn-secondary" onclick="openAllDOIs()">🚀 Open All (1/sec)</button>
+            <button class="btn-danger" onclick="stopOpening()">⏹️ Stop</button>
+            <button class="btn-primary" onclick="clearAll()">🗑️ Clear All</button>
+        </div>
+        
+        <div class="progress" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p id="progressText">Opening DOIs... 0/0</p>
+        </div>
+        
+        <div id="status"></div>
+        
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-item">
+                <div class="stat-number" id="totalDOIs">0</div>
+                <div class="stat-label">Total DOIs</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="validDOIs">0</div>
+                <div class="stat-label">Valid DOIs</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="openedDOIs">0</div>
+                <div class="stat-label">Opened</div>
+            </div>
+        </div>
+        
+        <div class="doi-list" id="doiList"></div>
+    </div>
+
+    <script>
+        let processedDOIs = [];
+        let isOpening = false;
+        let openingInterval = null;
+        let currentIndex = 0;
+        let openedCount = 0;
+        
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+            setTimeout(() => {
+                statusDiv.innerHTML = '';
+            }, 5000);
+        }
+        
+        function cleanDOI(doi) {
+            // Remove common prefixes and clean up
+            doi = doi.trim();
+            doi = doi.replace(/^https?:\/\//, '');
+            doi = doi.replace(/^doi\.org\//, '');
+            doi = doi.replace(/^dx\.doi\.org\//, '');
+            doi = doi.replace(/^www\./, '');
+            
+            // Ensure DOI starts with "10."
+            if (!doi.startsWith('10.')) {
+                return null;
+            }
+            
+            return doi;
+        }
+        
+        function processDOIs() {
+            const input = document.getElementById('doiInput').value;
+            const lines = input.split('\n').filter(line => line.trim() !== '');
+            
+            if (lines.length === 0) {
+                showStatus('❌ Please paste some DOI links first!', 'error');
+                return;
+            }
+            
+            processedDOIs = [];
+            
+            lines.forEach(line => {
+                const cleanedDOI = cleanDOI(line);
+                if (cleanedDOI) {
+                    processedDOIs.push(cleanedDOI);
+                }
+            });
+            
+            if (processedDOIs.length === 0) {
+                showStatus('❌ No valid DOIs found! Make sure they start with "10."', 'error');
+                return;
+            }
+            
+            updateStats();
+            displayDOIList();
+            showStatus(`✅ Processed ${processedDOIs.length} valid DOIs out of ${lines.length} lines`, 'success');
+        }
+        
+        function updateStats() {
+            document.getElementById('totalDOIs').textContent = processedDOIs.length;
+            document.getElementById('validDOIs').textContent = processedDOIs.length;
+            document.getElementById('openedDOIs').textContent = openedCount;
+            document.getElementById('stats').style.display = processedDOIs.length > 0 ? 'flex' : 'none';
+        }
+        
+        function displayDOIList() {
+            const listDiv = document.getElementById('doiList');
+            
+            if (processedDOIs.length === 0) {
+                listDiv.innerHTML = '';
+                return;
+            }
+            
+            let html = '<h3>📄 Processed DOIs:</h3>';
+            
+            processedDOIs.forEach((doi, index) => {
+                html += `
+                    <div class="doi-item">
+                        <div class="doi-text">${doi}</div>
+                        <button class="doi-btn" onclick="openSingleDOI('${doi}')">
+                            🔗 Open in Sci-Hub
+                        </button>
+                    </div>
+                `;
+            });
+            
+            listDiv.innerHTML = html;
+        }
+        
+        function getSciHubURL(doi) {
+            const selectedMirror = document.getElementById('sciHubMirror').value;
+            return `${selectedMirror}${doi}`;
+        }
+        
+        function openSingleDOI(doi) {
+            const url = getSciHubURL(doi);
+            window.open(url, '_blank');
+            openedCount++;
+            updateStats();
+            showStatus(`🔗 Opened: ${doi}`, 'success');
+        }
+        
+        function openAllDOIs() {
+            if (processedDOIs.length === 0) {
+                showStatus('❌ No DOIs to open! Process DOIs first.', 'error');
+                return;
+            }
+            
+            if (isOpening) {
+                showStatus('⚠️ Already opening DOIs. Click "Stop" to cancel.', 'error');
+                return;
+            }
+            
+            isOpening = true;
+            currentIndex = 0;
+            openedCount = 0;
+            
+            document.getElementById('progressContainer').style.display = 'block';
+            updateProgress();
+            
+            openingInterval = setInterval(() => {
+                if (currentIndex >= processedDOIs.length) {
+                    stopOpening();
+                    showStatus(`✅ Finished opening all ${processedDOIs.length} DOIs!`, 'success');
+                    return;
+                }
+                
+                const doi = processedDOIs[currentIndex];
+                const url = getSciHubURL(doi);
+                window.open(url, '_blank');
+                
+                currentIndex++;
+                openedCount++;
+                updateProgress();
+                updateStats();
+                
+            }, 1000); // 1 second delay between opens
+            
+            showStatus(`🚀 Starting to open ${processedDOIs.length} DOIs (1 per second)...`, 'info');
+        }
+        
+        function updateProgress() {
+            const percentage = (currentIndex / processedDOIs.length) * 100;
+            document.getElementById('progressFill').style.width = `${percentage}%`;
+            document.getElementById('progressText').textContent = 
+                `Opening DOIs... ${currentIndex}/${processedDOIs.length}`;
+        }
+        
+        function stopOpening() {
+            if (openingInterval) {
+                clearInterval(openingInterval);
+                openingInterval = null;
+            }
+            isOpening = false;
+            document.getElementById('progressContainer').style.display = 'none';
+            
+            if (currentIndex > 0) {
+                showStatus(`⏹️ Stopped opening DOIs. Opened ${currentIndex} out of ${processedDOIs.length}`, 'info');
+            }
+        }
+        
+        function clearAll() {
+            stopOpening();
+            processedDOIs = [];
+            openedCount = 0;
+            currentIndex = 0;
+            document.getElementById('doiInput').value = '';
+            document.getElementById('doiList').innerHTML = '';
+            document.getElementById('status').innerHTML = '';
+            document.getElementById('stats').style.display = 'none';
+            showStatus('🗑️ Cleared all data', 'info');
+        }
+        
+        // Test with sample data
+        function loadSampleData() {
+            const sampleDOIs = `https://doi.org/10.1037/0003-066x.59.1.29
+10.1038/nature12373
+https://doi.org/10.1126/science.1243982
+doi.org/10.1016/j.cell.2014.05.010`;
+            
+            document.getElementById('doiInput').value = sampleDOIs;
+            showStatus('📋 Sample DOIs loaded! Click "Process DOIs" to continue.', 'info');
+        }
+        
+        // Auto-focus on textarea when page loads
+        window.onload = function() {
+            document.getElementById('doiInput').focus();
+        };
+    </script>
+</body>
+</html>

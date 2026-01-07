@@ -1,0 +1,2209 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>PubMed AI Screening - Modern Research Tool</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+      /* Add these styles to your existing CSS */
+      .resizable-container {
+        display: flex;
+        height: 600px;
+        gap: 0;
+        position: relative;
+      }
+
+      .left-panel {
+        width: 30%;
+        min-width: 250px;
+        max-width: 40%;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .right-panel {
+        flex: 1;
+        min-width: 300px;
+        overflow: hidden;
+      }
+
+      .drag-handle {
+        width: 8px;
+        background-color: var(--border);
+        cursor: col-resize;
+        transition: background-color 0.2s;
+      }
+
+      .drag-handle:hover {
+        background-color: var(--primary);
+      }
+
+      /* Mobile layout */
+      @media (max-width: 768px) {
+        .resizable-container {
+          flex-direction: column;
+          height: auto;
+        }
+
+        .left-panel {
+          width: 100% !important;
+          max-width: 100%;
+          height: 300px;
+        }
+
+        .right-panel {
+          width: 100% !important;
+          height: 400px;
+        }
+
+        .drag-handle {
+          display: none;
+        }
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --secondary: #8b5cf6;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --dark: #0f172a;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #334155;
+        --text-light: #64748b;
+        --surface: #ffffff;
+        --surface-dark: #1e293b;
+        --gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --gradient-2: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        --gradient-3: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1),
+          0 2px 4px -2px rgb(0 0 0 / 0.1);
+        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1),
+          0 4px 6px -4px rgb(0 0 0 / 0.1);
+        --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1),
+          0 8px 10px -6px rgb(0 0 0 / 0.1);
+        --radius: 12px;
+        --radius-lg: 16px;
+      }
+
+      body {
+        font-family: "Inter", sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        color: var(--text);
+        line-height: 1.6;
+      }
+
+      .app-container {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .header {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(20px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 1.5rem 0;
+        position: sticky;
+        top: 0;
+        z-index: 50;
+      }
+
+      .header-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: white;
+        font-weight: 700;
+        font-size: 1.5rem;
+      }
+
+      .logo-icon {
+        width: 2rem;
+        height: 2rem;
+        background: var(--gradient-3);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .main-content {
+        flex: 1;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+        width: 100%;
+      }
+
+      .card {
+        background: var(--surface);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-xl);
+        border: 1px solid var(--border);
+        overflow: hidden;
+        backdrop-filter: blur(10px);
+      }
+
+      .card-header {
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      }
+
+      .card-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--dark);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .card-body {
+        padding: 2rem;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        border-radius: var(--radius);
+        font-weight: 500;
+        font-size: 0.875rem;
+        transition: all 0.2s;
+        border: none;
+        cursor: pointer;
+        text-decoration: none;
+        min-height: 44px;
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .btn-primary {
+        background: var(--primary);
+        color: white;
+        box-shadow: var(--shadow);
+      }
+
+      .btn-primary:hover:not(:disabled) {
+        background: var(--primary-dark);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-lg);
+      }
+
+      .btn-success {
+        background: var(--success);
+        color: white;
+        box-shadow: var(--shadow);
+      }
+
+      .btn-success:hover:not(:disabled) {
+        background: #059669;
+        transform: translateY(-1px);
+      }
+
+      .btn-danger {
+        background: var(--danger);
+        color: white;
+        box-shadow: var(--shadow);
+      }
+
+      .btn-danger:hover:not(:disabled) {
+        background: #dc2626;
+        transform: translateY(-1px);
+      }
+
+      .btn-secondary {
+        background: var(--light);
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+
+      .btn-secondary:hover:not(:disabled) {
+        background: #e2e8f0;
+        transform: translateY(-1px);
+      }
+
+      .btn-outline {
+        background: transparent;
+        border: 2px solid var(--primary);
+        color: var(--primary);
+      }
+
+      .btn-outline:hover:not(:disabled) {
+        background: var(--primary);
+        color: white;
+      }
+
+      .form-group {
+        margin-bottom: 1.5rem;
+      }
+
+      .form-label {
+        display: block;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        color: var(--dark);
+      }
+
+      .form-input {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-size: 0.875rem;
+        transition: all 0.2s;
+        background: var(--surface);
+      }
+
+      .form-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+      }
+
+      .form-textarea {
+        min-height: 120px;
+        resize: vertical;
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+      }
+
+      .checkbox {
+        width: 1.25rem;
+        height: 1.25rem;
+        accent-color: var(--primary);
+      }
+
+      .loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 4rem 2rem;
+        text-align: center;
+      }
+
+      .spinner {
+        width: 3rem;
+        height: 3rem;
+        border: 3px solid var(--border);
+        border-top: 3px solid var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 1rem;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .progress-bar {
+        width: 100%;
+        height: 8px;
+        background: var(--border);
+        border-radius: 4px;
+        overflow: hidden;
+        margin: 1rem 0;
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: var(--gradient-3);
+        transition: width 0.3s ease;
+        border-radius: 4px;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+      }
+
+      .stat-card {
+        background: var(--surface);
+        padding: 1.5rem;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        text-align: center;
+        transition: transform 0.2s;
+      }
+
+      .stat-card:hover {
+        transform: translateY(-2px);
+      }
+
+      .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary);
+        margin-bottom: 0.25rem;
+      }
+
+      .stat-label {
+        font-size: 0.875rem;
+        color: var(--text-light);
+        font-weight: 500;
+      }
+
+      .study-list {
+        max-height: 600px;
+        overflow-y: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+
+      .study-item {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+      }
+
+      .study-item:hover {
+        background: var(--light);
+      }
+
+      .study-item.selected {
+        background: rgba(99, 102, 241, 0.1);
+        border-left: 4px solid var(--primary);
+      }
+
+      .study-item.included {
+        border-left: 4px solid var(--success);
+        background: rgba(16, 185, 129, 0.05);
+      }
+
+      .study-item.excluded {
+        border-left: 4px solid var(--danger);
+        background: rgba(239, 68, 68, 0.05);
+      }
+
+      .study-status {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        margin-top: 0.25rem;
+      }
+
+      .study-status.included {
+        background: var(--success);
+      }
+
+      .study-status.excluded {
+        background: var(--danger);
+      }
+
+      .study-status.pending {
+        background: var(--border);
+      }
+
+      .study-content {
+        flex: 1;
+      }
+
+      .study-title {
+        font-weight: 600;
+        color: var(--dark);
+        margin-bottom: 0.25rem;
+        line-height: 1.4;
+      }
+
+      .study-meta {
+        font-size: 0.75rem;
+        color: var(--text-light);
+        margin-bottom: 0.5rem;
+      }
+
+      .study-abstract {
+        font-size: 0.875rem;
+        color: var(--text);
+        line-height: 1.5;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+
+      .detail-panel {
+        background: var(--surface);
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        height: 600px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .detail-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--light);
+      }
+
+      .detail-content {
+        flex: 1;
+        padding: 1.5rem;
+        overflow-y: auto;
+      }
+
+      .detail-actions {
+        padding: 1.5rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 1rem;
+      }
+
+      .search-bar {
+        position: sticky;
+        top: 0;
+        background: var(--surface);
+        padding: 1rem;
+        border-bottom: 1px solid var(--border);
+        z-index: 10;
+      }
+
+      .search-input {
+        position: relative;
+      }
+
+      .search-input input {
+        padding-left: 2.5rem;
+      }
+
+      .search-icon {
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-light);
+      }
+
+      .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 1rem;
+      }
+
+      .modal.show {
+        display: flex;
+      }
+
+      .modal-content {
+        background: var(--surface);
+        border-radius: var(--radius-lg);
+        max-width: 500px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: var(--shadow-xl);
+      }
+
+      .modal-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .modal-title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--dark);
+      }
+
+      .modal-body {
+        padding: 1.5rem;
+      }
+
+      .modal-footer {
+        padding: 1.5rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+      }
+
+      .close-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0.25rem;
+        color: var(--text-light);
+      }
+
+      .toast {
+        position: fixed;
+        top: 2rem;
+        right: 2rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1rem 1.5rem;
+        box-shadow: var(--shadow-lg);
+        z-index: 1001;
+        display: none;
+        align-items: center;
+        gap: 0.75rem;
+        min-width: 300px;
+      }
+
+      .toast.show {
+        display: flex;
+        animation: slideIn 0.3s ease;
+      }
+
+      .toast.success {
+        border-left: 4px solid var(--success);
+      }
+
+      .toast.error {
+        border-left: 4px solid var(--danger);
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .floating-action {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: var(--primary);
+        color: white;
+        border: none;
+        cursor: pointer;
+        box-shadow: var(--shadow-lg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        z-index: 100;
+      }
+
+      .floating-action:hover {
+        transform: scale(1.1);
+        box-shadow: var(--shadow-xl);
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+
+      .badge-success {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+      }
+
+      .badge-danger {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+      }
+
+      .badge-warning {
+        background: rgba(245, 158, 11, 0.1);
+        color: var(--warning);
+      }
+
+      @media (max-width: 768px) {
+        .main-content {
+          padding: 1rem;
+        }
+
+        .grid-2 {
+          grid-template-columns: 1fr;
+          gap: 1rem;
+        }
+
+        .header-content {
+          padding: 0 1rem;
+        }
+
+        .card-body {
+          padding: 1.5rem;
+        }
+
+        .btn {
+          padding: 0.625rem 1.25rem;
+          font-size: 0.8125rem;
+        }
+      }
+
+      .reason-input {
+        margin-top: 0.5rem;
+      }
+
+      .export-section {
+        background: var(--light);
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        border: 1px solid var(--border);
+      }
+
+      .current-study {
+        background: var(--surface);
+        border-radius: var(--radius-lg);
+        padding: 2rem;
+        margin-bottom: 2rem;
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow);
+      }
+
+      .current-study.included {
+        border-left: 6px solid var(--success);
+        background: rgba(16, 185, 129, 0.02);
+      }
+
+      .current-study.excluded {
+        border-left: 6px solid var(--danger);
+        background: rgba(239, 68, 68, 0.02);
+      }
+
+      .navigation {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid var(--border);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- Header -->
+      <header class="header">
+        <div class="header-content">
+          <div class="logo">
+            <div class="logo-icon">
+              <i data-lucide="brain-circuit"></i>
+            </div>
+            <span>PubMed AI Screening</span>
+          </div>
+          <button class="btn btn-secondary" id="apiKeyBtn">
+            <i data-lucide="key"></i>
+            API Key
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <!-- Page 1: Initial Setup -->
+        <div id="page1" class="page">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">
+                <i data-lucide="upload"></i>
+                Initial Article Setup
+              </h2>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label">PubMed Article Links</label>
+                <textarea
+                  id="linksInput"
+                  class="form-input form-textarea"
+                  placeholder="Paste your PubMed URLs here, one per line:
+https://pubmed.ncbi.nlm.nih.gov/12345678/
+https://pubmed.ncbi.nlm.nih.gov/23456789/"
+                  rows="6"
+                ></textarea>
+              </div>
+
+              <div class="checkbox-group">
+                <input type="checkbox" id="rctOnlyCheck" class="checkbox" />
+                <label for="rctOnlyCheck"
+                  >Include only RCTs (Randomized Controlled Trials)</label
+                >
+              </div>
+
+              <div style="text-align: right">
+                <button class="btn btn-primary" id="fetchInitialBtn">
+                  <i data-lucide="arrow-right"></i>
+                  Analyze Articles
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingPage" class="page hidden">
+          <div class="loading">
+            <div class="spinner"></div>
+            <h3>Analyzing your articles...</h3>
+            <p>This may take a moment while we fetch and process the data.</p>
+            <div class="progress-bar">
+              <div
+                class="progress-fill"
+                id="progressFill"
+                style="width: 0%"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page 2: Review Similar Articles -->
+        <div id="page2" class="page hidden">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">
+                <i data-lucide="search"></i>
+                Review Similar Articles
+              </h2>
+            </div>
+            <div class="card-body">
+              <div class="stats-grid">
+                <div class="stat-card">
+                  <div class="stat-value" id="initialCount">0</div>
+                  <div class="stat-label">Initial Articles</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value" id="similarCount">0</div>
+                  <div class="stat-label">Found Similar</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value" id="includedCount">0</div>
+                  <div class="stat-label">Included</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value" id="excludedCount">0</div>
+                  <div class="stat-label">Excluded</div>
+                </div>
+              </div>
+
+              <!-- Export Section -->
+              <div class="export-section">
+                <h3
+                  style="
+                    margin-bottom: 1rem;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                  "
+                >
+                  <i data-lucide="download"></i>
+                  Export Data
+                </h3>
+                <p style="margin-bottom: 1rem; color: var(--text-light)">
+                  Download your screening results as an Excel file with all
+                  study details.
+                </p>
+                <button class="btn btn-success" id="exportExcelBtn">
+                  <i data-lucide="file-spreadsheet"></i>
+                  Download Excel Report
+                </button>
+              </div>
+
+              <!-- Replace the entire .grid-2 section with this code -->
+              <div class="resizable-container">
+                <div class="left-panel">
+                  <div class="study-list">
+                    <div class="search-bar">
+                      <div class="search-input">
+                        <i data-lucide="search" class="search-icon"></i>
+                        <input
+                          type="text"
+                          id="searchInput"
+                          class="form-input"
+                          placeholder="Search studies by title or abstract..."
+                        />
+                      </div>
+                      <div
+                        class="checkbox-group"
+                        style="margin-top: 0.75rem; margin-bottom: 0"
+                      >
+                        <input
+                          type="checkbox"
+                          id="searchInAbstractCheck"
+                          class="checkbox"
+                        />
+                        <label for="searchInAbstractCheck"
+                          >Search in abstracts</label
+                        >
+                      </div>
+                    </div>
+                    <div id="studyList">
+                      <!-- Studies will be populated here -->
+                    </div>
+                  </div>
+                </div>
+
+                <div class="drag-handle" id="dragHandle"></div>
+
+                <div class="right-panel">
+                  <div class="detail-panel">
+                    <div class="detail-header">
+                      <h3 id="detailTitle">Select a study to view details</h3>
+                      <div id="detailMeta" class="study-meta"></div>
+                    </div>
+                    <div class="detail-content">
+                      <div id="detailAbstract">
+                        <p
+                          style="
+                            color: var(--text-light);
+                            text-align: center;
+                            padding: 2rem;
+                          "
+                        >
+                          Click on a study from the list to view its abstract
+                          and details here.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="detail-actions">
+                      <button
+                        class="btn btn-success"
+                        id="detailIncludeBtn"
+                        disabled
+                      >
+                        <i data-lucide="check"></i>
+                        Include
+                      </button>
+                      <button
+                        class="btn btn-danger"
+                        id="detailExcludeBtn"
+                        disabled
+                      >
+                        <i data-lucide="x"></i>
+                        Exclude
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="navigation">
+                <button class="btn btn-secondary" id="backToPage1Btn">
+                  <i data-lucide="arrow-left"></i>
+                  Back
+                </button>
+                <div style="display: flex; gap: 1rem">
+                  <span
+                    style="
+                      color: var(--text-light);
+                      font-size: 0.875rem;
+                      align-self: center;
+                    "
+                  >
+                    Need at least 3 included studies to continue
+                  </span>
+                  <button
+                    class="btn btn-primary"
+                    id="goToScreeningBtn"
+                    disabled
+                  >
+                    <i data-lucide="play"></i>
+                    Start ML Screening
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page 3: ML Screening -->
+        <div id="page3" class="page hidden">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">
+                <i data-lucide="brain"></i>
+                AI-Powered Screening
+              </h2>
+            </div>
+            <div class="card-body">
+              <div class="current-study" id="currentStudyCard">
+                <h3 id="currentTitle">Loading next study...</h3>
+                <div id="currentMeta" class="study-meta"></div>
+                <div id="currentAbstract" style="margin-top: 1rem">
+                  <p style="color: var(--text-light)">
+                    Please wait while we load the next study for review.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                style="
+                  display: flex;
+                  gap: 1rem;
+                  justify-content: center;
+                  margin-bottom: 2rem;
+                "
+              >
+                <button class="btn btn-success" id="includeCurrentBtn" disabled>
+                  <i data-lucide="check"></i>
+                  Include Study
+                </button>
+                <button class="btn btn-danger" id="excludeCurrentBtn" disabled>
+                  <i data-lucide="x"></i>
+                  Exclude Study
+                </button>
+              </div>
+
+              <div class="navigation">
+                <button class="btn btn-secondary" id="backToPage2Btn">
+                  <i data-lucide="arrow-left"></i>
+                  Back to Review
+                </button>
+                <button class="btn btn-outline" id="viewResultsBtn">
+                  <i data-lucide="list"></i>
+                  View Results
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page 4: Results -->
+        <div id="page4" class="page hidden">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">
+                <i data-lucide="list-checks"></i>
+                Screening Results
+              </h2>
+            </div>
+            <div class="card-body">
+              <div class="stats-grid">
+                <div class="stat-card">
+                  <div class="stat-value" id="finalIncludedCount">0</div>
+                  <div class="stat-label">Included Studies</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value" id="finalExcludedCount">0</div>
+                  <div class="stat-label">Excluded Studies</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value" id="totalScreenedCount">0</div>
+                  <div class="stat-label">Total Screened</div>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">View Results</label>
+                <select
+                  id="resultsFilter"
+                  class="form-input"
+                  style="max-width: 300px"
+                >
+                  <option value="included">Included Studies</option>
+                  <option value="excluded">Excluded Studies</option>
+                  <option value="all">All Studies</option>
+                </select>
+              </div>
+
+              <div id="resultsList">
+                <!-- Results will be populated here -->
+              </div>
+
+              <div class="navigation">
+                <button class="btn btn-secondary" id="backToPage3Btn">
+                  <i data-lucide="arrow-left"></i>
+                  Back to Screening
+                </button>
+                <button class="btn btn-success" id="exportFinalBtn">
+                  <i data-lucide="download"></i>
+                  Export Final Results
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Modals -->
+    <!-- API Key Modal -->
+    <div class="modal" id="apiKeyModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">Add PubMed API Key</h3>
+          <button class="close-btn" id="closeApiModal">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p style="margin-bottom: 1rem">
+            Adding a PubMed API key will increase request limits and improve
+            performance.
+          </p>
+          <div class="form-group">
+            <label class="form-label">API Key</label>
+            <input
+              type="text"
+              id="apiKeyInput"
+              class="form-input"
+              placeholder="Enter your NCBI API key..."
+            />
+          </div>
+          <div style="font-size: 0.875rem; color: var(--text-light)">
+            <p><strong>How to get an API key:</strong></p>
+            <ol style="margin: 0.5rem 0; padding-left: 1.5rem">
+              <li>Visit NCBI and create/login to your account</li>
+              <li>Go to Account Settings → API Key Management</li>
+              <li>Generate or copy your existing API key</li>
+            </ol>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="cancelApiBtn">Cancel</button>
+          <button class="btn btn-primary" id="saveApiBtn">Save Key</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Exclusion Reason Modal -->
+    <div class="modal" id="exclusionModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">Reason for Exclusion</h3>
+          <button class="close-btn" id="closeExclusionModal">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Why are you excluding this study?</label>
+            <textarea
+              id="exclusionReasonInput"
+              class="form-input form-textarea"
+              placeholder="Enter the reason for exclusion..."
+              rows="4"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="cancelExclusionBtn">
+            Cancel
+          </button>
+          <button class="btn btn-danger" id="confirmExclusionBtn">
+            Exclude Study
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast" id="toast">
+      <div id="toastIcon"></div>
+      <div id="toastMessage"></div>
+    </div>
+
+    <!-- Floating Action Button (for mobile) -->
+    <button class="floating-action hidden" id="floatingAction">
+      <i data-lucide="plus"></i>
+    </button>
+
+    <script>
+      // Initialize Lucide icons
+      lucide.createIcons();
+
+      // Configuration
+      const CONFIG = {
+        WEIGHT_KEYWORDS: 4,
+        WEIGHT_MESH: 3,
+        WEIGHT_TITLE: 2,
+        WEIGHT_ABSTRACT: 1,
+        RCT_PATTERNS: /(trial|random|placebo|controlled)/i,
+        RCT_PUBTYPES: [
+          "Randomized Controlled Trial",
+          "Controlled Clinical Trial",
+          "Clinical Trials as Topic",
+        ],
+        STOPWORDS: new Set([
+          "the",
+          "and",
+          "or",
+          "of",
+          "in",
+          "to",
+          "a",
+          "with",
+          "for",
+          "is",
+          "on",
+          "by",
+          "be",
+          "are",
+          "were",
+          "was",
+          "this",
+          "that",
+          "an",
+          "it",
+          "from",
+          "at",
+          "as",
+          "etc",
+          "but",
+          "not",
+          "have",
+          "has",
+          "had",
+          "will",
+          "would",
+          "could",
+          "should",
+          "may",
+          "might",
+          "can",
+          "do",
+          "does",
+          "did",
+        ]),
+      };
+
+      // Global State
+      let state = {
+        apiKey: "",
+        initialArticles: [],
+        similarArticles: [],
+        includedPMIDs: new Set(),
+        excludedPMIDs: new Set(),
+        exclusionReasons: {},
+        fetchedArticlesMap: {},
+        currentArticlePMID: null,
+        selectedPMID: null,
+        currentExcludingPMID: null,
+      };
+
+      // Utility Functions
+      function showPage(pageId) {
+        document.querySelectorAll(".page").forEach((page) => {
+          page.classList.add("hidden");
+        });
+        document.getElementById(pageId).classList.remove("hidden");
+      }
+
+      function showToast(message, type = "success") {
+        const toast = document.getElementById("toast");
+        const icon = document.getElementById("toastIcon");
+        const messageEl = document.getElementById("toastMessage");
+
+        icon.innerHTML =
+          type === "success"
+            ? '<i data-lucide="check-circle" style="color: var(--success);"></i>'
+            : '<i data-lucide="alert-circle" style="color: var(--danger);"></i>';
+
+        messageEl.textContent = message;
+        toast.className = `toast show ${type}`;
+        lucide.createIcons();
+
+        setTimeout(() => {
+          toast.classList.remove("show");
+        }, 4000);
+      }
+
+      function showModal(modalId) {
+        document.getElementById(modalId).classList.add("show");
+      }
+
+      function hideModal(modalId) {
+        document.getElementById(modalId).classList.remove("show");
+      }
+
+      function updateProgress(percent) {
+        document.getElementById("progressFill").style.width = `${percent}%`;
+      }
+
+      // Add this after your existing JavaScript
+      document.addEventListener("DOMContentLoaded", () => {
+        const container = document.querySelector(".resizable-container");
+        const leftPanel = container.querySelector(".left-panel");
+        const dragHandle = document.getElementById("dragHandle");
+        let isResizing = false;
+
+        dragHandle.addEventListener("mousedown", (e) => {
+          isResizing = true;
+          document.body.style.cursor = "col-resize";
+          e.preventDefault();
+        });
+
+        document.addEventListener("mousemove", (e) => {
+          if (!isResizing) return;
+
+          const containerRect = container.getBoundingClientRect();
+          const xPosition = e.clientX - containerRect.left;
+          const containerWidth = containerRect.width;
+
+          // Calculate new widths (min 250px, max 40%)
+          const leftWidth = Math.min(
+            Math.max(xPosition, 250),
+            containerWidth * 0.4
+          );
+
+          leftPanel.style.width = `${leftWidth}px`;
+        });
+
+        document.addEventListener("mouseup", () => {
+          isResizing = false;
+          document.body.style.cursor = "";
+        });
+      });
+
+      // PubMed API Functions
+      function extractPMIDsFromLinks(linksStr) {
+        const lines = linksStr
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter(Boolean);
+        const pmidRegex = /(\d{7,8})/;
+        const pmids = [];
+
+        for (const line of lines) {
+          const match = line.match(pmidRegex);
+          if (match) pmids.push(match[1]);
+        }
+
+        return Array.from(new Set(pmids));
+      }
+
+      async function fetchPMIDs(pmids) {
+        if (!pmids.length) return [];
+
+        const baseUrl =
+          "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi";
+        const batchSize = 200;
+        const parser = new DOMParser();
+        const results = [];
+        const apiParam = state.apiKey ? `&api_key=${state.apiKey}` : "";
+
+        for (let i = 0; i < pmids.length; i += batchSize) {
+          const slice = pmids.slice(i, i + batchSize);
+          const url = `${baseUrl}?db=pubmed&retmode=xml&id=${slice.join(
+            ","
+          )}${apiParam}`;
+
+          try {
+            const response = await fetch(url);
+            const xml = await response.text();
+            const doc = parser.parseFromString(xml, "text/xml");
+            const articles = doc.getElementsByTagName("PubmedArticle");
+
+            for (let j = 0; j < articles.length; j++) {
+              const article = articles[j];
+              const pmid = article.querySelector("PMID")?.textContent || "N/A";
+
+              // Extract title
+              const titleNode = article.querySelector("Article>ArticleTitle");
+              const title = titleNode
+                ? titleNode.textContent.trim()
+                : "No Title";
+
+              // Extract abstract
+              const abstractNodes = article.querySelectorAll(
+                "Abstract>AbstractText"
+              );
+              const abstract = Array.from(abstractNodes)
+                .map((n) => n.textContent.trim())
+                .join(" ");
+
+              // Extract authors
+              const authorNodes = article.querySelectorAll("AuthorList>Author");
+              const authors = Array.from(authorNodes)
+                .map((author) => {
+                  const lastName =
+                    author.querySelector("LastName")?.textContent || "";
+                  const foreName =
+                    author.querySelector("ForeName")?.textContent || "";
+                  return `${lastName} ${foreName}`.trim();
+                })
+                .filter(Boolean)
+                .slice(0, 3); // Limit to first 3 authors
+
+              // Extract publication year
+              const yearNode =
+                article.querySelector("PubDate>Year") ||
+                article.querySelector("DateCompleted>Year") ||
+                article.querySelector("DateRevised>Year");
+              const year = yearNode ? yearNode.textContent : "N/A";
+
+              // Extract MeSH terms
+              const meshNodes = article.querySelectorAll(
+                "MeshHeadingList>MeshHeading"
+              );
+              const meshTerms = [];
+              meshNodes.forEach((mesh) => {
+                const desc = mesh.querySelector("DescriptorName");
+                if (desc) meshTerms.push(desc.textContent.trim());
+                mesh.querySelectorAll("QualifierName").forEach((qual) => {
+                  meshTerms.push(qual.textContent.trim());
+                });
+              });
+
+              // Extract keywords
+              const keywordNodes = article.querySelectorAll(
+                "KeywordList>Keyword"
+              );
+              const keywords = Array.from(keywordNodes).map((k) =>
+                k.textContent.trim()
+              );
+
+              // Extract publication types
+              const pubTypeNodes = article.querySelectorAll("PublicationType");
+              const pubTypes = Array.from(pubTypeNodes).map((pt) =>
+                pt.textContent.trim()
+              );
+
+              const articleData = {
+                pmid,
+                title,
+                abstract,
+                authors,
+                year,
+                link: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
+                mesh: meshTerms,
+                keywords,
+                pubTypes,
+                vector: {},
+              };
+
+              results.push(articleData);
+              state.fetchedArticlesMap[pmid] = articleData;
+            }
+          } catch (error) {
+            console.error("Error fetching PMIDs:", error);
+          }
+        }
+
+        return results;
+      }
+
+      async function findSimilarArticles(pmid) {
+        const apiParam = state.apiKey ? `&api_key=${state.apiKey}` : "";
+        const url = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi?dbfrom=pubmed&id=${pmid}&cmd=neighbor&retmode=json${apiParam}`;
+
+        try {
+          const response = await fetch(url);
+          const data = await response.json();
+
+          if (!data.linksets || !data.linksets.length) return [];
+
+          const linkset = data.linksets[0];
+          if (!linkset.linksetdbs) return [];
+
+          const pmids = [];
+          for (const db of linkset.linksetdbs) {
+            if (db.linkname === "pubmed_pubmed") {
+              pmids.push(...db.links);
+            }
+          }
+
+          return pmids;
+        } catch (error) {
+          console.error("Error finding similar articles:", error);
+          return [];
+        }
+      }
+
+      // ML/Vector Functions
+      function buildVector(article) {
+        const freq = {};
+
+        // Keywords (weight 4)
+        article.keywords.forEach((kw) => {
+          addWeightedTokens(kw, CONFIG.WEIGHT_KEYWORDS, freq);
+        });
+
+        // MeSH terms (weight 3)
+        article.mesh.forEach((mesh) => {
+          addWeightedTokens(mesh, CONFIG.WEIGHT_MESH, freq);
+        });
+
+        // Title (weight 2)
+        addWeightedTokens(article.title, CONFIG.WEIGHT_TITLE, freq);
+
+        // Abstract (weight 1)
+        addWeightedTokens(article.abstract, CONFIG.WEIGHT_ABSTRACT, freq);
+
+        return freq;
+      }
+
+      function addWeightedTokens(text, weight, freqMap) {
+        if (!text) return;
+
+        const tokens = text
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, " ")
+          .split(/\s+/);
+
+        for (const token of tokens) {
+          if (!token || CONFIG.STOPWORDS.has(token)) continue;
+          freqMap[token] = (freqMap[token] || 0) + weight;
+        }
+      }
+
+      function cosineSimilarity(vecA, vecB) {
+        if (!vecA || !vecB) return 0;
+
+        let dot = 0,
+          normA = 0,
+          normB = 0;
+
+        for (const key in vecA) {
+          if (vecB[key]) dot += vecA[key] * vecB[key];
+          normA += vecA[key] * vecA[key];
+        }
+
+        for (const key in vecB) {
+          normB += vecB[key] * vecB[key];
+        }
+
+        if (normA === 0 || normB === 0) return 0;
+        return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+      }
+
+      function passesRCTFilter(article) {
+        const hasPubType = article.pubTypes.some((pt) =>
+          CONFIG.RCT_PUBTYPES.includes(pt)
+        );
+        const hasPatternInTitle = CONFIG.RCT_PATTERNS.test(article.title);
+        const hasPatternInAbstract = CONFIG.RCT_PATTERNS.test(article.abstract);
+
+        return hasPubType || hasPatternInTitle || hasPatternInAbstract;
+      }
+
+      function selectNextArticle(candidates) {
+        if (!candidates.length) return null;
+
+        const includedArticles = Array.from(state.includedPMIDs)
+          .filter((pmid) => state.fetchedArticlesMap[pmid])
+          .map((pmid) => state.fetchedArticlesMap[pmid]);
+
+        const excludedArticles = Array.from(state.excludedPMIDs)
+          .filter((pmid) => state.fetchedArticlesMap[pmid])
+          .map((pmid) => state.fetchedArticlesMap[pmid]);
+
+        if (!includedArticles.length && !excludedArticles.length) {
+          return candidates[0];
+        }
+
+        let bestScore = -Infinity;
+        let bestPMID = candidates[0];
+
+        for (const pmid of candidates) {
+          const article = state.fetchedArticlesMap[pmid];
+          if (!article) continue;
+
+          const vector = article.vector;
+
+          // Calculate similarity to included articles
+          let includedSum = 0;
+          for (const included of includedArticles) {
+            includedSum += cosineSimilarity(vector, included.vector);
+          }
+          const avgIncluded = includedArticles.length
+            ? includedSum / includedArticles.length
+            : 0;
+
+          // Calculate similarity to excluded articles
+          let excludedSum = 0;
+          for (const excluded of excludedArticles) {
+            excludedSum += cosineSimilarity(vector, excluded.vector);
+          }
+          const avgExcluded = excludedArticles.length
+            ? excludedSum / excludedArticles.length
+            : 0;
+
+          const score = avgIncluded - avgExcluded;
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestPMID = pmid;
+          }
+        }
+
+        return bestPMID;
+      }
+
+      // UI Update Functions
+      function updateStats() {
+        document.getElementById("initialCount").textContent =
+          state.initialArticles.length;
+        document.getElementById("similarCount").textContent =
+          state.similarArticles.length;
+        document.getElementById("includedCount").textContent =
+          state.includedPMIDs.size;
+        document.getElementById("excludedCount").textContent =
+          state.excludedPMIDs.size;
+
+        // Update final results stats
+        document.getElementById("finalIncludedCount").textContent =
+          state.includedPMIDs.size;
+        document.getElementById("finalExcludedCount").textContent =
+          state.excludedPMIDs.size;
+        document.getElementById("totalScreenedCount").textContent =
+          state.includedPMIDs.size + state.excludedPMIDs.size;
+
+        // Update button states
+        const canProceed = state.includedPMIDs.size >= 3;
+        document.getElementById("goToScreeningBtn").disabled = !canProceed;
+      }
+
+      function renderStudyList(articles = state.similarArticles) {
+        const container = document.getElementById("studyList");
+        container.innerHTML = "";
+
+        if (!articles.length) {
+          container.innerHTML = `
+          <div style="padding: 2rem; text-align: center; color: var(--text-light);">
+            <i data-lucide="search-x" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i>
+            <p>No articles found matching your search.</p>
+          </div>
+        `;
+          lucide.createIcons();
+          return;
+        }
+
+        articles.forEach((article) => {
+          const isIncluded = state.includedPMIDs.has(article.pmid);
+          const isExcluded = state.excludedPMIDs.has(article.pmid);
+          const isSelected = state.selectedPMID === article.pmid;
+
+          let statusClass = "pending";
+          if (isIncluded) statusClass = "included";
+          if (isExcluded) statusClass = "excluded";
+
+          const itemClass = `study-item ${statusClass} ${
+            isSelected ? "selected" : ""
+          }`;
+
+          const authorsText =
+            article.authors.length > 0
+              ? article.authors.join(", ") +
+                (article.authors.length >= 3 ? ", et al." : "")
+              : "No authors listed";
+
+          const item = document.createElement("div");
+          item.className = itemClass;
+          item.dataset.pmid = article.pmid;
+          item.innerHTML = `
+          <div class="study-status ${statusClass}"></div>
+          <div class="study-content">
+            <div class="study-title">${article.title}</div>
+            <div class="study-meta">
+              ${authorsText} | ${article.year} | PMID: ${article.pmid}
+            </div>
+            <div class="study-abstract">${
+              article.abstract || "No abstract available"
+            }</div>
+          </div>
+        `;
+
+          item.addEventListener("click", () => {
+            // Remove previous selection
+            document.querySelectorAll(".study-item.selected").forEach((el) => {
+              el.classList.remove("selected");
+            });
+
+            // Add selection to current item
+            item.classList.add("selected");
+            state.selectedPMID = article.pmid;
+            showStudyDetail(article);
+          });
+
+          container.appendChild(item);
+        });
+      }
+
+      function showStudyDetail(article) {
+        document.getElementById("detailTitle").textContent = article.title;
+
+        const authorsText =
+          article.authors.length > 0
+            ? article.authors.join(", ") +
+              (article.authors.length >= 3 ? ", et al." : "")
+            : "No authors listed";
+
+        document.getElementById("detailMeta").innerHTML = `
+        <strong>Authors:</strong> ${authorsText}<br>
+        <strong>Year:</strong> ${article.year}<br>
+        <strong>PMID:</strong> <a href="${article.link}" target="_blank">${article.pmid}</a>
+      `;
+
+        document.getElementById("detailAbstract").innerHTML = `
+        <h4 style="margin-bottom: 1rem;">Abstract</h4>
+        <p>${article.abstract || "No abstract available"}</p>
+      `;
+
+        // Enable action buttons
+        document.getElementById("detailIncludeBtn").disabled = false;
+        document.getElementById("detailExcludeBtn").disabled = false;
+      }
+
+      function filterStudies() {
+        const searchText = document
+          .getElementById("searchInput")
+          .value.toLowerCase()
+          .trim();
+        const searchInAbstract = document.getElementById(
+          "searchInAbstractCheck"
+        ).checked;
+
+        if (!searchText) {
+          renderStudyList();
+          return;
+        }
+
+        const filtered = state.similarArticles.filter((article) => {
+          const inTitle = article.title.toLowerCase().includes(searchText);
+          const inAbstract =
+            searchInAbstract &&
+            article.abstract.toLowerCase().includes(searchText);
+
+          return inTitle || inAbstract;
+        });
+
+        renderStudyList(filtered);
+      }
+
+      async function loadNextArticle() {
+        // Get all neighbor PMIDs from included articles
+        let allNeighbors = new Set();
+
+        for (const includedPMID of state.includedPMIDs) {
+          const neighbors = await findSimilarArticles(includedPMID);
+          neighbors.forEach((pmid) => allNeighbors.add(pmid));
+        }
+
+        // Remove already processed articles
+        for (const pmid of state.includedPMIDs) {
+          allNeighbors.delete(pmid);
+        }
+        for (const pmid of state.excludedPMIDs) {
+          allNeighbors.delete(pmid);
+        }
+
+        const candidates = Array.from(allNeighbors);
+
+        // Fetch any new articles we haven't seen before
+        const toFetch = candidates.filter(
+          (pmid) => !state.fetchedArticlesMap[pmid]
+        );
+        if (toFetch.length > 0) {
+          await fetchPMIDs(toFetch);
+        }
+
+        // Apply RCT filter if enabled
+        const rctOnly = document.getElementById("rctOnlyCheck").checked;
+        const validCandidates = candidates.filter((pmid) => {
+          const article = state.fetchedArticlesMap[pmid];
+          if (!article) return false;
+
+          if (rctOnly && !passesRCTFilter(article)) return false;
+
+          // Ensure vector is built
+          if (!article.vector || !Object.keys(article.vector).length) {
+            article.vector = buildVector(article);
+          }
+
+          return true;
+        });
+
+        if (!validCandidates.length) {
+          state.currentArticlePMID = null;
+          showCurrentStudy();
+          return;
+        }
+
+        // Select next article using ML
+        state.currentArticlePMID = selectNextArticle(validCandidates);
+        showCurrentStudy();
+      }
+
+      function showCurrentStudy() {
+        const card = document.getElementById("currentStudyCard");
+        card.classList.remove("included", "excluded");
+
+        if (!state.currentArticlePMID) {
+          document.getElementById("currentTitle").textContent =
+            "No more articles to screen";
+          document.getElementById("currentMeta").textContent = "";
+          document.getElementById("currentAbstract").innerHTML = `
+          <p style="color: var(--text-light);">
+            You have completed the screening process. All available similar articles have been reviewed.
+          </p>
+        `;
+
+          document.getElementById("includeCurrentBtn").disabled = true;
+          document.getElementById("excludeCurrentBtn").disabled = true;
+          return;
+        }
+
+        const article = state.fetchedArticlesMap[state.currentArticlePMID];
+        if (!article) return;
+
+        document.getElementById("currentTitle").textContent = article.title;
+
+        const authorsText =
+          article.authors.length > 0
+            ? article.authors.join(", ") +
+              (article.authors.length >= 3 ? ", et al." : "")
+            : "No authors listed";
+
+        document.getElementById("currentMeta").innerHTML = `
+        <strong>Authors:</strong> ${authorsText} | 
+        <strong>Year:</strong> ${article.year} | 
+        <strong>PMID:</strong> <a href="${article.link}" target="_blank">${article.pmid}</a>
+      `;
+
+        document.getElementById("currentAbstract").innerHTML = `
+        <h4 style="margin-bottom: 1rem;">Abstract</h4>
+        <p>${article.abstract || "No abstract available"}</p>
+      `;
+
+        // Check if already classified
+        if (state.includedPMIDs.has(state.currentArticlePMID)) {
+          card.classList.add("included");
+        } else if (state.excludedPMIDs.has(state.currentArticlePMID)) {
+          card.classList.add("excluded");
+        }
+
+        document.getElementById("includeCurrentBtn").disabled = false;
+        document.getElementById("excludeCurrentBtn").disabled = false;
+      }
+
+      // Excel Export Function
+      function exportToExcel() {
+        const allArticles = [
+          ...state.initialArticles,
+          ...state.similarArticles,
+        ];
+
+        // Remove duplicates
+        const uniqueArticles = allArticles.filter(
+          (article, index, self) =>
+            index === self.findIndex((a) => a.pmid === article.pmid)
+        );
+
+        const data = uniqueArticles.map((article) => {
+          const isIncluded = state.includedPMIDs.has(article.pmid);
+          const isExcluded = state.excludedPMIDs.has(article.pmid);
+
+          let status = "Pending";
+          if (isIncluded) status = "Included";
+          if (isExcluded) status = "Excluded";
+
+          const authorsText =
+            article.authors.length > 0
+              ? article.authors.join("; ")
+              : "No authors listed";
+
+          return {
+            "PubMed Link": article.link,
+            Title: article.title,
+            Authors: authorsText,
+            Year: article.year,
+            Abstract: article.abstract || "No abstract available",
+            Status: status,
+            "Reason for Exclusion": state.exclusionReasons[article.pmid] || "",
+          };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "PubMed Screening Results");
+
+        // Auto-size columns
+        const colWidths = [
+          { wch: 40 }, // PubMed Link
+          { wch: 60 }, // Title
+          { wch: 40 }, // Authors
+          { wch: 10 }, // Year
+          { wch: 80 }, // Abstract
+          { wch: 15 }, // Status
+          { wch: 40 }, // Reason for Exclusion
+        ];
+        ws["!cols"] = colWidths;
+
+        const fileName = `pubmed_screening_${
+          new Date().toISOString().split("T")[0]
+        }.xlsx`;
+        XLSX.writeFile(wb, fileName);
+
+        showToast("Excel file downloaded successfully!", "success");
+      }
+
+      function renderResults() {
+        const filter = document.getElementById("resultsFilter").value;
+        const container = document.getElementById("resultsList");
+
+        let articlesToShow = [];
+
+        if (filter === "included") {
+          articlesToShow = Array.from(state.includedPMIDs)
+            .map((pmid) => state.fetchedArticlesMap[pmid])
+            .filter(Boolean);
+        } else if (filter === "excluded") {
+          articlesToShow = Array.from(state.excludedPMIDs)
+            .map((pmid) => state.fetchedArticlesMap[pmid])
+            .filter(Boolean);
+        } else {
+          // All articles
+          const allPMIDs = new Set([
+            ...Array.from(state.includedPMIDs),
+            ...Array.from(state.excludedPMIDs),
+          ]);
+          articlesToShow = Array.from(allPMIDs)
+            .map((pmid) => state.fetchedArticlesMap[pmid])
+            .filter(Boolean);
+        }
+
+        if (!articlesToShow.length) {
+          container.innerHTML = `
+          <div style="padding: 2rem; text-align: center; color: var(--text-light);">
+            <i data-lucide="inbox" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i>
+            <p>No articles in this category yet.</p>
+          </div>
+        `;
+          lucide.createIcons();
+          return;
+        }
+
+        container.innerHTML = "";
+
+        articlesToShow.forEach((article) => {
+          const isIncluded = state.includedPMIDs.has(article.pmid);
+          const isExcluded = state.excludedPMIDs.has(article.pmid);
+
+          const statusBadge = isIncluded
+            ? '<span class="badge badge-success">Included</span>'
+            : '<span class="badge badge-danger">Excluded</span>';
+
+          const authorsText =
+            article.authors.length > 0
+              ? article.authors.join(", ") +
+                (article.authors.length >= 3 ? ", et al." : "")
+              : "No authors listed";
+
+          const exclusionReason = state.exclusionReasons[article.pmid];
+          const reasonHtml = exclusionReason
+            ? `<div style="margin-top: 0.5rem;"><strong>Exclusion Reason:</strong> ${exclusionReason}</div>`
+            : "";
+
+          const card = document.createElement("div");
+          card.className = `card study-card ${
+            isIncluded ? "included" : "excluded"
+          }`;
+          card.style.marginBottom = "1rem";
+          card.innerHTML = `
+          <div class="card-body">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+              <h5 class="study-title" style="flex: 1; margin-right: 1rem;">${
+                article.title
+              }</h5>
+              ${statusBadge}
+            </div>
+            <div class="study-meta" style="margin-bottom: 1rem;">
+              <strong>Authors:</strong> ${authorsText}<br>
+              <strong>Year:</strong> ${article.year}<br>
+              <strong>PMID:</strong> <a href="${
+                article.link
+              }" target="_blank">${article.pmid}</a>
+            </div>
+            <p style="color: var(--text); line-height: 1.5;">
+              ${article.abstract || "No abstract available"}
+            </p>
+            ${reasonHtml}
+          </div>
+        `;
+          container.appendChild(card);
+        });
+      }
+
+      // Event Listeners
+      document.getElementById("apiKeyBtn").addEventListener("click", () => {
+        showModal("apiKeyModal");
+      });
+
+      document.getElementById("closeApiModal").addEventListener("click", () => {
+        hideModal("apiKeyModal");
+      });
+
+      document.getElementById("cancelApiBtn").addEventListener("click", () => {
+        hideModal("apiKeyModal");
+      });
+
+      document.getElementById("saveApiBtn").addEventListener("click", () => {
+        state.apiKey = document.getElementById("apiKeyInput").value.trim();
+        hideModal("apiKeyModal");
+        showToast("API Key saved successfully!", "success");
+      });
+
+      document
+        .getElementById("fetchInitialBtn")
+        .addEventListener("click", async () => {
+          const links = document.getElementById("linksInput").value;
+          const pmids = extractPMIDsFromLinks(links);
+          if (!pmids.length) {
+            showToast("Please enter at least one valid PubMed link", "error");
+            return;
+          }
+          showPage("loadingPage");
+          updateProgress(0);
+          state.initialArticles = await fetchPMIDs(pmids);
+          updateProgress(20);
+          state.initialArticles.forEach((article) => {
+            article.vector = buildVector(article);
+            state.includedPMIDs.add(article.pmid);
+          });
+          let similarPMIDs = new Set();
+          for (let i = 0; i < state.initialArticles.length; i++) {
+            const pmid = state.initialArticles[i].pmid;
+            const neighbors = await findSimilarArticles(pmid);
+            neighbors.forEach((s) => similarPMIDs.add(s));
+            updateProgress(20 + (80 * (i + 1)) / state.initialArticles.length);
+          }
+          state.initialArticles.forEach((a) => similarPMIDs.delete(a.pmid));
+          state.similarArticles = await fetchPMIDs(Array.from(similarPMIDs));
+          const rctOnly = document.getElementById("rctOnlyCheck").checked;
+          if (rctOnly) {
+            state.similarArticles =
+              state.similarArticles.filter(passesRCTFilter);
+          }
+          state.similarArticles.forEach((article) => {
+            article.vector = buildVector(article);
+          });
+          updateStats();
+          renderStudyList();
+          showPage("page2");
+        });
+
+      document
+        .getElementById("detailIncludeBtn")
+        .addEventListener("click", () => {
+          if (!state.selectedPMID) return;
+          state.includedPMIDs.add(state.selectedPMID);
+          state.excludedPMIDs.delete(state.selectedPMID);
+          delete state.exclusionReasons[state.selectedPMID];
+          updateStats();
+          renderStudyList();
+          const selectedItem = document.querySelector(
+            `.study-item[data-pmid="${state.selectedPMID}"]`
+          );
+          if (selectedItem) {
+            selectedItem.classList.add("included");
+            selectedItem.classList.remove("excluded");
+          }
+          showToast("Study included successfully!", "success");
+        });
+
+      document
+        .getElementById("detailExcludeBtn")
+        .addEventListener("click", () => {
+          if (!state.selectedPMID) return;
+          state.currentExcludingPMID = state.selectedPMID;
+          showModal("exclusionModal");
+        });
+
+      document
+        .getElementById("searchInput")
+        .addEventListener("input", filterStudies);
+      document
+        .getElementById("searchInAbstractCheck")
+        .addEventListener("change", filterStudies);
+
+      document
+        .getElementById("backToPage1Btn")
+        .addEventListener("click", () => {
+          showPage("page1");
+        });
+
+      document
+        .getElementById("goToScreeningBtn")
+        .addEventListener("click", async () => {
+          showPage("page3");
+          await loadNextArticle();
+        });
+
+      document
+        .getElementById("includeCurrentBtn")
+        .addEventListener("click", async () => {
+          if (!state.currentArticlePMID) return;
+          state.includedPMIDs.add(state.currentArticlePMID);
+          state.excludedPMIDs.delete(state.currentArticlePMID);
+          delete state.exclusionReasons[state.currentArticlePMID];
+          updateStats();
+          showToast("Study included! Loading next...", "success");
+          await loadNextArticle();
+        });
+
+      document
+        .getElementById("excludeCurrentBtn")
+        .addEventListener("click", () => {
+          if (!state.currentArticlePMID) return;
+          state.currentExcludingPMID = state.currentArticlePMID;
+          showModal("exclusionModal");
+        });
+
+      document
+        .getElementById("backToPage2Btn")
+        .addEventListener("click", () => {
+          showPage("page2");
+        });
+
+      document
+        .getElementById("viewResultsBtn")
+        .addEventListener("click", () => {
+          renderResults();
+          showPage("page4");
+        });
+
+      document
+        .getElementById("resultsFilter")
+        .addEventListener("change", renderResults);
+
+      document
+        .getElementById("backToPage3Btn")
+        .addEventListener("click", () => {
+          showPage("page3");
+        });
+
+      document
+        .getElementById("exportExcelBtn")
+        .addEventListener("click", exportToExcel);
+      document
+        .getElementById("exportFinalBtn")
+        .addEventListener("click", exportToExcel);
+
+      document
+        .getElementById("closeExclusionModal")
+        .addEventListener("click", () => {
+          hideModal("exclusionModal");
+        });
+
+      document
+        .getElementById("cancelExclusionBtn")
+        .addEventListener("click", () => {
+          hideModal("exclusionModal");
+        });
+
+      document
+        .getElementById("confirmExclusionBtn")
+        .addEventListener("click", async () => {
+          const reason = document
+            .getElementById("exclusionReasonInput")
+            .value.trim();
+          if (!reason) {
+            showToast("Please provide a reason for exclusion", "error");
+            return;
+          }
+          const pmid = state.currentExcludingPMID;
+          if (!pmid) return;
+          state.excludedPMIDs.add(pmid);
+          state.includedPMIDs.delete(pmid);
+          state.exclusionReasons[pmid] = reason;
+          updateStats();
+          const isFromPage2 = state.selectedPMID === pmid;
+          if (isFromPage2) {
+            renderStudyList();
+            const selectedItem = document.querySelector(
+              `.study-item[data-pmid="${pmid}"]`
+            );
+            if (selectedItem) {
+              selectedItem.classList.add("excluded");
+              selectedItem.classList.remove("included");
+            }
+          }
+          document.getElementById("exclusionReasonInput").value = "";
+          hideModal("exclusionModal");
+          showToast("Study excluded successfully!", "success");
+          state.currentExcludingPMID = null;
+          if (state.currentArticlePMID === pmid) {
+            await loadNextArticle();
+          }
+        });
+    </script>
+  </body>
+</html>

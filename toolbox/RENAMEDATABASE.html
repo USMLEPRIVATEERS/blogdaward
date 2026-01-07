@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bibliography File Organizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .databases-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .database-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            border: 2px dashed #ddd;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .database-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .database-card.dragover {
+            border-color: #28a745;
+            background: #f0f8f0;
+        }
+
+        .database-card.custom {
+            background: #fff3cd;
+            border-color: #ffeaa7;
+        }
+
+        .database-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-height: 120px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .drop-zone:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .drop-zone.dragover {
+            border-color: #28a745;
+            background: #f0f8f0;
+        }
+
+        .drop-icon {
+            font-size: 2em;
+            color: #ccc;
+            margin-bottom: 10px;
+        }
+
+        .drop-text {
+            color: #666;
+            font-size: 1em;
+        }
+
+        .file-info {
+            margin-top: 15px;
+            padding: 10px;
+            background: #e8f5e8;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+
+        .file-info h4 {
+            color: #155724;
+            margin-bottom: 5px;
+        }
+
+        .file-info p {
+            color: #155724;
+            font-size: 0.9em;
+            margin: 2px 0;
+        }
+
+        .add-database {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .add-database:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 400px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+
+        .form-group input:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .processing {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 2000;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 Bibliography File Organizer</h1>
+            <p>Arraste seus arquivos .nbib e .ris para organizar e renomear automaticamente</p>
+        </div>
+
+        <button class="add-database" onclick="openAddDatabaseModal()">
+            ➕ Adicionar Nova Base de Dados
+        </button>
+
+        <div class="databases-grid" id="databasesGrid">
+            <!-- Databases padrão serão adicionados aqui via JavaScript -->
+        </div>
+    </div>
+
+    <!-- Modal para adicionar nova base de dados -->
+    <div id="addDatabaseModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Adicionar Nova Base de Dados</h2>
+                <p>Insira o nome da nova base de dados</p>
+            </div>
+            <div class="form-group">
+                <label for="databaseName">Nome da Base de Dados:</label>
+                <input type="text" id="databaseName" placeholder="Ex: WEB OF SCIENCE">
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-primary" onclick="addDatabase()">Adicionar</button>
+                <button class="btn btn-secondary" onclick="closeAddDatabaseModal()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlay de processamento -->
+    <div id="processingOverlay" class="processing">
+        <div class="spinner"></div>
+        <p>Processando arquivo...</p>
+    </div>
+
+    <script>
+        // Bases de dados padrão
+        const defaultDatabases = ['PUBMED', 'EMBASE', 'COCHRANE', 'SCOPUS', 'PSYCNET'];
+        
+        // Carregar bases personalizadas do localStorage
+        let customDatabases = JSON.parse(localStorage.getItem('customDatabases')) || [];
+
+        // Inicializar a aplicação
+        function initializeApp() {
+            const grid = document.getElementById('databasesGrid');
+            grid.innerHTML = '';
+            
+            // Adicionar databases padrão
+            defaultDatabases.forEach(db => {
+                createDatabaseCard(db, false);
+            });
+            
+            // Adicionar databases personalizados
+            customDatabases.forEach(db => {
+                createDatabaseCard(db, true);
+            });
+        }
+
+        // Criar card de base de dados
+        function createDatabaseCard(databaseName, isCustom) {
+            const grid = document.getElementById('databasesGrid');
+            const card = document.createElement('div');
+            card.className = `database-card ${isCustom ? 'custom' : ''}`;
+            card.innerHTML = `
+                <div class="database-title">
+                    ${databaseName}
+                    ${isCustom ? '<button class="remove-btn" onclick="removeCustomDatabase(\'' + databaseName + '\')">×</button>' : ''}
+                </div>
+                <div class="drop-zone" ondrop="dropHandler(event, '${databaseName}')" ondragover="dragOverHandler(event)" ondragleave="dragLeaveHandler(event)">
+                    <div class="drop-icon">📁</div>
+                    <div class="drop-text">Arraste arquivos .nbib ou .ris aqui<br>ou clique para selecionar</div>
+                </div>
+                <div class="file-info" id="info-${databaseName}" style="display: none;"></div>
+            `;
+            
+            // Adicionar click handler para seleção de arquivo
+            const dropZone = card.querySelector('.drop-zone');
+            dropZone.onclick = () => selectFile(databaseName);
+            
+            grid.appendChild(card);
+        }
+
+        // Handlers de drag and drop
+        function dragOverHandler(event) {
+            event.preventDefault();
+            event.currentTarget.classList.add('dragover');
+        }
+
+        function dragLeaveHandler(event) {
+            event.currentTarget.classList.remove('dragover');
+        }
+
+        function dropHandler(event, databaseName) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('dragover');
+            
+            const files = event.dataTransfer.files;
+            if (files.length > 0) {
+                processFile(files[0], databaseName);
+            }
+        }
+
+        // Seleção de arquivo via clique
+        function selectFile(databaseName) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.nbib,.ris,.txt';
+            input.onchange = (event) => {
+                if (event.target.files.length > 0) {
+                    processFile(event.target.files[0], databaseName);
+                }
+            };
+            input.click();
+        }
+
+        // Processar arquivo
+        async function processFile(file, databaseName) {
+            const processingOverlay = document.getElementById('processingOverlay');
+            processingOverlay.style.display = 'block';
+
+            try {
+                const text = await file.text();
+                const studyCount = countStudies(text, file.name);
+                const newFileName = generateFileName(databaseName, studyCount, file.name);
+                
+                // Mostrar informações do arquivo
+                showFileInfo(databaseName, file.name, studyCount, newFileName);
+                
+                // Baixar arquivo renomeado
+                downloadRenamedFile(file, newFileName);
+                
+            } catch (error) {
+                console.error('Erro ao processar arquivo:', error);
+                alert('Erro ao processar o arquivo. Verifique se é um arquivo válido.');
+            } finally {
+                processingOverlay.style.display = 'none';
+            }
+        }
+
+        // Contar estudos no arquivo
+        function countStudies(text, fileName) {
+            const extension = fileName.split('.').pop().toLowerCase();
+            let count = 0;
+
+            if (extension === 'nbib' || fileName.toLowerCase().includes('pubmed')) {
+                // Contar por PMID ou registros que começam com linhas específicas
+                const pmidMatches = text.match(/^PMID-/gm);
+                if (pmidMatches) {
+                    count = pmidMatches.length;
+                } else {
+                    // Método alternativo: contar por blocos separados por linhas vazias
+                    const records = text.split(/\n\s*\n/).filter(record => record.trim().length > 0);
+                    count = records.length;
+                }
+            } else if (extension === 'ris') {
+                // Arquivos RIS: cada estudo começa com "TY  -"
+                const tyMatches = text.match(/^TY  -/gm);
+                count = tyMatches ? tyMatches.length : 0;
+            } else {
+                // Tentar ambos os métodos
+                const pmidMatches = text.match(/^PMID-/gm);
+                const tyMatches = text.match(/^TY  -/gm);
+                
+                if (pmidMatches) {
+                    count = pmidMatches.length;
+                } else if (tyMatches) {
+                    count = tyMatches.length;
+                } else {
+                    // Método de fallback
+                    const records = text.split(/\n\s*\n/).filter(record => record.trim().length > 0);
+                    count = Math.max(1, records.length);
+                }
+            }
+
+            return Math.max(1, count); // Garantir que sempre tenha pelo menos 1
+        }
+
+        // Gerar novo nome do arquivo
+        function generateFileName(databaseName, studyCount, originalFileName) {
+            const extension = originalFileName.split('.').pop().toLowerCase();
+            const date = new Date();
+            const day = date.getDate().toString().padStart(2, '0');
+            const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+            const month = months[date.getMonth()];
+            const year = date.getFullYear();
+            
+            return `${databaseName}.${studyCount}RESULTS.${day}${month}${year}.${extension.toUpperCase()}`;
+        }
+
+        // Mostrar informações do arquivo
+        function showFileInfo(databaseName, originalName, studyCount, newFileName) {
+            const infoDiv = document.getElementById(`info-${databaseName}`);
+            infoDiv.innerHTML = `
+                <h4>✅ Arquivo Processado</h4>
+                <p><strong>Original:</strong> ${originalName}</p>
+                <p><strong>Estudos encontrados:</strong> ${studyCount}</p>
+                <p><strong>Novo nome:</strong> ${newFileName}</p>
+            `;
+            infoDiv.style.display = 'block';
+        }
+
+        // Baixar arquivo renomeado
+        function downloadRenamedFile(originalFile, newFileName) {
+            const url = URL.createObjectURL(originalFile);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = newFileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Modal para adicionar base de dados
+        function openAddDatabaseModal() {
+            document.getElementById('addDatabaseModal').style.display = 'block';
+            document.getElementById('databaseName').focus();
+        }
+
+        function closeAddDatabaseModal() {
+            document.getElementById('addDatabaseModal').style.display = 'none';
+            document.getElementById('databaseName').value = '';
+        }
+
+        function addDatabase() {
+            const name = document.getElementById('databaseName').value.trim().toUpperCase();
+            if (!name) {
+                alert('Por favor, insira um nome para a base de dados.');
+                return;
+            }
+            
+            if (defaultDatabases.includes(name) || customDatabases.includes(name)) {
+                alert('Esta base de dados já existe.');
+                return;
+            }
+            
+            customDatabases.push(name);
+            localStorage.setItem('customDatabases', JSON.stringify(customDatabases));
+            
+            createDatabaseCard(name, true);
+            closeAddDatabaseModal();
+        }
+
+        function removeCustomDatabase(databaseName) {
+            if (confirm(`Tem certeza que deseja remover a base de dados "${databaseName}"?`)) {
+                customDatabases = customDatabases.filter(db => db !== databaseName);
+                localStorage.setItem('customDatabases', JSON.stringify(customDatabases));
+                initializeApp();
+            }
+        }
+
+        // Event listeners
+        document.getElementById('databaseName').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addDatabase();
+            }
+        });
+
+        // Fechar modal clicando fora
+        window.onclick = function(event) {
+            const modal = document.getElementById('addDatabaseModal');
+            if (event.target === modal) {
+                closeAddDatabaseModal();
+            }
+        }
+
+        // Inicializar aplicação quando a página carregar
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>

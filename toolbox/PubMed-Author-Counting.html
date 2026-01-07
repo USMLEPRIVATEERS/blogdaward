@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <title>Analisador de Publicações PubMed</title>
+    <meta charset="UTF-8">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #757575;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        h1 {
+            color: #1a237e;
+            text-align: center;
+            margin-bottom: 30px;
+            font-weight: bold;
+        }
+        #textArea {
+            width: 100%;
+            height: 250px;
+            margin-bottom: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+            padding: 10px;
+            box-sizing: border-box;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        #textArea:focus {
+            border-color: #4caf50;
+            outline: none;
+        }
+        #analyzeButton, #toggleAffiliationsButton {
+            background-color: #4caf50;
+            color: #fff;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background-color 0.3s, box-shadow 0.3s;
+            display: block;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        #analyzeButton:hover, #toggleAffiliationsButton:hover {
+            background-color: #388e3c;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        #yearFilters {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            text-align: center;
+        }
+        #yearFilters button {
+            background-color: #e0e0e0;
+            color: #757575;
+            border: 1px solid #bdbdbd;
+            padding: 8px 15px;
+            border-radius: 5px;
+            margin: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        #yearFilters button:hover {
+            background-color: #bdbdbd;
+            border-color: #9e9e9e;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        #yearFilters button.active {
+            background-color: #4caf50;
+            color: #fff;
+            border-color: #4caf50;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        #chartContainer {
+            position: relative;
+            padding: 20px;
+            border-radius: 8px;
+            background-color: #fff;
+            border: 1px solid #e0e0e0;
+        }
+        #frequencyTable {
+            border-collapse: collapse;
+            width: 100%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        #frequencyTable th, #frequencyTable td {
+            border: 1px solid #e0e0e0;
+            padding: 12px;
+            text-align: left;
+            white-space: normal;
+            word-wrap: break-word;
+            color: #757575;
+        }
+        #frequencyTable th {
+            background-color: #1a237e;
+            color: #fff;
+            font-weight: 600;
+        }
+        #frequencyTable tr:nth-child(even) {
+            background-color: #f5f5f5;
+        }
+        #frequencyTable tr:hover {
+            background-color: #e8f5e9;
+        }
+        .affiliations-column {
+            display: none;
+        }
+        #frequencyTable.fade-in, #chartWrapper.fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Analisador de Publicações PubMed 🔬</h1>
+        <textarea id="textArea" placeholder="Cole o texto do PubMed aqui..."></textarea>
+        <button id="analyzeButton">Analisar Dados</button>
+        <div id="yearFilters"></div>
+        <button id="toggleAffiliationsButton">Mostrar Afiliações</button>
+        <table id="frequencyTable">
+            <thead>
+                <tr>
+                    <th>Autor</th>
+                    <th>Frequência Total</th>
+                    <th>Anos de Publicação</th>
+                    <th>E-mails</th>
+                    <th class="affiliations-column">Afiliações</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <div id="chartWrapper" style="display: none;">
+            <div id="chartContainer">
+                <canvas id="authorChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <script>
+        let fullAuthorsData = {};
+        let myChart = null;
+        let affiliationsVisible = false;
+
+        function formatAuthorName(author) {
+            const parts = author.split(',');
+            if (parts.length >= 2) {
+                const surname = parts[0].trim();
+                const name = parts.slice(1).join(',').trim();
+                return `${name} ${surname}`;
+            }
+            return author.trim();
+        }
+
+        function extractYear(dpLine) {
+            const match = dpLine.match(/\b(\d{4})\b/);
+            return match ? match[0] : null;
+        }
+
+        function extractEmails(textLine) {
+            const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+            return textLine.match(emailRegex) || [];
+        }
+
+        document.getElementById('analyzeButton').addEventListener('click', function() {
+            const text = document.getElementById('textArea').value;
+            const lines = text.split('\n');
+            const authorsData = {};
+            const knownTags = ["FAU - ", "AU  - ", "LA  - ", "GR  - ", "PT  - ", "DEP - ", "PL  - ", "TA  - ", "JT  - ", "JID - ", "SB  - ", "MH  - ", "PMC - ", "MID - ", "COIS- ", "EDAT- ", "MHDA- ", "PMCR- ", "CRDT- ", "PHST- ", "AID - ", "PST - ", "SO  - ", "OTO - ", "OT  - "];
+            let currentYear = null;
+            let lastFauAuthor = null;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.startsWith('PMID-')) {
+                    lastFauAuthor = null;
+                    currentYear = null;
+                } else if (line.startsWith('DP  - ')) {
+                    currentYear = extractYear(line);
+                } else if (line.startsWith('FAU - ')) {
+                    const authorName = formatAuthorName(line.substring(6));
+                    lastFauAuthor = authorName;
+                    if (!authorsData[authorName]) {
+                        authorsData[authorName] = { publications: {}, affiliations: {} };
+                    }
+                    if (currentYear) {
+                        if (!authorsData[authorName].publications[currentYear]) {
+                            authorsData[authorName].publications[currentYear] = 0;
+                        }
+                        authorsData[authorName].publications[currentYear]++;
+                    }
+                } else if (line.startsWith('AD  - ') && lastFauAuthor && currentYear) {
+                    let fullAdText = line.substring(6);
+                    let j = i + 1;
+                    while (j < lines.length && !knownTags.some(tag => lines[j].startsWith(tag))) {
+                        fullAdText += ' ' + lines[j].trim();
+                        j++;
+                    }
+                    if (!authorsData[lastFauAuthor].affiliations[fullAdText]) {
+                        authorsData[lastFauAuthor].affiliations[fullAdText] = new Set();
+                    }
+                    authorsData[lastFauAuthor].affiliations[fullAdText].add(currentYear);
+                    const emails = extractEmails(fullAdText);
+                    if (emails.length > 0) {
+                        if (!authorsData[lastFauAuthor].emails) authorsData[lastFauAuthor].emails = new Set();
+                        emails.forEach(email => authorsData[lastFauAuthor].emails.add(email));
+                    }
+                    i = j - 1;
+                    lastFauAuthor = null;
+                }
+            }
+
+            if (Object.keys(authorsData).length === 0) {
+                alert('Nenhum autor encontrado. Verifique o formato do texto.');
+                return;
+            }
+
+            fullAuthorsData = authorsData;
+            displayYearFilters();
+            displayFullTable();
+        });
+
+        function displayFullTable() {
+            document.getElementById('chartWrapper').style.display = 'none';
+            document.getElementById('chartWrapper').classList.remove('fade-in');
+            document.getElementById('frequencyTable').style.display = 'table';
+            setTimeout(() => {
+                document.getElementById('frequencyTable').classList.add('fade-in');
+            }, 10);
+            const authorsForSorting = Object.entries(fullAuthorsData).map(([author, data]) => {
+                const totalCount = Object.values(data.publications).reduce((sum, count) => sum + count, 0);
+                return [author, { ...data, totalCount }];
+            });
+            authorsForSorting.sort((a, b) => b[1].totalCount - a[1].totalCount);
+            const tbody = document.getElementById('frequencyTable').querySelector('tbody');
+            tbody.innerHTML = '';
+            authorsForSorting.forEach(([author, data]) => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = author;
+                row.insertCell().textContent = data.totalCount;
+                row.insertCell().textContent = Object.keys(data.publications).sort().join(', ');
+                const emails = data.emails ? Array.from(data.emails).join(', ') : 'N/A';
+                row.insertCell().textContent = emails;
+                const affiliationsText = Object.entries(data.affiliations || {}).map(([aff, yearsSet]) => {
+                    const years = Array.from(yearsSet).sort().join(', ');
+                    return `${aff} (${years})`;
+                }).join('; ');
+                const affiliationsCell = row.insertCell();
+                affiliationsCell.classList.add('affiliations-column');
+                affiliationsCell.textContent = affiliationsText || 'N/A';
+            });
+            const affiliationsCells = document.querySelectorAll('.affiliations-column');
+            affiliationsCells.forEach(cell => {
+                cell.style.display = affiliationsVisible ? 'table-cell' : 'none';
+            });
+        }
+
+        function displayYearFilters() {
+            const yearFiltersDiv = document.getElementById('yearFilters');
+            yearFiltersDiv.innerHTML = '';
+            const allYears = new Set();
+            Object.values(fullAuthorsData).forEach(data => {
+                Object.keys(data.publications).forEach(year => allYears.add(year));
+            });
+            const sortedYears = Array.from(allYears).sort();
+            const allButton = document.createElement('button');
+            allButton.textContent = 'Ver Todos';
+            allButton.className = 'active';
+            allButton.onclick = () => {
+                displayFullTable();
+                document.querySelectorAll('#yearFilters button').forEach(b => b.classList.remove('active'));
+                allButton.classList.add('active');
+            };
+            yearFiltersDiv.appendChild(allButton);
+            sortedYears.forEach(year => {
+                const button = document.createElement('button');
+                button.textContent = year;
+                button.onclick = () => {
+                    generateChartForYear(year);
+                    document.querySelectorAll('#yearFilters button').forEach(b => b.classList.remove('active'));
+                    button.classList.add('active');
+                };
+                yearFiltersDiv.appendChild(button);
+            });
+        }
+
+        function generateChartForYear(year) {
+            document.getElementById('frequencyTable').style.display = 'none';
+            document.getElementById('frequencyTable').classList.remove('fade-in');
+            document.getElementById('chartWrapper').style.display = 'block';
+            setTimeout(() => {
+                document.getElementById('chartWrapper').classList.add('fade-in');
+            }, 10);
+            const authorsInYear = [];
+            Object.entries(fullAuthorsData).forEach(([author, data]) => {
+                if (data.publications[year]) {
+                    authorsInYear.push({
+                        name: author,
+                        count: data.publications[year]
+                    });
+                }
+            });
+            authorsInYear.sort((a, b) => b.count - a.count);
+            const labels = authorsInYear.map(a => a.name);
+            const dataPoints = authorsInYear.map(a => a.count);
+            const chartContainer = document.getElementById('chartContainer');
+            const newHeight = 100 + labels.length * 25;
+            chartContainer.style.height = `${newHeight}px`;
+            const ctx = document.getElementById('authorChart').getContext('2d');
+            if (myChart) {
+                myChart.destroy();
+            }
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `Publicações em ${year}`,
+                        data: dataPoints,
+                        backgroundColor: 'rgba(76, 175, 80, 0.85)',
+                        borderColor: 'rgba(46, 125, 50, 1)',
+                        borderWidth: 1,
+                        barThickness: 15
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: `Autores com Publicações em ${year}`,
+                            font: {
+                                size: 18
+                            },
+                            padding: {
+                                bottom: 20
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function toggleAffiliations() {
+            affiliationsVisible = !affiliationsVisible;
+            const button = document.getElementById('toggleAffiliationsButton');
+            button.textContent = affiliationsVisible ? 'Ocultar Afiliações' : 'Mostrar Afiliações';
+            const affiliationsCells = document.querySelectorAll('.affiliations-column');
+            affiliationsCells.forEach(cell => {
+                cell.style.display = affiliationsVisible ? 'table-cell' : 'none';
+            });
+        }
+
+        document.getElementById('toggleAffiliationsButton').addEventListener('click', toggleAffiliations);
+    </script>
+</body>
+</html>
