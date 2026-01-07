@@ -37,6 +37,14 @@
     </header>
 
     <main class="main-container">
+        <!-- Header Section -->
+        <div style="margin-bottom: 2rem; text-align: center;">
+            <h1 style="font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 0.5rem;">
+                💬 Blog da Comunidade
+            </h1>
+            <p style="color: #6b7280; font-size: 1.1rem;">Compartilhe sua jornada e conecte-se com outros estudantes</p>
+        </div>
+
         <!-- New Post Form - Always visible -->
         <div class="card mb-4" id="new-post-card">
             <div class="card-body">
@@ -325,9 +333,14 @@
             const name = userData.name || userData.full_name || 'Usuario';
             document.getElementById('user-greeting').textContent = `Oi ${name.split(' ')[0]}, o que esta acontecendo?`;
 
-            // Character counter
-            document.getElementById('post-content').addEventListener('input', function() {
+            // Character counter and auto-resize
+            const textarea = document.getElementById('post-content');
+            textarea.addEventListener('input', function() {
                 document.getElementById('char-count').textContent = this.value.length;
+
+                // Auto-resize textarea
+                this.style.height = 'auto';
+                this.style.height = this.scrollHeight + 'px';
             });
 
             await loadPosts();
@@ -1052,14 +1065,14 @@
                 return;
             }
 
-            const { error } = await WardApp.db.from('blog_posts').insert({
+            const { data: newPost, error } = await WardApp.db.from('blog_posts').insert({
                 content,
                 user_id: userData.id,
                 likes: 0,
                 dislikes: 0,
                 is_pinned: false,
                 is_deleted: false
-            });
+            }).select().single();
 
             if (error) {
                 console.error('Error creating post:', error);
@@ -1067,11 +1080,19 @@
                 return;
             }
 
-            document.getElementById('post-content').value = '';
+            // Clear textarea and reset its size
+            const textarea = document.getElementById('post-content');
+            textarea.value = '';
+            textarea.style.height = 'auto';
             document.getElementById('char-count').textContent = '0';
 
             WardApp.showToast('Post publicado!');
+
+            // Reload posts to show the new post immediately
             await loadPosts();
+
+            // Scroll to top to see the new post
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function openPinModal(postId) {
@@ -1231,26 +1252,40 @@
         }
 
         .post-card {
-            background: var(--primary-white);
+            background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
             border: 1px solid var(--gray-200);
-            border-radius: var(--border-radius);
-            padding: 1rem 1.25rem;
-            transition: all 0.2s ease;
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
         .post-card:hover {
-            border-color: var(--gray-300);
+            border-color: #e0e7ff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
         }
 
         .post-card.pinned {
-            border-left: 3px solid var(--accent-orange);
-            background: linear-gradient(135deg, #fff 0%, #fffaf5 100%);
+            border-left: 4px solid #f59e0b;
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+        }
+
+        .post-card.pinned:hover {
+            border-color: #f59e0b;
+            box-shadow: 0 4px 16px rgba(245, 158, 11, 0.25);
         }
 
         .pin-badge {
             font-size: 0.75rem;
-            color: var(--accent-orange);
-            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #d97706;
+            background: rgba(251, 191, 36, 0.2);
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            display: inline-block;
+            margin-bottom: 0.75rem;
         }
 
         .post-header {
@@ -1371,17 +1406,26 @@
             border: none;
             color: var(--gray-600);
             cursor: pointer;
-            padding: 0.5rem 0;
+            padding: 0.5rem 0.75rem;
             font-size: 0.9rem;
-            transition: color 0.2s;
+            transition: all 0.2s ease;
+            border-radius: 8px;
         }
 
         .action-btn:hover {
-            color: var(--accent-orange);
+            color: #667eea;
+            background: #f0f4ff;
+            transform: translateY(-1px);
         }
 
         .action-btn.liked {
-            color: #e74c3c;
+            color: #dc2626;
+            animation: likeAnimation 0.3s ease;
+        }
+
+        @keyframes likeAnimation {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
         }
 
         .btn-icon {
@@ -1399,7 +1443,16 @@
 
         /* New Post Card */
         #new-post-card {
-            border: 2px solid var(--gray-200);
+            border: 2px solid transparent;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        #new-post-card:focus-within {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
         }
 
         .new-post-header {
@@ -1419,6 +1472,8 @@
             line-height: 1.5;
             padding: 0.5rem 0;
             min-height: 80px;
+            max-height: none;
+            overflow-y: hidden;
             font-family: inherit;
         }
 
@@ -1454,9 +1509,16 @@
         }
 
         .comment-item {
-            background: var(--gray-100);
-            border-radius: var(--border-radius);
-            padding: 0.75rem;
+            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+            border-radius: 12px;
+            padding: 1rem;
+            border: 1px solid #e5e7eb;
+            transition: all 0.2s ease;
+        }
+
+        .comment-item:hover {
+            background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
 
         .comment-header {
