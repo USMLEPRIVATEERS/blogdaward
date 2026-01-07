@@ -2520,18 +2520,45 @@ Cardiovascular	Physiology	62	FALSE
                 return;
             }
 
-            // Update folder in structure
-            const folder = findFolderByPath(selectedNode.path);
-            if (folder) {
+            try {
+                // Update folder in structure
+                const folder = findFolderByPath(selectedNode.path);
+                if (!folder) {
+                    WardApp.showToast('❌ Pasta não encontrada', 'error');
+                    return;
+                }
+
                 folder.name = name;
                 folder.icon = icon || '📁';
                 folder.hidden = hidden;
 
                 // Update all lessons in this folder and subfolders
                 await updateFolderInDatabase(folder);
+
+                WardApp.showToast('✅ Pasta atualizada com sucesso!');
+
+                // Smooth fade out
+                const treeContainer = document.getElementById('course-tree-container');
+                treeContainer.style.opacity = '0.5';
+                treeContainer.style.transition = 'opacity 0.2s ease';
+
+                // Store current selected folder path to re-select after reload
+                const folderPath = selectedNode.path;
+
+                // Reload structure and re-render
                 await loadCourseStructure();
                 renderCourseTree();
-                WardApp.showToast('Pasta atualizada com sucesso!');
+
+                // Smooth fade in
+                setTimeout(() => {
+                    treeContainer.style.opacity = '1';
+                    // Re-select the folder to show updated info
+                    selectNode(folderPath, 'folder', folderPath);
+                }, 100);
+
+            } catch (error) {
+                console.error('Error updating folder:', error);
+                WardApp.showToast('❌ Erro ao atualizar pasta: ' + (error.message || 'Erro desconhecido'), 'error');
             }
         }
 
@@ -2577,26 +2604,45 @@ Cardiovascular	Physiology	62	FALSE
                 return;
             }
 
-            const { error } = await WardApp.db
-                .from('course_videos')
-                .update({
-                    title,
-                    video_url: url || null,
-                    description: description || null,
-                    duration_minutes: duration ? parseInt(duration) : null,
-                    is_hidden: hidden
-                })
-                .eq('id', selectedNode.id);
+            try {
+                const { error } = await WardApp.db
+                    .from('course_videos')
+                    .update({
+                        title,
+                        video_url: url || null,
+                        description: description || null,
+                        duration_minutes: duration ? parseInt(duration) : null,
+                        is_hidden: hidden
+                    })
+                    .eq('id', selectedNode.id);
 
-            if (error) {
+                if (error) throw error;
+
+                WardApp.showToast('✅ Aula atualizada com sucesso!');
+
+                // Smooth fade out
+                const treeContainer = document.getElementById('course-tree-container');
+                treeContainer.style.opacity = '0.5';
+                treeContainer.style.transition = 'opacity 0.2s ease';
+
+                // Store current selected lesson ID to re-select after reload
+                const lessonId = selectedNode.id;
+
+                // Reload structure and re-render
+                await loadCourseStructure();
+                renderCourseTree();
+
+                // Smooth fade in
+                setTimeout(() => {
+                    treeContainer.style.opacity = '1';
+                    // Re-select the lesson to show updated info
+                    selectNode(lessonId, 'lesson');
+                }, 100);
+
+            } catch (error) {
                 console.error('Error updating lesson:', error);
-                WardApp.showToast('Erro ao atualizar aula', 'error');
-                return;
+                WardApp.showToast('❌ Erro ao atualizar aula: ' + (error.message || 'Erro desconhecido'), 'error');
             }
-
-            WardApp.showToast('Aula atualizada com sucesso!');
-            await loadCourseStructure();
-            renderCourseTree();
         }
 
         async function deleteFolder() {
