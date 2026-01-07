@@ -2619,7 +2619,9 @@ Cardiovascular	Physiology	62	FALSE
             }
 
             try {
-                const { error } = await WardApp.db
+                console.log('🔄 Attempting to update lesson:', { id: selectedNode.id, title, url, description, duration, hidden });
+
+                const { data, error, status, statusText } = await WardApp.db
                     .from('course_videos')
                     .update({
                         title,
@@ -2628,11 +2630,23 @@ Cardiovascular	Physiology	62	FALSE
                         duration_minutes: duration ? parseInt(duration) : null,
                         is_hidden: hidden
                     })
-                    .eq('id', selectedNode.id);
+                    .eq('id', selectedNode.id)
+                    .select(); // Add .select() to return updated data
 
-                if (error) throw error;
+                console.log('📊 Supabase response:', { data, error, status, statusText });
 
-                console.log('✅ Lesson updated in database:', { id: selectedNode.id, title, url, description, duration, hidden });
+                if (error) {
+                    console.error('❌ Supabase error:', error);
+                    throw error;
+                }
+
+                if (!data || data.length === 0) {
+                    console.warn('⚠️ No rows updated! This usually means RLS policy is blocking the UPDATE.');
+                    WardApp.showToast('⚠️ Nenhuma linha foi atualizada. Verifique as permissões do Supabase.', 'warning');
+                    return;
+                }
+
+                console.log('✅ Lesson successfully updated in database:', data[0]);
 
                 WardApp.showToast('✅ Aula atualizada com sucesso!');
 
