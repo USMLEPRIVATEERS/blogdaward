@@ -2902,7 +2902,7 @@ Cardiovascular	Physiology	62	FALSE
                 if (draggedData.type === 'lesson') {
                     await handleLessonDrop(draggedData.id, targetId, targetType, targetPath, dropPosition);
                 } else if (draggedData.type === 'folder') {
-                    WardApp.showToast('⚠️ Mover pastas ainda não implementado. Foque em reordenar aulas primeiro.', 'info');
+                    await handleFolderDrop(draggedData.path, targetType, targetPath, dropPosition);
                 }
             } catch (error) {
                 console.error('Drop error:', error);
@@ -3000,6 +3000,93 @@ Cardiovascular	Physiology	62	FALSE
                     .from('course_videos')
                     .update({ order_position: update.order_position })
                     .eq('id', update.id);
+            }
+        }
+
+        async function handleFolderDrop(folderPath, targetType, targetPath, dropPosition) {
+            // Parse folder path
+            const folderParts = folderPath.split('::');
+            const folderName = folderParts[folderParts.length - 1];
+
+            // Determine new parent path
+            let newParentPath = '';
+            let newFolderPath = '';
+
+            if (dropPosition === 'inside' && targetType === 'folder') {
+                // Moving folder inside another folder
+                newParentPath = targetPath;
+                newFolderPath = `${targetPath}::${folderName}`;
+
+                // Prevent moving folder into itself or its children
+                if (targetPath.startsWith(folderPath)) {
+                    WardApp.showToast('❌ Não é possível mover uma pasta para dentro dela mesma ou de suas subpastas', 'error');
+                    return;
+                }
+            } else {
+                // Moving folder to same level as target (before or after)
+                if (targetType === 'folder') {
+                    // Get parent of target folder
+                    const targetParts = targetPath.split('::');
+                    targetParts.pop(); // Remove last part
+                    newParentPath = targetParts.length > 0 ? targetParts.join('::') : '';
+                } else {
+                    // Target is a lesson, use its parent folder
+                    newParentPath = targetPath;
+                }
+
+                newFolderPath = newParentPath ? `${newParentPath}::${folderName}` : folderName;
+            }
+
+            // Check if moving to same location
+            if (newFolderPath === folderPath) {
+                WardApp.showToast('ℹ️ A pasta já está nesta localização', 'info');
+                return;
+            }
+
+            try {
+                // Get all lessons that belong to this folder and its subfolders
+                const { data: lessons, error: fetchError } = await WardApp.db
+                    .from('course_videos')
+                    .select('*')
+                    .or(`tags.eq.${folderPath},tags.like.${folderPath}::%`);
+
+                if (fetchError) throw fetchError;
+
+                if (!lessons || lessons.length === 0) {
+                    WardApp.showToast('ℹ️ Esta pasta está vazia', 'info');
+                    // Still reload to show the empty folder in new location
+                    await loadCourseStructure();
+                    return;
+                }
+
+                // Update tags for all affected lessons
+                for (const lesson of lessons) {
+                    let newTags = lesson.tags;
+
+                    if (newTags === folderPath) {
+                        // Lesson is directly in the moved folder
+                        newTags = newFolderPath;
+                    } else if (newTags.startsWith(folderPath + '::')) {
+                        // Lesson is in a subfolder
+                        newTags = newTags.replace(folderPath, newFolderPath);
+                    }
+
+                    const { error: updateError } = await WardApp.db
+                        .from('course_videos')
+                        .update({ tags: newTags })
+                        .eq('id', lesson.id);
+
+                    if (updateError) throw updateError;
+                }
+
+                WardApp.showToast(`✅ Pasta movida com sucesso! ${lessons.length} aula(s) atualizada(s)`);
+
+                // Reload structure
+                await loadCourseStructure();
+
+            } catch (error) {
+                console.error('Error moving folder:', error);
+                throw error;
             }
         }
 
