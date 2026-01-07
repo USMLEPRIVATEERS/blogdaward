@@ -48,6 +48,38 @@
             overflow: hidden;
         }
 
+        .favorite-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.5rem;
+            cursor: pointer;
+            z-index: 10;
+            background: white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #e5e7eb;
+            transition: all 0.2s ease;
+        }
+
+        .favorite-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .favorite-btn.favorited {
+            border-color: #fbbf24;
+            background: #fef3c7;
+        }
+
+        .favorite-btn:active {
+            transform: scale(0.95);
+        }
+
         .app-card::before {
             content: '';
             position: absolute;
@@ -422,6 +454,7 @@
         ];
 
         let userData = null;
+        let userFavorites = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
@@ -433,6 +466,9 @@
                 window.location.href = 'dashboard-assessoria-avulsa.html';
                 return;
             }
+
+            // Load user favorites
+            await loadUserFavorites();
 
             // Check diary toggle
             const diariesEnabled = localStorage.getItem('study_diary_enabled') === 'true';
@@ -485,18 +521,78 @@
                         </div>
                     `;
 
-                    html += categoryApps.map(app => `
-                        <div class="app-card" onclick="openApp('${app.id}')">
-                            <span class="app-icon">${app.icon}</span>
-                            <h3 class="app-title">${app.title}</h3>
-                            <p class="app-description">${app.description}</p>
-                            ${app.badge ? `<span class="app-badge">${app.badge}</span>` : ''}
-                        </div>
-                    `).join('');
+                    html += categoryApps.map(app => {
+                        const isFavorited = userFavorites.includes(app.id);
+                        return `
+                            <div class="app-card" onclick="openApp('${app.id}')">
+                                <button
+                                    class="favorite-btn ${isFavorited ? 'favorited' : ''}"
+                                    onclick="event.stopPropagation(); toggleFavorite('${app.id}')"
+                                    title="${isFavorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}">
+                                    ${isFavorited ? '⭐' : '☆'}
+                                </button>
+                                <span class="app-icon">${app.icon}</span>
+                                <h3 class="app-title">${app.title}</h3>
+                                <p class="app-description">${app.description}</p>
+                                ${app.badge ? `<span class="app-badge">${app.badge}</span>` : ''}
+                            </div>
+                        `;
+                    }).join('');
                 }
             });
 
             container.innerHTML = html;
+        }
+
+        async function loadUserFavorites() {
+            try {
+                const { data, error } = await WardApp.db
+                    .from('users')
+                    .select('toolbox_favorites')
+                    .eq('id', userData.id)
+                    .single();
+
+                if (error) throw error;
+
+                userFavorites = data?.toolbox_favorites || [];
+            } catch (err) {
+                console.error('Error loading favorites:', err);
+                userFavorites = [];
+            }
+        }
+
+        async function toggleFavorite(appId) {
+            const index = userFavorites.indexOf(appId);
+
+            if (index > -1) {
+                // Remove from favorites
+                userFavorites.splice(index, 1);
+                WardApp.showToast('☆ Removido dos favoritos');
+            } else {
+                // Add to favorites (limit to 6)
+                if (userFavorites.length >= 6) {
+                    WardApp.showToast('⚠️ Você pode ter no máximo 6 favoritos. Remova algum primeiro.', 'warning');
+                    return;
+                }
+                userFavorites.push(appId);
+                WardApp.showToast('⭐ Adicionado aos favoritos!');
+            }
+
+            // Save to database
+            try {
+                const { error } = await WardApp.db
+                    .from('users')
+                    .update({ toolbox_favorites: userFavorites })
+                    .eq('id', userData.id);
+
+                if (error) throw error;
+
+                // Re-render to update UI
+                renderApps();
+            } catch (err) {
+                console.error('Error saving favorites:', err);
+                WardApp.showToast('Erro ao salvar favorito', 'error');
+            }
         }
 
         function openApp(appId) {
