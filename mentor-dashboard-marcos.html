@@ -2390,7 +2390,7 @@ Cardiovascular	Physiology	62	FALSE
 
             let html = `
                 <div class="tree-node folder-node" data-id="${folder.id}" data-type="folder" data-path="${folder.path}" style="margin-left: ${level * 1.5}rem;">
-                    <div class="tree-node-content" onclick="selectNode('${folder.id}', 'folder', '${folder.path}')">
+                    <div class="tree-node-content" onclick="selectNode('${folder.id}', 'folder', '${folder.path}', event)">
                         <span class="tree-toggle" onclick="event.stopPropagation(); toggleFolder('${folder.id}')">${isExpanded ? '▼' : '▶'}</span>
                         <span class="tree-icon">${folder.icon}</span>
                         <span class="tree-label">${folder.name}${isHidden}</span>
@@ -2412,7 +2412,7 @@ Cardiovascular	Physiology	62	FALSE
                     const lessonHidden = lesson.is_hidden ? ' (🙈 oculto)' : '';
                     html += `
                         <div class="tree-node lesson-node" data-id="${lesson.id}" data-type="lesson" data-path="${folder.path}" style="margin-left: ${(level + 1) * 1.5}rem;">
-                            <div class="tree-node-content" onclick="selectNode(${lesson.id}, 'lesson')">
+                            <div class="tree-node-content" onclick="selectNode(${lesson.id}, 'lesson', null, event)">
                                 <span class="tree-icon">🎬</span>
                                 <span class="tree-label">${lesson.title}${lessonHidden}</span>
                                 ${lesson.duration_minutes ? `<span class="tree-duration">${lesson.duration_minutes}min</span>` : ''}
@@ -2448,14 +2448,28 @@ Cardiovascular	Physiology	62	FALSE
             renderCourseTree();
         }
 
-        function selectNode(nodeId, type, path = null) {
+        function selectNode(nodeId, type, path = null, event = null) {
             selectedNode = { id: nodeId, type, path };
 
-            // Update UI
+            // Update UI - remove all selected classes first
             document.querySelectorAll('.tree-node-content').forEach(el => {
                 el.classList.remove('selected');
             });
-            event.target.closest('.tree-node-content').classList.add('selected');
+
+            // Add selected class to the clicked element OR find by ID
+            if (event && event.target) {
+                // Called from click event
+                event.target.closest('.tree-node-content').classList.add('selected');
+            } else {
+                // Called programmatically - find the element by data attributes
+                const selector = type === 'folder'
+                    ? `.folder-node[data-path="${path}"] .tree-node-content`
+                    : `.lesson-node[data-id="${nodeId}"] .tree-node-content`;
+                const element = document.querySelector(selector);
+                if (element) {
+                    element.classList.add('selected');
+                }
+            }
 
             // Show appropriate edit panel
             document.getElementById('edit-panel-empty').style.display = 'none';
