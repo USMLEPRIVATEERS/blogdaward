@@ -238,9 +238,18 @@
 
         <!-- Anki Questionnaire Responses -->
         <div class="card mt-4">
-            <div class="card-header">
-                🃏 Respostas do Questionário de Anki
-                <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Clique em um aluno para ver detalhes)</span>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    🃏 Respostas do Questionário de Anki
+                    <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Clique em um aluno para ver detalhes)</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <span style="font-size: 0.85rem; color: #64748b;">Fonte dos dados:</span>
+                    <select id="data-source-toggle" style="padding: 0.5rem; border-radius: 6px; border: 2px solid #e5e7eb; font-weight: 600; background: white;">
+                        <option value="checkin">📊 Check-ins Diários</option>
+                        <option value="questionnaire">📝 Questionários</option>
+                    </select>
+                </div>
             </div>
             <div class="card-body" style="padding: 0;">
                 <div style="display: grid; grid-template-columns: 280px 1fr; min-height: 400px;">
@@ -306,6 +315,7 @@
         let allStudents = [];
         let ankiData = {};
         let selectedStudent = null;
+        let currentDataSource = 'checkin'; // 'checkin' or 'questionnaire'
 
         const frequencyLabels = {
             daily: 'Diariamente',
@@ -374,6 +384,13 @@ Dica: Use as tags do AnKing em vez de decks separados!`
 
             await loadStudentsData();
             await loadDiaryPreference();
+
+            // Add event listener for data source toggle
+            document.getElementById('data-source-toggle').addEventListener('change', async function() {
+                currentDataSource = this.value;
+                WardApp.showToast(`Exibindo dados de ${currentDataSource === 'checkin' ? 'Check-ins Diários' : 'Questionários'}`, 'info');
+                await loadStudentsData();
+            });
         });
 
         async function loadStudentsData() {
@@ -386,47 +403,52 @@ Dica: Use as tags do AnKing em vez de decks separados!`
 
             allStudents = students || [];
 
-            // Load questionnaire data for Anki info
-            const { data: questionnaireData } = await WardApp.db
-                .from('questionnaire_data')
-                .select('*')
-                .eq('step', 6); // Step 6 is Anki
+            // Reset ankiData
+            ankiData = {};
 
-            // Build anki data map from questionnaires
-            questionnaireData?.forEach(q => {
-                ankiData[q.user_id] = q.data;
-            });
+            if (currentDataSource === 'questionnaire') {
+                // Load ONLY questionnaire data
+                const { data: questionnaireData } = await WardApp.db
+                    .from('questionnaire_data')
+                    .select('*')
+                    .eq('step', 6); // Step 6 is Anki
 
-            // Load latest check-ins to get real-time Anki data
-            const { data: latestCheckins } = await WardApp.db
-                .from('daily_checkins')
-                .select('user_id, anki_cards_today, anki_avg_cards, anki_current_streak, date')
-                .order('date', { ascending: false });
+                // Build anki data map from questionnaires
+                questionnaireData?.forEach(q => {
+                    ankiData[q.user_id] = q.data;
+                });
 
-            // Update ankiData with latest check-in data if available
-            const checkinMap = {};
-            latestCheckins?.forEach(checkin => {
-                if (!checkinMap[checkin.user_id] && (checkin.anki_cards_today > 0 || checkin.anki_avg_cards > 0 || checkin.anki_current_streak > 0)) {
-                    checkinMap[checkin.user_id] = checkin;
-                }
-            });
+            } else {
+                // Load ONLY check-in data
+                const { data: latestCheckins } = await WardApp.db
+                    .from('daily_checkins')
+                    .select('user_id, anki_cards_today, anki_avg_cards, anki_current_streak, date')
+                    .order('date', { ascending: false });
 
-            // Merge checkin data with questionnaire data
-            Object.keys(checkinMap).forEach(userId => {
-                const checkin = checkinMap[userId];
-                if (!ankiData[userId]) {
-                    ankiData[userId] = {};
-                }
-                // Update with real data from check-ins
-                ankiData[userId].latest_cards = checkin.anki_cards_today;
-                ankiData[userId].latest_avg = checkin.anki_avg_cards;
-                ankiData[userId].latest_streak = checkin.anki_current_streak;
-                ankiData[userId].last_checkin_date = checkin.date;
-                // Mark as using Anki if they have check-in data
-                if (checkin.anki_cards_today > 0 || checkin.anki_avg_cards > 0) {
-                    ankiData[userId].uses_anki = true;
-                }
-            });
+                // Build anki data map from check-ins
+                const checkinMap = {};
+                latestCheckins?.forEach(checkin => {
+                    if (!checkinMap[checkin.user_id] && (checkin.anki_cards_today > 0 || checkin.anki_avg_cards > 0 || checkin.anki_current_streak > 0)) {
+                        checkinMap[checkin.user_id] = checkin;
+                    }
+                });
+
+                // Convert checkin data to ankiData format
+                Object.keys(checkinMap).forEach(userId => {
+                    const checkin = checkinMap[userId];
+                    ankiData[userId] = {
+                        uses_anki: checkin.anki_cards_today > 0 || checkin.anki_avg_cards > 0,
+                        latest_cards: checkin.anki_cards_today,
+                        latest_avg: checkin.anki_avg_cards,
+                        latest_streak: checkin.anki_current_streak,
+                        last_checkin_date: checkin.date,
+                        // For compatibility with existing code
+                        anki_frequency: checkin.anki_current_streak > 30 ? 'daily' :
+                                      checkin.anki_current_streak > 15 ? '4_6_times' :
+                                      checkin.anki_current_streak > 7 ? '2_3_times' : 'irregular'
+                    };
+                });
+            }
 
             updateStats();
             renderFrequencyChart();
