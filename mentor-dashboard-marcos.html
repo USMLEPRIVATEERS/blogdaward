@@ -234,11 +234,21 @@
                 <table class="admin-table">
                     <thead>
                         <tr>
-                            <th>Nome</th>
-                            <th>Email</th>
-                            <th>Questionario</th>
-                            <th>Cronograma</th>
-                            <th>Ultimo Check-in</th>
+                            <th onclick="sortStudentsBy('name')" style="cursor: pointer; user-select: none;">
+                                Nome <span id="sort-icon-name" style="opacity: 0.3;">▼</span>
+                            </th>
+                            <th onclick="sortStudentsBy('email')" style="cursor: pointer; user-select: none;">
+                                Email <span id="sort-icon-email" style="opacity: 0.3;">▼</span>
+                            </th>
+                            <th onclick="sortStudentsBy('questionnaire')" style="cursor: pointer; user-select: none;">
+                                Questionario <span id="sort-icon-questionnaire" style="opacity: 0.3;">▼</span>
+                            </th>
+                            <th onclick="sortStudentsBy('schedule')" style="cursor: pointer; user-select: none;">
+                                Cronograma <span id="sort-icon-schedule" style="opacity: 0.3;">▼</span>
+                            </th>
+                            <th onclick="sortStudentsBy('checkin')" style="cursor: pointer; user-select: none;">
+                                Ultimo Check-in <span id="sort-icon-checkin" style="opacity: 0.3;">▼</span>
+                            </th>
                             <th>Acoes</th>
                         </tr>
                     </thead>
@@ -609,6 +619,8 @@ Cardiovascular	Physiology	62	FALSE
     <script>
         let userData = null;
         let allStudents = [];
+        let currentSortColumn = 'name';
+        let currentSortDirection = 'asc'; // 'asc' or 'desc'
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
@@ -1469,6 +1481,74 @@ Cardiovascular	Physiology	62	FALSE
             }
         }
 
+        function sortStudentsBy(column) {
+            // Toggle direction if clicking same column
+            if (currentSortColumn === column) {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortColumn = column;
+                currentSortDirection = 'asc';
+            }
+
+            // Update sort icons
+            ['name', 'email', 'questionnaire', 'schedule', 'checkin'].forEach(col => {
+                const icon = document.getElementById(`sort-icon-${col}`);
+                if (icon) {
+                    if (col === column) {
+                        icon.textContent = currentSortDirection === 'asc' ? '▲' : '▼';
+                        icon.style.opacity = '1';
+                    } else {
+                        icon.textContent = '▼';
+                        icon.style.opacity = '0.3';
+                    }
+                }
+            });
+
+            // Sort allStudents array
+            allStudents.sort((a, b) => {
+                let aVal, bVal;
+
+                switch (column) {
+                    case 'name':
+                        aVal = (a.full_name || '').toLowerCase();
+                        bVal = (b.full_name || '').toLowerCase();
+                        break;
+                    case 'email':
+                        aVal = (a.email || '').toLowerCase();
+                        bVal = (b.email || '').toLowerCase();
+                        break;
+                    case 'questionnaire':
+                        aVal = a.questionnaire_step || 0;
+                        bVal = b.questionnaire_step || 0;
+                        break;
+                    case 'schedule':
+                        // Will be calculated in renderStudentsTable
+                        aVal = 0;
+                        bVal = 0;
+                        break;
+                    case 'checkin':
+                        // Will be calculated in renderStudentsTable
+                        aVal = 0;
+                        bVal = 0;
+                        break;
+                }
+
+                if (currentSortDirection === 'asc') {
+                    return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+                } else {
+                    return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+                }
+            });
+
+            renderStudentsTable();
+        }
+
+        function getProgressColor(percentage) {
+            if (percentage >= 70) return '#22c55e'; // Green
+            if (percentage >= 30) return '#f59e0b'; // Yellow/Orange
+            return '#ef4444'; // Red
+        }
+
         async function renderStudentsTable(students = allStudents) {
             const tbody = document.getElementById('students-table-body');
 
@@ -1515,19 +1595,22 @@ Cardiovascular	Physiology	62	FALSE
                 const lastCheck = lastCheckin[student.id];
                 const daysSinceCheckin = lastCheck ? Math.floor((new Date() - new Date(lastCheck)) / (1000 * 60 * 60 * 24)) : null;
 
+                const questionnaireColor = getProgressColor(questionnaireProgress);
+                const scheduleColor = getProgressColor(schedPct);
+
                 return `
                     <tr>
                         <td><strong>${student.full_name || 'Sem nome'}</strong></td>
                         <td>${student.email}</td>
                         <td>
                             <div class="mini-progress">
-                                <div class="mini-progress-bar" style="width: ${questionnaireProgress}%"></div>
+                                <div class="mini-progress-bar" style="width: ${questionnaireProgress}%; background: ${questionnaireColor};"></div>
                             </div>
                             <span class="mini-progress-text">${questionnaireProgress}%</span>
                         </td>
                         <td>
                             <div class="mini-progress">
-                                <div class="mini-progress-bar" style="width: ${schedPct}%"></div>
+                                <div class="mini-progress-bar" style="width: ${schedPct}%; background: ${scheduleColor};"></div>
                             </div>
                             <span class="mini-progress-text">${schedPct}%</span>
                         </td>
