@@ -2639,14 +2639,23 @@ Cardiovascular	Physiology	62	FALSE
                     return;
                 }
 
+                const oldPath = folder.path;
+                const oldName = folder.name;
+
+                // Calculate new path by replacing the folder name in the path
+                const pathParts = oldPath.split('::');
+                pathParts[pathParts.length - 1] = name;
+                const newPath = pathParts.join('::');
+
                 folder.name = name;
                 folder.icon = icon || '📁';
                 folder.hidden = hidden;
+                folder.path = newPath;
 
                 // Update all lessons in this folder and subfolders
-                await updateFolderInDatabase(folder);
+                await updateFolderInDatabase(oldPath, newPath, hidden);
 
-                console.log('✅ Folder updated in database:', { path: folder.path, name, icon, hidden });
+                console.log('✅ Folder updated in database:', { oldPath, newPath, name, icon, hidden });
 
                 WardApp.showToast('✅ Pasta atualizada com sucesso!');
 
@@ -2673,32 +2682,47 @@ Cardiovascular	Physiology	62	FALSE
             }
         }
 
-        async function updateFolderInDatabase(folder) {
-            // Update all lessons that belong to this folder path
-            const updateLessons = async (f) => {
-                // Update lessons in this folder
-                for (let lesson of f.lessons || []) {
-                    const newTags = f.path.split('::').map((part, i) => {
-                        if (i === f.path.split('::').length - 1) return f.name;
-                        return part;
-                    }).join('::') + '::' + lesson.title.replace(/[^a-zA-Z0-9]/g, '_');
+        async function updateFolderInDatabase(oldPath, newPath, hidden) {
+            // Fetch all videos that have tags starting with oldPath
+            const { data: videos, error: fetchError } = await WardApp.db
+                .from('course_videos')
+                .select('id, tags')
+                .or(`tags.eq.${oldPath},tags.like.${oldPath}::%`);
 
-                    await WardApp.db
-                        .from('course_videos')
-                        .update({
-                            tags: lesson.tags, // Keep original tags structure for now
-                            is_hidden: f.hidden
-                        })
-                        .eq('id', lesson.id);
+            if (fetchError) {
+                console.error('Error fetching videos for folder update:', fetchError);
+                throw fetchError;
+            }
+
+            console.log(`📂 Found ${videos?.length || 0} videos to update for folder ${oldPath} -> ${newPath}`);
+
+            // Update each video's tags
+            for (const video of videos || []) {
+                let newTags;
+                if (video.tags === oldPath) {
+                    // Video is exactly at this folder level
+                    newTags = newPath;
+                } else if (video.tags.startsWith(oldPath + '::')) {
+                    // Video is in a subfolder - replace the prefix
+                    newTags = video.tags.replace(oldPath, newPath);
+                } else {
+                    continue; // Skip if doesn't match
                 }
 
-                // Recursively update child folders
-                for (let child of f.children || []) {
-                    await updateLessons(child);
-                }
-            };
+                const { error: updateError } = await WardApp.db
+                    .from('course_videos')
+                    .update({
+                        tags: newTags,
+                        is_hidden: hidden
+                    })
+                    .eq('id', video.id);
 
-            await updateLessons(folder);
+                if (updateError) {
+                    console.error(`Error updating video ${video.id}:`, updateError);
+                } else {
+                    console.log(`✅ Updated video ${video.id}: ${video.tags} -> ${newTags}`);
+                }
+            }
         }
 
         async function saveLessonEdit() {
