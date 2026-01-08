@@ -71,7 +71,16 @@
 
         <!-- Anki Usage Chart -->
         <div class="card mb-4">
-            <div class="card-header">📊 Distribuicao de Frequencia Anki</div>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>📊 Distribuicao de Frequencia Anki</div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <span style="font-size: 0.85rem; color: #64748b;">Fonte dos dados:</span>
+                    <select id="frequency-data-source" style="padding: 0.5rem; border-radius: 6px; border: 2px solid #e5e7eb; font-weight: 600; background: white;">
+                        <option value="checkin">📊 Check-ins Diários</option>
+                        <option value="questionnaire">📝 Questionários</option>
+                    </select>
+                </div>
+            </div>
             <div class="card-body">
                 <div id="frequency-chart" class="frequency-chart">
                     <!-- Filled by JS -->
@@ -247,7 +256,7 @@
                     <span style="font-size: 0.85rem; color: #64748b;">Fonte dos dados:</span>
                     <select id="data-source-toggle" style="padding: 0.5rem; border-radius: 6px; border: 2px solid #e5e7eb; font-weight: 600; background: white;">
                         <option value="checkin">📊 Check-ins Diários</option>
-                        <option value="questionnaire">📝 Questionários</option>
+                        <option value="questionnaire" selected>📝 Questionários</option>
                     </select>
                 </div>
             </div>
@@ -315,7 +324,7 @@
         let allStudents = [];
         let ankiData = {};
         let selectedStudent = null;
-        let currentDataSource = 'checkin'; // 'checkin' or 'questionnaire'
+        let currentDataSource = 'questionnaire'; // 'checkin' or 'questionnaire'
 
         const frequencyLabels = {
             daily: 'Diariamente',
@@ -385,12 +394,29 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             await loadStudentsData();
             await loadDiaryPreference();
 
-            // Add event listener for data source toggle
-            document.getElementById('data-source-toggle').addEventListener('change', async function() {
-                currentDataSource = this.value;
+            // Add event listener for data source toggles (keep both selects in sync)
+            const frequencySelect = document.getElementById('frequency-data-source');
+            const questionnaireSelect = document.getElementById('data-source-toggle');
+
+            async function changeDataSource(newValue) {
+                currentDataSource = newValue;
+                // Sync both selects
+                frequencySelect.value = newValue;
+                questionnaireSelect.value = newValue;
                 WardApp.showToast(`Exibindo dados de ${currentDataSource === 'checkin' ? 'Check-ins Diários' : 'Questionários'}`, 'info');
                 await loadStudentsData();
+            }
+
+            frequencySelect.addEventListener('change', function() {
+                changeDataSource(this.value);
             });
+
+            questionnaireSelect.addEventListener('change', function() {
+                changeDataSource(this.value);
+            });
+
+            // Set initial value for frequency select
+            frequencySelect.value = currentDataSource;
         });
 
         async function loadStudentsData() {
