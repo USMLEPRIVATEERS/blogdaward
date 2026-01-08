@@ -702,6 +702,7 @@
     <div id="toast-container" class="toast-container"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -1209,9 +1210,33 @@
 
             if (video.video_url) {
                 // Parse video URL and create embed
-                const embedUrl = getEmbedUrl(video.video_url);
-                if (embedUrl) {
-                    wrapper.innerHTML = `<iframe src="${embedUrl}" allowfullscreen allow="autoplay; fullscreen; picture-in-picture"></iframe>`;
+                const embedResult = getEmbedUrl(video.video_url);
+
+                if (embedResult) {
+                    // Check if it's a Mux HLS stream
+                    if (typeof embedResult === 'object' && embedResult.type === 'mux') {
+                        wrapper.innerHTML = `<video id="mux-video" controls playsinline style="position:absolute;top:0;left:0;width:100%;height:100%;background:#000;"></video>`;
+
+                        const videoElement = document.getElementById('mux-video');
+                        const hlsUrl = embedResult.url;
+
+                        if (Hls.isSupported()) {
+                            const hls = new Hls();
+                            hls.loadSource(hlsUrl);
+                            hls.attachMedia(videoElement);
+                            hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                                // Video is ready to play
+                            });
+                        } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+                            // Safari native HLS support
+                            videoElement.src = hlsUrl;
+                        } else {
+                            wrapper.innerHTML = createPlaceholder(video, 'Seu navegador nao suporta este formato de video');
+                        }
+                    } else {
+                        // YouTube, Vimeo, etc. - use iframe
+                        wrapper.innerHTML = `<iframe src="${embedResult}" allowfullscreen allow="autoplay; fullscreen; picture-in-picture"></iframe>`;
+                    }
                 } else {
                     wrapper.innerHTML = createPlaceholder(video, 'URL de video invalida');
                 }
@@ -1234,6 +1259,11 @@
             const vimeoMatch = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
             if (vimeoMatch) {
                 return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+            }
+
+            // Mux HLS streams (stream.mux.com)
+            if (url.includes('stream.mux.com') && url.includes('.m3u8')) {
+                return { type: 'mux', url: url };
             }
 
             return null;
