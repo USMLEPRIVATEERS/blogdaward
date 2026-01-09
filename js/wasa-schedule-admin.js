@@ -286,7 +286,13 @@ async function saveSchedule(enrollmentId) {
         showToast('Agendamento atualizado!', 'success');
 
         // Reload data from server to ensure sync
+        console.log('=== RELOADING DATA ===');
         await loadData();
+
+        // Check what was loaded
+        const reloadedEnrollment = enrollments.find(e => String(e.id) === String(enrollmentId));
+        console.log('After reload, enrollment scheduled_datetime_utc:', reloadedEnrollment?.scheduled_datetime_utc);
+
         renderStudents();
 
     } catch (error) {
