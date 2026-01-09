@@ -378,6 +378,9 @@ function calculateProgress(enrollment) {
 function checkResultsReady(enrollment, assessment) {
     if (!enrollment.completed_at) return false;
 
+    // If mentor released results early, show immediately
+    if (enrollment.results_released_at) return true;
+
     const completedAt = new Date(enrollment.completed_at);
     const releaseTime = new Date(completedAt);
     releaseTime.setHours(releaseTime.getHours() + (assessment.release_results_after_hours || 24));

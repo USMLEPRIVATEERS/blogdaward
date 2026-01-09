@@ -584,8 +584,21 @@ function renderStudentAssessments(userId, studentEnrollments) {
 
         // Status badge
         let statusBadge = '';
+        let releaseButton = '';
         if (enrollment.status === 'awaiting_results') {
             statusBadge = '<span class="badge badge-medium">Aguardando Resultado</span>';
+            // Add release button if results not yet released
+            if (!enrollment.results_released_at) {
+                releaseButton = `
+                    <button onclick="releaseResults(${enrollment.id})"
+                            style="margin-left: 0.5rem; padding: 0.4rem 0.8rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                                   color: white; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+                        Liberar Resultado
+                    </button>
+                `;
+            } else {
+                releaseButton = '<span class="badge badge-easy" style="margin-left: 0.5rem;">Resultado Liberado</span>';
+            }
         } else if (latestAttempt?.status === 'completed') {
             statusBadge = '<span class="badge badge-easy">Concluido</span>';
         } else if (latestAttempt?.status === 'in_progress') {
@@ -595,8 +608,10 @@ function renderStudentAssessments(userId, studentEnrollments) {
         const section = document.createElement('div');
         section.className = 'student-performance';
         section.innerHTML = `
-            <div class="student-performance-header">
-                <h3>${assessment.name} ${statusBadge}</h3>
+            <div class="student-performance-header" style="display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                <h3 style="margin: 0;">${assessment.name}</h3>
+                ${statusBadge}
+                ${releaseButton}
             </div>
             <div class="student-score">
                 <div class="score-circle">
@@ -699,5 +714,46 @@ function showToast(message, type = 'info') {
         WardApp.showToast(message, type);
     } else {
         alert(message);
+    }
+}
+
+// Release results early for a student
+async function releaseResults(enrollmentId) {
+    if (!confirm('Liberar resultado antecipadamente para este aluno?')) {
+        return;
+    }
+
+    showLoading();
+
+    try {
+        const { error } = await window.supabase
+            .from('self_assessment_enrollments')
+            .update({
+                results_released_at: new Date().toISOString(),
+                status: 'completed'
+            })
+            .eq('id', enrollmentId);
+
+        if (error) throw error;
+
+        // Update local data
+        const enrollment = enrollments.find(e => e.id === enrollmentId);
+        if (enrollment) {
+            enrollment.results_released_at = new Date().toISOString();
+            enrollment.status = 'completed';
+        }
+
+        hideLoading();
+        showToast('Resultado liberado com sucesso!', 'success');
+
+        // Re-render the student detail view
+        const currentStudent = document.querySelector('.student-item.active');
+        if (currentStudent && currentStudent.dataset.userId) {
+            showStudentDetail(currentStudent.dataset.userId);
+        }
+    } catch (error) {
+        console.error('Error releasing results:', error);
+        hideLoading();
+        showToast('Erro ao liberar resultado', 'error');
     }
 }
