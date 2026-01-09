@@ -11,6 +11,7 @@ let userResponses = [];
 let allQuestions = [];
 let userScore = 0;
 let userPercentage = 0;
+let allScores = [];
 
 // Wait for Supabase to be ready
 async function ensureSupabase() {
@@ -70,8 +71,6 @@ async function loadResultsData() {
 
     showLoading();
 
-    console.log('Loading results for enrollment:', enrollmentId, 'user:', currentUser?.id);
-
     try {
         // Load enrollment with assessment
         const { data: enrollment, error: enrollmentError } = await window.supabase
@@ -84,10 +83,7 @@ async function loadResultsData() {
             .eq('user_id', currentUser.id)
             .single();
 
-        console.log('Enrollment data:', enrollment, 'Error:', enrollmentError);
-
         if (enrollmentError || !enrollment) {
-            console.error('Enrollment not found or access denied:', enrollmentError);
             showToast('Resultado nao encontrado ou acesso negado', 'error');
             setTimeout(() => window.location.href = 'dashboard-externo.html', 2000);
             return;
@@ -96,34 +92,23 @@ async function loadResultsData() {
         enrollmentData = enrollment;
         assessmentData = enrollment.self_assessments;
 
-        // Check if results are ready
-        // Status can be 'completed' or 'awaiting_results' (completed but waiting for release)
-        console.log('Checking results access - completed_at:', enrollment.completed_at,
-                    'results_released_at:', enrollment.results_released_at,
-                    'status:', enrollment.status);
+        // Update assessment info in header
+        updateAssessmentInfo();
 
+        // Check if results are ready
         if (!enrollment.completed_at) {
-            console.log('Assessment not completed yet');
             showToast('Este Self Assessment ainda nao foi concluido', 'error');
             setTimeout(() => window.location.href = 'dashboard-externo.html', 2000);
             return;
         }
 
-        // Check if results can be viewed:
-        // 1. If manually released (results_released_at is set), allow access
-        // 2. If 24h have passed since completion, allow access
+        // Check if results can be viewed
         const manuallyReleased = !!enrollment.results_released_at;
-        console.log('Manually released:', manuallyReleased);
 
         if (!manuallyReleased) {
             const releaseTime = new Date(enrollment.completed_at);
             releaseTime.setHours(releaseTime.getHours() + (assessmentData.release_results_after_hours || 24));
             const now = new Date();
-
-            console.log('Release time check - completed_at:', enrollment.completed_at,
-                        'release_time:', releaseTime.toISOString(),
-                        'now:', now.toISOString(),
-                        'can_view:', now >= releaseTime);
 
             if (now < releaseTime) {
                 const hoursLeft = Math.ceil((releaseTime - now) / (1000 * 60 * 60));
@@ -132,8 +117,6 @@ async function loadResultsData() {
                 return;
             }
         }
-
-        console.log('Access granted, loading results...');
 
         // Load all questions for this assessment
         const { data: questions, error: questionsError } = await window.supabase
@@ -145,7 +128,7 @@ async function loadResultsData() {
 
         allQuestions = questions || [];
 
-        // Load attempts for this enrollment to find the latest completed one
+        // Load attempts for this enrollment
         const { data: attemptsData, error: attemptsError } = await window.supabase
             .from('self_assessment_attempts')
             .select('*')
@@ -154,12 +137,10 @@ async function loadResultsData() {
 
         if (attemptsError) throw attemptsError;
 
-        // Find the latest completed attempt, or any attempt if none completed
+        // Find the latest completed attempt
         const latestAttempt = attemptsData?.find(a => a.status === 'completed') ||
                               attemptsData?.find(a => a.status === 'in_progress') ||
                               attemptsData?.[0];
-
-        console.log('Attempts found:', attemptsData?.length, 'Latest attempt:', latestAttempt?.id);
 
         // Load user's responses for the latest attempt only
         let responses = [];
@@ -172,8 +153,6 @@ async function loadResultsData() {
             if (responsesError) throw responsesError;
             responses = responsesData || [];
         }
-
-        console.log('Responses loaded for attempt', latestAttempt?.id, ':', responses.length);
 
         userResponses = responses;
 
@@ -192,29 +171,45 @@ async function loadResultsData() {
     }
 }
 
+// Update assessment info header
+function updateAssessmentInfo() {
+    const nameEl = document.getElementById('assessment-name');
+    const dateEl = document.getElementById('assessment-date');
+
+    if (nameEl && assessmentData) {
+        nameEl.textContent = assessmentData.name || 'Self Assessment';
+    }
+
+    if (dateEl && enrollmentData?.completed_at) {
+        const completedDate = new Date(enrollmentData.completed_at);
+        dateEl.textContent = `Concluido em ${completedDate.toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        })}`;
+    }
+}
+
 // Calculate results
 function calculateResults() {
-    // Total questions = all questions in the assessment
-    // Score is based on correct answers out of total assessment questions
     const totalQuestions = allQuestions.length;
     const correctAnswers = userResponses.filter(r => r.is_correct).length;
-
-    console.log('Calculating results:', {
-        totalQuestionsInAssessment: totalQuestions,
-        questionsAnswered: userResponses.length,
-        correctAnswers: correctAnswers
-    });
 
     userPercentage = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
 
     // Score formula: y = 1.8458x + 107.6 where x is percentage
     userScore = Math.round(1.8458 * userPercentage + 107.6);
 
-    // Update UI
+    // Update UI elements
     document.getElementById('score-value').textContent = userScore;
     document.getElementById('correct-count').textContent = correctAnswers;
     document.getElementById('total-count').textContent = totalQuestions;
     document.getElementById('percentage').textContent = `${Math.round(userPercentage)}%`;
+
+    // Animate score circle
+    animateScoreCircle(userScore);
 
     // Pass/Fail status (196 is passing)
     const statusEl = document.getElementById('score-status');
@@ -227,9 +222,32 @@ function calculateResults() {
     }
 }
 
+// Animate the score circle
+function animateScoreCircle(score) {
+    const progressEl = document.getElementById('score-progress');
+    if (!progressEl) return;
+
+    // Calculate progress (score range is ~108 to ~292)
+    const minScore = 108;
+    const maxScore = 292;
+    const normalizedScore = Math.max(0, Math.min(1, (score - minScore) / (maxScore - minScore)));
+    const degrees = normalizedScore * 360;
+
+    // Determine color based on pass/fail
+    const color = score >= 196 ? '#22c55e' : '#ef4444';
+
+    // Animate after a short delay
+    setTimeout(() => {
+        progressEl.style.setProperty('--progress-deg', `${degrees}deg`);
+        progressEl.style.setProperty('--score-color', color);
+    }, 300);
+}
+
 // Load averages for comparison
 let averagesBySubject = {};
 let averagesBySystem = {};
+let subjectPerformanceData = {};
+let systemPerformanceData = {};
 
 async function loadAverages() {
     try {
@@ -290,6 +308,7 @@ async function loadAverages() {
 // Render performance by subject
 function renderPerformanceBySubject() {
     const container = document.getElementById('subject-performance');
+    const insightsContainer = document.getElementById('subject-insights');
 
     // Group user responses by subject
     const subjectPerformance = {};
@@ -308,26 +327,35 @@ function renderPerformanceBySubject() {
         if (response.is_correct) subjectPerformance[subject].correct++;
     });
 
-    // Sort by total questions (descending)
+    subjectPerformanceData = subjectPerformance;
+
+    // Sort by percentage (descending)
     const sortedSubjects = Object.entries(subjectPerformance)
-        .sort((a, b) => b[1].total - a[1].total);
+        .map(([name, stats]) => ({
+            name,
+            stats,
+            percentage: stats.total > 0 ? (stats.correct / stats.total) * 100 : 0
+        }))
+        .sort((a, b) => b.percentage - a.percentage);
 
     if (sortedSubjects.length === 0) {
-        container.innerHTML = '<p style="color: #666;">Nenhum dado disponivel</p>';
+        container.innerHTML = '<p style="color: #666; text-align: center; padding: 2rem;">Nenhum dado disponivel</p>';
         return;
     }
 
-    container.innerHTML = sortedSubjects.map(([subject, stats]) => {
-        const percentage = stats.total > 0 ? (stats.correct / stats.total) * 100 : 0;
-        const avgPercentage = averagesBySubject[subject] || 0;
-
-        return renderPerformanceBar(subject, stats, percentage, avgPercentage);
+    container.innerHTML = sortedSubjects.map(item => {
+        const avgPercentage = averagesBySubject[item.name] || 0;
+        return renderPerformanceBar(item.name, item.stats, item.percentage, avgPercentage);
     }).join('');
+
+    // Render insights
+    renderInsights(insightsContainer, sortedSubjects);
 }
 
 // Render performance by system
 function renderPerformanceBySystem() {
     const container = document.getElementById('system-performance');
+    const insightsContainer = document.getElementById('system-insights');
 
     // Group user responses by system
     const systemPerformance = {};
@@ -347,43 +375,125 @@ function renderPerformanceBySystem() {
         if (response.is_correct) systemPerformance[system].correct++;
     });
 
-    // Sort by total questions (descending)
+    systemPerformanceData = systemPerformance;
+
+    // Sort by percentage (descending)
     const sortedSystems = Object.entries(systemPerformance)
-        .sort((a, b) => b[1].total - a[1].total);
+        .map(([name, stats]) => ({
+            name,
+            stats,
+            percentage: stats.total > 0 ? (stats.correct / stats.total) * 100 : 0
+        }))
+        .sort((a, b) => b.percentage - a.percentage);
 
     if (sortedSystems.length === 0) {
-        container.innerHTML = '<p style="color: #666;">Nenhum dado disponivel</p>';
+        container.innerHTML = '<p style="color: #666; text-align: center; padding: 2rem;">Nenhum dado disponivel</p>';
         return;
     }
 
-    container.innerHTML = sortedSystems.map(([system, stats]) => {
-        const percentage = stats.total > 0 ? (stats.correct / stats.total) * 100 : 0;
-        const avgPercentage = averagesBySystem[system] || 0;
-
-        return renderPerformanceBar(system, stats, percentage, avgPercentage);
+    container.innerHTML = sortedSystems.map(item => {
+        const avgPercentage = averagesBySystem[item.name] || 0;
+        return renderPerformanceBar(item.name, item.stats, item.percentage, avgPercentage);
     }).join('');
+
+    // Render insights
+    renderInsights(insightsContainer, sortedSystems);
 }
 
 // Render a performance bar
 function renderPerformanceBar(name, stats, percentage, avgPercentage) {
     let barClass = 'poor';
-    if (percentage >= 70) barClass = 'good';
-    else if (percentage >= 50) barClass = 'medium';
+    let statsClass = 'poor';
+    if (percentage >= 70) {
+        barClass = 'good';
+        statsClass = 'good';
+    } else if (percentage >= 50) {
+        barClass = 'medium';
+        statsClass = 'medium';
+    }
+
+    const diff = percentage - avgPercentage;
+    let vsAvgClass = 'equal';
+    let vsAvgText = 'Na media';
+    let vsAvgIcon = '➖';
+
+    if (diff > 5) {
+        vsAvgClass = 'above';
+        vsAvgText = `+${Math.round(diff)}% acima da media`;
+        vsAvgIcon = '📈';
+    } else if (diff < -5) {
+        vsAvgClass = 'below';
+        vsAvgText = `${Math.round(diff)}% abaixo da media`;
+        vsAvgIcon = '📉';
+    }
 
     return `
         <div class="performance-item">
             <div class="performance-header">
                 <span class="performance-name">${escapeHtml(name)}</span>
-                <span class="performance-stats">${stats.correct}/${stats.total} (${Math.round(percentage)}%)</span>
+                <span class="performance-stats ${statsClass}">${stats.correct}/${stats.total} (${Math.round(percentage)}%)</span>
             </div>
             <div class="performance-bar-container">
                 <div class="performance-bar ${barClass}" style="width: ${percentage}%"></div>
-                <div class="average-marker" style="left: ${avgPercentage}%">
-                    <span class="average-label">Media: ${Math.round(avgPercentage)}%</span>
-                </div>
+            </div>
+            <div class="performance-comparison">
+                <span>Media geral: ${Math.round(avgPercentage)}%</span>
+                <span class="performance-vs-avg ${vsAvgClass}">${vsAvgIcon} ${vsAvgText}</span>
             </div>
         </div>
     `;
+}
+
+// Render insights (strengths and weaknesses)
+function renderInsights(container, sortedData) {
+    if (!container || sortedData.length < 2) {
+        if (container) container.innerHTML = '';
+        return;
+    }
+
+    // Get top 3 strengths and weaknesses
+    const strengths = sortedData.slice(0, 3).filter(item => item.percentage >= 50);
+    const weaknesses = [...sortedData].reverse().slice(0, 3).filter(item => item.percentage < 70);
+
+    let html = '';
+
+    if (strengths.length > 0) {
+        html += `
+            <div class="insight-card strengths">
+                <div class="insight-title">
+                    <span>💪</span> Pontos Fortes
+                </div>
+                <ul class="insight-list">
+                    ${strengths.map(item => `
+                        <li class="insight-item">
+                            <span class="insight-name">${escapeHtml(item.name)}</span>
+                            <span class="insight-percent">${Math.round(item.percentage)}%</span>
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+
+    if (weaknesses.length > 0) {
+        html += `
+            <div class="insight-card weaknesses">
+                <div class="insight-title">
+                    <span>📚</span> Precisa Melhorar
+                </div>
+                <ul class="insight-list">
+                    ${weaknesses.map(item => `
+                        <li class="insight-item">
+                            <span class="insight-name">${escapeHtml(item.name)}</span>
+                            <span class="insight-percent">${Math.round(item.percentage)}%</span>
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html;
 }
 
 // Render score distribution chart
@@ -411,12 +521,18 @@ async function renderScoreDistribution() {
 
             if (responses && responses.length > 0) {
                 const correct = responses.filter(r => r.is_correct).length;
-                const total = responses.length;
+                const total = allQuestions.length;
                 const pct = (correct / total) * 100;
                 const score = Math.round(1.8458 * pct + 107.6);
                 scores.push(score);
             }
         }
+
+        allScores = scores;
+
+        // Calculate percentile
+        const percentile = calculatePercentile(userScore, scores);
+        updatePercentile(percentile);
 
         // Create distribution buckets (intervals of 10)
         const buckets = {};
@@ -442,14 +558,15 @@ async function renderScoreDistribution() {
 
         // Render chart
         const chartHtml = Object.entries(buckets).map(([bucket, count]) => {
-            const height = maxCount > 0 ? (count / maxCount) * 200 : 0;
+            const height = maxCount > 0 ? (count / maxCount) * 180 : 0;
             const isUserBucket = parseInt(bucket) === clampedUserBucket;
+            const isPassing = parseInt(bucket) >= 190;
 
             return `
                 <div class="chart-bar-wrapper">
                     ${isUserBucket ? '<div class="your-score-indicator">Voce</div>' : ''}
-                    <div class="chart-count">${count}</div>
-                    <div class="chart-bar ${isUserBucket ? 'highlighted' : ''}" style="height: ${height}px"></div>
+                    ${count > 0 ? `<div class="chart-count">${count}</div>` : ''}
+                    <div class="chart-bar ${isUserBucket ? 'highlighted' : ''}" style="height: ${Math.max(height, 4)}px"></div>
                     <div class="chart-label">${bucket}</div>
                 </div>
             `;
@@ -459,14 +576,37 @@ async function renderScoreDistribution() {
             <div class="chart-container">
                 ${chartHtml}
             </div>
-            <div class="pass-line-container">
-                <span class="pass-line-label">Passing Score: 196</span>
-            </div>
         `;
 
     } catch (error) {
         console.error('Error rendering distribution:', error);
         container.innerHTML = '<p style="color: #666; text-align: center;">Erro ao carregar distribuicao</p>';
+    }
+}
+
+// Calculate percentile
+function calculatePercentile(score, scores) {
+    if (scores.length === 0) return 0;
+
+    const belowCount = scores.filter(s => s < score).length;
+    return Math.round((belowCount / scores.length) * 100);
+}
+
+// Update percentile display
+function updatePercentile(percentile) {
+    const percentileEl = document.getElementById('percentile');
+    const percentileInfoEl = document.getElementById('percentile-info');
+    const percentileValueEl = document.getElementById('percentile-value');
+    const percentileTextEl = document.getElementById('percentile-text');
+
+    if (percentileEl) {
+        percentileEl.textContent = `Top ${100 - percentile}%`;
+    }
+
+    if (percentileInfoEl && percentileValueEl && percentileTextEl) {
+        percentileInfoEl.style.display = 'block';
+        percentileValueEl.textContent = `Top ${100 - percentile}%`;
+        percentileTextEl.textContent = `superior a ${percentile}%`;
     }
 }
 
@@ -485,8 +625,16 @@ function showTab(tabName) {
     // Show selected tab
     document.getElementById(`tab-${tabName}`).classList.add('active');
 
-    // Activate button
-    event.target.classList.add('active');
+    // Activate button (find the clicked button)
+    const buttons = document.querySelectorAll('.tab-btn');
+    buttons.forEach(btn => {
+        if (btn.textContent.toLowerCase().includes(tabName.toLowerCase()) ||
+            (tabName === 'subject' && btn.textContent.includes('Subject')) ||
+            (tabName === 'system' && btn.textContent.includes('System')) ||
+            (tabName === 'distribution' && btn.textContent.includes('Distribuicao'))) {
+            btn.classList.add('active');
+        }
+    });
 }
 
 // Escape HTML
@@ -495,4 +643,39 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Loading functions
+function showLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = 'flex';
+}
+
+function hideLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+// Toast notification
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) {
+        alert(message);
+        return;
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 100);
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
