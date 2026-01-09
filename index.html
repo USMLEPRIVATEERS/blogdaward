@@ -15,12 +15,13 @@
 
             <form id="login-form">
                 <div class="form-group">
-                    <label class="form-label" for="identifier">CPF ou Email</label>
+                    <label class="form-label" for="cpf">CPF</label>
                     <input
                         type="text"
-                        id="identifier"
+                        id="cpf"
                         class="form-input"
-                        placeholder="000.000.000-00 ou email@exemplo.com"
+                        placeholder="000.000.000-00"
+                        maxlength="14"
                         required
                     >
                 </div>
@@ -63,56 +64,41 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/app.js"></script>
     <script>
-        const identifierInput = document.getElementById('identifier');
+        // Máscara de CPF
+        const cpfInput = document.getElementById('cpf');
 
-        // Apply CPF mask only when user is typing numbers
-        identifierInput.addEventListener('input', function(e) {
-            let value = e.target.value;
+        cpfInput.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, ''); // Remove tudo que não é dígito
 
-            // Check if it looks like a CPF (only digits and formatting chars)
-            const isLikelyCPF = /^[\d.\-]*$/.test(value) && !value.includes('@');
-
-            if (isLikelyCPF) {
-                // Remove non-digits
-                let digits = value.replace(/\D/g, '');
-
-                if (digits.length <= 11) {
-                    // Apply CPF mask 000.000.000-00
-                    digits = digits.replace(/(\d{3})(\d)/, '$1.$2');
-                    digits = digits.replace(/(\d{3})(\d)/, '$1.$2');
-                    digits = digits.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-                    e.target.value = digits;
-                }
+            if (value.length <= 11) {
+                // Aplica a máscara 000.000.000-00
+                value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                e.target.value = value;
             }
-            // If it contains @ or letters, treat as email - no mask
         });
 
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            const identifierValue = document.getElementById('identifier').value.trim();
+            const cpfFormatted = document.getElementById('cpf').value;
             const password = document.getElementById('password').value;
 
-            if (!identifierValue || !password) {
+            // Remove a máscara do CPF (deixa apenas números)
+            const cpf = cpfFormatted.replace(/\D/g, '');
+
+            if (!cpf || !password) {
                 WardApp.showToast('Preencha todos os campos', 'error');
                 return;
             }
 
-            // Determine if it's email or CPF
-            const isEmail = identifierValue.includes('@');
-            let identifier = identifierValue;
-
-            if (!isEmail) {
-                // Remove CPF mask (keep only digits)
-                identifier = identifierValue.replace(/\D/g, '');
-
-                if (identifier.length !== 11) {
-                    WardApp.showToast('CPF deve ter 11 digitos', 'error');
-                    return;
-                }
+            if (cpf.length !== 11) {
+                WardApp.showToast('CPF deve ter 11 dígitos', 'error');
+                return;
             }
 
-            await WardApp.login(identifier, password);
+            await WardApp.login(cpf, password);
         });
     </script>
 </body>

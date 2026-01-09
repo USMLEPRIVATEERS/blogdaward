@@ -39,11 +39,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function initializeForm() {
     const form = document.getElementById('register-form');
+    const cpfInput = document.getElementById('cpf');
     const countryCodeInput = document.getElementById('country-code');
     const phoneInput = document.getElementById('phone-number');
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
     const confirmPasswordInput = document.getElementById('confirm-password');
+
+    // CPF mask
+    cpfInput.addEventListener('input', (e) => {
+        let value = e.target.value.replace(/\D/g, '');
+
+        if (value.length <= 11) {
+            // Apply CPF mask 000.000.000-00
+            value = value.replace(/(\d{3})(\d)/, '$1.$2');
+            value = value.replace(/(\d{3})(\d)/, '$1.$2');
+            value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+            e.target.value = value;
+        }
+        hideError('cpf-error');
+    });
 
     // Country code formatting
     countryCodeInput.addEventListener('input', (e) => {
@@ -159,15 +174,25 @@ async function handleSubmit(e) {
     e.preventDefault();
 
     const name = document.getElementById('name').value.trim();
+    const cpfFormatted = document.getElementById('cpf').value.trim();
     const countryCode = document.getElementById('country-code').value.trim();
     const phoneNumber = document.getElementById('phone-number').value.trim();
     const email = document.getElementById('email').value.trim().toLowerCase();
     const password = document.getElementById('password').value;
     const confirmPassword = document.getElementById('confirm-password').value;
 
+    // Remove CPF mask (keep only digits)
+    const cpf = cpfFormatted.replace(/\D/g, '');
+
     // Validation
     if (!name) {
         showToast('Digite seu nome completo', 'error');
+        return;
+    }
+
+    if (cpf.length !== 11) {
+        showError('cpf-error');
+        showToast('CPF deve ter 11 digitos', 'error');
         return;
     }
 
@@ -203,14 +228,28 @@ async function handleSubmit(e) {
     btnRegister.disabled = true;
 
     try {
+        // Check if CPF already exists
+        const { data: existingCpf } = await window.supabase
+            .from('users')
+            .select('id')
+            .eq('cpf', cpf)
+            .maybeSingle();
+
+        if (existingCpf) {
+            hideLoading();
+            btnRegister.disabled = false;
+            showToast('Este CPF ja esta cadastrado', 'error');
+            return;
+        }
+
         // Check if email already exists
-        const { data: existingUser, error: checkError } = await window.supabase
+        const { data: existingEmail } = await window.supabase
             .from('users')
             .select('id')
             .eq('email', email)
             .maybeSingle();
 
-        if (existingUser) {
+        if (existingEmail) {
             hideLoading();
             btnRegister.disabled = false;
             showToast('Este email ja esta cadastrado', 'error');
@@ -220,10 +259,11 @@ async function handleSubmit(e) {
         // Hash password
         const hashedPassword = btoa(password + '_ward_salt_2024');
 
-        // Create user (no CPF needed - constraint allows null if email/full_name exist)
+        // Create user
         const { data: newUser, error: insertError } = await window.supabase
             .from('users')
             .insert({
+                cpf: cpf,
                 name: name,
                 full_name: name,
                 email: email,
