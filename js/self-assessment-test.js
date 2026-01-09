@@ -25,6 +25,9 @@ let breakTimeRemaining = 0;  // in seconds
 let timerInterval = null;
 let isInBreak = false;
 
+// Scheduling variables
+let lateMinutes = 0;  // How many minutes late the user is
+
 // Wait for Supabase to be ready
 async function ensureSupabase() {
     if (window.supabase && typeof window.supabase.auth !== 'undefined') {
@@ -108,6 +111,37 @@ async function loadEnrollmentData() {
         timePerBlockMinutes = assessmentData.time_per_block_minutes || 75;
         breakTimeMinutes = assessmentData.break_time_minutes || 15;
         totalBlocks = Math.ceil(assessmentData.total_questions / questionsPerBlock);
+
+        // Check scheduled time and calculate lateness
+        if (enrollmentData.scheduled_datetime_utc) {
+            const scheduledTime = new Date(enrollmentData.scheduled_datetime_utc);
+            const now = new Date();
+            const timeDiff = now - scheduledTime; // positive if late
+
+            if (timeDiff > 0) {
+                // User is late
+                lateMinutes = Math.floor(timeDiff / (1000 * 60));
+
+                // Check if too late (more than block time = exam lost)
+                if (lateMinutes >= timePerBlockMinutes) {
+                    hideLoading();
+                    showToast('Prova perdida - voce nao compareceu no horario agendado', 'error');
+                    setTimeout(() => window.location.href = 'dashboard-externo.html', 3000);
+                    return;
+                }
+
+                // Show late warning
+                if (lateMinutes > 0) {
+                    showToast(`Voce esta ${lateMinutes} minutos atrasado. O tempo sera descontado.`, 'warning');
+                }
+            } else if (timeDiff < -60000) { // More than 1 minute early
+                // User is early - should not start yet
+                hideLoading();
+                showToast('A prova ainda nao comecou. Volte no horario agendado.', 'error');
+                setTimeout(() => window.location.href = 'dashboard-externo.html', 3000);
+                return;
+            }
+        }
 
         // Update UI
         document.getElementById('total-blocks').textContent = totalBlocks;
@@ -225,7 +259,14 @@ async function createNewAttempt() {
     if (error) throw error;
 
     currentAttempt = attempt;
-    blockTimeRemaining = timePerBlockMinutes * 60;
+
+    // Calculate block time, deducting late minutes from first block only
+    if (currentBlock === 1 && lateMinutes > 0) {
+        blockTimeRemaining = Math.max(0, (timePerBlockMinutes - lateMinutes) * 60);
+        console.log(`First block: deducting ${lateMinutes} minutes due to late arrival. Remaining: ${blockTimeRemaining}s`);
+    } else {
+        blockTimeRemaining = timePerBlockMinutes * 60;
+    }
 }
 
 // Load existing responses

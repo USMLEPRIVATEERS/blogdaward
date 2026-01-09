@@ -135,9 +135,10 @@ function startCountdownTimers() {
 }
 
 function updateCountdowns() {
-    const containers = document.querySelectorAll('.countdown-container');
+    // Update results release countdowns
+    const resultsContainers = document.querySelectorAll('.countdown-container:not(.scheduled-countdown)');
 
-    containers.forEach(container => {
+    resultsContainers.forEach(container => {
         const releaseTime = parseInt(container.dataset.releaseTime);
         const countdownEl = container.querySelector('.countdown-value');
 
@@ -157,6 +158,38 @@ function updateCountdowns() {
         const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
         if (hours > 0) {
+            countdownEl.textContent = `${hours}h ${String(minutes).padStart(2, '0')}min ${String(seconds).padStart(2, '0')}s`;
+        } else {
+            countdownEl.textContent = `${minutes}min ${String(seconds).padStart(2, '0')}s`;
+        }
+    });
+
+    // Update scheduled exam countdowns
+    const scheduledContainers = document.querySelectorAll('.scheduled-countdown');
+
+    scheduledContainers.forEach(container => {
+        const scheduledTime = parseInt(container.dataset.scheduledTime);
+        const countdownEl = container.querySelector('.scheduled-value');
+
+        if (!countdownEl) return;
+
+        const now = Date.now();
+        const diff = scheduledTime - now;
+
+        if (diff <= 0) {
+            // Scheduled time reached - reload to show start button
+            window.location.reload();
+            return;
+        }
+
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        if (days > 0) {
+            countdownEl.textContent = `${days}d ${hours}h ${String(minutes).padStart(2, '0')}min`;
+        } else if (hours > 0) {
             countdownEl.textContent = `${hours}h ${String(minutes).padStart(2, '0')}min ${String(seconds).padStart(2, '0')}s`;
         } else {
             countdownEl.textContent = `${minutes}min ${String(seconds).padStart(2, '0')}s`;
@@ -182,13 +215,71 @@ function renderAssessmentCard(assessment, enrollment) {
             </button>
         `;
     } else if (enrollment.status === 'enrolled') {
-        // Enrolled but not started
-        statusBadge = '<span class="assessment-badge badge-enrolled">Inscrito</span>';
-        actionsHtml = `
-            <button class="btn-action btn-primary" onclick="startAssessment(${enrollment.id})">
-                Iniciar Prova
-            </button>
-        `;
+        // Enrolled but not started - check scheduled time
+        if (enrollment.scheduled_datetime_utc) {
+            const scheduledTime = new Date(enrollment.scheduled_datetime_utc);
+            const now = new Date();
+            const timeDiff = scheduledTime - now;
+
+            if (timeDiff > 0) {
+                // Scheduled time is in the future - show countdown
+                statusBadge = '<span class="assessment-badge badge-enrolled">Agendado</span>';
+
+                // Format scheduled date/time in user's timezone
+                const userTz = enrollment.user_timezone || 'America/Sao_Paulo';
+                const scheduledLocal = scheduledTime.toLocaleString('pt-BR', {
+                    timeZone: userTz,
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                actionsHtml = `
+                    <div class="countdown-container scheduled-countdown" data-scheduled-time="${scheduledTime.getTime()}" data-enrollment-id="${enrollment.id}">
+                        <div class="countdown-label">Prova agendada para ${scheduledLocal}</div>
+                        <div class="countdown-label" style="margin-top: 0.5rem;">Comeca em:</div>
+                        <div class="countdown-timer">
+                            <span class="countdown-value scheduled-value">--:--:--</span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Scheduled time has passed - can start but time is being deducted
+                const lateMinutes = Math.floor(-timeDiff / (1000 * 60));
+                statusBadge = '<span class="assessment-badge badge-in-progress">Prova Disponivel</span>';
+
+                if (lateMinutes < assessment.time_per_block_minutes) {
+                    // Still has time to start (late but not too late)
+                    actionsHtml = `
+                        <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; text-align: center;">
+                            <div style="color: #92400e; font-weight: 600;">Voce esta ${lateMinutes} minutos atrasado!</div>
+                            <div style="color: #78350f; font-size: 0.85rem;">O tempo sera descontado do primeiro bloco.</div>
+                        </div>
+                        <button class="btn-action btn-primary" onclick="startAssessment(${enrollment.id})" style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);">
+                            Iniciar Agora (${lateMinutes}min descontados)
+                        </button>
+                    `;
+                } else {
+                    // Too late - missed the exam
+                    actionsHtml = `
+                        <div style="background: #fee2e2; border: 2px solid #ef4444; border-radius: 8px; padding: 1rem; text-align: center;">
+                            <div style="color: #991b1b; font-weight: 600;">Prova perdida</div>
+                            <div style="color: #7f1d1d; font-size: 0.85rem;">Voce nao compareceu no horario agendado.</div>
+                        </div>
+                    `;
+                }
+            }
+        } else {
+            // No scheduled time - old behavior (shouldn't happen with new flow)
+            statusBadge = '<span class="assessment-badge badge-enrolled">Inscrito</span>';
+            actionsHtml = `
+                <button class="btn-action btn-primary" onclick="startAssessment(${enrollment.id})">
+                    Iniciar Prova
+                </button>
+            `;
+        }
     } else if (enrollment.status === 'in_progress') {
         // In progress
         statusBadge = '<span class="assessment-badge badge-in-progress">Em Andamento</span>';
