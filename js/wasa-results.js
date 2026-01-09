@@ -179,25 +179,36 @@ function renderStudentList() {
     const studentMap = new Map();
 
     enrollments.forEach(enrollment => {
-        const user = users[enrollment.user_id];
-        if (!user) return;
+        // Try both string and number keys for users object
+        const user = users[enrollment.user_id] || users[String(enrollment.user_id)];
+        if (!user) {
+            console.log('User not found for enrollment.user_id:', enrollment.user_id);
+            return;
+        }
 
-        if (!studentMap.has(enrollment.user_id)) {
-            studentMap.set(enrollment.user_id, {
+        const userIdKey = String(enrollment.user_id);
+        if (!studentMap.has(userIdKey)) {
+            studentMap.set(userIdKey, {
                 user,
                 enrollments: [],
                 attempts: []
             });
         }
 
-        studentMap.get(enrollment.user_id).enrollments.push(enrollment);
+        studentMap.get(userIdKey).enrollments.push(enrollment);
     });
 
     // Add attempts to students
     attempts.forEach(attempt => {
-        const enrollment = enrollments.find(e => e.id === attempt.enrollment_id);
-        if (enrollment && studentMap.has(enrollment.user_id)) {
-            studentMap.get(enrollment.user_id).attempts.push(attempt);
+        const enrollment = enrollments.find(e =>
+            String(e.id) === String(attempt.enrollment_id) ||
+            e.id === attempt.enrollment_id
+        );
+        if (enrollment) {
+            const userIdKey = String(enrollment.user_id);
+            if (studentMap.has(userIdKey)) {
+                studentMap.get(userIdKey).attempts.push(attempt);
+            }
         }
     });
 
@@ -440,20 +451,33 @@ function showStudentDetail(userId) {
     document.getElementById('student-detail-view').classList.add('active');
     document.getElementById('empty-state').style.display = 'none';
 
-    const user = users[userId];
-    if (!user) return;
+    // Convert userId to ensure consistent comparison
+    const userIdStr = String(userId);
+    const userIdNum = parseInt(userId);
+
+    const user = users[userId] || users[userIdStr] || users[userIdNum];
+    if (!user) {
+        console.log('User not found for userId:', userId);
+        return;
+    }
 
     // Update profile header
     document.getElementById('detail-avatar').textContent = getInitials(user.name);
     document.getElementById('detail-name').textContent = user.name;
     document.getElementById('detail-email').textContent = user.email || 'Sem email';
 
-    // Get student's enrollments
-    const studentEnrollments = enrollments.filter(e => e.user_id === userId);
+    // Get student's enrollments - compare with both string and number
+    const studentEnrollments = enrollments.filter(e =>
+        String(e.user_id) === userIdStr || e.user_id === userIdNum
+    );
+
+    console.log('Student enrollments for userId', userId, ':', studentEnrollments);
 
     // Build data grid
     const dataGrid = document.getElementById('student-data-grid');
     const enrollment = studentEnrollments[0];
+
+    console.log('First enrollment:', enrollment);
 
     dataGrid.innerHTML = `
         <div class="student-data-item">
@@ -524,11 +548,21 @@ function renderStudentAssessments(userId, studentEnrollments) {
     }
 
     studentEnrollments.forEach(enrollment => {
-        const assessment = assessments.find(a => a.id === enrollment.self_assessment_id);
-        if (!assessment) return;
+        // Compare with both string and number for ID matching
+        const assessment = assessments.find(a =>
+            String(a.id) === String(enrollment.self_assessment_id) ||
+            a.id === enrollment.self_assessment_id
+        );
+        if (!assessment) {
+            console.log('Assessment not found for self_assessment_id:', enrollment.self_assessment_id);
+            return;
+        }
 
         // Get attempts for this enrollment
-        const enrollmentAttempts = attempts.filter(a => a.enrollment_id === enrollment.id);
+        const enrollmentAttempts = attempts.filter(a =>
+            String(a.enrollment_id) === String(enrollment.id) ||
+            a.enrollment_id === enrollment.id
+        );
 
         // Get the latest completed or in-progress attempt
         const latestAttempt = enrollmentAttempts.find(a => a.status === 'completed') ||
