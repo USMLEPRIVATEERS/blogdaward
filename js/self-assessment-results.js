@@ -150,7 +150,7 @@ async function loadResultsData() {
             .from('self_assessment_attempts')
             .select('*')
             .eq('enrollment_id', enrollmentId)
-            .order('created_at', { ascending: false });
+            .order('started_at', { ascending: false });
 
         if (attemptsError) throw attemptsError;
 
