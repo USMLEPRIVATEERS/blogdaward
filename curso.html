@@ -1411,8 +1411,32 @@
             const urlRegex = /(https?:\/\/[^\s<]+)/g;
             formatted = formatted.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #C45700; text-decoration: underline;">$1</a>');
 
+            // Convert Markdown-style formatting
+            // Bold: **text** or __text__
+            formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            formatted = formatted.replace(/__(.+?)__/g, '<strong>$1</strong>');
+
+            // Italic: *text* or _text_ (but not inside links or bold)
+            formatted = formatted.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+            formatted = formatted.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, '<em>$1</em>');
+
+            // Headers: # text, ## text, ### text
+            formatted = formatted.replace(/^### (.+)$/gm, '<strong style="font-size: 1.1rem; display: block; margin-top: 1rem;">$1</strong>');
+            formatted = formatted.replace(/^## (.+)$/gm, '<strong style="font-size: 1.2rem; display: block; margin-top: 1rem;">$1</strong>');
+            formatted = formatted.replace(/^# (.+)$/gm, '<strong style="font-size: 1.3rem; display: block; margin-top: 1rem;">$1</strong>');
+
+            // Bullet lists: - item or * item
+            formatted = formatted.replace(/^[\-\*] (.+)$/gm, '<span style="display: block; padding-left: 1rem;">• $1</span>');
+
+            // Numbered lists: 1. item, 2. item, etc.
+            formatted = formatted.replace(/^(\d+)\. (.+)$/gm, '<span style="display: block; padding-left: 1rem;">$1. $2</span>');
+
             // Convert line breaks to <br>
             formatted = formatted.replace(/\n/g, '<br>');
+
+            // Clean up excessive <br> after block elements
+            formatted = formatted.replace(/<\/strong><br>/g, '</strong>');
+            formatted = formatted.replace(/<\/span><br>/g, '</span>');
 
             return formatted;
         }
