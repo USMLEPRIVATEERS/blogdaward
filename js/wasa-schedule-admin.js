@@ -226,9 +226,6 @@ function toggleSelectAll() {
 
 // Save individual schedule
 async function saveSchedule(enrollmentId) {
-    // Convert to number for comparison
-    const numericId = typeof enrollmentId === 'string' ? parseInt(enrollmentId) : enrollmentId;
-
     const dateInput = document.querySelector(`.edit-date[data-id="${enrollmentId}"]`);
     const timeInput = document.querySelector(`.edit-time[data-id="${enrollmentId}"]`);
 
@@ -240,29 +237,35 @@ async function saveSchedule(enrollmentId) {
         return;
     }
 
-    // Get enrollment to get user's timezone
-    const enrollment = enrollments.find(e => e.id === numericId || e.id === enrollmentId);
-    const userTimezone = enrollment?.user_timezone || 'America/Sao_Paulo';
-
     // Convert Brasilia time to UTC
     const utcDateTime = convertBrasiliaToUTC(date, time);
+
+    console.log('Saving schedule:', { enrollmentId, date, time, utcDateTime });
 
     showLoading();
 
     try {
-        const { error } = await window.supabase
+        // Use the ID directly as Supabase handles type conversion
+        const { data, error } = await window.supabase
             .from('self_assessment_enrollments')
             .update({
                 scheduled_datetime_utc: utcDateTime,
                 schedule_set_by: 'mentor',
                 mentor_override_at: new Date().toISOString()
             })
-            .eq('id', numericId);
+            .eq('id', enrollmentId)
+            .select();
+
+        console.log('Update result:', { data, error });
 
         if (error) throw error;
 
+        if (!data || data.length === 0) {
+            throw new Error('Nenhum registro atualizado - verifique o ID');
+        }
+
         // Update local data
-        const idx = enrollments.findIndex(e => e.id === numericId || e.id === enrollmentId);
+        const idx = enrollments.findIndex(e => String(e.id) === String(enrollmentId));
         if (idx !== -1) {
             enrollments[idx].scheduled_datetime_utc = utcDateTime;
             enrollments[idx].schedule_set_by = 'mentor';
@@ -270,12 +273,15 @@ async function saveSchedule(enrollmentId) {
 
         hideLoading();
         showToast('Agendamento atualizado!', 'success');
+
+        // Reload data from server to ensure sync
+        await loadData();
         renderStudents();
 
     } catch (error) {
         console.error('Error saving schedule:', error);
         hideLoading();
-        showToast('Erro ao salvar agendamento', 'error');
+        showToast('Erro ao salvar: ' + error.message, 'error');
     }
 }
 
