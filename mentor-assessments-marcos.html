@@ -256,6 +256,24 @@
             <div class="modal-body">
                 <form id="add-assessment-form">
                     <div class="form-group">
+                        <label class="form-label">Tipo de Simulado *</label>
+                        <select id="assessment-type" class="form-input" required onchange="toggleAssessmentType()">
+                            <option value="">Selecione...</option>
+                            <option value="external">Externo (Google Forms)</option>
+                            <option value="internal">Interno (Self Assessment da Plataforma)</option>
+                        </select>
+                    </div>
+
+                    <!-- Internal Self Assessment Selection -->
+                    <div class="form-group" id="internal-assessment-group" style="display: none;">
+                        <label class="form-label">Selecionar Self Assessment *</label>
+                        <select id="internal-assessment-id" class="form-input" onchange="onInternalAssessmentChange()">
+                            <option value="">Carregando...</option>
+                        </select>
+                        <small class="form-hint">Selecione um Self Assessment existente na plataforma</small>
+                    </div>
+
+                    <div class="form-group" id="title-group">
                         <label class="form-label">Título do Simulado *</label>
                         <input type="text" id="assessment-title" class="form-input" required>
                     </div>
@@ -270,27 +288,27 @@
                         </select>
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group" id="questions-group">
                         <label class="form-label">Quantidade de Questões *</label>
                         <input type="number" id="assessment-questions" class="form-input" min="1" required>
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group" id="time-group">
                         <label class="form-label">Tempo Recomendado (minutos) *</label>
                         <input type="number" id="assessment-time" class="form-input" min="1" required>
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group" id="registration-url-group">
                         <label class="form-label">Link do Formulário de Inscrição</label>
                         <input type="url" id="assessment-registration-url" class="form-input"
                                placeholder="https://forms.google.com/...">
                         <small class="form-hint">Google Form para inscrição (opcional)</small>
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group" id="assessment-url-group">
                         <label class="form-label">Link do Simulado *</label>
                         <input type="url" id="assessment-url" class="form-input"
-                               placeholder="https://forms.google.com/..." required>
+                               placeholder="https://forms.google.com/...">
                         <small class="form-hint">Google Form do simulado</small>
                     </div>
                 </form>
@@ -411,6 +429,7 @@
     <script>
         let userData = null;
         let allStudents = [];
+        let internalSelfAssessments = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
@@ -429,8 +448,74 @@
 
             // Load data
             await loadStudents();
+            await loadInternalSelfAssessments();
             await loadAssessments();
         });
+
+        async function loadInternalSelfAssessments() {
+            const { data, error } = await WardApp.db
+                .from('self_assessments')
+                .select('*')
+                .eq('is_active', true)
+                .order('name', { ascending: true });
+
+            if (!error && data) {
+                internalSelfAssessments = data;
+                populateInternalAssessmentSelect();
+            }
+        }
+
+        function populateInternalAssessmentSelect() {
+            const select = document.getElementById('internal-assessment-id');
+            select.innerHTML = '<option value="">Selecione um Self Assessment...</option>';
+
+            internalSelfAssessments.forEach(sa => {
+                const option = document.createElement('option');
+                option.value = sa.id;
+                option.textContent = `${sa.name} (${sa.total_questions} questoes, ${Math.ceil(sa.total_questions / sa.questions_per_block)} blocos)`;
+                option.dataset.questions = sa.total_questions;
+                option.dataset.time = sa.time_per_block_minutes * Math.ceil(sa.total_questions / sa.questions_per_block);
+                option.dataset.name = sa.name;
+                select.appendChild(option);
+            });
+        }
+
+        function toggleAssessmentType() {
+            const type = document.getElementById('assessment-type').value;
+            const isInternal = type === 'internal';
+
+            // Show/hide fields based on type
+            document.getElementById('internal-assessment-group').style.display = isInternal ? 'block' : 'none';
+            document.getElementById('title-group').style.display = isInternal ? 'none' : 'block';
+            document.getElementById('questions-group').style.display = isInternal ? 'none' : 'block';
+            document.getElementById('time-group').style.display = isInternal ? 'none' : 'block';
+            document.getElementById('registration-url-group').style.display = isInternal ? 'none' : 'block';
+            document.getElementById('assessment-url-group').style.display = isInternal ? 'none' : 'block';
+
+            // Update required attributes
+            document.getElementById('assessment-title').required = !isInternal;
+            document.getElementById('assessment-questions').required = !isInternal;
+            document.getElementById('assessment-time').required = !isInternal;
+            document.getElementById('assessment-url').required = !isInternal;
+            document.getElementById('internal-assessment-id').required = isInternal;
+
+            // Auto-select WASA section for internal assessments
+            if (isInternal) {
+                document.getElementById('assessment-section').value = 'WASA';
+            }
+        }
+
+        function onInternalAssessmentChange() {
+            const select = document.getElementById('internal-assessment-id');
+            const selectedOption = select.options[select.selectedIndex];
+
+            if (selectedOption && selectedOption.value) {
+                // Auto-fill data from selected internal assessment
+                document.getElementById('assessment-title').value = selectedOption.dataset.name;
+                document.getElementById('assessment-questions').value = selectedOption.dataset.questions;
+                document.getElementById('assessment-time').value = selectedOption.dataset.time;
+            }
+        }
 
         async function loadStudents() {
             const { data: students, error } = await WardApp.db
@@ -481,16 +566,21 @@
                     assessment.section === 'Síntese de Conhecimento' ? 'badge-sintese' : 'badge-wasa';
 
                 const enrolledStudents = assessment.enrollments || [];
+                const isInternal = assessment.is_internal;
 
                 return `
                     <div class="assessment-item">
                         <div class="assessment-item-header">
                             <div style="flex: 1;">
-                                <div class="assessment-item-title">${assessment.title}</div>
+                                <div class="assessment-item-title">
+                                    ${assessment.title}
+                                    ${isInternal ? '<span style="background: #dcfce7; color: #166534; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">INTERNO</span>' : ''}
+                                </div>
                                 <div class="assessment-item-meta">
                                     <span class="section-badge ${sectionClass}">${assessment.section}</span>
                                     <span>📋 ${assessment.num_questions} questões</span>
                                     <span>⏱️ ${assessment.recommended_time_minutes} min</span>
+                                    ${isInternal ? '<span style="color: #166534;">🏠 Inscricao e prova na plataforma</span>' : ''}
                                 </div>
                             </div>
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
@@ -512,7 +602,7 @@
                             </h4>
                             ${enrolledStudents.length === 0 ?
                                 '<div class="no-students">Nenhum aluno agendado ainda</div>' :
-                                enrolledStudents.map(enrollment => renderStudentItem(enrollment)).join('')
+                                enrolledStudents.map(enrollment => renderStudentItem(enrollment, isInternal)).join('')
                             }
                         </div>
                     </div>
@@ -520,7 +610,7 @@
             }).join('');
         }
 
-        function renderStudentItem(enrollment) {
+        function renderStudentItem(enrollment, isInternal = false) {
             const student = enrollment.student;
             const today = new Date().toISOString().split('T')[0];
             const isInPeriod = today >= enrollment.authorized_start_date && today <= enrollment.authorized_end_date;
@@ -573,29 +663,64 @@
         }
 
         async function saveAssessment() {
-            const title = document.getElementById('assessment-title').value.trim();
+            const assessmentType = document.getElementById('assessment-type').value;
             const section = document.getElementById('assessment-section').value;
-            const numQuestions = parseInt(document.getElementById('assessment-questions').value);
-            const timeMinutes = parseInt(document.getElementById('assessment-time').value);
-            const registrationUrl = document.getElementById('assessment-registration-url').value.trim();
-            const assessmentUrl = document.getElementById('assessment-url').value.trim();
 
-            if (!title || !section || !numQuestions || !timeMinutes || !assessmentUrl) {
+            if (!assessmentType || !section) {
                 WardApp.showToast('Preencha todos os campos obrigatórios', 'warning');
                 return;
             }
 
+            let assessmentData = {
+                section,
+                created_by: userData.id
+            };
+
+            if (assessmentType === 'internal') {
+                // Internal Self Assessment
+                const internalId = document.getElementById('internal-assessment-id').value;
+                if (!internalId) {
+                    WardApp.showToast('Selecione um Self Assessment interno', 'warning');
+                    return;
+                }
+
+                const selectedSA = internalSelfAssessments.find(sa => sa.id === internalId);
+                if (!selectedSA) {
+                    WardApp.showToast('Self Assessment não encontrado', 'error');
+                    return;
+                }
+
+                assessmentData.title = selectedSA.name;
+                assessmentData.num_questions = selectedSA.total_questions;
+                assessmentData.recommended_time_minutes = selectedSA.time_per_block_minutes * Math.ceil(selectedSA.total_questions / selectedSA.questions_per_block);
+                assessmentData.assessment_url = null; // No external URL
+                assessmentData.registration_form_url = null; // No external registration
+                assessmentData.internal_self_assessment_id = internalId;
+                assessmentData.is_internal = true;
+            } else {
+                // External assessment (Google Forms)
+                const title = document.getElementById('assessment-title').value.trim();
+                const numQuestions = parseInt(document.getElementById('assessment-questions').value);
+                const timeMinutes = parseInt(document.getElementById('assessment-time').value);
+                const registrationUrl = document.getElementById('assessment-registration-url').value.trim();
+                const assessmentUrl = document.getElementById('assessment-url').value.trim();
+
+                if (!title || !numQuestions || !timeMinutes || !assessmentUrl) {
+                    WardApp.showToast('Preencha todos os campos obrigatórios', 'warning');
+                    return;
+                }
+
+                assessmentData.title = title;
+                assessmentData.num_questions = numQuestions;
+                assessmentData.recommended_time_minutes = timeMinutes;
+                assessmentData.registration_form_url = registrationUrl || null;
+                assessmentData.assessment_url = assessmentUrl;
+                assessmentData.is_internal = false;
+            }
+
             const { data, error } = await WardApp.db
                 .from('assessments')
-                .insert({
-                    title,
-                    section,
-                    num_questions: numQuestions,
-                    recommended_time_minutes: timeMinutes,
-                    registration_form_url: registrationUrl || null,
-                    assessment_url: assessmentUrl,
-                    created_by: userData.id
-                })
+                .insert(assessmentData)
                 .select();
 
             if (error) {
@@ -607,6 +732,8 @@
             WardApp.showToast('Simulado criado com sucesso!');
             closeModal('add-assessment-modal');
             document.getElementById('add-assessment-form').reset();
+            // Reset form visibility
+            toggleAssessmentType();
             await loadAssessments();
         }
 

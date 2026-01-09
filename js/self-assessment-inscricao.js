@@ -5,6 +5,7 @@
 let currentUser = null;
 let assessmentId = null;
 let assessmentData = null;
+let enrollmentId = null; // For Ward Academy internal students
 
 // Wait for Supabase to be ready
 async function ensureSupabase() {
@@ -56,6 +57,7 @@ async function checkAuth() {
 async function loadAssessmentData() {
     const urlParams = new URLSearchParams(window.location.search);
     assessmentId = urlParams.get('id');
+    enrollmentId = urlParams.get('enrollment_id'); // For Ward Academy internal students
 
     if (!assessmentId) {
         showToast('Self Assessment nao encontrado', 'error');
@@ -66,7 +68,7 @@ async function loadAssessmentData() {
     showLoading();
 
     try {
-        // Check if already enrolled
+        // Check if already enrolled in self_assessment_enrollments
         const { data: existingEnrollment, error: enrollmentError } = await window.supabase
             .from('self_assessment_enrollments')
             .select('*')
@@ -76,7 +78,14 @@ async function loadAssessmentData() {
 
         if (existingEnrollment) {
             showToast('Voce ja esta inscrito neste Self Assessment', 'info');
-            setTimeout(() => window.location.href = 'dashboard-externo.html', 2000);
+            setTimeout(() => {
+                // Redirect based on user type
+                if (enrollmentId) {
+                    window.location.href = 'assessments.html';
+                } else {
+                    window.location.href = 'dashboard-externo.html';
+                }
+            }, 2000);
             return;
         }
 
@@ -97,6 +106,12 @@ async function loadAssessmentData() {
         document.getElementById('assessment-name').textContent = assessment.name;
         document.getElementById('assessment-description').textContent = assessment.description || '';
 
+        // Update inline assessment name references
+        const nameInline = document.getElementById('assessment-name-inline');
+        const nameInline2 = document.getElementById('assessment-name-inline2');
+        if (nameInline) nameInline.textContent = assessment.name;
+        if (nameInline2) nameInline2.textContent = assessment.name;
+
         const totalBlocks = Math.ceil(assessment.total_questions / assessment.questions_per_block);
         document.getElementById('total-questions').textContent = `${assessment.total_questions} questoes`;
         document.getElementById('total-blocks').textContent = `${totalBlocks} blocos`;
@@ -107,30 +122,25 @@ async function loadAssessmentData() {
         console.error('Error loading assessment:', error);
         hideLoading();
         showToast('Erro ao carregar Self Assessment', 'error');
-        setTimeout(() => window.location.href = 'dashboard-externo.html', 2000);
+        setTimeout(() => {
+            if (enrollmentId) {
+                window.location.href = 'assessments.html';
+            } else {
+                window.location.href = 'dashboard-externo.html';
+            }
+        }, 2000);
     }
 }
 
 // Initialize form
 function initializeForm() {
     const form = document.getElementById('enrollment-form');
-    const radioOptions = document.querySelectorAll('.radio-option');
 
-    // Radio option selection styling
-    radioOptions.forEach(option => {
-        const radio = option.querySelector('input[type="radio"]');
+    // Populate percentage dropdowns (0-100%)
+    populatePercentageDropdown('uworld-progress');
+    populatePercentageDropdown('uworld-accuracy');
 
-        option.addEventListener('click', () => {
-            // Remove selected class from all options
-            radioOptions.forEach(opt => opt.classList.remove('selected'));
-            // Add selected class to clicked option
-            option.classList.add('selected');
-            // Check the radio
-            radio.checked = true;
-        });
-    });
-
-    // Set minimum date to tomorrow
+    // Set minimum date to tomorrow for scheduled date
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const scheduledDateInput = document.getElementById('scheduled-date');
@@ -148,8 +158,81 @@ function initializeForm() {
         console.log('Could not detect timezone');
     }
 
+    // Setup radio option styling
+    setupRadioGroups();
+
+    // Setup "Outro" field toggles
+    setupOtherFieldToggles();
+
     // Form submission
     form.addEventListener('submit', handleSubmit);
+}
+
+// Populate percentage dropdown
+function populatePercentageDropdown(elementId) {
+    const select = document.getElementById(elementId);
+    select.innerHTML = '<option value="">Selecione...</option>';
+
+    for (let i = 0; i <= 100; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = `${i}%`;
+        select.appendChild(option);
+    }
+}
+
+// Setup radio groups with click styling
+function setupRadioGroups() {
+    const radioGroups = document.querySelectorAll('.radio-group');
+
+    radioGroups.forEach(group => {
+        const options = group.querySelectorAll('.radio-option');
+
+        options.forEach(option => {
+            const radio = option.querySelector('input[type="radio"]');
+
+            option.addEventListener('click', () => {
+                // Remove selected class from all options in this group
+                options.forEach(opt => opt.classList.remove('selected'));
+                // Add selected class to clicked option
+                option.classList.add('selected');
+                // Check the radio
+                radio.checked = true;
+                // Trigger change event for "Outro" field handling
+                radio.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        });
+    });
+}
+
+// Setup "Outro" field toggles
+function setupOtherFieldToggles() {
+    // UWorld usage
+    document.querySelectorAll('input[name="uworld_usage"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            const otherField = document.getElementById('uworld-usage-other');
+            otherField.style.display = radio.value === 'outro' && radio.checked ? 'block' : 'none';
+            otherField.required = radio.value === 'outro' && radio.checked;
+        });
+    });
+
+    // Anki usage
+    document.querySelectorAll('input[name="anki_usage"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            const otherField = document.getElementById('anki-usage-other');
+            otherField.style.display = radio.value === 'outro' && radio.checked ? 'block' : 'none';
+            otherField.required = radio.value === 'outro' && radio.checked;
+        });
+    });
+
+    // Boards & Beyond usage
+    document.querySelectorAll('input[name="bnb_usage"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            const otherField = document.getElementById('bnb-usage-other');
+            otherField.style.display = radio.value === 'outro' && radio.checked ? 'block' : 'none';
+            otherField.required = radio.value === 'outro' && radio.checked;
+        });
+    });
 }
 
 // Handle form submission
@@ -157,13 +240,30 @@ async function handleSubmit(e) {
     e.preventDefault();
 
     // Get form values
-    const studyStage = document.querySelector('input[name="study_stage"]:checked')?.value;
-    const graduationDate = document.getElementById('graduation-date').value;
-    const institution = document.getElementById('institution').value.trim();
-    const country = document.getElementById('country').value.trim();
-    const state = document.getElementById('state').value.trim();
-    const city = document.getElementById('city').value.trim();
-    const complement = document.getElementById('complement').value.trim();
+    const studyStartDate = document.getElementById('study-start-date').value;
+    const plannedStep1Date = document.getElementById('planned-step1-date').value;
+    const uworldProgress = parseInt(document.getElementById('uworld-progress').value);
+    const uworldAccuracy = parseInt(document.getElementById('uworld-accuracy').value);
+
+    // Get UWorld systems (checkboxes)
+    const uworldSystems = Array.from(document.querySelectorAll('input[name="uworld_systems"]:checked'))
+        .map(cb => cb.value);
+
+    // Get resource usage values
+    let uworldUsage = document.querySelector('input[name="uworld_usage"]:checked')?.value;
+    let ankiUsage = document.querySelector('input[name="anki_usage"]:checked')?.value;
+    let bnbUsage = document.querySelector('input[name="bnb_usage"]:checked')?.value;
+
+    // Handle "Outro" values
+    if (uworldUsage === 'outro') {
+        uworldUsage = 'outro: ' + document.getElementById('uworld-usage-other').value.trim();
+    }
+    if (ankiUsage === 'outro') {
+        ankiUsage = 'outro: ' + document.getElementById('anki-usage-other').value.trim();
+    }
+    if (bnbUsage === 'outro') {
+        bnbUsage = 'outro: ' + document.getElementById('bnb-usage-other').value.trim();
+    }
 
     // Scheduling fields
     const userTimezone = document.getElementById('user-timezone').value;
@@ -171,23 +271,43 @@ async function handleSubmit(e) {
     const scheduledTime = document.getElementById('scheduled-time').value;
 
     // Validation
-    if (!studyStage) {
-        showToast('Selecione sua etapa de estudo', 'error');
+    if (!studyStartDate) {
+        showToast('Informe quando comecou a estudar para o Step 1', 'error');
         return;
     }
 
-    if (!graduationDate) {
-        showToast('Informe a data de conclusao do curso', 'error');
+    if (!plannedStep1Date) {
+        showToast('Informe a data aproximada do Step 1', 'error');
         return;
     }
 
-    if (!institution) {
-        showToast('Informe sua instituicao atual', 'error');
+    if (isNaN(uworldProgress)) {
+        showToast('Selecione o progresso do UWorld', 'error');
         return;
     }
 
-    if (!country || !state || !city) {
-        showToast('Preencha pais, estado e cidade', 'error');
+    if (isNaN(uworldAccuracy)) {
+        showToast('Selecione a porcentagem de acertos do UWorld', 'error');
+        return;
+    }
+
+    if (uworldSystems.length === 0) {
+        showToast('Selecione pelo menos um sistema do UWorld', 'error');
+        return;
+    }
+
+    if (!uworldUsage) {
+        showToast('Informe como tem usado o UWorld', 'error');
+        return;
+    }
+
+    if (!ankiUsage) {
+        showToast('Informe como tem usado o Anki', 'error');
+        return;
+    }
+
+    if (!bnbUsage) {
+        showToast('Informe como tem usado o Boards & Beyond', 'error');
         return;
     }
 
@@ -207,26 +327,27 @@ async function handleSubmit(e) {
     // Convert to UTC for storage
     const scheduledDateTimeUTC = convertToUTC(scheduledDate, scheduledTime, userTimezone);
 
-    // Combine address fields
-    const address = complement
-        ? `${city}, ${state}, ${country} - ${complement}`
-        : `${city}, ${state}, ${country}`;
-
     showLoading();
     const btnSubmit = document.getElementById('btn-submit');
     btnSubmit.disabled = true;
 
     try {
-        // Create enrollment with scheduling
+        // Create enrollment with all new fields
         const { data: enrollment, error: enrollmentError } = await window.supabase
             .from('self_assessment_enrollments')
             .insert({
                 user_id: currentUser.id,
                 self_assessment_id: assessmentId,
-                study_stage: studyStage,
-                graduation_date: graduationDate,
-                current_institution: institution,
-                current_address: address,
+                // New fields
+                study_start_date: studyStartDate,
+                planned_step1_date: plannedStep1Date,
+                uworld_progress: uworldProgress,
+                uworld_accuracy: uworldAccuracy,
+                uworld_systems: uworldSystems,
+                uworld_usage: uworldUsage,
+                anki_usage: ankiUsage,
+                bnb_usage: bnbUsage,
+                // Scheduling fields
                 scheduled_date: scheduledDate,
                 scheduled_time: scheduledTime,
                 user_timezone: userTimezone,
@@ -242,12 +363,33 @@ async function handleSubmit(e) {
             throw enrollmentError;
         }
 
+        // If this is a Ward Academy internal student, also update the assessment_enrollments table
+        if (enrollmentId) {
+            const { error: wardEnrollError } = await window.supabase
+                .from('assessment_enrollments')
+                .update({
+                    student_marked_registered: true,
+                    registration_confirmed_by_mentor: true, // Auto-confirm for internal
+                    is_unlocked: true, // Auto-unlock for internal
+                    unlocked_at: new Date().toISOString()
+                })
+                .eq('id', enrollmentId);
+
+            if (wardEnrollError) {
+                console.error('Error updating Ward enrollment:', wardEnrollError);
+            }
+        }
+
         hideLoading();
         showToast('Inscricao realizada com sucesso!', 'success');
 
-        // Redirect to dashboard
+        // Redirect based on user type
         setTimeout(() => {
-            window.location.href = 'dashboard-externo.html';
+            if (enrollmentId) {
+                window.location.href = 'assessments.html';
+            } else {
+                window.location.href = 'dashboard-externo.html';
+            }
         }, 1500);
 
     } catch (error) {
@@ -263,18 +405,6 @@ function convertToUTC(date, time, timezone) {
     try {
         // Create a date string in the local timezone format
         const localDateTimeStr = `${date}T${time}:00`;
-
-        // Create date in the specified timezone and get UTC
-        const formatter = new Intl.DateTimeFormat('en-US', {
-            timeZone: timezone,
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false
-        });
 
         // Parse the local datetime
         const localDate = new Date(localDateTimeStr);
@@ -293,4 +423,36 @@ function convertToUTC(date, time, timezone) {
         // Fallback: just return the datetime as-is in ISO format
         return new Date(`${date}T${time}:00`).toISOString();
     }
+}
+
+// Show loading overlay
+function showLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = 'flex';
+}
+
+// Hide loading overlay
+function hideLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+// Show toast notification
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) {
+        alert(message);
+        return;
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }

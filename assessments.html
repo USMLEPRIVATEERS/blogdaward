@@ -294,6 +294,8 @@
                 const today = new Date().toISOString().split('T')[0];
                 const startDate = enrollment.authorized_start_date;
                 const endDate = enrollment.authorized_end_date;
+                const isInternal = assessment.is_internal;
+                const internalId = assessment.internal_self_assessment_id;
 
                 // Determine status and availability
                 let status = '';
@@ -310,7 +312,8 @@
                     status = 'Inscrição Pendente';
                     statusClass = 'status-not-registered';
                     canRegister = true;
-                    showMarkRegistered = true;
+                    // Only show mark registered for external assessments
+                    showMarkRegistered = !isInternal;
                 } else if (!isInPeriod) {
                     status = `Disponível em ${formatDate(startDate)}`;
                     statusClass = 'status-waiting-period';
@@ -323,11 +326,60 @@
                     canAccessAssessment = true;
                 }
 
+                // Build registration/enrollment buttons
+                let registrationButtons = '';
+                if (!hasRegistered) {
+                    if (isInternal) {
+                        // Internal: redirect to platform enrollment page
+                        registrationButtons = `
+                            <a href="self-assessment-inscricao.html?id=${internalId}&enrollment_id=${enrollment.id}" class="btn-assessment btn-primary-assessment">
+                                📝 Fazer Inscrição
+                            </a>
+                        `;
+                    } else if (assessment.registration_form_url) {
+                        // External: redirect to Google Form
+                        registrationButtons = `
+                            <a href="${assessment.registration_form_url}" target="_blank" class="btn-assessment btn-primary-assessment">
+                                📝 Preencher Inscrição
+                            </a>
+                        `;
+                    }
+                }
+
+                // Build assessment access buttons
+                let accessButtons = '';
+                if (canAccessAssessment) {
+                    if (isInternal) {
+                        // Internal: go to platform test page
+                        accessButtons = `
+                            <a href="self-assessment-test.html?id=${internalId}" class="btn-assessment btn-primary-assessment">
+                                🚀 Iniciar Self Assessment
+                            </a>
+                        `;
+                    } else {
+                        // External: go to Google Form
+                        accessButtons = `
+                            <a href="${assessment.assessment_url}" target="_blank" class="btn-assessment btn-primary-assessment">
+                                🚀 Acessar Simulado
+                            </a>
+                        `;
+                    }
+                } else if (hasRegistered) {
+                    accessButtons = `
+                        <button class="btn-assessment btn-disabled" disabled>
+                            🔒 Simulado bloqueado
+                        </button>
+                    `;
+                }
+
                 return `
                     <div class="assessment-card">
                         <div class="assessment-card-header">
                             <div>
-                                <div class="assessment-title">${assessment.title}</div>
+                                <div class="assessment-title">
+                                    ${assessment.title}
+                                    ${isInternal ? '<span style="background: #dcfce7; color: #166534; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.7rem; margin-left: 0.5rem;">PLATAFORMA</span>' : ''}
+                                </div>
                                 <div class="assessment-meta">
                                     <span class="assessment-meta-item">
                                         <strong>📋</strong> ${assessment.num_questions} questões
@@ -345,11 +397,7 @@
                         </div>
 
                         <div class="assessment-actions">
-                            ${!hasRegistered && assessment.registration_form_url && !enrollment.student_marked_registered ? `
-                                <a href="${assessment.registration_form_url}" target="_blank" class="btn-assessment btn-primary-assessment">
-                                    📝 Preencher Inscrição
-                                </a>
-                            ` : ''}
+                            ${registrationButtons}
 
                             ${showMarkRegistered && !enrollment.student_marked_registered ? `
                                 <button onclick="markAsRegistered(${enrollment.id})" class="btn-assessment btn-secondary-assessment">
@@ -357,17 +405,7 @@
                                 </button>
                             ` : ''}
 
-                            ${canAccessAssessment ? `
-                                <a href="${assessment.assessment_url}" target="_blank" class="btn-assessment btn-primary-assessment">
-                                    🚀 Acessar Simulado
-                                </a>
-                            ` : ''}
-
-                            ${!canAccessAssessment && hasRegistered ? `
-                                <button class="btn-assessment btn-disabled" disabled>
-                                    🔒 Simulado bloqueado
-                                </button>
-                            ` : ''}
+                            ${accessButtons}
                         </div>
                     </div>
                 `;
