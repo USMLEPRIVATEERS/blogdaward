@@ -581,8 +581,11 @@ function renderStudentAssessments(userId, studentEnrollments) {
             studentTotal = attemptResponses.length;
             studentAccuracy = studentTotal > 0 ? Math.round((studentCorrect / studentTotal) * 100) : 0;
 
-            if (latestAttempt.score !== null) {
+            // Use studentAccuracy as score if no explicit score is set
+            if (latestAttempt.score != null && latestAttempt.score !== undefined) {
                 studentScore = latestAttempt.score;
+            } else {
+                studentScore = studentAccuracy + '%';
             }
         }
 
