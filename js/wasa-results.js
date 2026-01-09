@@ -399,6 +399,16 @@ function renderQuestionsTable(qs, accuracy) {
         const acc = accuracy[q.id];
         const accValue = acc !== null ? acc : '-';
 
+        // Parse question_tags to extract Subject and System
+        // Format: "Subject::System::Topic" (e.g., "Anatomy::Cardiovascular::Gross Anatomy")
+        let subject = '-';
+        let system = '-';
+        if (q.question_tags) {
+            const tags = q.question_tags.split('::');
+            subject = tags[0] || '-';
+            system = tags[1] || '-';
+        }
+
         let difficulty = '-';
         let difficultyClass = '';
         let difficultyBadge = '';
@@ -426,9 +436,9 @@ function renderQuestionsTable(qs, accuracy) {
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td>${index + 1}</td>
-            <td>${q.subject || '-'}</td>
-            <td>${q.system || '-'}</td>
+            <td>${q.question_number || (index + 1)}</td>
+            <td>${subject}</td>
+            <td>${system}</td>
             <td>${correctCount}/${totalCount}</td>
             <td>
                 <div class="accuracy-bar">
