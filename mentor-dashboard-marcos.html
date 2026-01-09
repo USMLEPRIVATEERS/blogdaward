@@ -2980,10 +2980,16 @@ Cardiovascular	Physiology	62	FALSE
             const nodes = document.querySelectorAll('.tree-node');
 
             nodes.forEach(node => {
-                node.draggable = true;
+                // Only allow dragging lessons, NOT folders (folders drag causes too many issues)
+                const isLesson = node.classList.contains('lesson-node');
+                node.draggable = isLesson;
 
-                node.addEventListener('dragstart', handleDragStart);
-                node.addEventListener('dragend', handleDragEnd);
+                if (isLesson) {
+                    node.addEventListener('dragstart', handleDragStart);
+                    node.addEventListener('dragend', handleDragEnd);
+                }
+
+                // All nodes can be drop targets (to move lessons into folders)
                 node.addEventListener('dragover', handleDragOver);
                 node.addEventListener('dragleave', handleDragLeave);
                 node.addEventListener('drop', handleDrop);
@@ -3074,38 +3080,32 @@ Cardiovascular	Physiology	62	FALSE
 
             if (!draggedElement || e.currentTarget === draggedElement) return;
 
+            // Block folder drag operations - only lessons can be dragged
+            if (draggedData.type === 'folder') {
+                WardApp.showToast('⚠️ Arrastar pastas está desativado. Use a edição de pasta para reorganizar.', 'warning');
+                return;
+            }
+
             const targetElement = e.currentTarget;
             const targetType = targetElement.dataset.type;
             const targetId = targetElement.dataset.id;
             const targetPath = targetElement.dataset.path;
 
-            // Determine drop position
-            const rect = targetElement.getBoundingClientRect();
-            const mouseY = e.clientY;
-            let dropPosition = 'after';
+            // Determine drop position - for lessons, only allow dropping inside folders
+            let dropPosition = 'inside';
 
             if (targetType === 'folder') {
-                if (mouseY < rect.top + rect.height * 0.25) {
-                    dropPosition = 'before';
-                } else if (mouseY > rect.top + rect.height * 0.75) {
-                    dropPosition = 'after';
-                } else {
-                    dropPosition = 'inside';
-                }
+                dropPosition = 'inside'; // Always drop inside folders
             } else {
-                const midpoint = rect.top + (rect.height / 2);
-                dropPosition = mouseY < midpoint ? 'before' : 'after';
+                // Dropping on another lesson - put in same folder
+                dropPosition = 'same-folder';
             }
 
             // Remove drag-over classes
             targetElement.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom', 'drag-over-inside');
 
             try {
-                if (draggedData.type === 'lesson') {
-                    await handleLessonDrop(draggedData.id, targetId, targetType, targetPath, dropPosition);
-                } else if (draggedData.type === 'folder') {
-                    await handleFolderDrop(draggedData.path, targetType, targetPath, dropPosition);
-                }
+                await handleLessonDrop(draggedData.id, targetId, targetType, targetPath, dropPosition);
             } catch (error) {
                 console.error('Drop error:', error);
                 WardApp.showToast('Erro ao mover item', 'error');
@@ -3125,8 +3125,8 @@ Cardiovascular	Physiology	62	FALSE
             let newTags = lesson.tags;
             let newOrderPosition = lesson.order_position;
 
-            if (dropPosition === 'inside' && targetType === 'folder') {
-                // Moving lesson into a folder
+            if (targetType === 'folder') {
+                // Moving lesson into a folder - use the folder's path as tags
                 newTags = targetPath;
 
                 // Get max order_position in target folder
@@ -3139,20 +3139,24 @@ Cardiovascular	Physiology	62	FALSE
 
                 newOrderPosition = siblings && siblings.length > 0 ? siblings[0].order_position + 1 : 0;
 
-            } else {
-                // Moving before or after another item
+            } else if (targetType === 'lesson') {
+                // Dropping on another lesson - move to same folder as that lesson
                 const { data: targetLesson } = await WardApp.db
                     .from('course_videos')
                     .select('*')
-                    .eq('id', targetType === 'lesson' ? targetId : targetId)
+                    .eq('id', targetId)
                     .single();
 
                 if (targetLesson) {
                     newTags = targetLesson.tags;
-                    newOrderPosition = dropPosition === 'before'
-                        ? targetLesson.order_position - 0.5
-                        : targetLesson.order_position + 0.5;
+                    newOrderPosition = targetLesson.order_position + 1;
                 }
+            }
+
+            // Check if actually moving to a different location
+            if (newTags === lesson.tags) {
+                WardApp.showToast('ℹ️ Aula já está nesta pasta', 'info');
+                return;
             }
 
             // Update the lesson
