@@ -344,21 +344,15 @@ async function applyBulkSchedule() {
 
 // Convert Brasilia time to UTC
 function convertBrasiliaToUTC(date, time) {
-    // Create datetime string
-    const dateTimeStr = `${date}T${time}:00`;
+    // Parse date and time components
+    const [year, month, day] = date.split('-').map(Number);
+    const [hours, minutes] = time.split(':').map(Number);
 
-    // Parse as Brasilia time and convert to UTC
-    const brasiliaDate = new Date(dateTimeStr);
+    // Brasilia is UTC-3 (Brazil no longer observes DST since 2019)
+    // To convert FROM Brasilia TO UTC, we ADD 3 hours
+    const utcDate = new Date(Date.UTC(year, month - 1, day, hours + 3, minutes, 0));
 
-    // Get offset for Brasilia (usually -3 hours, but can be -2 during DST)
-    const utcDate = new Date(brasiliaDate.toLocaleString('en-US', { timeZone: 'UTC' }));
-    const tzDate = new Date(brasiliaDate.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-    const offset = utcDate - tzDate;
-
-    // Apply offset
-    const utcResult = new Date(brasiliaDate.getTime() + offset);
-
-    return utcResult.toISOString();
+    return utcDate.toISOString();
 }
 
 // Helper functions
