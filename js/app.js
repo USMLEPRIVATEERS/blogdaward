@@ -162,7 +162,7 @@ async function checkAuth() {
 }
 
 // Login function
-async function login(cpf, password) {
+async function login(identifier, password) {
     showLoading();
     try {
         // Check credentials in Supabase
@@ -175,15 +175,36 @@ async function login(cpf, password) {
             }
         }
 
-        const { data, error } = await supabaseClient
-            .from('users')
-            .select('*')
-            .eq('cpf', cpf)
-            .single();
+        // Try to find user by CPF first, then by email
+        let data = null;
+        let error = null;
+
+        // Check if identifier looks like an email
+        const isEmail = identifier.includes('@');
+
+        if (isEmail) {
+            // Search by email
+            const result = await supabaseClient
+                .from('users')
+                .select('*')
+                .eq('email', identifier.toLowerCase())
+                .single();
+            data = result.data;
+            error = result.error;
+        } else {
+            // Search by CPF
+            const result = await supabaseClient
+                .from('users')
+                .select('*')
+                .eq('cpf', identifier)
+                .single();
+            data = result.data;
+            error = result.error;
+        }
 
         if (error || !data) {
             hideLoading();
-            showToast('CPF ou senha incorretos', 'error');
+            showToast('CPF/Email ou senha incorretos', 'error');
             return false;
         }
 
@@ -198,7 +219,7 @@ async function login(cpf, password) {
         const hashedPassword = btoa(password + '_ward_salt_2024');
         if (data.password_hash !== password && data.password_hash !== hashedPassword) {
             hideLoading();
-            showToast('CPF ou senha incorretos', 'error');
+            showToast('CPF/Email ou senha incorretos', 'error');
             return false;
         }
 

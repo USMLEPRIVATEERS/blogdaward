@@ -220,14 +220,10 @@ async function handleSubmit(e) {
         // Hash password
         const hashedPassword = btoa(password + '_ward_salt_2024');
 
-        // Generate a unique identifier for external users (using timestamp + random)
-        const uniqueId = `EXT${Date.now()}${Math.random().toString(36).substr(2, 9)}`;
-
-        // Create user
+        // Create user (no CPF needed - constraint allows null if email/full_name exist)
         const { data: newUser, error: insertError } = await window.supabase
             .from('users')
             .insert({
-                cpf: uniqueId,  // Using unique ID since external users don't have CPF
                 name: name,
                 full_name: name,
                 email: email,

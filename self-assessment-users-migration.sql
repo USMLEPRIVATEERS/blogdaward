@@ -1,16 +1,7 @@
 -- ============================================
--- MIGRATION: Add columns for external users
+-- MIGRATION: Prepare users table for external Self Assessment users
 -- Run this BEFORE using the Self Assessment feature
 -- ============================================
-
--- Add email column if it doesn't exist
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                   WHERE table_name = 'users' AND column_name = 'email') THEN
-        ALTER TABLE users ADD COLUMN email TEXT;
-    END IF;
-END $$;
 
 -- Add whatsapp column if it doesn't exist
 DO $$
@@ -21,7 +12,20 @@ BEGIN
     END IF;
 END $$;
 
--- Create index on email for faster lookups (unique constraint optional)
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+-- Update role constraint to include 'externo'
+-- First drop the existing constraint, then add the new one
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 
--- Note: The 'externo' role is handled via the existing 'role' column in users table
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (
+    (role)::text = ANY (
+        ARRAY[
+            ('aluno'::character varying)::text,
+            ('assessoria'::character varying)::text,
+            ('mentor_marcos'::character varying)::text,
+            ('mentor_iria'::character varying)::text,
+            ('mentor_guilherme'::character varying)::text,
+            ('mentor_romulo'::character varying)::text,
+            ('externo'::character varying)::text
+        ]
+    )
+);
