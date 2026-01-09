@@ -172,14 +172,14 @@ async function loadResultsData() {
 
 // Calculate results
 function calculateResults() {
-    // Use the number of responses as total (questions the student answered)
-    // Not allQuestions.length which is the total in the assessment
-    const totalQuestions = userResponses.length;
+    // Total questions = all questions in the assessment
+    // Score is based on correct answers out of total assessment questions
+    const totalQuestions = allQuestions.length;
     const correctAnswers = userResponses.filter(r => r.is_correct).length;
 
     console.log('Calculating results:', {
-        totalQuestionsInAssessment: allQuestions.length,
-        questionsAnswered: totalQuestions,
+        totalQuestionsInAssessment: totalQuestions,
+        questionsAnswered: userResponses.length,
         correctAnswers: correctAnswers
     });
 
