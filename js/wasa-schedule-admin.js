@@ -248,8 +248,10 @@ async function saveSchedule(enrollmentId) {
     showLoading();
 
     try {
-        // Use the ID directly as Supabase handles type conversion
+        // Update all schedule-related fields to avoid trigger conflicts
         const updateData = {
+            scheduled_date: date,
+            scheduled_time: time + ':00',
             scheduled_datetime_utc: utcDateTime,
             schedule_set_by: 'mentor',
             mentor_override_at: new Date().toISOString()
@@ -327,10 +329,12 @@ async function applyBulkSchedule() {
     showLoading();
 
     try {
-        // Update all selected enrollments
+        // Update all selected enrollments with all schedule fields
         const { error } = await window.supabase
             .from('self_assessment_enrollments')
             .update({
+                scheduled_date: date,
+                scheduled_time: time + ':00',
                 scheduled_datetime_utc: utcDateTime,
                 schedule_set_by: 'mentor',
                 mentor_override_at: new Date().toISOString()
