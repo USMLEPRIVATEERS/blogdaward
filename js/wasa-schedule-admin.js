@@ -240,23 +240,34 @@ async function saveSchedule(enrollmentId) {
     // Convert Brasilia time to UTC
     const utcDateTime = convertBrasiliaToUTC(date, time);
 
-    console.log('Saving schedule:', { enrollmentId, date, time, utcDateTime });
+    console.log('=== SAVING SCHEDULE ===');
+    console.log('enrollmentId:', enrollmentId, 'type:', typeof enrollmentId);
+    console.log('date:', date, 'time:', time);
+    console.log('utcDateTime:', utcDateTime);
 
     showLoading();
 
     try {
         // Use the ID directly as Supabase handles type conversion
+        const updateData = {
+            scheduled_datetime_utc: utcDateTime,
+            schedule_set_by: 'mentor',
+            mentor_override_at: new Date().toISOString()
+        };
+        console.log('Update payload:', updateData);
+
         const { data, error } = await window.supabase
             .from('self_assessment_enrollments')
-            .update({
-                scheduled_datetime_utc: utcDateTime,
-                schedule_set_by: 'mentor',
-                mentor_override_at: new Date().toISOString()
-            })
+            .update(updateData)
             .eq('id', enrollmentId)
             .select();
 
-        console.log('Update result:', { data, error });
+        console.log('=== UPDATE RESULT ===');
+        console.log('error:', error);
+        console.log('data:', JSON.stringify(data, null, 2));
+        if (data && data[0]) {
+            console.log('Saved scheduled_datetime_utc:', data[0].scheduled_datetime_utc);
+        }
 
         if (error) throw error;
 
