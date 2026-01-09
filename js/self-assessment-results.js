@@ -172,8 +172,16 @@ async function loadResultsData() {
 
 // Calculate results
 function calculateResults() {
-    const totalQuestions = allQuestions.length;
+    // Use the number of responses as total (questions the student answered)
+    // Not allQuestions.length which is the total in the assessment
+    const totalQuestions = userResponses.length;
     const correctAnswers = userResponses.filter(r => r.is_correct).length;
+
+    console.log('Calculating results:', {
+        totalQuestionsInAssessment: allQuestions.length,
+        questionsAnswered: totalQuestions,
+        correctAnswers: correctAnswers
+    });
 
     userPercentage = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
 
