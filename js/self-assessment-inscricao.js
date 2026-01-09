@@ -142,7 +142,10 @@ async function handleSubmit(e) {
     const studyStage = document.querySelector('input[name="study_stage"]:checked')?.value;
     const graduationDate = document.getElementById('graduation-date').value;
     const institution = document.getElementById('institution').value.trim();
-    const address = document.getElementById('address').value.trim();
+    const country = document.getElementById('country').value.trim();
+    const state = document.getElementById('state').value.trim();
+    const city = document.getElementById('city').value.trim();
+    const complement = document.getElementById('complement').value.trim();
 
     // Validation
     if (!studyStage) {
@@ -160,10 +163,15 @@ async function handleSubmit(e) {
         return;
     }
 
-    if (!address) {
-        showToast('Informe seu endereco atual', 'error');
+    if (!country || !state || !city) {
+        showToast('Preencha pais, estado e cidade', 'error');
         return;
     }
+
+    // Combine address fields
+    const address = complement
+        ? `${city}, ${state}, ${country} - ${complement}`
+        : `${city}, ${state}, ${country}`;
 
     showLoading();
     const btnSubmit = document.getElementById('btn-submit');

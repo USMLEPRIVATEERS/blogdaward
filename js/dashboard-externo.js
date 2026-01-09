@@ -113,6 +113,55 @@ function renderAssessments(assessments, enrollmentMap) {
         const enrollment = enrollmentMap[assessment.id];
         return renderAssessmentCard(assessment, enrollment);
     }).join('');
+
+    // Start countdown timers for waiting results
+    startCountdownTimers();
+}
+
+// Start countdown timers
+let countdownInterval = null;
+
+function startCountdownTimers() {
+    // Clear any existing interval
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+
+    // Update immediately
+    updateCountdowns();
+
+    // Update every second
+    countdownInterval = setInterval(updateCountdowns, 1000);
+}
+
+function updateCountdowns() {
+    const containers = document.querySelectorAll('.countdown-container');
+
+    containers.forEach(container => {
+        const releaseTime = parseInt(container.dataset.releaseTime);
+        const countdownEl = container.querySelector('.countdown-value');
+
+        if (!countdownEl) return;
+
+        const now = Date.now();
+        const diff = releaseTime - now;
+
+        if (diff <= 0) {
+            // Time's up - reload the page to show results button
+            window.location.reload();
+            return;
+        }
+
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        if (hours > 0) {
+            countdownEl.textContent = `${hours}h ${String(minutes).padStart(2, '0')}min ${String(seconds).padStart(2, '0')}s`;
+        } else {
+            countdownEl.textContent = `${minutes}min ${String(seconds).padStart(2, '0')}s`;
+        }
+    });
 }
 
 // Render individual assessment card
@@ -176,11 +225,15 @@ function renderAssessmentCard(assessment, enrollment) {
             statusBadge = '<span class="assessment-badge badge-completed">Aguardando Resultado</span>';
             const releaseTime = new Date(enrollment.completed_at);
             releaseTime.setHours(releaseTime.getHours() + (assessment.release_results_after_hours || 24));
+            const releaseTimestamp = releaseTime.getTime();
 
             actionsHtml = `
-                <button class="btn-action btn-disabled" disabled>
-                    Resultado em ${formatTimeRemaining(releaseTime)}
-                </button>
+                <div class="countdown-container" data-release-time="${releaseTimestamp}">
+                    <div class="countdown-label">Resultado disponivel em:</div>
+                    <div class="countdown-timer">
+                        <span class="countdown-value" id="countdown-${enrollment.id}">--:--</span>
+                    </div>
+                </div>
             `;
         }
 
