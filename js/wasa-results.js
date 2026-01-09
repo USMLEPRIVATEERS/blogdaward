@@ -619,13 +619,35 @@ function renderStudentAssessments(userId, studentEnrollments) {
             comparisonIcon = '📉';
         }
 
-        // Status badge
+        // Status badge and release button logic
         let statusBadge = '';
         let releaseButton = '';
-        if (enrollment.status === 'awaiting_results') {
-            statusBadge = '<span class="badge badge-medium">Aguardando Resultado</span>';
-            // Add release button if results not yet released
-            if (!enrollment.results_released_at) {
+
+        // Check if assessment is completed
+        const isCompleted = latestAttempt?.status === 'completed' || enrollment.completed_at;
+
+        // Check if 24h have passed since completion (automatic release)
+        let autoReleased = false;
+        if (enrollment.completed_at) {
+            const completedAt = new Date(enrollment.completed_at);
+            const releaseTime = new Date(completedAt);
+            releaseTime.setHours(releaseTime.getHours() + (assessment.release_results_after_hours || 24));
+            autoReleased = new Date() >= releaseTime;
+        }
+
+        // Check if manually released
+        const manuallyReleased = !!enrollment.results_released_at;
+
+        if (isCompleted) {
+            if (manuallyReleased) {
+                statusBadge = '<span class="badge badge-easy">Concluido</span>';
+                releaseButton = '<span class="badge" style="background: #d1fae5; color: #065f46; margin-left: 0.5rem;">Resultado Liberado Manualmente</span>';
+            } else if (autoReleased) {
+                statusBadge = '<span class="badge badge-easy">Concluido</span>';
+                releaseButton = '<span class="badge" style="background: #e0e7ff; color: #3730a3; margin-left: 0.5rem;">Resultado Disponivel (24h)</span>';
+            } else {
+                // Completed but 24h haven't passed - show release button
+                statusBadge = '<span class="badge badge-medium">Aguardando Liberacao</span>';
                 releaseButton = `
                     <button onclick="releaseResults(${enrollment.id})"
                             style="margin-left: 0.5rem; padding: 0.4rem 0.8rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%);
@@ -633,13 +655,11 @@ function renderStudentAssessments(userId, studentEnrollments) {
                         Liberar Resultado
                     </button>
                 `;
-            } else {
-                releaseButton = '<span class="badge badge-easy" style="margin-left: 0.5rem;">Resultado Liberado</span>';
             }
-        } else if (latestAttempt?.status === 'completed') {
-            statusBadge = '<span class="badge badge-easy">Concluido</span>';
         } else if (latestAttempt?.status === 'in_progress') {
             statusBadge = '<span class="badge" style="background: #dbeafe; color: #1e40af;">Em Progresso</span>';
+        } else {
+            statusBadge = '<span class="badge" style="background: #fef3c7; color: #92400e;">Inscrito</span>';
         }
 
         const section = document.createElement('div');
