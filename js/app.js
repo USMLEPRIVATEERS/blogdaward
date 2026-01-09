@@ -1502,6 +1502,35 @@ function getSupabaseClient() {
     return supabaseClient;
 }
 
+// Navigate to the correct dashboard based on user role
+function goToDashboard() {
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) {
+        window.location.href = 'index.html';
+        return;
+    }
+
+    switch (user.role) {
+        case 'mentor_marcos':
+            window.location.href = 'mentor-dashboard-marcos.html';
+            break;
+        case 'mentor_iria':
+            window.location.href = 'mentor-dashboard-iria.html';
+            break;
+        case 'mentor_guilherme':
+            window.location.href = 'mentor-dashboard-guilherme.html';
+            break;
+        case 'mentor_romulo':
+            window.location.href = 'mentor-dashboard-romulo.html';
+            break;
+        case 'assessoria':
+            window.location.href = 'dashboard-assessoria-avulsa.html';
+            break;
+        default:
+            window.location.href = 'dashboard.html';
+    }
+}
+
 // Export functions for use in HTML
 window.WardApp = {
     // Supabase client accessor - use WardApp.db.from('table')
@@ -1551,5 +1580,6 @@ window.WardApp = {
     formatDateInput,
     getTodayString,
     parseLocalDate,
-    daysRemaining
+    daysRemaining,
+    goToDashboard
 };
