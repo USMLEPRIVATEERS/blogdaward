@@ -391,6 +391,9 @@ function renderQuestion() {
     // Update question number
     document.getElementById('current-question').textContent = currentQuestionIndex + 1;
 
+    // Update figure button
+    updateFigureButton();
+
     // Update tags
     document.getElementById('question-tags').textContent =
         question.question_tags?.replace(/::/g, ' > ') || '';
@@ -644,5 +647,120 @@ window.addEventListener('beforeunload', (e) => {
     if (!isInBreak && blockTimeRemaining > 0) {
         e.preventDefault();
         e.returnValue = '';
+    }
+});
+
+// ============================================
+// FIGURE MODAL FUNCTIONALITY
+// ============================================
+
+let currentFigures = [];
+let currentFigureIndex = 0;
+
+// Update figure button visibility based on question
+function updateFigureButton() {
+    const question = blockQuestions[currentQuestionIndex];
+    const btnShowFigures = document.getElementById('btn-show-figures');
+
+    if (question && question.figures && question.figures.trim() !== '') {
+        // Parse figures (comma and space separated)
+        currentFigures = question.figures.split(', ').map(url => url.trim()).filter(url => url);
+
+        if (currentFigures.length > 0) {
+            btnShowFigures.classList.add('visible');
+            // Update button text based on count
+            if (currentFigures.length === 1) {
+                btnShowFigures.innerHTML = '🖼️ Show Figure';
+            } else {
+                btnShowFigures.innerHTML = `🖼️ Show Figures (${currentFigures.length})`;
+            }
+        } else {
+            btnShowFigures.classList.remove('visible');
+        }
+    } else {
+        currentFigures = [];
+        btnShowFigures.classList.remove('visible');
+    }
+}
+
+// Open figure modal
+function openFigureModal() {
+    if (currentFigures.length === 0) return;
+
+    currentFigureIndex = 0;
+    showFigure();
+    document.getElementById('figure-modal').classList.add('visible');
+
+    // Prevent body scroll
+    document.body.style.overflow = 'hidden';
+}
+
+// Close figure modal
+function closeFigureModal() {
+    document.getElementById('figure-modal').classList.remove('visible');
+    document.body.style.overflow = '';
+}
+
+// Navigate between figures
+function navigateFigure(direction) {
+    currentFigureIndex += direction;
+
+    // Clamp to valid range
+    if (currentFigureIndex < 0) currentFigureIndex = 0;
+    if (currentFigureIndex >= currentFigures.length) currentFigureIndex = currentFigures.length - 1;
+
+    showFigure();
+}
+
+// Show current figure
+function showFigure() {
+    const imgEl = document.getElementById('figure-image');
+    const counterEl = document.getElementById('figure-counter');
+    const prevBtn = document.getElementById('figure-prev');
+    const nextBtn = document.getElementById('figure-next');
+
+    // Set image source
+    imgEl.src = currentFigures[currentFigureIndex];
+
+    // Update counter
+    counterEl.textContent = `${currentFigureIndex + 1} / ${currentFigures.length}`;
+
+    // Update navigation buttons
+    prevBtn.disabled = currentFigureIndex === 0;
+    nextBtn.disabled = currentFigureIndex === currentFigures.length - 1;
+
+    // Hide navigation if only one figure
+    if (currentFigures.length <= 1) {
+        prevBtn.style.visibility = 'hidden';
+        nextBtn.style.visibility = 'hidden';
+        counterEl.style.display = 'none';
+    } else {
+        prevBtn.style.visibility = 'visible';
+        nextBtn.style.visibility = 'visible';
+        counterEl.style.display = 'block';
+    }
+}
+
+// Close modal on background click
+document.addEventListener('click', (e) => {
+    const modal = document.getElementById('figure-modal');
+    if (e.target === modal) {
+        closeFigureModal();
+    }
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeFigureModal();
+    }
+    // Navigate figures with arrow keys
+    const modal = document.getElementById('figure-modal');
+    if (modal.classList.contains('visible')) {
+        if (e.key === 'ArrowLeft') {
+            navigateFigure(-1);
+        } else if (e.key === 'ArrowRight') {
+            navigateFigure(1);
+        }
     }
 });

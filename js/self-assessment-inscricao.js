@@ -102,6 +102,19 @@ async function loadAssessmentData() {
 
         assessmentData = assessment;
 
+        // Check access type - 'i' means internal (Ward Academy members only)
+        if (assessment.access_type === 'i') {
+            // Check if user is a Ward Academy member (has role 'aluno' not 'externo')
+            const isWardMember = currentUser.role === 'aluno' || currentUser.role === 'mentor' || currentUser.role === 'mentor_marcos';
+
+            if (!isWardMember) {
+                hideLoading();
+                showToast('Este Self Assessment e exclusivo para membros da Ward Academy', 'error');
+                setTimeout(() => window.location.href = 'dashboard-externo.html', 3000);
+                return;
+            }
+        }
+
         // Update UI
         document.getElementById('assessment-name').textContent = assessment.name;
         document.getElementById('assessment-description').textContent = assessment.description || '';
