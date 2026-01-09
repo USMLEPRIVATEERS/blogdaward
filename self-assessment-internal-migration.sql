@@ -10,7 +10,7 @@
 -- Add columns for internal self assessment linking
 ALTER TABLE assessments
 ADD COLUMN IF NOT EXISTS is_internal BOOLEAN DEFAULT FALSE,
-ADD COLUMN IF NOT EXISTS internal_self_assessment_id UUID REFERENCES self_assessments(id);
+ADD COLUMN IF NOT EXISTS internal_self_assessment_id BIGINT REFERENCES self_assessments(id);
 
 -- Create index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_assessments_internal ON assessments(is_internal);
