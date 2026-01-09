@@ -101,7 +101,7 @@ async function loadAllData() {
         const { data: questionsData, error: questionsError } = await window.supabase
             .from('self_assessment_questions')
             .select('*')
-            .order('question_order');
+            .order('question_number');
 
         if (questionsError) throw questionsError;
         questions = questionsData || [];
