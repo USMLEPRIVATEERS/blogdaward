@@ -70,6 +70,8 @@ async function loadResultsData() {
 
     showLoading();
 
+    console.log('Loading results for enrollment:', enrollmentId, 'user:', currentUser?.id);
+
     try {
         // Load enrollment with assessment
         const { data: enrollment, error: enrollmentError } = await window.supabase
@@ -82,28 +84,56 @@ async function loadResultsData() {
             .eq('user_id', currentUser.id)
             .single();
 
+        console.log('Enrollment data:', enrollment, 'Error:', enrollmentError);
+
         if (enrollmentError || !enrollment) {
-            throw new Error('Enrollment not found');
+            console.error('Enrollment not found or access denied:', enrollmentError);
+            showToast('Resultado nao encontrado ou acesso negado', 'error');
+            setTimeout(() => window.location.href = 'dashboard-externo.html', 2000);
+            return;
         }
 
         enrollmentData = enrollment;
         assessmentData = enrollment.self_assessments;
 
         // Check if results are ready
-        if (enrollment.status !== 'completed') {
+        // Status can be 'completed' or 'awaiting_results' (completed but waiting for release)
+        console.log('Checking results access - completed_at:', enrollment.completed_at,
+                    'results_released_at:', enrollment.results_released_at,
+                    'status:', enrollment.status);
+
+        if (!enrollment.completed_at) {
+            console.log('Assessment not completed yet');
             showToast('Este Self Assessment ainda nao foi concluido', 'error');
             setTimeout(() => window.location.href = 'dashboard-externo.html', 2000);
             return;
         }
 
-        const releaseTime = new Date(enrollment.completed_at);
-        releaseTime.setHours(releaseTime.getHours() + (assessmentData.release_results_after_hours || 24));
+        // Check if results can be viewed:
+        // 1. If manually released (results_released_at is set), allow access
+        // 2. If 24h have passed since completion, allow access
+        const manuallyReleased = !!enrollment.results_released_at;
+        console.log('Manually released:', manuallyReleased);
 
-        if (new Date() < releaseTime) {
-            showToast('Resultado ainda nao disponivel', 'error');
-            setTimeout(() => window.location.href = 'dashboard-externo.html', 2000);
-            return;
+        if (!manuallyReleased) {
+            const releaseTime = new Date(enrollment.completed_at);
+            releaseTime.setHours(releaseTime.getHours() + (assessmentData.release_results_after_hours || 24));
+            const now = new Date();
+
+            console.log('Release time check - completed_at:', enrollment.completed_at,
+                        'release_time:', releaseTime.toISOString(),
+                        'now:', now.toISOString(),
+                        'can_view:', now >= releaseTime);
+
+            if (now < releaseTime) {
+                const hoursLeft = Math.ceil((releaseTime - now) / (1000 * 60 * 60));
+                showToast(`Resultado disponivel em ${hoursLeft}h`, 'error');
+                setTimeout(() => window.location.href = 'dashboard-externo.html', 2000);
+                return;
+            }
         }
+
+        console.log('Access granted, loading results...');
 
         // Load all questions for this assessment
         const { data: questions, error: questionsError } = await window.supabase
