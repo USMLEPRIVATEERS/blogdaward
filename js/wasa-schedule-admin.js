@@ -132,7 +132,8 @@ function renderStudents() {
     let filtered = enrollments;
 
     if (assessmentFilter !== 'all') {
-        filtered = filtered.filter(e => e.self_assessment_id === assessmentFilter);
+        const numericFilter = parseInt(assessmentFilter);
+        filtered = filtered.filter(e => e.self_assessment_id === numericFilter || e.self_assessment_id === assessmentFilter);
     }
 
     if (statusFilter !== 'all') {
@@ -225,6 +226,9 @@ function toggleSelectAll() {
 
 // Save individual schedule
 async function saveSchedule(enrollmentId) {
+    // Convert to number for comparison
+    const numericId = typeof enrollmentId === 'string' ? parseInt(enrollmentId) : enrollmentId;
+
     const dateInput = document.querySelector(`.edit-date[data-id="${enrollmentId}"]`);
     const timeInput = document.querySelector(`.edit-time[data-id="${enrollmentId}"]`);
 
@@ -237,10 +241,10 @@ async function saveSchedule(enrollmentId) {
     }
 
     // Get enrollment to get user's timezone
-    const enrollment = enrollments.find(e => e.id === enrollmentId);
+    const enrollment = enrollments.find(e => e.id === numericId || e.id === enrollmentId);
     const userTimezone = enrollment?.user_timezone || 'America/Sao_Paulo';
 
-    // Convert Brasilia time to user's local time, then to UTC
+    // Convert Brasilia time to UTC
     const utcDateTime = convertBrasiliaToUTC(date, time);
 
     showLoading();
@@ -253,12 +257,12 @@ async function saveSchedule(enrollmentId) {
                 schedule_set_by: 'mentor',
                 mentor_override_at: new Date().toISOString()
             })
-            .eq('id', enrollmentId);
+            .eq('id', numericId);
 
         if (error) throw error;
 
         // Update local data
-        const idx = enrollments.findIndex(e => e.id === enrollmentId);
+        const idx = enrollments.findIndex(e => e.id === numericId || e.id === enrollmentId);
         if (idx !== -1) {
             enrollments[idx].scheduled_datetime_utc = utcDateTime;
             enrollments[idx].schedule_set_by = 'mentor';
@@ -285,8 +289,9 @@ async function applyBulkSchedule() {
         return;
     }
 
+    // Convert string IDs to numbers
     const selectedIds = Array.from(document.querySelectorAll('.student-checkbox:checked'))
-        .map(cb => cb.value);
+        .map(cb => parseInt(cb.value));
 
     if (selectedIds.length === 0) {
         showToast('Selecione pelo menos um aluno', 'warning');
@@ -312,8 +317,8 @@ async function applyBulkSchedule() {
         if (error) throw error;
 
         // Update local data
-        selectedIds.forEach(id => {
-            const idx = enrollments.findIndex(e => e.id === id);
+        selectedIds.forEach(numericId => {
+            const idx = enrollments.findIndex(e => e.id === numericId);
             if (idx !== -1) {
                 enrollments[idx].scheduled_datetime_utc = utcDateTime;
                 enrollments[idx].schedule_set_by = 'mentor';
