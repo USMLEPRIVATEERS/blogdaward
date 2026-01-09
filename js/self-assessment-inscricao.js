@@ -252,6 +252,12 @@ function setupOtherFieldToggles() {
 async function handleSubmit(e) {
     e.preventDefault();
 
+    // Get basic info fields
+    const studyStage = document.querySelector('input[name="study_stage"]:checked')?.value;
+    const graduationDate = document.getElementById('graduation-date').value;
+    const currentInstitution = document.getElementById('current-institution').value.trim();
+    const currentAddress = document.getElementById('current-address').value.trim();
+
     // Get form values
     const studyStartDate = document.getElementById('study-start-date').value;
     const plannedStep1Date = document.getElementById('planned-step1-date').value;
@@ -283,7 +289,28 @@ async function handleSubmit(e) {
     const scheduledDate = document.getElementById('scheduled-date').value;
     const scheduledTime = document.getElementById('scheduled-time').value;
 
-    // Validation
+    // Validation - Basic info
+    if (!studyStage) {
+        showToast('Selecione em qual etapa do processo voce esta', 'error');
+        return;
+    }
+
+    if (!graduationDate) {
+        showToast('Informe a data de conclusao do curso de Medicina', 'error');
+        return;
+    }
+
+    if (!currentInstitution) {
+        showToast('Informe sua instituicao atual', 'error');
+        return;
+    }
+
+    if (!currentAddress) {
+        showToast('Informe seu endereco atual', 'error');
+        return;
+    }
+
+    // Validation - Study timeline
     if (!studyStartDate) {
         showToast('Informe quando comecou a estudar para o Step 1', 'error');
         return;
@@ -345,13 +372,18 @@ async function handleSubmit(e) {
     btnSubmit.disabled = true;
 
     try {
-        // Create enrollment with all new fields
+        // Create enrollment with all fields
         const { data: enrollment, error: enrollmentError } = await window.supabase
             .from('self_assessment_enrollments')
             .insert({
                 user_id: currentUser.id,
                 self_assessment_id: assessmentId,
-                // New fields
+                // Basic info fields
+                study_stage: studyStage,
+                graduation_date: graduationDate,
+                current_institution: currentInstitution,
+                current_address: currentAddress,
+                // Study timeline fields
                 study_start_date: studyStartDate,
                 planned_step1_date: plannedStep1Date,
                 uworld_progress: uworldProgress,
