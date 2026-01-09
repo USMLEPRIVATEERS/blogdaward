@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Self Assessment - Ward Academy</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #f9fafb;
+        }
+
+        .test-layout {
+            display: flex;
+            height: 100vh;
+            flex-direction: column;
+        }
+
+        .test-header {
+            background: white;
+            border-bottom: 2px solid #f0f0f0;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .test-info {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-label {
+            font-size: 0.75rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .timer {
+            font-family: monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #d97706;
+        }
+
+        .timer.warning {
+            color: #f59e0b;
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        .timer.danger {
+            color: #ef4444;
+            animation: pulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .test-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: white;
+            border-right: 2px solid #f0f0f0;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+
+        .sidebar h3 {
+            font-size: 1.1rem;
+            color: #1a1a1a;
+            margin-bottom: 1rem;
+        }
+
+        .block-info {
+            background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .block-number {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .block-label {
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+
+        .question-nav-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.5rem;
+        }
+
+        .question-nav-btn {
+            aspect-ratio: 1;
+            border: 2px solid #f0f0f0;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .question-nav-btn:hover {
+            border-color: #d97706;
+        }
+
+        .question-nav-btn.current {
+            background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+            color: white;
+            border-color: #d97706;
+        }
+
+        .question-nav-btn.answered {
+            background: #dbeafe;
+            border-color: #3b82f6;
+            color: #1e40af;
+        }
+
+        .question-nav-btn.flagged {
+            background: #fef3c7;
+            border-color: #f59e0b;
+        }
+
+        .main-test {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem;
+        }
+
+        .question-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border: 2px solid #f0f0f0;
+            border-radius: 16px;
+            padding: 2rem;
+        }
+
+        .question-tags {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 1rem;
+            padding: 0.5rem 1rem;
+            background: #f9fafb;
+            border-radius: 6px;
+        }
+
+        .question-text {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            color: #1a1a1a;
+            margin-bottom: 2rem;
+        }
+
+        .choices-list {
+            margin-bottom: 2rem;
+        }
+
+        .choice-item {
+            border: 2px solid #f0f0f0;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+        }
+
+        .choice-item:hover {
+            border-color: #d97706;
+            background: #fff7ed;
+        }
+
+        .choice-item.selected {
+            border-color: #d97706;
+            background: linear-gradient(135deg, #fff7ed 0%, #ffffff 100%);
+        }
+
+        .choice-letter {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            margin-right: 1rem;
+            flex-shrink: 0;
+        }
+
+        .choice-item.selected .choice-letter {
+            background: #d97706;
+            border-color: #d97706;
+            color: white;
+        }
+
+        .choice-text {
+            flex: 1;
+        }
+
+        .question-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .btn-flag {
+            padding: 0.75rem 1.5rem;
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            border-radius: 8px;
+            color: #92400e;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-flag:hover {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .btn-flag.flagged {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .test-actions {
+            background: white;
+            border-top: 2px solid #f0f0f0;
+            padding: 1.25rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn-test {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+        }
+
+        .btn-secondary {
+            background: #f9fafb;
+            border: 2px solid #f0f0f0;
+            color: #1a1a1a;
+        }
+
+        .btn-secondary:hover {
+            border-color: #d97706;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3);
+        }
+
+        .btn-finish-block {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: white;
+        }
+
+        .btn-finish-block:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+        }
+
+        /* Break Overlay */
+        .break-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .break-overlay.visible {
+            display: flex;
+        }
+
+        .break-card {
+            background: white;
+            border-radius: 24px;
+            padding: 3rem;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .break-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .break-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin: 0 0 0.5rem 0;
+        }
+
+        .break-subtitle {
+            color: #666;
+            font-size: 1.1rem;
+            margin: 0 0 2rem 0;
+        }
+
+        .break-timer {
+            font-family: monospace;
+            font-size: 4rem;
+            font-weight: 700;
+            color: #d97706;
+            margin-bottom: 2rem;
+        }
+
+        .break-info {
+            color: #666;
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+        }
+
+        .btn-start-next {
+            padding: 1.25rem 3rem;
+            font-size: 1.2rem;
+            background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-start-next:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(217, 119, 6, 0.4);
+        }
+
+        /* Completion Overlay */
+        .completion-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .completion-overlay.visible {
+            display: flex;
+        }
+
+        .completion-card {
+            background: white;
+            border-radius: 24px;
+            padding: 3rem;
+            text-align: center;
+            max-width: 600px;
+            width: 90%;
+        }
+
+        .completion-icon {
+            font-size: 5rem;
+            margin-bottom: 1rem;
+        }
+
+        .completion-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin: 0 0 1rem 0;
+        }
+
+        .completion-message {
+            color: #666;
+            font-size: 1.1rem;
+            line-height: 1.8;
+            margin-bottom: 2rem;
+        }
+
+        .btn-back-dashboard {
+            padding: 1.25rem 3rem;
+            font-size: 1.2rem;
+            background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-back-dashboard:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(217, 119, 6, 0.4);
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .test-header {
+                padding: 0.75rem 1rem;
+                flex-wrap: wrap;
+            }
+
+            .test-info {
+                gap: 1rem;
+            }
+
+            .info-label {
+                font-size: 0.65rem;
+            }
+
+            .info-value {
+                font-size: 0.95rem;
+            }
+
+            .timer {
+                font-size: 1.2rem;
+            }
+
+            .test-content {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 2px solid #f0f0f0;
+                padding: 1rem;
+                max-height: 150px;
+            }
+
+            .sidebar h3 {
+                display: none;
+            }
+
+            .block-info {
+                margin-bottom: 0.75rem;
+                padding: 0.75rem;
+            }
+
+            .question-nav-grid {
+                grid-template-columns: repeat(10, 1fr);
+                gap: 0.25rem;
+            }
+
+            .question-nav-btn {
+                font-size: 0.75rem;
+            }
+
+            .main-test {
+                padding: 1rem;
+            }
+
+            .question-container {
+                padding: 1.25rem;
+            }
+
+            .test-actions {
+                padding: 1rem;
+                position: sticky;
+                bottom: 0;
+            }
+
+            .btn-test {
+                padding: 0.6rem 1rem;
+                font-size: 0.9rem;
+            }
+
+            .break-card, .completion-card {
+                padding: 2rem;
+            }
+
+            .break-timer {
+                font-size: 3rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="test-layout">
+        <!-- Test Header -->
+        <div class="test-header">
+            <div class="test-info">
+                <div class="info-item">
+                    <span class="info-label">Questao</span>
+                    <span class="info-value">
+                        <span id="current-question">1</span> / <span id="total-questions">50</span>
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Bloco</span>
+                    <span class="info-value">
+                        <span id="current-block">1</span> / <span id="total-blocks">4</span>
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Tempo Restante</span>
+                    <span class="info-value timer" id="timer">75:00</span>
+                </div>
+            </div>
+            <div>
+                <button class="btn-test btn-finish-block" onclick="finishBlock()">
+                    Finalizar Bloco
+                </button>
+            </div>
+        </div>
+
+        <!-- Test Content -->
+        <div class="test-content">
+            <!-- Sidebar Navigation -->
+            <div class="sidebar">
+                <div class="block-info">
+                    <div class="block-number">Bloco <span id="block-number-display">1</span></div>
+                    <div class="block-label">de <span id="total-blocks-display">4</span></div>
+                </div>
+                <h3>Navegacao</h3>
+                <div class="question-nav-grid" id="question-nav">
+                    <!-- Filled by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Main Test Area -->
+            <div class="main-test">
+                <div class="question-container">
+                    <!-- Question Tags -->
+                    <div class="question-tags" id="question-tags">
+                        Carregando...
+                    </div>
+
+                    <!-- Question Text -->
+                    <div class="question-text" id="question-text">
+                        Carregando questao...
+                    </div>
+
+                    <!-- Choices -->
+                    <div class="choices-list" id="choices-list">
+                        <!-- Filled by JavaScript -->
+                    </div>
+
+                    <!-- Question Actions -->
+                    <div class="question-actions">
+                        <button class="btn-flag" id="btn-flag" onclick="toggleFlag()">
+                            🚩 Marcar para Revisao
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Actions -->
+        <div class="test-actions">
+            <button class="btn-test btn-secondary" onclick="previousQuestion()" id="btn-previous">
+                ← Anterior
+            </button>
+            <button class="btn-test btn-primary" onclick="nextQuestion()" id="btn-next">
+                Proxima →
+            </button>
+        </div>
+    </div>
+
+    <!-- Break Overlay -->
+    <div class="break-overlay" id="break-overlay">
+        <div class="break-card">
+            <div class="break-icon">☕</div>
+            <h2 class="break-title">Intervalo</h2>
+            <p class="break-subtitle">Bloco <span id="completed-block">1</span> finalizado!</p>
+            <div class="break-timer" id="break-timer">15:00</div>
+            <p class="break-info">
+                Voce tem 15 minutos de intervalo.<br>
+                Pode iniciar o proximo bloco a qualquer momento.
+            </p>
+            <button class="btn-start-next" onclick="startNextBlock()">
+                Iniciar Proximo Bloco
+            </button>
+        </div>
+    </div>
+
+    <!-- Completion Overlay -->
+    <div class="completion-overlay" id="completion-overlay">
+        <div class="completion-card">
+            <div class="completion-icon">🎉</div>
+            <h2 class="completion-title">Parabens!</h2>
+            <p class="completion-message">
+                Voce concluiu o Self Assessment!<br><br>
+                Seu resultado sera liberado no proximo dia.<br>
+                Volte ao dashboard para verificar quando estiver disponivel.
+            </p>
+            <a href="dashboard-externo.html" class="btn-back-dashboard">
+                Voltar ao Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js"></script>
+    <script src="js/self-assessment-test.js"></script>
+</body>
+</html>

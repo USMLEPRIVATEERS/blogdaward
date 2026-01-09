@@ -250,6 +250,9 @@ async function login(cpf, password) {
                 case 'assessoria':
                     window.location.href = 'dashboard-assessoria-avulsa.html';
                     break;
+                case 'externo':
+                    window.location.href = 'dashboard-externo.html';
+                    break;
                 default:
                     window.location.href = 'dashboard.html';
             }
@@ -1525,6 +1528,9 @@ function goToDashboard() {
             break;
         case 'assessoria':
             window.location.href = 'dashboard-assessoria-avulsa.html';
+            break;
+        case 'externo':
+            window.location.href = 'dashboard-externo.html';
             break;
         default:
             window.location.href = 'dashboard.html';
