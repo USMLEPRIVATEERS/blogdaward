@@ -145,15 +145,37 @@ async function loadResultsData() {
 
         allQuestions = questions || [];
 
-        // Load user's responses
-        const { data: responses, error: responsesError } = await window.supabase
-            .from('self_assessment_responses')
+        // Load attempts for this enrollment to find the latest completed one
+        const { data: attemptsData, error: attemptsError } = await window.supabase
+            .from('self_assessment_attempts')
             .select('*')
-            .eq('enrollment_id', enrollmentId);
+            .eq('enrollment_id', enrollmentId)
+            .order('created_at', { ascending: false });
 
-        if (responsesError) throw responsesError;
+        if (attemptsError) throw attemptsError;
 
-        userResponses = responses || [];
+        // Find the latest completed attempt, or any attempt if none completed
+        const latestAttempt = attemptsData?.find(a => a.status === 'completed') ||
+                              attemptsData?.find(a => a.status === 'in_progress') ||
+                              attemptsData?.[0];
+
+        console.log('Attempts found:', attemptsData?.length, 'Latest attempt:', latestAttempt?.id);
+
+        // Load user's responses for the latest attempt only
+        let responses = [];
+        if (latestAttempt) {
+            const { data: responsesData, error: responsesError } = await window.supabase
+                .from('self_assessment_responses')
+                .select('*')
+                .eq('attempt_id', latestAttempt.id);
+
+            if (responsesError) throw responsesError;
+            responses = responsesData || [];
+        }
+
+        console.log('Responses loaded for attempt', latestAttempt?.id, ':', responses.length);
+
+        userResponses = responses;
 
         // Calculate and display results
         calculateResults();
