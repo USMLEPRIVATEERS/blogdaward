@@ -480,7 +480,7 @@ function renderEvents() {
 }
 
 // Create a new event
-async function createEvent() {
+async function createScheduledEvent() {
     const assessmentId = document.getElementById('event-assessment').value;
     const date = document.getElementById('event-date').value;
     const time = document.getElementById('event-time').value;
