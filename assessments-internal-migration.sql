@@ -8,6 +8,14 @@ ALTER TABLE assessments
 ADD COLUMN IF NOT EXISTS internal_self_assessment_id INTEGER REFERENCES self_assessments(id),
 ADD COLUMN IF NOT EXISTS is_internal BOOLEAN DEFAULT false;
 
+-- Make assessment_url nullable (not required for internal assessments)
+ALTER TABLE assessments
+ALTER COLUMN assessment_url DROP NOT NULL;
+
+-- Make registration_form_url nullable if it exists and has constraint
+ALTER TABLE assessments
+ALTER COLUMN registration_form_url DROP NOT NULL;
+
 -- Create index for internal assessment lookup
 CREATE INDEX IF NOT EXISTS idx_assessments_internal
 ON assessments(internal_self_assessment_id)
@@ -17,4 +25,4 @@ WHERE internal_self_assessment_id IS NOT NULL;
 SELECT column_name, data_type, is_nullable
 FROM information_schema.columns
 WHERE table_name = 'assessments'
-AND column_name IN ('internal_self_assessment_id', 'is_internal');
+AND column_name IN ('internal_self_assessment_id', 'is_internal', 'assessment_url');
