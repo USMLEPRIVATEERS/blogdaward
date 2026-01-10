@@ -1034,12 +1034,14 @@ async function confirmRetakeApproval() {
 
     const scheduledDatetimeUtc = scheduledDate.toISOString();
 
+    // Save enrollment ID before closing modal (closeScheduleRetakeModal clears it)
+    const enrollmentId = pendingRetakeEnrollmentId;
+    const enrollment = enrollments.find(e => e.id === enrollmentId);
+
     showLoading();
     closeScheduleRetakeModal();
 
     try {
-        const enrollmentId = pendingRetakeEnrollmentId;
-        const enrollment = enrollments.find(e => e.id === enrollmentId);
 
         // Delete old data for this enrollment to start fresh
         // IMPORTANT: Delete responses FIRST (they reference attempts via foreign key)
