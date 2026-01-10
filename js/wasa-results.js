@@ -11,6 +11,14 @@ let questions = [];
 let questionStats = [];
 let users = {};
 
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     try {
