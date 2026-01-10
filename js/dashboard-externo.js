@@ -540,6 +540,9 @@ async function submitRetakeRequest() {
 
     const requestedDatetimeUtc = requestedDate.toISOString();
 
+    // Save enrollment ID before closing modal (closeRetakeModal clears it)
+    const enrollmentId = pendingRetakeRequestEnrollmentId;
+
     showLoading();
     closeRetakeModal();
 
@@ -552,7 +555,7 @@ async function submitRetakeRequest() {
                 retake_requested_datetime_utc: requestedDatetimeUtc,
                 retake_requested_timezone: timezone
             })
-            .eq('id', pendingRetakeRequestEnrollmentId);
+            .eq('id', enrollmentId);
 
         if (error) throw error;
 
