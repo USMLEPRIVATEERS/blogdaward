@@ -307,10 +307,38 @@ function renderAssessmentCard(assessment, enrollment) {
 
         if (resultsReady) {
             statusBadge = '<span class="assessment-badge badge-results-ready">Resultado Disponivel</span>';
+
+            // Check retake request status
+            let retakeButton = '';
+            if (enrollment.retake_requested_at && !enrollment.retake_approved_at && !enrollment.retake_denied_at) {
+                // Pending request
+                retakeButton = '<span class="retake-status-badge pending">Solicitacao Pendente</span>';
+            } else if (enrollment.retake_approved_at) {
+                // Approved - show button to start new attempt
+                retakeButton = `
+                    <button class="btn-action btn-primary" onclick="startNewAttempt(${enrollment.self_assessment_id})">
+                        Iniciar Nova Tentativa
+                    </button>
+                `;
+            } else if (enrollment.retake_denied_at) {
+                // Denied
+                retakeButton = '<span class="retake-status-badge denied">Solicitacao Negada</span>';
+            } else {
+                // No request yet
+                retakeButton = `
+                    <button class="btn-action btn-secondary" onclick="requestRetake(${enrollment.id})">
+                        Solicitar Nova Tentativa
+                    </button>
+                `;
+            }
+
             actionsHtml = `
-                <button class="btn-action btn-success" onclick="viewResults(${enrollment.id})">
-                    Ver Resultado
-                </button>
+                <div class="assessment-actions-row">
+                    <button class="btn-action btn-success" onclick="viewResults(${enrollment.id})">
+                        Ver Resultado
+                    </button>
+                    ${retakeButton}
+                </div>
             `;
         } else {
             statusBadge = '<span class="assessment-badge badge-completed">Aguardando Resultado</span>';
@@ -430,4 +458,80 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Request retake of assessment
+async function requestRetake(enrollmentId) {
+    const reason = prompt('Por que voce gostaria de refazer este Self Assessment?\n\n(Opcional - pressione OK para enviar sem motivo)');
+
+    // If user clicks cancel, abort
+    if (reason === null) return;
+
+    showLoading();
+
+    try {
+        const { error } = await window.supabase
+            .from('self_assessment_enrollments')
+            .update({
+                retake_requested_at: new Date().toISOString(),
+                retake_request_reason: reason || null
+            })
+            .eq('id', enrollmentId);
+
+        if (error) throw error;
+
+        hideLoading();
+        showToast('Solicitacao enviada! Aguarde a aprovacao do mentor.', 'success');
+
+        // Reload to update UI
+        await loadDashboard();
+    } catch (error) {
+        console.error('Error requesting retake:', error);
+        hideLoading();
+        showToast('Erro ao enviar solicitacao. Tente novamente.', 'error');
+    }
+}
+
+// Start new attempt after retake approval
+async function startNewAttempt(assessmentId) {
+    showLoading();
+
+    try {
+        // Get the current enrollment
+        const { data: enrollment, error: enrollmentError } = await window.supabase
+            .from('self_assessment_enrollments')
+            .select('*')
+            .eq('self_assessment_id', assessmentId)
+            .eq('user_id', currentUser.id)
+            .single();
+
+        if (enrollmentError) throw enrollmentError;
+
+        // Increment retake count and reset enrollment for new attempt
+        const { error: updateError } = await window.supabase
+            .from('self_assessment_enrollments')
+            .update({
+                status: 'in_progress',
+                completed_at: null,
+                results_released_at: null,
+                retake_requested_at: null,
+                retake_request_reason: null,
+                retake_approved_at: null,
+                retake_denied_at: null,
+                retake_response_by: null,
+                retake_count: (enrollment.retake_count || 0) + 1
+            })
+            .eq('id', enrollment.id);
+
+        if (updateError) throw updateError;
+
+        hideLoading();
+
+        // Redirect to the test page
+        window.location.href = `self-assessment-test.html?enrollment_id=${enrollment.id}`;
+    } catch (error) {
+        console.error('Error starting new attempt:', error);
+        hideLoading();
+        showToast('Erro ao iniciar nova tentativa. Tente novamente.', 'error');
+    }
 }
