@@ -468,21 +468,39 @@ let pendingRetakeRequestEnrollmentId = null;
 
 // Request retake of assessment - opens modal
 function requestRetake(enrollmentId) {
-    pendingRetakeRequestEnrollmentId = enrollmentId;
+    console.log('requestRetake called with:', enrollmentId);
 
-    // Set default date to tomorrow
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    document.getElementById('retake-request-date').value = tomorrow.toISOString().split('T')[0];
+    try {
+        pendingRetakeRequestEnrollmentId = enrollmentId;
 
-    // Set default time to 9:00 AM
-    document.getElementById('retake-request-time').value = '09:00';
+        // Set default date to tomorrow
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // Clear reason
-    document.getElementById('retake-request-reason').value = '';
+        const dateInput = document.getElementById('retake-request-date');
+        const timeInput = document.getElementById('retake-request-time');
+        const reasonInput = document.getElementById('retake-request-reason');
+        const modal = document.getElementById('retake-request-modal');
 
-    // Show modal
-    document.getElementById('retake-request-modal').classList.add('visible');
+        console.log('Elements found:', { dateInput, timeInput, reasonInput, modal });
+
+        if (!dateInput || !timeInput || !reasonInput || !modal) {
+            console.error('Missing modal elements!');
+            alert('Erro: Modal não encontrado. Recarregue a página.');
+            return;
+        }
+
+        dateInput.value = tomorrow.toISOString().split('T')[0];
+        timeInput.value = '09:00';
+        reasonInput.value = '';
+
+        // Show modal
+        modal.classList.add('visible');
+        console.log('Modal should be visible now');
+    } catch (error) {
+        console.error('Error in requestRetake:', error);
+        alert('Erro: ' + error.message);
+    }
 }
 
 // Close the retake request modal
