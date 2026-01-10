@@ -396,7 +396,14 @@ async function initializeReviewMode() {
 
         // Show exit review button in footer
         const exitReviewBtn = document.getElementById('btn-exit-review-footer');
-        if (exitReviewBtn) exitReviewBtn.style.display = 'flex';
+        console.log('Exit review button found:', exitReviewBtn);
+        if (exitReviewBtn) {
+            exitReviewBtn.style.display = 'flex';
+            exitReviewBtn.style.visibility = 'visible';
+            console.log('Exit button display set to flex');
+        } else {
+            console.error('Exit review button not found!');
+        }
 
         // Update block indicator
         const blockIndicator = document.getElementById('block-indicator');
