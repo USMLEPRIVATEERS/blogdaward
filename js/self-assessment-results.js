@@ -731,6 +731,16 @@ function checkRetakeStatus() {
     }
 }
 
+// Review the assessment with answers and explanations
+function reviewAssessment() {
+    if (!enrollmentId) {
+        showToast('Erro: enrollment não encontrado', 'error');
+        return;
+    }
+    // Navigate to test page in review mode
+    window.location.href = `self-assessment-test.html?enrollment_id=${enrollmentId}&review=true`;
+}
+
 // Open retake modal
 function openRetakeModal() {
     const modal = document.getElementById('retake-modal');

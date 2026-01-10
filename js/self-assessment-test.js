@@ -28,6 +28,10 @@ let isInBreak = false;
 // Scheduling variables
 let lateMinutes = 0;  // How many minutes late the user is
 
+// Review mode variables
+let isReviewMode = false;
+let reviewResponses = {};  // {questionId: {selected_answer, is_correct}}
+
 // Wait for Supabase to be ready
 async function ensureSupabase() {
     if (window.supabase && typeof window.supabase.auth !== 'undefined') {
@@ -78,6 +82,7 @@ async function checkAuth() {
 async function loadEnrollmentData() {
     const urlParams = new URLSearchParams(window.location.search);
     enrollmentId = urlParams.get('enrollment_id');
+    isReviewMode = urlParams.get('review') === 'true';
 
     if (!enrollmentId) {
         showToast('Inscricao nao encontrada', 'error');
@@ -112,8 +117,8 @@ async function loadEnrollmentData() {
         breakTimeMinutes = assessmentData.break_time_minutes || 15;
         totalBlocks = Math.ceil(assessmentData.total_questions / questionsPerBlock);
 
-        // Check scheduled time and calculate lateness
-        if (enrollmentData.scheduled_datetime_utc) {
+        // Check scheduled time and calculate lateness (skip in review mode)
+        if (!isReviewMode && enrollmentData.scheduled_datetime_utc) {
             const scheduledTime = new Date(enrollmentData.scheduled_datetime_utc);
             const now = new Date();
             const timeDiff = now - scheduledTime; // positive if late
@@ -183,6 +188,12 @@ async function initializeTest() {
         if (allQuestions.length === 0) {
             showToast('Nenhuma questao encontrada', 'error');
             setTimeout(() => window.location.href = 'dashboard-externo.html', 2000);
+            return;
+        }
+
+        // If in review mode, load all responses and setup review UI
+        if (isReviewMode) {
+            await initializeReviewMode();
             return;
         }
 
@@ -343,6 +354,62 @@ function loadBlockQuestions() {
     document.getElementById('total-questions').textContent = blockQuestions.length;
 }
 
+// Initialize review mode
+async function initializeReviewMode() {
+    try {
+        // Load all responses for this enrollment
+        const { data: responses, error } = await window.supabase
+            .from('self_assessment_responses')
+            .select('*')
+            .eq('enrollment_id', enrollmentId);
+
+        if (error) throw error;
+
+        // Build responses map
+        responses?.forEach(response => {
+            reviewResponses[response.question_id] = {
+                selected_answer: response.selected_answer,
+                is_correct: response.is_correct
+            };
+        });
+
+        // Use all questions (not just one block)
+        blockQuestions = allQuestions;
+        currentQuestionIndex = 0;
+
+        // Update UI for review mode
+        document.getElementById('total-questions').textContent = allQuestions.length;
+
+        // Hide timer and show review banner
+        const timerContainer = document.querySelector('.timer-container');
+        if (timerContainer) timerContainer.style.display = 'none';
+
+        const timedBadge = document.querySelector('.timed-badge');
+        if (timedBadge) timedBadge.textContent = 'REVIEW MODE';
+
+        // Hide end block button, mark checkbox
+        const endBlockBtn = document.querySelector('.end-block');
+        if (endBlockBtn) endBlockBtn.style.display = 'none';
+
+        const markContainer = document.querySelector('.mark-container');
+        if (markContainer) markContainer.style.display = 'none';
+
+        // Update block indicator
+        const blockIndicator = document.getElementById('block-indicator');
+        if (blockIndicator) blockIndicator.textContent = 'Review';
+
+        // Render first question
+        renderQuestion();
+        renderNavigation();
+
+        hideLoading();
+    } catch (error) {
+        console.error('Error initializing review mode:', error);
+        hideLoading();
+        showToast('Erro ao carregar modo de revisao', 'error');
+    }
+}
+
 // Start block timer
 function startBlockTimer() {
     if (timerInterval) {
@@ -457,24 +524,54 @@ function renderQuestion() {
     const choicesList = document.getElementById('choices-list');
     const letters = ['A', 'B', 'C', 'D', 'E'];
     const userAnswer = userAnswers[question.id];
+    const reviewAnswer = isReviewMode ? reviewResponses[question.id] : null;
 
     choicesList.innerHTML = choices.map((choice, index) => {
         const letter = letters[index];
-        const isSelected = userAnswer && userAnswer.answer === letter;
+        const isSelected = reviewAnswer ? reviewAnswer.selected_answer === letter : (userAnswer && userAnswer.answer === letter);
+        const isCorrect = letter === question.correct_answer;
 
         let className = 'choice-item';
-        if (isSelected) {
-            className += ' selected';
+        if (isReviewMode) {
+            className += ' review-mode';
+            if (isCorrect) {
+                className += ' correct';
+            }
+            if (isSelected && !isCorrect) {
+                className += ' incorrect';
+            }
+            if (isSelected) {
+                className += ' selected';
+            }
+        } else {
+            if (isSelected) {
+                className += ' selected';
+            }
         }
 
+        const clickHandler = isReviewMode ? '' : `onclick="selectAnswer('${letter}')"`;
+
         return `
-            <div class="${className}" onclick="selectAnswer('${letter}')">
+            <div class="${className}" ${clickHandler}>
                 <div class="choice-radio"></div>
                 <span class="choice-letter">${letter}.</span>
                 <span class="choice-text">${choice.replace(/^[A-E]\.\s*/, '')}</span>
+                ${isReviewMode && isCorrect ? '<span class="choice-correct-badge">✓ Correta</span>' : ''}
+                ${isReviewMode && isSelected && !isCorrect ? '<span class="choice-incorrect-badge">✗ Sua resposta</span>' : ''}
             </div>
         `;
     }).join('');
+
+    // Show explanation in review mode
+    const explanationEl = document.getElementById('question-explanation');
+    if (explanationEl) {
+        if (isReviewMode && question.explanation) {
+            explanationEl.style.display = 'block';
+            explanationEl.innerHTML = `<strong>Explicacao:</strong> ${question.explanation}`;
+        } else {
+            explanationEl.style.display = 'none';
+        }
+    }
 
     // Update mark checkbox
     const markCheckbox = document.getElementById('mark-checkbox');
@@ -782,8 +879,21 @@ function showFigure() {
     const counterEl = document.getElementById('figure-counter');
     const prevBtn = document.getElementById('figure-prev');
     const nextBtn = document.getElementById('figure-next');
+    const loadingEl = document.getElementById('figure-loading');
+
+    // Show loading
+    if (loadingEl) loadingEl.style.display = 'flex';
+    imgEl.style.opacity = '0.3';
 
     // Set image source
+    imgEl.onload = () => {
+        if (loadingEl) loadingEl.style.display = 'none';
+        imgEl.style.opacity = '1';
+    };
+    imgEl.onerror = () => {
+        if (loadingEl) loadingEl.style.display = 'none';
+        imgEl.style.opacity = '1';
+    };
     imgEl.src = currentFigures[currentFigureIndex];
 
     // Update counter
