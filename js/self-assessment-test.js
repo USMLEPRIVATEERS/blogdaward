@@ -394,6 +394,10 @@ async function initializeReviewMode() {
         const markContainer = document.querySelector('.mark-container');
         if (markContainer) markContainer.style.display = 'none';
 
+        // Show exit review button
+        const exitReviewBtn = document.getElementById('btn-exit-review');
+        if (exitReviewBtn) exitReviewBtn.style.display = 'flex';
+
         // Update block indicator
         const blockIndicator = document.getElementById('block-indicator');
         if (blockIndicator) blockIndicator.textContent = 'Review';
@@ -1084,4 +1088,13 @@ function removeHighlight() {
     // Hide toolbar
     document.getElementById('highlight-toolbar').classList.remove('visible');
     selectedRange = null;
+}
+
+// ============================================
+// EXIT REVIEW MODE
+// ============================================
+
+function exitReview() {
+    // Navigate back to results page with the same enrollment_id
+    window.location.href = `self-assessment-results.html?enrollment_id=${enrollmentId}`;
 }
