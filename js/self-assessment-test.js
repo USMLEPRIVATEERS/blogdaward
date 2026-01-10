@@ -144,8 +144,7 @@ async function loadEnrollmentData() {
         }
 
         // Update UI
-        document.getElementById('total-blocks').textContent = totalBlocks;
-        document.getElementById('total-blocks-display').textContent = totalBlocks;
+        document.getElementById('total-questions').textContent = allQuestions.length;
 
     } catch (error) {
         console.error('Error loading enrollment:', error);
@@ -295,9 +294,7 @@ function loadBlockQuestions() {
 
     currentQuestionIndex = 0;
 
-    // Update UI
-    document.getElementById('current-block').textContent = currentBlock;
-    document.getElementById('block-number-display').textContent = currentBlock;
+    // Update UI - total questions shows block questions count
     document.getElementById('total-questions').textContent = blockQuestions.length;
 }
 
@@ -332,19 +329,20 @@ function startBlockTimer() {
 
 // Update timer display
 function updateTimerDisplay() {
-    const minutes = Math.floor(blockTimeRemaining / 60);
+    const hours = Math.floor(blockTimeRemaining / 3600);
+    const minutes = Math.floor((blockTimeRemaining % 3600) / 60);
     const seconds = blockTimeRemaining % 60;
     const timerEl = document.getElementById('timer');
 
-    timerEl.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    timerEl.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
     // Add warning classes
     if (blockTimeRemaining <= 60) {
-        timerEl.className = 'info-value timer danger';
+        timerEl.className = 'timer danger';
     } else if (blockTimeRemaining <= 300) {
-        timerEl.className = 'info-value timer warning';
+        timerEl.className = 'timer warning';
     } else {
-        timerEl.className = 'info-value timer';
+        timerEl.className = 'timer';
     }
 }
 
@@ -363,22 +361,24 @@ function renderNavigation() {
     nav.innerHTML = blockQuestions.map((q, index) => {
         const isCurrent = index === currentQuestionIndex;
         const userAnswer = userAnswers[q.id];
-        const isAnswered = userAnswer !== undefined;
+        const isAnswered = userAnswer?.answer !== undefined && userAnswer?.answer !== null;
         const isFlagged = userAnswer?.flagged;
 
-        let className = 'question-nav-btn';
+        let className = 'question-nav-item';
         if (isCurrent) {
             className += ' current';
-        } else if (isFlagged) {
+        }
+        if (isFlagged) {
             className += ' flagged';
         } else if (isAnswered) {
             className += ' answered';
         }
 
         return `
-            <button class="${className}" onclick="goToQuestion(${index})">
-                ${index + 1}
-            </button>
+            <div class="${className}" onclick="goToQuestion(${index})">
+                <div class="question-status-dot"></div>
+                <span class="question-nav-number">${index + 1}</span>
+            </div>
         `;
     }).join('');
 }
@@ -391,17 +391,23 @@ function renderQuestion() {
     // Update question number
     document.getElementById('current-question').textContent = currentQuestionIndex + 1;
 
+    // Update question ID
+    const questionIdEl = document.getElementById('question-id');
+    if (questionIdEl) {
+        questionIdEl.textContent = question.question_number || question.id;
+    }
+
     // Update figure button
     updateFigureButton();
 
-    // Update tags
+    // Update tags (hidden in USMLE style but still populated)
     document.getElementById('question-tags').textContent =
         question.question_tags?.replace(/::/g, ' > ') || '';
 
     // Update question text
     document.getElementById('question-text').textContent = question.question;
 
-    // Render choices
+    // Render choices - USMLE style with radio buttons
     const choices = question.choices;
     const choicesList = document.getElementById('choices-list');
     const letters = ['A', 'B', 'C', 'D', 'E'];
@@ -418,20 +424,17 @@ function renderQuestion() {
 
         return `
             <div class="${className}" onclick="selectAnswer('${letter}')">
-                <div class="choice-letter">${letter}</div>
-                <div class="choice-text">${choice.replace(/^[A-E]\.\s*/, '')}</div>
+                <div class="choice-radio"></div>
+                <span class="choice-letter">${letter}.</span>
+                <span class="choice-text">${choice.replace(/^[A-E]\.\s*/, '')}</span>
             </div>
         `;
     }).join('');
 
-    // Update flag button
-    const btnFlag = document.getElementById('btn-flag');
-    if (userAnswer?.flagged) {
-        btnFlag.classList.add('flagged');
-        btnFlag.textContent = '🚩 Marcada';
-    } else {
-        btnFlag.classList.remove('flagged');
-        btnFlag.textContent = '🚩 Marcar para Revisao';
+    // Update mark checkbox
+    const markCheckbox = document.getElementById('mark-checkbox');
+    if (markCheckbox) {
+        markCheckbox.checked = userAnswer?.flagged || false;
     }
 
     // Update navigation buttons
@@ -661,6 +664,7 @@ let currentFigureIndex = 0;
 function updateFigureButton() {
     const question = blockQuestions[currentQuestionIndex];
     const btnShowFigures = document.getElementById('btn-show-figures');
+    const btnToolbarFigures = document.getElementById('btn-show-figures-toolbar');
 
     if (question && question.figures && question.figures.trim() !== '') {
         // Parse figures (comma and space separated)
@@ -668,6 +672,7 @@ function updateFigureButton() {
 
         if (currentFigures.length > 0) {
             btnShowFigures.classList.add('visible');
+            if (btnToolbarFigures) btnToolbarFigures.style.display = 'flex';
             // Update button text based on count
             if (currentFigures.length === 1) {
                 btnShowFigures.innerHTML = '🖼️ Show Figure';
@@ -676,10 +681,23 @@ function updateFigureButton() {
             }
         } else {
             btnShowFigures.classList.remove('visible');
+            if (btnToolbarFigures) btnToolbarFigures.style.display = 'none';
         }
     } else {
         currentFigures = [];
         btnShowFigures.classList.remove('visible');
+        if (btnToolbarFigures) btnToolbarFigures.style.display = 'none';
+    }
+}
+
+// Toggle full screen mode
+function toggleFullScreen() {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+            console.log('Error attempting to enable fullscreen:', err);
+        });
+    } else {
+        document.exitFullscreen();
     }
 }
 
