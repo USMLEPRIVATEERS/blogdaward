@@ -948,13 +948,51 @@ function openScheduleRetakeModal(enrollmentId) {
     // Update modal with student name
     document.getElementById('schedule-student-name').textContent = user.name || 'Aluno';
 
-    // Set default date to tomorrow
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    document.getElementById('retake-date').value = tomorrow.toISOString().split('T')[0];
+    // Check if student requested a specific date/time
+    const studentRequestedSchedule = document.getElementById('student-requested-schedule');
+    const studentRequestedDatetime = document.getElementById('student-requested-datetime');
+    const studentRequestedTimezoneDisplay = document.getElementById('student-requested-timezone-display');
 
-    // Set default time to 9:00 AM
-    document.getElementById('retake-time').value = '09:00';
+    if (enrollment && enrollment.retake_requested_datetime_utc) {
+        // Student requested a specific date/time - show it and use as default
+        const requestedDate = new Date(enrollment.retake_requested_datetime_utc);
+        const displayDate = requestedDate.toLocaleDateString('pt-BR');
+        const displayTime = requestedDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+        studentRequestedDatetime.textContent = `${displayDate} as ${displayTime}`;
+
+        // Show timezone
+        const timezoneNames = {
+            'America/Sao_Paulo': 'Brasilia (GMT-3)',
+            'America/New_York': 'New York (EST)',
+            'America/Los_Angeles': 'Los Angeles (PST)',
+            'Europe/London': 'London (GMT)',
+            'Europe/Paris': 'Paris (CET)'
+        };
+        const requestedTz = enrollment.retake_requested_timezone || 'America/Sao_Paulo';
+        studentRequestedTimezoneDisplay.textContent = timezoneNames[requestedTz] || requestedTz;
+
+        studentRequestedSchedule.style.display = 'block';
+
+        // Use the student's requested date/time as default
+        document.getElementById('retake-date').value = enrollment.retake_requested_datetime_utc.split('T')[0];
+        const timePart = requestedDate.toTimeString().slice(0, 5);
+        document.getElementById('retake-time').value = timePart;
+
+        // Set the timezone
+        document.getElementById('retake-timezone').value = requestedTz;
+    } else {
+        // No specific request - hide the section and use defaults
+        studentRequestedSchedule.style.display = 'none';
+
+        // Set default date to tomorrow
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        document.getElementById('retake-date').value = tomorrow.toISOString().split('T')[0];
+
+        // Set default time to 9:00 AM
+        document.getElementById('retake-time').value = '09:00';
+    }
 
     // Show modal
     document.getElementById('schedule-retake-modal').classList.add('visible');

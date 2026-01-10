@@ -736,8 +736,17 @@ function openRetakeModal() {
     const modal = document.getElementById('retake-modal');
     if (modal) {
         modal.classList.add('active');
+
+        // Set default date to tomorrow
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        document.getElementById('retake-request-date').value = tomorrow.toISOString().split('T')[0];
+
+        // Set default time to 9:00 AM
+        document.getElementById('retake-request-time').value = '09:00';
+
+        // Clear reason
         document.getElementById('retake-reason').value = '';
-        document.getElementById('retake-reason').focus();
     }
 }
 
@@ -749,14 +758,30 @@ function closeRetakeModal() {
     }
 }
 
-// Submit retake request
+// Submit retake request with scheduling
 async function submitRetakeRequest() {
+    const date = document.getElementById('retake-request-date').value;
+    const time = document.getElementById('retake-request-time').value;
+    const timezone = document.getElementById('retake-request-timezone').value;
     const reason = document.getElementById('retake-reason').value.trim();
 
-    if (!reason) {
-        showToast('Por favor, informe o motivo da solicitacao', 'error');
+    // Validate date and time
+    if (!date || !time) {
+        showToast('Por favor, preencha a data e horario desejados', 'error');
         return;
     }
+
+    // Convert to UTC
+    const localDatetime = `${date}T${time}:00`;
+    const requestedDate = new Date(localDatetime);
+
+    // Validate date is in the future
+    if (requestedDate <= new Date()) {
+        showToast('A data e horario devem ser no futuro', 'error');
+        return;
+    }
+
+    const requestedDatetimeUtc = requestedDate.toISOString();
 
     const submitBtn = document.getElementById('btn-submit-retake');
     submitBtn.disabled = true;
@@ -767,7 +792,9 @@ async function submitRetakeRequest() {
             .from('self_assessment_enrollments')
             .update({
                 retake_requested_at: new Date().toISOString(),
-                retake_request_reason: reason,
+                retake_request_reason: reason || null,
+                retake_requested_datetime_utc: requestedDatetimeUtc,
+                retake_requested_timezone: timezone,
                 retake_approved_at: null,
                 retake_denied_at: null
             })
@@ -778,12 +805,18 @@ async function submitRetakeRequest() {
         // Update local data
         enrollmentData.retake_requested_at = new Date().toISOString();
         enrollmentData.retake_request_reason = reason;
+        enrollmentData.retake_requested_datetime_utc = requestedDatetimeUtc;
+        enrollmentData.retake_requested_timezone = timezone;
         enrollmentData.retake_approved_at = null;
         enrollmentData.retake_denied_at = null;
 
         closeRetakeModal();
         checkRetakeStatus();
-        showToast('Solicitacao enviada com sucesso!', 'success');
+
+        // Format date for display
+        const displayDate = requestedDate.toLocaleDateString('pt-BR');
+        const displayTime = requestedDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        showToast(`Solicitacao enviada para ${displayDate} as ${displayTime}!`, 'success');
 
     } catch (error) {
         console.error('Error submitting retake request:', error);

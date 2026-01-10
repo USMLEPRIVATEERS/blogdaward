@@ -460,28 +460,90 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Request retake of assessment
-async function requestRetake(enrollmentId) {
-    const reason = prompt('Por que voce gostaria de refazer este Self Assessment?\n\n(Opcional - pressione OK para enviar sem motivo)');
+// ============================================
+// RETAKE REQUEST MODAL
+// ============================================
 
-    // If user clicks cancel, abort
-    if (reason === null) return;
+let pendingRetakeRequestEnrollmentId = null;
+
+// Request retake of assessment - opens modal
+function requestRetake(enrollmentId) {
+    pendingRetakeRequestEnrollmentId = enrollmentId;
+
+    // Set default date to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('retake-request-date').value = tomorrow.toISOString().split('T')[0];
+
+    // Set default time to 9:00 AM
+    document.getElementById('retake-request-time').value = '09:00';
+
+    // Clear reason
+    document.getElementById('retake-request-reason').value = '';
+
+    // Show modal
+    document.getElementById('retake-request-modal').classList.add('visible');
+}
+
+// Close the retake request modal
+function closeRetakeModal() {
+    pendingRetakeRequestEnrollmentId = null;
+    document.getElementById('retake-request-modal').classList.remove('visible');
+}
+
+// Submit the retake request with scheduling
+async function submitRetakeRequest() {
+    const date = document.getElementById('retake-request-date').value;
+    const time = document.getElementById('retake-request-time').value;
+    const timezone = document.getElementById('retake-request-timezone').value;
+    const reason = document.getElementById('retake-request-reason').value;
+
+    // Validate inputs
+    if (!date || !time) {
+        showToast('Por favor, preencha a data e horario desejados', 'error');
+        return;
+    }
+
+    if (!pendingRetakeRequestEnrollmentId) {
+        showToast('Erro: Nenhuma inscricao selecionada', 'error');
+        closeRetakeModal();
+        return;
+    }
+
+    // Convert to UTC
+    const localDatetime = `${date}T${time}:00`;
+    const requestedDate = new Date(localDatetime);
+
+    // Validate date is in the future
+    if (requestedDate <= new Date()) {
+        showToast('A data e horario devem ser no futuro', 'error');
+        return;
+    }
+
+    const requestedDatetimeUtc = requestedDate.toISOString();
 
     showLoading();
+    closeRetakeModal();
 
     try {
         const { error } = await window.supabase
             .from('self_assessment_enrollments')
             .update({
                 retake_requested_at: new Date().toISOString(),
-                retake_request_reason: reason || null
+                retake_request_reason: reason || null,
+                retake_requested_datetime_utc: requestedDatetimeUtc,
+                retake_requested_timezone: timezone
             })
-            .eq('id', enrollmentId);
+            .eq('id', pendingRetakeRequestEnrollmentId);
 
         if (error) throw error;
 
         hideLoading();
-        showToast('Solicitacao enviada! Aguarde a aprovacao do mentor.', 'success');
+
+        // Format date for display
+        const displayDate = requestedDate.toLocaleDateString('pt-BR');
+        const displayTime = requestedDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        showToast(`Solicitacao enviada para ${displayDate} as ${displayTime}. Aguarde aprovacao do mentor.`, 'success');
 
         // Reload to update UI
         await loadDashboard();
