@@ -210,7 +210,7 @@ function renderAssessmentCard(assessment, enrollment) {
         // Not enrolled - show enroll button
         statusBadge = '<span class="assessment-badge badge-available">Disponivel</span>';
         actionsHtml = `
-            <button class="btn-action btn-primary" onclick="enrollAssessment(${assessment.id})">
+            <button class="btn-action btn-primary" onclick="enrollAssessment('${assessment.id}')">
                 Inscrever-se
             </button>
         `;
@@ -257,7 +257,7 @@ function renderAssessmentCard(assessment, enrollment) {
                             <div style="color: #92400e; font-weight: 600;">Voce esta ${lateMinutes} minutos atrasado!</div>
                             <div style="color: #78350f; font-size: 0.85rem;">O tempo sera descontado do primeiro bloco.</div>
                         </div>
-                        <button class="btn-action btn-primary" onclick="startAssessment(${enrollment.id})" style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);">
+                        <button class="btn-action btn-primary" onclick="startAssessment('${enrollment.id}')" style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);">
                             Iniciar Agora (${lateMinutes}min descontados)
                         </button>
                     `;
@@ -275,7 +275,7 @@ function renderAssessmentCard(assessment, enrollment) {
             // No scheduled time - old behavior (shouldn't happen with new flow)
             statusBadge = '<span class="assessment-badge badge-enrolled">Inscrito</span>';
             actionsHtml = `
-                <button class="btn-action btn-primary" onclick="startAssessment(${enrollment.id})">
+                <button class="btn-action btn-primary" onclick="startAssessment('${enrollment.id}')">
                     Iniciar Prova
                 </button>
             `;
@@ -297,7 +297,7 @@ function renderAssessmentCard(assessment, enrollment) {
         `;
 
         actionsHtml = `
-            <button class="btn-action btn-primary" onclick="continueAssessment(${enrollment.id})">
+            <button class="btn-action btn-primary" onclick="continueAssessment('${enrollment.id}')">
                 Continuar Prova
             </button>
         `;
@@ -316,7 +316,7 @@ function renderAssessmentCard(assessment, enrollment) {
             } else if (enrollment.retake_approved_at) {
                 // Approved - show button to start new attempt
                 retakeButton = `
-                    <button class="btn-action btn-primary" onclick="startNewAttempt(${enrollment.self_assessment_id})">
+                    <button class="btn-action btn-primary" onclick="startNewAttempt('${enrollment.self_assessment_id}')">
                         Iniciar Nova Tentativa
                     </button>
                 `;
@@ -326,7 +326,7 @@ function renderAssessmentCard(assessment, enrollment) {
             } else {
                 // No request yet
                 retakeButton = `
-                    <button class="btn-action btn-secondary" onclick="requestRetake(${enrollment.id})">
+                    <button class="btn-action btn-secondary" onclick="requestRetake('${enrollment.id}')">
                         Solicitar Nova Tentativa
                     </button>
                 `;
@@ -334,7 +334,7 @@ function renderAssessmentCard(assessment, enrollment) {
 
             actionsHtml = `
                 <div class="assessment-actions-row">
-                    <button class="btn-action btn-success" onclick="viewResults(${enrollment.id})">
+                    <button class="btn-action btn-success" onclick="viewResults('${enrollment.id}')">
                         Ver Resultado
                     </button>
                     ${retakeButton}
