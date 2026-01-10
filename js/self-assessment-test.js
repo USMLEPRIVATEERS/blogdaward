@@ -711,9 +711,9 @@ function updateFigureButton() {
     const btnShowFigures = document.getElementById('btn-show-figures');
     const btnToolbarFigures = document.getElementById('btn-show-figures-toolbar');
 
-    if (question && question.figures_text && question.figures_text.trim() !== '') {
+    if (question && question.figures && question.figures.trim() !== '') {
         // Parse figures (comma separated, with or without spaces)
-        currentFigures = question.figures_text.split(',').map(url => url.trim()).filter(url => url);
+        currentFigures = question.figures.split(',').map(url => url.trim()).filter(url => url);
 
         if (currentFigures.length > 0) {
             btnShowFigures.classList.add('visible');
