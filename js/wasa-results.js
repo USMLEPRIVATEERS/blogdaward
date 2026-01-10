@@ -128,7 +128,7 @@ async function loadAllData() {
         if (userIds.length > 0) {
             const { data: usersData, error: usersError } = await window.supabase
                 .from('users')
-                .select('id, name, email, cpf, whatsapp')
+                .select('id, name, email, cpf, whatsapp, created_at')
                 .in('id', userIds);
 
             if (!usersError && usersData) {
@@ -494,13 +494,11 @@ function showStudentDetail(userId) {
 
     console.log('Student enrollments for userId', userId, ':', studentEnrollments);
 
-    // Build data grid
-    const dataGrid = document.getElementById('student-data-grid');
     const enrollment = studentEnrollments[0];
 
-    console.log('First enrollment:', enrollment);
-
-    dataGrid.innerHTML = `
+    // === REGISTRATION DATA SECTION ===
+    const registrationGrid = document.getElementById('student-registration-grid');
+    registrationGrid.innerHTML = `
         <div class="student-data-item">
             <div class="student-data-label">CPF</div>
             <div class="student-data-value">${formatCPF(user.cpf) || 'Nao informado'}</div>
@@ -510,24 +508,224 @@ function showStudentDetail(userId) {
             <div class="student-data-value">${user.whatsapp || 'Nao informado'}</div>
         </div>
         <div class="student-data-item">
-            <div class="student-data-label">Etapa de Estudo</div>
-            <div class="student-data-value">${formatStudyStage(enrollment?.study_stage) || 'Nao informado'}</div>
-        </div>
-        <div class="student-data-item">
-            <div class="student-data-label">Instituicao</div>
-            <div class="student-data-value">${enrollment?.current_institution || 'Nao informado'}</div>
-        </div>
-        <div class="student-data-item">
-            <div class="student-data-label">Endereco</div>
-            <div class="student-data-value">${enrollment?.current_address || 'Nao informado'}</div>
-        </div>
-        <div class="student-data-item">
-            <div class="student-data-label">Data de Graduacao</div>
-            <div class="student-data-value">${enrollment?.graduation_date ? formatDate(enrollment.graduation_date) : 'Nao informado'}</div>
+            <div class="student-data-label">Conta Criada</div>
+            <div class="student-data-value">${user.created_at ? formatDateTime(user.created_at) : 'Nao informado'}</div>
         </div>
     `;
 
-    // Render assessments performance
+    // === ENROLLMENT DATA SECTION ===
+    const enrollmentGrid = document.getElementById('student-enrollment-grid');
+    if (enrollment) {
+        // Get enrollment status text
+        let statusText = 'Inscrito';
+        let statusClass = 'status-enrolled';
+        if (enrollment.completed_at) {
+            statusText = 'Concluido';
+            statusClass = 'status-completed';
+        } else if (enrollment.started_at) {
+            statusText = 'Em Progresso';
+            statusClass = 'status-in-progress';
+        }
+
+        // Format scheduled datetime
+        let scheduledInfo = 'Nao agendado';
+        if (enrollment.scheduled_datetime_utc) {
+            const scheduledDate = new Date(enrollment.scheduled_datetime_utc);
+            scheduledInfo = formatDateTime(enrollment.scheduled_datetime_utc);
+            if (enrollment.scheduled_timezone) {
+                const tzNames = {
+                    'America/Sao_Paulo': 'Brasilia',
+                    'America/New_York': 'New York',
+                    'America/Los_Angeles': 'Los Angeles',
+                    'Europe/London': 'London',
+                    'Europe/Paris': 'Paris'
+                };
+                scheduledInfo += ` (${tzNames[enrollment.scheduled_timezone] || enrollment.scheduled_timezone})`;
+            }
+        }
+
+        enrollmentGrid.innerHTML = `
+            <div class="student-data-item">
+                <div class="student-data-label">Status</div>
+                <div class="student-data-value status-badge ${statusClass}">${statusText}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Etapa de Estudo</div>
+                <div class="student-data-value">${formatStudyStage(enrollment.study_stage) || 'Nao informado'}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Instituicao</div>
+                <div class="student-data-value">${enrollment.current_institution || 'Nao informado'}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Endereco</div>
+                <div class="student-data-value">${enrollment.current_address || 'Nao informado'}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Data de Graduacao</div>
+                <div class="student-data-value">${enrollment.graduation_date ? formatDate(enrollment.graduation_date) : 'Nao informado'}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Data de Inscricao</div>
+                <div class="student-data-value">${enrollment.enrolled_at ? formatDateTime(enrollment.enrolled_at) : 'Nao informado'}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Inicio da Prova</div>
+                <div class="student-data-value">${enrollment.started_at ? formatDateTime(enrollment.started_at) : 'Ainda nao iniciado'}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Conclusao da Prova</div>
+                <div class="student-data-value">${enrollment.completed_at ? formatDateTime(enrollment.completed_at) : 'Ainda nao concluido'}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Prova Agendada Para</div>
+                <div class="student-data-value">${scheduledInfo}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Numero de Retakes</div>
+                <div class="student-data-value">${enrollment.retake_count || 0}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Resultado Liberado</div>
+                <div class="student-data-value">${enrollment.results_released_at ? formatDateTime(enrollment.results_released_at) : 'Nao liberado'}</div>
+            </div>
+        `;
+        document.getElementById('enrollment-section').style.display = 'block';
+    } else {
+        document.getElementById('enrollment-section').style.display = 'none';
+    }
+
+    // === PERFORMANCE SUMMARY & ANALYSIS ===
+    // Get ALL responses for this student
+    const allStudentResponses = [];
+    studentEnrollments.forEach(enroll => {
+        const enrollResponses = responses.filter(r => r.enrollment_id === enroll.id);
+        allStudentResponses.push(...enrollResponses);
+    });
+
+    if (allStudentResponses.length > 0) {
+        // Calculate overall performance
+        const totalAnswered = allStudentResponses.length;
+        const totalCorrect = allStudentResponses.filter(r => r.is_correct).length;
+        const overallAccuracy = Math.round((totalCorrect / totalAnswered) * 100);
+
+        // Get all question details for analysis
+        const answeredQuestionIds = allStudentResponses.map(r => r.question_id);
+        const answeredQuestions = questions.filter(q => answeredQuestionIds.includes(q.id));
+
+        // Calculate performance by Subject and System
+        const subjectStats = {};
+        const systemStats = {};
+
+        allStudentResponses.forEach(response => {
+            const question = questions.find(q => q.id === response.question_id);
+            if (!question || !question.question_tags) return;
+
+            const tags = question.question_tags.split('::');
+            const subject = tags[0] || 'Outros';
+            const system = tags[1] || 'Outros';
+
+            // Subject stats
+            if (!subjectStats[subject]) {
+                subjectStats[subject] = { total: 0, correct: 0 };
+            }
+            subjectStats[subject].total++;
+            if (response.is_correct) subjectStats[subject].correct++;
+
+            // System stats
+            if (!systemStats[system]) {
+                systemStats[system] = { total: 0, correct: 0 };
+            }
+            systemStats[system].total++;
+            if (response.is_correct) systemStats[system].correct++;
+        });
+
+        // === PERFORMANCE SUMMARY SECTION ===
+        const summarySection = document.getElementById('performance-summary-section');
+        const summaryContent = document.getElementById('performance-summary-content');
+        summarySection.style.display = 'block';
+
+        summaryContent.innerHTML = `
+            <div class="summary-score-card">
+                <div class="summary-score-circle">
+                    <div class="summary-score-value">${overallAccuracy}%</div>
+                    <div class="summary-score-label">Acerto Geral</div>
+                </div>
+                <div class="summary-details">
+                    <p><strong>Total de Questoes:</strong> ${totalAnswered}</p>
+                    <p><strong>Respostas Corretas:</strong> ${totalCorrect}</p>
+                    <p><strong>Respostas Incorretas:</strong> ${totalAnswered - totalCorrect}</p>
+                    <p><strong>Assuntos Abordados:</strong> ${Object.keys(subjectStats).length}</p>
+                    <p><strong>Sistemas Abordados:</strong> ${Object.keys(systemStats).length}</p>
+                </div>
+            </div>
+        `;
+
+        // === SUBJECT PERFORMANCE SECTION ===
+        const subjectSection = document.getElementById('subject-performance-section');
+        const subjectContent = document.getElementById('subject-performance-content');
+        subjectSection.style.display = 'block';
+
+        const sortedSubjects = Object.entries(subjectStats)
+            .map(([name, stats]) => ({
+                name,
+                total: stats.total,
+                correct: stats.correct,
+                accuracy: Math.round((stats.correct / stats.total) * 100)
+            }))
+            .sort((a, b) => b.total - a.total);
+
+        subjectContent.innerHTML = sortedSubjects.map(subject => {
+            const colorClass = subject.accuracy >= 70 ? 'good' : subject.accuracy >= 50 ? 'medium' : 'poor';
+            return `
+                <div class="performance-bar-item">
+                    <div class="performance-bar-header">
+                        <span class="performance-bar-name">${subject.name}</span>
+                        <span class="performance-bar-stats ${colorClass}">${subject.correct}/${subject.total} (${subject.accuracy}%)</span>
+                    </div>
+                    <div class="performance-bar-container">
+                        <div class="performance-bar-fill ${colorClass}" style="width: ${subject.accuracy}%"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // === SYSTEM PERFORMANCE SECTION ===
+        const systemSection = document.getElementById('system-performance-section');
+        const systemContent = document.getElementById('system-performance-content');
+        systemSection.style.display = 'block';
+
+        const sortedSystems = Object.entries(systemStats)
+            .map(([name, stats]) => ({
+                name,
+                total: stats.total,
+                correct: stats.correct,
+                accuracy: Math.round((stats.correct / stats.total) * 100)
+            }))
+            .sort((a, b) => b.total - a.total);
+
+        systemContent.innerHTML = sortedSystems.map(system => {
+            const colorClass = system.accuracy >= 70 ? 'good' : system.accuracy >= 50 ? 'medium' : 'poor';
+            return `
+                <div class="performance-bar-item">
+                    <div class="performance-bar-header">
+                        <span class="performance-bar-name">${system.name}</span>
+                        <span class="performance-bar-stats ${colorClass}">${system.correct}/${system.total} (${system.accuracy}%)</span>
+                    </div>
+                    <div class="performance-bar-container">
+                        <div class="performance-bar-fill ${colorClass}" style="width: ${system.accuracy}%"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } else {
+        // Hide performance sections if no responses
+        document.getElementById('performance-summary-section').style.display = 'none';
+        document.getElementById('subject-performance-section').style.display = 'none';
+        document.getElementById('system-performance-section').style.display = 'none';
+    }
+
+    // Render assessments performance (existing functionality)
     renderStudentAssessments(userId, studentEnrollments);
 }
 
@@ -556,6 +754,13 @@ function formatDate(dateStr) {
     if (!dateStr) return '';
     const date = new Date(dateStr);
     return date.toLocaleDateString('pt-BR');
+}
+
+// Format date with time
+function formatDateTime(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('pt-BR') + ' as ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
 // Render student assessments
