@@ -926,14 +926,106 @@ function formatTimeAgo(dateStr) {
     return date.toLocaleDateString('pt-BR');
 }
 
-// Approve retake request
-async function approveRetake(enrollmentId) {
-    if (!confirm('Aprovar a solicitacao de nova tentativa?')) return;
+// ============================================
+// SCHEDULING MODAL FOR RETAKE APPROVAL
+// ============================================
+
+let pendingRetakeEnrollmentId = null;
+
+// Open scheduling modal instead of direct approval
+function approveRetake(enrollmentId) {
+    openScheduleRetakeModal(enrollmentId);
+}
+
+// Open the scheduling modal
+function openScheduleRetakeModal(enrollmentId) {
+    pendingRetakeEnrollmentId = enrollmentId;
+
+    // Find enrollment and user info
+    const enrollment = enrollments.find(e => e.id === enrollmentId);
+    const user = enrollment ? (users[enrollment.user_id] || {}) : {};
+
+    // Update modal with student name
+    document.getElementById('schedule-student-name').textContent = user.name || 'Aluno';
+
+    // Set default date to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('retake-date').value = tomorrow.toISOString().split('T')[0];
+
+    // Set default time to 9:00 AM
+    document.getElementById('retake-time').value = '09:00';
+
+    // Show modal
+    document.getElementById('schedule-retake-modal').classList.add('visible');
+}
+
+// Close the scheduling modal
+function closeScheduleRetakeModal() {
+    pendingRetakeEnrollmentId = null;
+    document.getElementById('schedule-retake-modal').classList.remove('visible');
+}
+
+// Confirm retake approval with scheduling
+async function confirmRetakeApproval() {
+    const date = document.getElementById('retake-date').value;
+    const time = document.getElementById('retake-time').value;
+    const timezone = document.getElementById('retake-timezone').value;
+
+    // Validate inputs
+    if (!date || !time) {
+        showToast('Por favor, preencha a data e horario', 'error');
+        return;
+    }
+
+    if (!pendingRetakeEnrollmentId) {
+        showToast('Erro: Nenhuma solicitacao selecionada', 'error');
+        closeScheduleRetakeModal();
+        return;
+    }
+
+    // Convert to UTC
+    const localDatetime = `${date}T${time}:00`;
+    const scheduledDate = new Date(localDatetime);
+
+    // Validate date is in the future
+    if (scheduledDate <= new Date()) {
+        showToast('A data e horario devem ser no futuro', 'error');
+        return;
+    }
+
+    const scheduledDatetimeUtc = scheduledDate.toISOString();
 
     showLoading();
+    closeScheduleRetakeModal();
 
     try {
-        // Reset the enrollment to allow a new attempt
+        const enrollmentId = pendingRetakeEnrollmentId;
+        const enrollment = enrollments.find(e => e.id === enrollmentId);
+
+        // Delete old attempts for this enrollment to start fresh
+        if (enrollment) {
+            const { error: deleteAttemptsError } = await window.supabase
+                .from('self_assessment_attempts')
+                .delete()
+                .eq('enrollment_id', enrollmentId);
+
+            if (deleteAttemptsError) {
+                console.error('Error deleting old attempts:', deleteAttemptsError);
+            }
+
+            // Delete old responses for this enrollment
+            const { error: deleteResponsesError } = await window.supabase
+                .from('self_assessment_responses')
+                .delete()
+                .eq('enrollment_id', enrollmentId);
+
+            if (deleteResponsesError) {
+                console.error('Error deleting old responses:', deleteResponsesError);
+            }
+        }
+
+        // Update enrollment with scheduled datetime and reset for new attempt
         const { error } = await window.supabase
             .from('self_assessment_enrollments')
             .update({
@@ -942,34 +1034,36 @@ async function approveRetake(enrollmentId) {
                 status: 'enrolled',
                 completed_at: null,
                 results_released_at: null,
-                retake_count: window.supabase.rpc ? undefined : 1 // Will increment later if RPC available
+                started_at: null,
+                scheduled_datetime_utc: scheduledDatetimeUtc,
+                scheduled_timezone: timezone,
+                retake_count: (enrollment?.retake_count || 0) + 1
             })
             .eq('id', enrollmentId);
 
         if (error) throw error;
 
-        // Increment retake count manually
-        const enrollment = enrollments.find(e => e.id === enrollmentId);
+        // Update local data
         if (enrollment) {
-            const { error: countError } = await window.supabase
-                .from('self_assessment_enrollments')
-                .update({
-                    retake_count: (enrollment.retake_count || 0) + 1
-                })
-                .eq('id', enrollmentId);
-
-            if (countError) console.error('Error incrementing retake count:', countError);
-
-            // Update local data
             enrollment.retake_approved_at = new Date().toISOString();
             enrollment.status = 'enrolled';
             enrollment.completed_at = null;
             enrollment.results_released_at = null;
+            enrollment.started_at = null;
+            enrollment.scheduled_datetime_utc = scheduledDatetimeUtc;
+            enrollment.scheduled_timezone = timezone;
             enrollment.retake_count = (enrollment.retake_count || 0) + 1;
         }
 
+        // Remove old attempts from local data
+        attempts = attempts.filter(a => a.enrollment_id !== enrollmentId);
+
         hideLoading();
-        showToast('Solicitacao aprovada! O aluno pode refazer o assessment.', 'success');
+
+        // Format date for display
+        const displayDate = scheduledDate.toLocaleDateString('pt-BR');
+        const displayTime = scheduledDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        showToast(`Aprovado! Nova tentativa agendada para ${displayDate} as ${displayTime}`, 'success');
 
         // Reload notifications
         loadRetakeRequests();

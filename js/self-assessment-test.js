@@ -143,8 +143,7 @@ async function loadEnrollmentData() {
             }
         }
 
-        // Update UI
-        document.getElementById('total-questions').textContent = allQuestions.length;
+        // Note: total-questions is set later in loadBlockQuestions() after questions are loaded
 
     } catch (error) {
         console.error('Error loading enrollment:', error);
@@ -157,6 +156,19 @@ async function loadEnrollmentData() {
 // Initialize test
 async function initializeTest() {
     try {
+        // Reset state for clean initialization
+        userAnswers = {};
+        currentQuestionIndex = 0;
+        currentBlock = 1;
+        currentAttempt = null;
+
+        // Hide any overlays that might be visible from previous state
+        const completionOverlay = document.getElementById('completion-overlay');
+        const breakOverlay = document.getElementById('break-overlay');
+        if (completionOverlay) completionOverlay.classList.remove('visible');
+        if (breakOverlay) breakOverlay.classList.remove('visible');
+        isInBreak = false;
+
         // Load all questions for this assessment
         const { data: questions, error: questionsError } = await window.supabase
             .from('self_assessment_questions')
