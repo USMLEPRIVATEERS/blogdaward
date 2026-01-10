@@ -714,6 +714,7 @@ function updateFigureButton() {
     if (question && question.figures && question.figures.trim() !== '') {
         // Parse figures (comma separated, with or without spaces)
         currentFigures = question.figures.split(',').map(url => url.trim()).filter(url => url);
+        console.log('Figures found:', currentFigures.length, currentFigures);
 
         if (currentFigures.length > 0) {
             btnShowFigures.classList.add('visible');
