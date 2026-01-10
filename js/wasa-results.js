@@ -1003,8 +1003,41 @@ async function confirmRetakeApproval() {
         const enrollmentId = pendingRetakeEnrollmentId;
         const enrollment = enrollments.find(e => e.id === enrollmentId);
 
-        // Delete old attempts for this enrollment to start fresh
+        // Delete old data for this enrollment to start fresh
+        // IMPORTANT: Delete responses FIRST (they reference attempts via foreign key)
         if (enrollment) {
+            // First, get all attempt IDs for this enrollment
+            const { data: oldAttempts } = await window.supabase
+                .from('self_assessment_attempts')
+                .select('id')
+                .eq('enrollment_id', enrollmentId);
+
+            // Delete responses for each attempt
+            if (oldAttempts && oldAttempts.length > 0) {
+                const attemptIds = oldAttempts.map(a => a.id);
+                console.log('Deleting responses for attempts:', attemptIds);
+
+                const { error: deleteResponsesError } = await window.supabase
+                    .from('self_assessment_responses')
+                    .delete()
+                    .in('attempt_id', attemptIds);
+
+                if (deleteResponsesError) {
+                    console.error('Error deleting old responses:', deleteResponsesError);
+                }
+            }
+
+            // Also delete any responses by enrollment_id (backup)
+            const { error: deleteResponsesByEnrollmentError } = await window.supabase
+                .from('self_assessment_responses')
+                .delete()
+                .eq('enrollment_id', enrollmentId);
+
+            if (deleteResponsesByEnrollmentError) {
+                console.error('Error deleting responses by enrollment:', deleteResponsesByEnrollmentError);
+            }
+
+            // NOW delete the attempts (after responses are gone)
             const { error: deleteAttemptsError } = await window.supabase
                 .from('self_assessment_attempts')
                 .delete()
@@ -1012,16 +1045,8 @@ async function confirmRetakeApproval() {
 
             if (deleteAttemptsError) {
                 console.error('Error deleting old attempts:', deleteAttemptsError);
-            }
-
-            // Delete old responses for this enrollment
-            const { error: deleteResponsesError } = await window.supabase
-                .from('self_assessment_responses')
-                .delete()
-                .eq('enrollment_id', enrollmentId);
-
-            if (deleteResponsesError) {
-                console.error('Error deleting old responses:', deleteResponsesError);
+            } else {
+                console.log('Successfully deleted old attempts for enrollment:', enrollmentId);
             }
         }
 

@@ -186,6 +186,11 @@ async function initializeTest() {
             return;
         }
 
+        // Check if this is a fresh retake (enrollment reset but old attempts may exist)
+        const isRetakeStart = enrollmentData.status === 'enrolled' &&
+                              enrollmentData.retake_approved_at &&
+                              !enrollmentData.started_at;
+
         // Load existing attempts to determine current block
         const { data: attempts, error: attemptsError } = await window.supabase
             .from('self_assessment_attempts')
@@ -195,34 +200,62 @@ async function initializeTest() {
 
         if (attemptsError) throw attemptsError;
 
-        // Determine current block
-        const completedBlocks = attempts?.filter(a => a.status === 'completed' || a.status === 'timed_out') || [];
-        const inProgressAttempt = attempts?.find(a => a.status === 'in_progress');
+        // If this is a fresh retake, ignore old attempts and start fresh
+        if (isRetakeStart) {
+            console.log('Fresh retake detected - starting from block 1');
 
-        if (inProgressAttempt) {
-            // Resume existing block
-            currentBlock = inProgressAttempt.block_number;
-            currentAttempt = inProgressAttempt;
+            // Delete any stale attempts that may exist
+            if (attempts && attempts.length > 0) {
+                console.log('Cleaning up stale attempts:', attempts.length);
 
-            // Calculate remaining time
-            const startedAt = new Date(inProgressAttempt.started_at);
-            const elapsed = Math.floor((new Date() - startedAt) / 1000);
-            blockTimeRemaining = Math.max(0, (timePerBlockMinutes * 60) - elapsed);
+                // Delete responses first
+                for (const attempt of attempts) {
+                    await window.supabase
+                        .from('self_assessment_responses')
+                        .delete()
+                        .eq('attempt_id', attempt.id);
+                }
 
-            // Load existing responses for this block
-            await loadExistingResponses(inProgressAttempt.id);
-        } else {
-            // Start next block
-            currentBlock = completedBlocks.length + 1;
-
-            if (currentBlock > totalBlocks) {
-                // All blocks completed
-                completeAssessment();
-                return;
+                // Delete attempts
+                await window.supabase
+                    .from('self_assessment_attempts')
+                    .delete()
+                    .eq('enrollment_id', enrollmentId);
             }
 
-            // Create new attempt
+            // Start fresh from block 1
+            currentBlock = 1;
             await createNewAttempt();
+        } else {
+            // Normal flow - determine current block from existing attempts
+            const completedBlocks = attempts?.filter(a => a.status === 'completed' || a.status === 'timed_out') || [];
+            const inProgressAttempt = attempts?.find(a => a.status === 'in_progress');
+
+            if (inProgressAttempt) {
+                // Resume existing block
+                currentBlock = inProgressAttempt.block_number;
+                currentAttempt = inProgressAttempt;
+
+                // Calculate remaining time
+                const startedAt = new Date(inProgressAttempt.started_at);
+                const elapsed = Math.floor((new Date() - startedAt) / 1000);
+                blockTimeRemaining = Math.max(0, (timePerBlockMinutes * 60) - elapsed);
+
+                // Load existing responses for this block
+                await loadExistingResponses(inProgressAttempt.id);
+            } else {
+                // Start next block
+                currentBlock = completedBlocks.length + 1;
+
+                if (currentBlock > totalBlocks) {
+                    // All blocks completed
+                    completeAssessment();
+                    return;
+                }
+
+                // Create new attempt
+                await createNewAttempt();
+            }
         }
 
         // Update enrollment status if needed
