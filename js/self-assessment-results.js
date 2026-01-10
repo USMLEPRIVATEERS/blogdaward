@@ -163,6 +163,9 @@ async function loadResultsData() {
         renderPerformanceBySystem();
         await renderScoreDistribution();
 
+        // Check retake request status
+        checkRetakeStatus();
+
         hideLoading();
     } catch (error) {
         console.error('Error loading results:', error);
@@ -679,3 +682,129 @@ function showToast(message, type = 'info') {
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
+
+// ============================================
+// RETAKE REQUEST FUNCTIONS
+// ============================================
+
+// Check and display retake section
+function checkRetakeStatus() {
+    const retakeSection = document.getElementById('retake-section');
+    if (!retakeSection || !enrollmentData) return;
+
+    // Show the section
+    retakeSection.style.display = 'flex';
+
+    const titleEl = document.getElementById('retake-title');
+    const descEl = document.getElementById('retake-description');
+    const actionEl = document.getElementById('retake-action');
+
+    // Check current retake status
+    if (enrollmentData.retake_requested_at && !enrollmentData.retake_approved_at && !enrollmentData.retake_denied_at) {
+        // Pending request
+        titleEl.textContent = 'Solicitacao Enviada';
+        descEl.textContent = 'Sua solicitacao de nova tentativa esta sendo analisada pelo mentor.';
+        actionEl.innerHTML = '<span class="retake-status pending">⏳ Aguardando Aprovacao</span>';
+    } else if (enrollmentData.retake_approved_at) {
+        // Approved
+        titleEl.textContent = 'Nova Tentativa Aprovada!';
+        descEl.textContent = 'Sua solicitacao foi aprovada. Voce pode refazer o Self Assessment.';
+        actionEl.innerHTML = `
+            <a href="self-assessment-inscricao.html?id=${assessmentData.id}" class="btn-retake" style="text-decoration: none;">
+                🚀 Iniciar Nova Tentativa
+            </a>
+        `;
+    } else if (enrollmentData.retake_denied_at) {
+        // Denied
+        titleEl.textContent = 'Solicitacao Negada';
+        descEl.textContent = 'Infelizmente sua solicitacao de nova tentativa nao foi aprovada.';
+        actionEl.innerHTML = '<span class="retake-status denied">❌ Solicitacao Negada</span>';
+    } else {
+        // No request yet - show button
+        titleEl.textContent = 'Deseja refazer o Self Assessment?';
+        descEl.textContent = 'Solicite uma nova tentativa ao mentor. Sua solicitacao sera analisada.';
+        actionEl.innerHTML = `
+            <button class="btn-retake" onclick="openRetakeModal()">
+                🔄 Solicitar Nova Tentativa
+            </button>
+        `;
+    }
+}
+
+// Open retake modal
+function openRetakeModal() {
+    const modal = document.getElementById('retake-modal');
+    if (modal) {
+        modal.classList.add('active');
+        document.getElementById('retake-reason').value = '';
+        document.getElementById('retake-reason').focus();
+    }
+}
+
+// Close retake modal
+function closeRetakeModal() {
+    const modal = document.getElementById('retake-modal');
+    if (modal) {
+        modal.classList.remove('active');
+    }
+}
+
+// Submit retake request
+async function submitRetakeRequest() {
+    const reason = document.getElementById('retake-reason').value.trim();
+
+    if (!reason) {
+        showToast('Por favor, informe o motivo da solicitacao', 'error');
+        return;
+    }
+
+    const submitBtn = document.getElementById('btn-submit-retake');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Enviando...';
+
+    try {
+        const { error } = await window.supabase
+            .from('self_assessment_enrollments')
+            .update({
+                retake_requested_at: new Date().toISOString(),
+                retake_request_reason: reason,
+                retake_approved_at: null,
+                retake_denied_at: null
+            })
+            .eq('id', enrollmentId);
+
+        if (error) throw error;
+
+        // Update local data
+        enrollmentData.retake_requested_at = new Date().toISOString();
+        enrollmentData.retake_request_reason = reason;
+        enrollmentData.retake_approved_at = null;
+        enrollmentData.retake_denied_at = null;
+
+        closeRetakeModal();
+        checkRetakeStatus();
+        showToast('Solicitacao enviada com sucesso!', 'success');
+
+    } catch (error) {
+        console.error('Error submitting retake request:', error);
+        showToast('Erro ao enviar solicitacao', 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Enviar Solicitacao';
+    }
+}
+
+// Close modal on outside click
+document.addEventListener('click', (e) => {
+    const modal = document.getElementById('retake-modal');
+    if (e.target === modal) {
+        closeRetakeModal();
+    }
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeRetakeModal();
+    }
+});

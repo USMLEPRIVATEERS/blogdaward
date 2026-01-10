@@ -149,6 +149,9 @@ function initializeUI() {
     // Set up event listeners
     setupEventListeners();
 
+    // Load retake request notifications
+    loadRetakeRequests();
+
     // Show overview by default
     showOverview();
 }
@@ -832,5 +835,179 @@ async function releaseResults(enrollmentId) {
         console.error('Error releasing results:', error);
         hideLoading();
         showToast('Erro ao liberar resultado', 'error');
+    }
+}
+
+// ============================================
+// RETAKE REQUEST NOTIFICATIONS
+// ============================================
+
+// Load and render retake requests
+function loadRetakeRequests() {
+    const panel = document.getElementById('notifications-panel');
+    const list = document.getElementById('notification-list');
+    const badge = document.getElementById('notification-count');
+
+    if (!panel || !list) return;
+
+    // Filter enrollments with pending retake requests
+    const pendingRequests = enrollments.filter(e =>
+        e.retake_requested_at &&
+        !e.retake_approved_at &&
+        !e.retake_denied_at
+    );
+
+    if (pendingRequests.length === 0) {
+        panel.classList.remove('has-notifications');
+        return;
+    }
+
+    // Show panel
+    panel.classList.add('has-notifications');
+    badge.textContent = pendingRequests.length;
+
+    // Render notifications
+    list.innerHTML = pendingRequests.map(enrollment => {
+        const user = users[enrollment.user_id] || {};
+        const assessment = assessments.find(a => a.id === enrollment.self_assessment_id);
+        const initials = getInitials(user.name || 'U');
+        const timeAgo = formatTimeAgo(enrollment.retake_requested_at);
+
+        return `
+            <div class="notification-item" data-enrollment-id="${enrollment.id}">
+                <div class="notification-avatar">${initials}</div>
+                <div class="notification-content">
+                    <div class="notification-text">
+                        <strong>${escapeHtml(user.name || 'Usuario')}</strong> solicitou uma nova tentativa
+                        ${assessment ? `no ${escapeHtml(assessment.name)}` : ''}
+                    </div>
+                    ${enrollment.retake_request_reason ? `
+                        <div class="notification-reason">"${escapeHtml(enrollment.retake_request_reason)}"</div>
+                    ` : ''}
+                    <div class="notification-time">${timeAgo}</div>
+                </div>
+                <div class="notification-actions">
+                    <button class="btn-approve" onclick="approveRetake(${enrollment.id})">
+                        ✓ Aprovar
+                    </button>
+                    <button class="btn-deny" onclick="denyRetake(${enrollment.id})">
+                        ✕ Negar
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Format time ago
+function formatTimeAgo(dateStr) {
+    if (!dateStr) return '';
+
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Agora mesmo';
+    if (diffMins < 60) return `${diffMins} min atras`;
+    if (diffHours < 24) return `${diffHours}h atras`;
+    if (diffDays < 7) return `${diffDays} dias atras`;
+
+    return date.toLocaleDateString('pt-BR');
+}
+
+// Approve retake request
+async function approveRetake(enrollmentId) {
+    if (!confirm('Aprovar a solicitacao de nova tentativa?')) return;
+
+    showLoading();
+
+    try {
+        // Reset the enrollment to allow a new attempt
+        const { error } = await window.supabase
+            .from('self_assessment_enrollments')
+            .update({
+                retake_approved_at: new Date().toISOString(),
+                retake_response_by: currentUser.id,
+                status: 'enrolled',
+                completed_at: null,
+                results_released_at: null,
+                retake_count: window.supabase.rpc ? undefined : 1 // Will increment later if RPC available
+            })
+            .eq('id', enrollmentId);
+
+        if (error) throw error;
+
+        // Increment retake count manually
+        const enrollment = enrollments.find(e => e.id === enrollmentId);
+        if (enrollment) {
+            const { error: countError } = await window.supabase
+                .from('self_assessment_enrollments')
+                .update({
+                    retake_count: (enrollment.retake_count || 0) + 1
+                })
+                .eq('id', enrollmentId);
+
+            if (countError) console.error('Error incrementing retake count:', countError);
+
+            // Update local data
+            enrollment.retake_approved_at = new Date().toISOString();
+            enrollment.status = 'enrolled';
+            enrollment.completed_at = null;
+            enrollment.results_released_at = null;
+            enrollment.retake_count = (enrollment.retake_count || 0) + 1;
+        }
+
+        hideLoading();
+        showToast('Solicitacao aprovada! O aluno pode refazer o assessment.', 'success');
+
+        // Reload notifications
+        loadRetakeRequests();
+
+        // Re-render student list
+        renderStudentList();
+
+    } catch (error) {
+        console.error('Error approving retake:', error);
+        hideLoading();
+        showToast('Erro ao aprovar solicitacao', 'error');
+    }
+}
+
+// Deny retake request
+async function denyRetake(enrollmentId) {
+    if (!confirm('Negar a solicitacao de nova tentativa?')) return;
+
+    showLoading();
+
+    try {
+        const { error } = await window.supabase
+            .from('self_assessment_enrollments')
+            .update({
+                retake_denied_at: new Date().toISOString(),
+                retake_response_by: currentUser.id
+            })
+            .eq('id', enrollmentId);
+
+        if (error) throw error;
+
+        // Update local data
+        const enrollment = enrollments.find(e => e.id === enrollmentId);
+        if (enrollment) {
+            enrollment.retake_denied_at = new Date().toISOString();
+        }
+
+        hideLoading();
+        showToast('Solicitacao negada.', 'success');
+
+        // Reload notifications
+        loadRetakeRequests();
+
+    } catch (error) {
+        console.error('Error denying retake:', error);
+        hideLoading();
+        showToast('Erro ao negar solicitacao', 'error');
     }
 }
