@@ -6,6 +6,7 @@ let currentUser = null;
 let assessmentId = null;
 let assessmentData = null;
 let enrollmentId = null; // For Ward Academy internal students
+let activeEvent = null; // For event-based scheduling
 
 // Wait for Supabase to be ready
 async function ensureSupabase() {
@@ -130,6 +131,22 @@ async function loadAssessmentData() {
         document.getElementById('total-blocks').textContent = `${totalBlocks} blocos`;
         document.getElementById('time-per-block').textContent = `${assessment.time_per_block_minutes}min por bloco`;
 
+        // Check for active event for this assessment
+        const { data: eventData, error: eventError } = await window.supabase
+            .from('self_assessment_events')
+            .select('*')
+            .eq('self_assessment_id', assessmentId)
+            .eq('is_active', true)
+            .gte('event_date', new Date().toISOString().split('T')[0])
+            .order('event_date', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+        if (!eventError && eventData) {
+            activeEvent = eventData;
+            console.log('Active event found:', activeEvent);
+        }
+
         hideLoading();
     } catch (error) {
         console.error('Error loading assessment:', error);
@@ -157,6 +174,7 @@ function initializeForm() {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const scheduledDateInput = document.getElementById('scheduled-date');
+    const scheduledTimeInput = document.getElementById('scheduled-time');
     scheduledDateInput.min = tomorrow.toISOString().split('T')[0];
 
     // Try to detect user's timezone
@@ -171,6 +189,11 @@ function initializeForm() {
         console.log('Could not detect timezone');
     }
 
+    // Handle active event - disable date/time selection
+    if (activeEvent) {
+        showEventNotification();
+    }
+
     // Setup radio option styling
     setupRadioGroups();
 
@@ -179,6 +202,56 @@ function initializeForm() {
 
     // Form submission
     form.addEventListener('submit', handleSubmit);
+}
+
+// Show event notification when there's an active event
+function showEventNotification() {
+    const scheduledDateInput = document.getElementById('scheduled-date');
+    const scheduledTimeInput = document.getElementById('scheduled-time');
+
+    // Format event date and time for display
+    const eventDate = new Date(activeEvent.event_date + 'T00:00:00');
+    const formattedDate = eventDate.toLocaleDateString('pt-BR');
+    const formattedTime = activeEvent.event_time.substring(0, 5);
+
+    // Set date and time inputs to event values (they will be readonly)
+    scheduledDateInput.value = activeEvent.event_date;
+    scheduledTimeInput.value = activeEvent.event_time.substring(0, 5);
+
+    // Disable date and time inputs
+    scheduledDateInput.readOnly = true;
+    scheduledTimeInput.readOnly = true;
+    scheduledDateInput.style.backgroundColor = '#e5e7eb';
+    scheduledTimeInput.style.backgroundColor = '#e5e7eb';
+    scheduledDateInput.style.cursor = 'not-allowed';
+    scheduledTimeInput.style.cursor = 'not-allowed';
+
+    // Create and insert event notification
+    const schedulingSection = scheduledDateInput.closest('.section-card');
+    if (schedulingSection) {
+        const eventNotification = document.createElement('div');
+        eventNotification.className = 'event-notification';
+        eventNotification.innerHTML = `
+            <div class="event-notification-icon">📅</div>
+            <div class="event-notification-content">
+                <div class="event-notification-title">Evento Agendado!</div>
+                <div class="event-notification-text">
+                    Este Self Assessment tem um <strong>evento global</strong> marcado para
+                    <strong>${formattedDate}</strong> às <strong>${formattedTime}</strong> (horario de Brasilia).
+                </div>
+                <div class="event-notification-note">
+                    Todos os participantes iniciarão no mesmo momento.
+                    Você só precisa selecionar seu fuso horário abaixo para que possamos mostrar o horário correto para você.
+                </div>
+            </div>
+        `;
+
+        // Insert before the date input's parent group
+        const dateGroup = scheduledDateInput.closest('.form-group');
+        if (dateGroup) {
+            dateGroup.parentNode.insertBefore(eventNotification, dateGroup);
+        }
+    }
 }
 
 // Populate percentage dropdown
@@ -397,7 +470,10 @@ async function handleSubmit(e) {
                 scheduled_time: scheduledTime,
                 user_timezone: userTimezone,
                 scheduled_datetime_utc: scheduledDateTimeUTC,
-                schedule_set_by: 'student',
+                schedule_set_by: activeEvent ? 'event' : 'student',
+                // Event fields (if applicable)
+                event_id: activeEvent ? activeEvent.id : null,
+                is_event_enrollment: activeEvent ? true : false,
                 status: 'enrolled',
                 enrolled_at: new Date().toISOString()
             })

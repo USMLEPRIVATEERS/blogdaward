@@ -6,6 +6,7 @@ let currentUser = null;
 let assessments = [];
 let enrollments = [];
 let users = {};
+let events = [];
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
@@ -91,6 +92,16 @@ async function loadData() {
             }
         }
 
+        // Load events
+        const { data: eventsData, error: eventsError } = await window.supabase
+            .from('self_assessment_events')
+            .select('*')
+            .order('event_date', { ascending: true });
+
+        if (!eventsError && eventsData) {
+            events = eventsData;
+        }
+
         hideLoading();
     } catch (error) {
         console.error('Error loading data:', error);
@@ -111,17 +122,30 @@ function initializeUI() {
         filter.appendChild(option);
     });
 
+    // Populate event assessment select
+    const eventSelect = document.getElementById('event-assessment');
+    eventSelect.innerHTML = '<option value="">Selecione...</option>';
+    assessments.forEach(a => {
+        const option = document.createElement('option');
+        option.value = a.id;
+        option.textContent = a.name;
+        eventSelect.appendChild(option);
+    });
+
     // Set up filters
     document.getElementById('assessment-filter').addEventListener('change', renderStudents);
     document.getElementById('status-filter').addEventListener('change', renderStudents);
 
-    // Set minimum date for bulk date
+    // Set minimum date for bulk date and event date
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    document.getElementById('bulk-date').min = tomorrow.toISOString().split('T')[0];
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    document.getElementById('bulk-date').min = tomorrowStr;
+    document.getElementById('event-date').min = tomorrowStr;
 
-    // Render students
+    // Render students and events
     renderStudents();
+    renderEvents();
 }
 
 // Render students table
@@ -398,5 +422,191 @@ function showToast(message, type = 'info') {
         WardApp.showToast(message, type);
     } else {
         alert(message);
+    }
+}
+
+// ============================================
+// EVENT MANAGEMENT
+// ============================================
+
+// Render events list
+function renderEvents() {
+    const section = document.getElementById('events-list-section');
+    const list = document.getElementById('events-list');
+
+    if (events.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+
+    list.innerHTML = events.map(event => {
+        const assessment = assessments.find(a => a.id === event.self_assessment_id);
+        const assessmentName = assessment ? assessment.name : 'N/A';
+
+        // Format date and time for display
+        const eventDate = new Date(event.event_date + 'T00:00:00');
+        const formattedDate = eventDate.toLocaleDateString('pt-BR');
+        const formattedTime = event.event_time.substring(0, 5);
+
+        const isActive = event.is_active;
+        const isPast = new Date(event.event_date) < new Date().setHours(0, 0, 0, 0);
+
+        return `
+            <div class="event-card ${isActive ? 'active' : ''}">
+                <div class="event-info">
+                    <span class="event-assessment-name">${assessmentName}</span>
+                    <span class="event-datetime">📅 ${formattedDate} às ${formattedTime} (Brasilia)</span>
+                    <span class="event-badge ${isActive ? 'active' : 'inactive'}">
+                        ${isActive ? '✓ Ativo' : 'Inativo'}
+                    </span>
+                    ${isPast ? '<span class="event-badge inactive">Passado</span>' : ''}
+                </div>
+                <div class="event-actions">
+                    ${!isPast ? `
+                        <button class="btn-event-toggle ${isActive ? 'deactivate' : 'activate'}"
+                                onclick="toggleEvent(${event.id}, ${!isActive})">
+                            ${isActive ? '⏸ Desativar' : '▶ Ativar'}
+                        </button>
+                    ` : ''}
+                    <button class="btn-event-delete" onclick="deleteEvent(${event.id})">
+                        🗑 Excluir
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Create a new event
+async function createEvent() {
+    const assessmentId = document.getElementById('event-assessment').value;
+    const date = document.getElementById('event-date').value;
+    const time = document.getElementById('event-time').value;
+
+    if (!assessmentId) {
+        showToast('Selecione um Self Assessment', 'warning');
+        return;
+    }
+
+    if (!date) {
+        showToast('Selecione uma data', 'warning');
+        return;
+    }
+
+    if (!time) {
+        showToast('Selecione um horario', 'warning');
+        return;
+    }
+
+    // Check if there's already an active event for this assessment
+    const existingActive = events.find(e =>
+        e.self_assessment_id === parseInt(assessmentId) &&
+        e.is_active &&
+        new Date(e.event_date) >= new Date().setHours(0, 0, 0, 0)
+    );
+
+    if (existingActive) {
+        showToast('Ja existe um evento ativo para este Self Assessment. Desative-o primeiro.', 'error');
+        return;
+    }
+
+    // Convert Brasilia time to UTC
+    const utcDateTime = convertBrasiliaToUTC(date, time);
+
+    showLoading();
+
+    try {
+        const { data, error } = await window.supabase
+            .from('self_assessment_events')
+            .insert({
+                self_assessment_id: parseInt(assessmentId),
+                event_date: date,
+                event_time: time + ':00',
+                event_datetime_utc: utcDateTime,
+                created_by: currentUser.id,
+                is_active: true
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Add to local events
+        events.push(data);
+
+        // Clear form
+        document.getElementById('event-assessment').value = '';
+        document.getElementById('event-date').value = '';
+        document.getElementById('event-time').value = '08:00';
+
+        hideLoading();
+        showToast('Evento criado com sucesso!', 'success');
+        renderEvents();
+
+    } catch (error) {
+        console.error('Error creating event:', error);
+        hideLoading();
+        showToast('Erro ao criar evento: ' + error.message, 'error');
+    }
+}
+
+// Toggle event active state
+async function toggleEvent(eventId, newState) {
+    showLoading();
+
+    try {
+        const { error } = await window.supabase
+            .from('self_assessment_events')
+            .update({ is_active: newState })
+            .eq('id', eventId);
+
+        if (error) throw error;
+
+        // Update local events
+        const idx = events.findIndex(e => e.id === eventId);
+        if (idx !== -1) {
+            events[idx].is_active = newState;
+        }
+
+        hideLoading();
+        showToast(`Evento ${newState ? 'ativado' : 'desativado'}!`, 'success');
+        renderEvents();
+
+    } catch (error) {
+        console.error('Error toggling event:', error);
+        hideLoading();
+        showToast('Erro ao alterar status do evento', 'error');
+    }
+}
+
+// Delete an event
+async function deleteEvent(eventId) {
+    if (!confirm('Tem certeza que deseja excluir este evento?')) {
+        return;
+    }
+
+    showLoading();
+
+    try {
+        const { error } = await window.supabase
+            .from('self_assessment_events')
+            .delete()
+            .eq('id', eventId);
+
+        if (error) throw error;
+
+        // Remove from local events
+        events = events.filter(e => e.id !== eventId);
+
+        hideLoading();
+        showToast('Evento excluido!', 'success');
+        renderEvents();
+
+    } catch (error) {
+        console.error('Error deleting event:', error);
+        hideLoading();
+        showToast('Erro ao excluir evento', 'error');
     }
 }
