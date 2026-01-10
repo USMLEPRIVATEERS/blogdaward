@@ -499,7 +499,7 @@ function renderNavigation() {
         }
 
         return `
-            <div class="${className}" onclick="goToQuestion(${index}); closeSidebar();">
+            <div class="${className}" onclick="goToQuestion(${index})">
                 <div class="question-status-dot"></div>
                 <span class="question-nav-number">${index + 1}</span>
                 <span class="question-nav-flag">&#9873;</span>
