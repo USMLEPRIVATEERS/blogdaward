@@ -128,7 +128,7 @@ async function loadAllData() {
         if (userIds.length > 0) {
             const { data: usersData, error: usersError } = await window.supabase
                 .from('users')
-                .select('id, name, email, cpf, whatsapp, created_at')
+                .select('id, name, email, cpf, whatsapp, created_at, role')
                 .in('id', userIds);
 
             if (!usersError && usersData) {
@@ -177,9 +177,47 @@ function populateAssessmentFilter() {
     });
 }
 
+// Check if a student matches the selected filter
+function studentMatchesFilter(user, userEnrollments, filterType) {
+    const today = new Date();
+
+    // Get graduation date from the first enrollment (if available)
+    const enrollment = userEnrollments[0];
+    const graduationDate = enrollment?.graduation_date ? new Date(enrollment.graduation_date) : null;
+
+    switch (filterType) {
+        case 'all':
+            return true;
+        case 'aluno':
+            return user.role === 'aluno';
+        case 'assessoria':
+            return user.role === 'assessoria';
+        case 'externo':
+            return user.role === 'externo';
+        case 'graduates':
+            // Already graduated (graduation_date <= today)
+            return graduationDate && graduationDate <= today;
+        case 'old_grad':
+            // Graduated more than 5 years ago
+            if (!graduationDate) return false;
+            const fiveYearsAgo = new Date();
+            fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+            return graduationDate <= fiveYearsAgo;
+        case 'very_old_grad':
+            // Graduated more than 10 years ago
+            if (!graduationDate) return false;
+            const tenYearsAgo = new Date();
+            tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+            return graduationDate <= tenYearsAgo;
+        default:
+            return true;
+    }
+}
+
 // Render student list in sidebar
 function renderStudentList() {
     const list = document.getElementById('student-list');
+    const filterType = document.getElementById('student-type-filter')?.value || 'all';
 
     // Keep overview item
     const overviewItem = list.querySelector('.overview-item');
@@ -223,9 +261,19 @@ function renderStudentList() {
         }
     });
 
+    // Count for filter stats
+    let visibleCount = 0;
+
     // Render each student
     studentMap.forEach((data, userId) => {
         const { user, enrollments: userEnrollments, attempts: userAttempts } = data;
+
+        // Apply filter
+        if (!studentMatchesFilter(user, userEnrollments, filterType)) {
+            return;
+        }
+
+        visibleCount++;
 
         // Determine status
         let status = 'enrolled';
@@ -266,6 +314,17 @@ function renderStudentList() {
 
         list.appendChild(li);
     });
+
+    // Update overview item to show count
+    const overviewStatus = overviewItem.querySelector('.student-status');
+    if (overviewStatus) {
+        const totalStudents = studentMap.size;
+        if (filterType === 'all') {
+            overviewStatus.textContent = `Estatisticas de todos (${totalStudents})`;
+        } else {
+            overviewStatus.textContent = `Mostrando ${visibleCount} de ${totalStudents}`;
+        }
+    }
 }
 
 // Get initials from name
@@ -306,6 +365,13 @@ function setupEventListeners() {
             const name = item.querySelector('.student-name').textContent.toLowerCase();
             item.style.display = name.includes(query) ? '' : 'none';
         });
+    });
+
+    // Student type filter
+    document.getElementById('student-type-filter').addEventListener('change', () => {
+        renderStudentList();
+        // Reset search when filter changes
+        document.getElementById('student-search').value = '';
     });
 }
 
