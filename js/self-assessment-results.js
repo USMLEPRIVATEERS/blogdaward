@@ -137,24 +137,15 @@ async function loadResultsData() {
 
         if (attemptsError) throw attemptsError;
 
-        // Find the latest completed attempt
-        const latestAttempt = attemptsData?.find(a => a.status === 'completed') ||
-                              attemptsData?.find(a => a.status === 'in_progress') ||
-                              attemptsData?.[0];
+        // Load ALL user's responses for this enrollment (across all blocks/attempts)
+        const { data: responsesData, error: responsesError } = await window.supabase
+            .from('self_assessment_responses')
+            .select('*')
+            .eq('enrollment_id', enrollmentId);
 
-        // Load user's responses for the latest attempt only
-        let responses = [];
-        if (latestAttempt) {
-            const { data: responsesData, error: responsesError } = await window.supabase
-                .from('self_assessment_responses')
-                .select('*')
-                .eq('attempt_id', latestAttempt.id);
+        if (responsesError) throw responsesError;
 
-            if (responsesError) throw responsesError;
-            responses = responsesData || [];
-        }
-
-        userResponses = responses;
+        userResponses = responsesData || [];
 
         // Calculate and display results
         calculateResults();

@@ -590,24 +590,21 @@ function renderStudentAssessments(userId, studentEnrollments) {
                              enrollmentAttempts.find(a => a.status === 'in_progress') ||
                              enrollmentAttempts[0];
 
-        // Calculate student's performance
+        // Calculate student's performance across ALL attempts/blocks
         let studentScore = '-';
         let studentAccuracy = 0;
         let studentCorrect = 0;
         let studentTotal = 0;
 
-        if (latestAttempt) {
-            const attemptResponses = responses.filter(r => r.attempt_id === latestAttempt.id);
-            studentCorrect = attemptResponses.filter(r => r.is_correct).length;
-            studentTotal = attemptResponses.length;
-            studentAccuracy = studentTotal > 0 ? Math.round((studentCorrect / studentTotal) * 100) : 0;
+        // Get ALL responses for this enrollment (all blocks)
+        const enrollmentResponses = responses.filter(r => r.enrollment_id === enrollment.id);
+        studentCorrect = enrollmentResponses.filter(r => r.is_correct).length;
+        studentTotal = enrollmentResponses.length;
+        studentAccuracy = studentTotal > 0 ? Math.round((studentCorrect / studentTotal) * 100) : 0;
 
-            // Use studentAccuracy as score if no explicit score is set
-            if (latestAttempt.score != null && latestAttempt.score !== undefined) {
-                studentScore = latestAttempt.score;
-            } else {
-                studentScore = studentAccuracy + '%';
-            }
+        // Use calculated accuracy as score
+        if (studentTotal > 0) {
+            studentScore = studentAccuracy + '%';
         }
 
         // Calculate average for comparison
@@ -706,18 +703,19 @@ function renderStudentAssessments(userId, studentEnrollments) {
                     </p>
                 </div>
             </div>
-            ${latestAttempt ? renderStudentQuestions(latestAttempt, assessmentQuestions, avgAccuracy) : ''}
+            ${enrollmentResponses.length > 0 ? renderStudentQuestions(enrollment, assessmentQuestions, avgAccuracy) : ''}
         `;
 
         container.appendChild(section);
     });
 }
 
-// Render student questions
-function renderStudentQuestions(attempt, qs, avgAccuracy) {
-    const attemptResponses = responses.filter(r => r.attempt_id === attempt.id);
+// Render student questions for ALL blocks
+function renderStudentQuestions(enrollment, qs, avgAccuracy) {
+    // Get ALL responses for this enrollment (all blocks)
+    const enrollmentResponses = responses.filter(r => r.enrollment_id === enrollment.id);
 
-    if (attemptResponses.length === 0) {
+    if (enrollmentResponses.length === 0) {
         return '<div style="padding: 1rem; text-align: center; color: #666;">Nenhuma resposta registrada ainda.</div>';
     }
 
@@ -738,7 +736,7 @@ function renderStudentQuestions(attempt, qs, avgAccuracy) {
     `;
 
     qs.forEach((q, index) => {
-        const response = attemptResponses.find(r => r.question_id === q.id);
+        const response = enrollmentResponses.find(r => r.question_id === q.id);
 
         if (!response) return;
 
