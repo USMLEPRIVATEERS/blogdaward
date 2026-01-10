@@ -603,13 +603,13 @@ function updatePercentile(percentile) {
     const percentileTextEl = document.getElementById('percentile-text');
 
     if (percentileEl) {
-        percentileEl.textContent = `Top ${100 - percentile}%`;
+        percentileEl.textContent = percentile;
     }
 
     if (percentileInfoEl && percentileValueEl && percentileTextEl) {
         percentileInfoEl.style.display = 'block';
-        percentileValueEl.textContent = `Top ${100 - percentile}%`;
-        percentileTextEl.textContent = `superior a ${percentile}%`;
+        percentileValueEl.textContent = percentile;
+        percentileTextEl.textContent = `(${percentile}% dos participantes tiveram score menor)`;
     }
 }
 
