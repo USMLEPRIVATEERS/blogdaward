@@ -572,6 +572,32 @@
             'family_agreement_usa': '👨‍👩‍👧‍👦 Acordo Familiar'
         };
 
+        // Helper function to format dates as "10 jan. 2026"
+        function formatDateBR(dateStr) {
+            if (!dateStr) return null;
+            try {
+                const date = new Date(dateStr);
+                if (isNaN(date.getTime())) return dateStr;
+
+                const day = date.getDate();
+                const months = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
+                const month = months[date.getMonth()];
+                const year = date.getFullYear();
+
+                return `${day} ${month} ${year}`;
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        // Check if a value looks like a date string
+        function isDateString(value) {
+            if (typeof value !== 'string') return false;
+            // Match ISO date format (2012-08-01) or similar date patterns
+            return /^\d{4}-\d{2}-\d{2}(T.*)?$/.test(value) ||
+                   /^\d{2}\/\d{2}\/\d{4}$/.test(value);
+        }
+
         // Value translations to Portuguese
         const valueTranslations = {
             // Pathway
@@ -766,7 +792,7 @@
                 summaryHTML += `
                     <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px;">
                         <div style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.25rem;">📅 Data Step 1</div>
-                        <div style="font-size: 1.1rem; font-weight: 600;">${new Date(step2.step1_exam_date).toLocaleDateString('pt-BR')}</div>
+                        <div style="font-size: 1.1rem; font-weight: 600;">${formatDateBR(step2.step1_exam_date)}</div>
                     </div>
                 `;
             }
@@ -796,6 +822,12 @@
         // Translate a value using the valueTranslations map
         function translateValue(value) {
             if (typeof value !== 'string') return value;
+
+            // Check if it's a date string first
+            if (isDateString(value)) {
+                return formatDateBR(value);
+            }
+
             const lowerValue = value.toLowerCase();
             return valueTranslations[lowerValue] || valueTranslations[value] || value;
         }
@@ -837,7 +869,7 @@
                             ${value.map(exam => {
                                 const name = exam.name || exam.id || 'UWSA';
                                 const pct = exam.percentage ? `${exam.percentage}%` : 'N/A';
-                                const date = exam.date ? new Date(exam.date).toLocaleDateString('pt-BR') : 'N/A';
+                                const date = exam.date ? formatDateBR(exam.date) : 'N/A';
                                 return `
                                     <div style="background: linear-gradient(135deg, #f3e8ff 0%, #faf5ff 100%); border-left: 4px solid #8b5cf6; padding: 1rem; border-radius: 8px;">
                                         <div style="font-weight: 600; color: #6b21a8; margin-bottom: 0.5rem;">📝 ${name}</div>
@@ -859,7 +891,7 @@
                             ${value.map(form => {
                                 const name = form.id ? form.id.replace('form_', 'Form ') : 'NBME';
                                 const pct = form.percentage ? `${form.percentage}%` : 'N/A';
-                                const date = form.date ? new Date(form.date).toLocaleDateString('pt-BR') : 'N/A';
+                                const date = form.date ? formatDateBR(form.date) : 'N/A';
                                 return `
                                     <div style="background: linear-gradient(135deg, #ffedd5 0%, #fff7ed 100%); border-left: 4px solid #f97316; padding: 1rem; border-radius: 8px;">
                                         <div style="font-weight: 600; color: #9a3412; margin-bottom: 0.5rem;">🎯 ${name}</div>
@@ -881,7 +913,7 @@
                             ${value.map(assessment => {
                                 const name = assessment.name || 'Avaliação';
                                 const pct = assessment.percentage ? `${assessment.percentage}%` : 'N/A';
-                                const date = assessment.date ? new Date(assessment.date).toLocaleDateString('pt-BR') : 'N/A';
+                                const date = assessment.date ? formatDateBR(assessment.date) : 'N/A';
                                 return `
                                     <div style="background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%); border-left: 4px solid #3b82f6; padding: 1rem; border-radius: 8px;">
                                         <div style="font-weight: 600; color: #1e40af; margin-bottom: 0.5rem;">📋 ${name}</div>
@@ -1098,7 +1130,7 @@
             let content = `RESPOSTAS DO QUESTIONÁRIO\n`;
             content += `Aluno: ${currentStudent.full_name || currentStudent.email}\n`;
             content += `Email: ${currentStudent.email}\n`;
-            content += `Data de Exportação: ${new Date().toLocaleString('pt-BR')}\n`;
+            content += `Data de Exportação: ${formatDateBR(new Date().toISOString())}\n`;
             content += `\n${'='.repeat(80)}\n\n`;
 
             // Add all steps
