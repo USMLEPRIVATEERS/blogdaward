@@ -482,14 +482,16 @@ function renderNavigation() {
         }
         if (isFlagged) {
             className += ' flagged';
-        } else if (isAnswered) {
+        }
+        if (isAnswered) {
             className += ' answered';
         }
 
         return `
-            <div class="${className}" onclick="goToQuestion(${index})">
+            <div class="${className}" onclick="goToQuestion(${index}); closeSidebar();">
                 <div class="question-status-dot"></div>
                 <span class="question-nav-number">${index + 1}</span>
+                <span class="question-nav-flag">&#9873;</span>
             </div>
         `;
     }).join('');
@@ -519,17 +521,19 @@ function renderQuestion() {
     // Update question text
     document.getElementById('question-text').textContent = question.question;
 
-    // Render choices - USMLE style with radio buttons
+    // Render choices - USMLE style with radio buttons and strikethrough
     const choices = question.choices;
     const choicesList = document.getElementById('choices-list');
     const letters = ['A', 'B', 'C', 'D', 'E'];
     const userAnswer = userAnswers[question.id];
     const reviewAnswer = isReviewMode ? reviewResponses[question.id] : null;
+    const questionStrikethroughs = strikethroughAnswers[question.id] || {};
 
     choicesList.innerHTML = choices.map((choice, index) => {
         const letter = letters[index];
         const isSelected = reviewAnswer ? reviewAnswer.selected_answer === letter : (userAnswer && userAnswer.answer === letter);
         const isCorrect = letter === question.correct_answer;
+        const isStrikethrough = questionStrikethroughs[letter];
 
         let className = 'choice-item';
         if (isReviewMode) {
@@ -547,17 +551,22 @@ function renderQuestion() {
             if (isSelected) {
                 className += ' selected';
             }
+            if (isStrikethrough) {
+                className += ' strikethrough';
+            }
         }
 
         const clickHandler = isReviewMode ? '' : `onclick="selectAnswer('${letter}')"`;
+        const strikethroughBtn = isReviewMode ? '' : `<button class="strikethrough-btn" onclick="toggleStrikethrough(event, '${letter}')" title="Riscar opcao">&#10006;</button>`;
 
         return `
             <div class="${className}" ${clickHandler}>
                 <div class="choice-radio"></div>
                 <span class="choice-letter">${letter}.</span>
                 <span class="choice-text">${choice.replace(/^[A-E]\.\s*/, '')}</span>
-                ${isReviewMode && isCorrect ? '<span class="choice-correct-badge">✓ Correta</span>' : ''}
-                ${isReviewMode && isSelected && !isCorrect ? '<span class="choice-incorrect-badge">✗ Sua resposta</span>' : ''}
+                ${isReviewMode && isCorrect ? '<span class="choice-correct-badge">&#10003; Correta</span>' : ''}
+                ${isReviewMode && isSelected && !isCorrect ? '<span class="choice-incorrect-badge">&#10007; Sua resposta</span>' : ''}
+                ${strikethroughBtn}
             </div>
         `;
     }).join('');
@@ -573,10 +582,20 @@ function renderQuestion() {
         }
     }
 
-    // Update mark checkbox
+    // Update mark checkbox and flag icon
     const markCheckbox = document.getElementById('mark-checkbox');
+    const markFlag = document.getElementById('mark-flag');
+    const isFlagged = userAnswer?.flagged || false;
+
     if (markCheckbox) {
-        markCheckbox.checked = userAnswer?.flagged || false;
+        markCheckbox.checked = isFlagged;
+    }
+    if (markFlag) {
+        if (isFlagged) {
+            markFlag.classList.remove('inactive');
+        } else {
+            markFlag.classList.add('inactive');
+        }
     }
 
     // Update navigation buttons
@@ -927,6 +946,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         closeFigureModal();
+        closeSidebar();
     }
     // Navigate figures with arrow keys
     const modal = document.getElementById('figure-modal');
@@ -938,3 +958,130 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
+
+// ============================================
+// SIDEBAR (HAMBURGER MENU) FUNCTIONALITY
+// ============================================
+
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('visible');
+}
+
+function closeSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+
+    sidebar.classList.remove('open');
+    overlay.classList.remove('visible');
+}
+
+// ============================================
+// STRIKETHROUGH FUNCTIONALITY
+// ============================================
+
+let strikethroughAnswers = {}; // {questionId: {A: true, B: false, ...}}
+
+function toggleStrikethrough(event, letter) {
+    event.stopPropagation(); // Don't select the answer
+
+    const question = blockQuestions[currentQuestionIndex];
+
+    if (!strikethroughAnswers[question.id]) {
+        strikethroughAnswers[question.id] = {};
+    }
+
+    strikethroughAnswers[question.id][letter] = !strikethroughAnswers[question.id][letter];
+
+    renderQuestion();
+}
+
+// ============================================
+// TEXT HIGHLIGHTING FUNCTIONALITY
+// ============================================
+
+let selectedRange = null;
+let highlightedTexts = {}; // {questionId: [{start, end, text}]}
+
+// Show highlight toolbar when text is selected
+document.addEventListener('mouseup', (e) => {
+    const questionText = document.getElementById('question-text');
+    const toolbar = document.getElementById('highlight-toolbar');
+
+    if (!questionText || !toolbar) return;
+
+    const selection = window.getSelection();
+
+    if (selection.rangeCount > 0 && selection.toString().trim().length > 0) {
+        // Check if selection is within question text
+        const range = selection.getRangeAt(0);
+        if (questionText.contains(range.commonAncestorContainer)) {
+            selectedRange = range.cloneRange();
+
+            // Position toolbar near selection
+            const rect = range.getBoundingClientRect();
+            toolbar.style.top = (rect.top - 45 + window.scrollY) + 'px';
+            toolbar.style.left = (rect.left + (rect.width / 2) - 75) + 'px';
+            toolbar.classList.add('visible');
+        }
+    } else {
+        // Hide toolbar if clicking outside
+        if (!toolbar.contains(e.target)) {
+            toolbar.classList.remove('visible');
+            selectedRange = null;
+        }
+    }
+});
+
+function applyHighlight() {
+    if (!selectedRange) return;
+
+    const question = blockQuestions[currentQuestionIndex];
+    const span = document.createElement('span');
+    span.className = 'highlight';
+
+    try {
+        selectedRange.surroundContents(span);
+    } catch (e) {
+        // Handle complex selections
+        console.log('Complex selection, using alternative method');
+        const selectedText = selectedRange.toString();
+        const questionTextEl = document.getElementById('question-text');
+        questionTextEl.innerHTML = questionTextEl.innerHTML.replace(
+            selectedText,
+            `<span class="highlight">${selectedText}</span>`
+        );
+    }
+
+    // Store highlight for this question
+    if (!highlightedTexts[question.id]) {
+        highlightedTexts[question.id] = [];
+    }
+    highlightedTexts[question.id].push(selectedRange.toString());
+
+    // Clear selection and hide toolbar
+    window.getSelection().removeAllRanges();
+    document.getElementById('highlight-toolbar').classList.remove('visible');
+    selectedRange = null;
+}
+
+function removeHighlight() {
+    const questionTextEl = document.getElementById('question-text');
+    const highlights = questionTextEl.querySelectorAll('.highlight');
+
+    highlights.forEach(h => {
+        const text = h.textContent;
+        h.replaceWith(text);
+    });
+
+    // Clear stored highlights for this question
+    const question = blockQuestions[currentQuestionIndex];
+    highlightedTexts[question.id] = [];
+
+    // Hide toolbar
+    document.getElementById('highlight-toolbar').classList.remove('visible');
+    selectedRange = null;
+}
