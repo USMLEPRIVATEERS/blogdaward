@@ -388,14 +388,14 @@ async function initializeReviewMode() {
         if (timedBadge) timedBadge.textContent = 'REVIEW MODE';
 
         // Hide end block button, mark checkbox
-        const endBlockBtn = document.querySelector('.end-block');
+        const endBlockBtn = document.getElementById('btn-end-block');
         if (endBlockBtn) endBlockBtn.style.display = 'none';
 
         const markContainer = document.querySelector('.mark-container');
         if (markContainer) markContainer.style.display = 'none';
 
-        // Show exit review button
-        const exitReviewBtn = document.getElementById('btn-exit-review');
+        // Show exit review button in footer
+        const exitReviewBtn = document.getElementById('btn-exit-review-footer');
         if (exitReviewBtn) exitReviewBtn.style.display = 'flex';
 
         // Update block indicator
