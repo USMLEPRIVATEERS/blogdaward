@@ -971,15 +971,22 @@ function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebar-overlay');
 
-    sidebar.classList.toggle('open');
-    overlay.classList.toggle('visible');
+    // Toggle hidden class (sidebar is visible by default)
+    sidebar.classList.toggle('hidden');
+
+    // Only show overlay on mobile when sidebar is visible
+    if (!sidebar.classList.contains('hidden') && window.innerWidth <= 768) {
+        overlay.classList.add('visible');
+    } else {
+        overlay.classList.remove('visible');
+    }
 }
 
 function closeSidebar() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebar-overlay');
 
-    sidebar.classList.remove('open');
+    sidebar.classList.add('hidden');
     overlay.classList.remove('visible');
 }
 

@@ -22,7 +22,15 @@
         .test-layout {
             display: flex;
             height: 100vh;
+            flex-direction: row;
+        }
+
+        /* Right side container (header + content + footer) */
+        .test-main-area {
+            flex: 1;
+            display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
 
         /* ============================================
@@ -44,9 +52,33 @@
             gap: 1rem;
         }
 
-        /* Hamburger Menu Button - hidden since sidebar is always visible */
+        /* Hamburger Menu Button */
         .hamburger-btn {
-            display: none;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .hamburger-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .hamburger-btn span {
+            display: block;
+            width: 18px;
+            height: 2px;
+            background: white;
+            border-radius: 1px;
         }
 
         .item-info {
@@ -185,16 +217,25 @@
         }
 
         /* ============================================
-           LEFT SIDEBAR - USMLE Style (Always visible)
+           LEFT SIDEBAR - USMLE Style (Full height, toggleable)
            ============================================ */
         .sidebar {
-            width: 60px;
+            width: 140px;
             background: #ffffff;
             border-right: 1px solid #e3e3e3;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
             flex-shrink: 0;
+            height: 100vh;
+            transition: width 0.3s ease;
+        }
+
+        /* Hidden state */
+        .sidebar.hidden {
+            width: 0;
+            overflow: hidden;
+            border-right: none;
         }
 
         /* Hide the header completely - USMLE style has no header */
@@ -224,6 +265,7 @@
             transition: background 0.15s;
             border-left: 3px solid transparent;
             min-height: 32px;
+            position: relative;
         }
 
         /* Alternating colors - white and light gray */
@@ -256,7 +298,7 @@
 
         .question-nav-number {
             color: #1a1a1a;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             font-weight: 500;
             text-align: center;
         }
@@ -264,24 +306,20 @@
         /* Flag indicator in nav - red dot/flag */
         .question-nav-flag {
             color: #ef4444;
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             display: none;
-            margin-left: 2px;
+            margin-left: 4px;
         }
 
         .question-nav-item.flagged .question-nav-flag {
             display: inline;
         }
 
-        .question-nav-item.flagged {
-            position: relative;
-        }
-
         /* Answered indicator - small green dot */
         .question-nav-item.answered::after {
             content: '';
             position: absolute;
-            right: 4px;
+            right: 8px;
             top: 50%;
             transform: translateY(-50%);
             width: 6px;
@@ -294,9 +332,20 @@
             background: #ffffff;
         }
 
-        /* Sidebar overlay - hidden since sidebar is always visible */
+        /* Sidebar overlay - for mobile when sidebar is open */
         .sidebar-overlay {
             display: none;
+            position: fixed;
+            top: 0;
+            left: 140px;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 50;
+        }
+
+        .sidebar-overlay.visible {
+            display: block;
         }
 
         /* ============================================
@@ -1036,7 +1085,7 @@
 
             /* Sidebar mobile - narrower but still visible */
             .sidebar {
-                width: 45px;
+                width: 70px;
             }
 
             .question-nav-item {
@@ -1145,7 +1194,7 @@
 
             /* Sidebar even narrower on small phones */
             .sidebar {
-                width: 36px;
+                width: 50px;
             }
 
             .question-nav-item {
@@ -1237,70 +1286,68 @@
 </head>
 <body>
     <div class="test-layout">
-        <!-- Top Header Bar -->
-        <div class="test-header">
-            <div class="header-left">
-                <button class="hamburger-btn" onclick="toggleSidebar()" title="Question Navigator">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </button>
-                <div class="item-info">
-                    <strong>Item <span id="current-question">1</span> of <span id="total-questions">50</span></strong>
-                    <div class="question-id">Question Id: <span id="question-id">---</span></div>
-                </div>
-                <div class="mark-container" onclick="toggleFlag()">
-                    <input type="checkbox" class="mark-checkbox" id="mark-checkbox">
-                    <span class="mark-flag inactive" id="mark-flag">&#9873;</span>
-                    <span class="mark-label">Mark</span>
-                </div>
-            </div>
-
-            <div class="header-center">
-                <div style="display: flex; flex-direction: column; align-items: center;">
-                    <button class="nav-btn" onclick="previousQuestion()" id="btn-previous" title="Previous">&#9664;</button>
-                    <span class="nav-label">Previous</span>
-                </div>
-                <div style="display: flex; flex-direction: column; align-items: center;">
-                    <button class="nav-btn" onclick="nextQuestion()" id="btn-next" title="Next">&#9654;</button>
-                    <span class="nav-label">Next</span>
-                </div>
-            </div>
-
-            <div class="header-right">
-                <button class="toolbar-btn" onclick="toggleFullScreen()" title="Full Screen">
-                    <span class="icon">&#9974;</span>
-                    Full Screen
-                </button>
-                <button class="toolbar-btn" id="btn-show-figures-toolbar" onclick="openFigureModal()" style="display: none;" title="Figures">
-                    <span class="icon">&#128444;</span>
-                    Figures
-                </button>
-                <button class="toolbar-btn exit-review-btn" id="btn-exit-review" onclick="exitReview()" style="display: none;" title="Sair da Revisao">
-                    <span class="icon">&#10006;</span>
-                    Sair
-                </button>
+        <!-- Left Sidebar - Full Height -->
+        <div class="sidebar" id="sidebar">
+            <div class="question-nav-list" id="question-nav">
+                <!-- Filled by JavaScript -->
             </div>
         </div>
 
-        <!-- Sidebar Overlay -->
+        <!-- Sidebar Overlay (for mobile) -->
         <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
-        <!-- Main Content Area -->
-        <div class="test-content">
-            <!-- Left Sidebar - Hamburger Menu Style -->
-            <div class="sidebar" id="sidebar">
-                <div class="sidebar-header">
-                    <span class="sidebar-title">Question Navigator</span>
-                    <button class="sidebar-close" onclick="toggleSidebar()">&times;</button>
+        <!-- Main Area (Header + Content + Footer) -->
+        <div class="test-main-area">
+            <!-- Top Header Bar -->
+            <div class="test-header">
+                <div class="header-left">
+                    <button class="hamburger-btn" onclick="toggleSidebar()" title="Question Navigator">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                    <div class="item-info">
+                        <strong>Item <span id="current-question">1</span> of <span id="total-questions">50</span></strong>
+                        <div class="question-id">Question Id: <span id="question-id">---</span></div>
+                    </div>
+                    <div class="mark-container" onclick="toggleFlag()">
+                        <input type="checkbox" class="mark-checkbox" id="mark-checkbox">
+                        <span class="mark-flag inactive" id="mark-flag">&#9873;</span>
+                        <span class="mark-label">Mark</span>
+                    </div>
                 </div>
-                <div class="question-nav-list" id="question-nav">
-                    <!-- Filled by JavaScript -->
+
+                <div class="header-center">
+                    <div style="display: flex; flex-direction: column; align-items: center;">
+                        <button class="nav-btn" onclick="previousQuestion()" id="btn-previous" title="Previous">&#9664;</button>
+                        <span class="nav-label">Previous</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center;">
+                        <button class="nav-btn" onclick="nextQuestion()" id="btn-next" title="Next">&#9654;</button>
+                        <span class="nav-label">Next</span>
+                    </div>
+                </div>
+
+                <div class="header-right">
+                    <button class="toolbar-btn" onclick="toggleFullScreen()" title="Full Screen">
+                        <span class="icon">&#9974;</span>
+                        Full Screen
+                    </button>
+                    <button class="toolbar-btn" id="btn-show-figures-toolbar" onclick="openFigureModal()" style="display: none;" title="Figures">
+                        <span class="icon">&#128444;</span>
+                        Figures
+                    </button>
+                    <button class="toolbar-btn exit-review-btn" id="btn-exit-review" onclick="exitReview()" style="display: none;" title="Sair da Revisao">
+                        <span class="icon">&#10006;</span>
+                        Sair
+                    </button>
                 </div>
             </div>
 
-            <!-- Main Question Area -->
-            <div class="main-test">
+            <!-- Main Content Area -->
+            <div class="test-content">
+                <!-- Main Question Area -->
+                <div class="main-test">
                 <div class="question-container">
                     <!-- Figure Button (inline) -->
                     <button class="btn-show-figures" id="btn-show-figures" onclick="openFigureModal()">
@@ -1345,6 +1392,7 @@
                 </button>
             </div>
         </div>
+    </div>
     </div>
 
     <!-- Highlight Toolbar -->
