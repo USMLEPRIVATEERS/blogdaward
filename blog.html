@@ -1487,12 +1487,10 @@
             if (!images || images.length === 0) return '';
 
             const imageUrls = images.map(url => driveToImageUrl(url));
-
-            // In card view: no onclick on images (clicking opens the post)
-            // In modal view: clicking opens fullscreen viewer
-            const imageClick = isModal ? `onclick="openImageViewer(this.src)"` : '';
+            const imagesJson = JSON.stringify(imageUrls).replace(/"/g, '&quot;');
 
             if (imageUrls.length === 1) {
+                const imageClick = isModal ? `onclick="openImageViewer('${imageUrls[0]}')"` : '';
                 return `
                     <div class="post-images ${isModal ? 'modal-view' : ''}">
                         <img src="${imageUrls[0]}" alt="Post image" class="post-single-image" ${imageClick} loading="lazy">
@@ -1501,11 +1499,14 @@
             }
 
             // Multiple images - carousel
+            // In modal view: clicking opens fullscreen viewer with navigation
+            const getImageClick = (index) => isModal ? `onclick="openImageGallery(${imagesJson}, ${index})"` : '';
+
             return `
                 <div class="post-images-carousel ${isModal ? 'modal-view' : ''}" data-index="0">
                     <div class="carousel-container">
                         ${imageUrls.map((url, i) => `
-                            <img src="${url}" alt="Post image ${i + 1}" class="carousel-image ${i === 0 ? 'active' : ''}" data-index="${i}" ${imageClick} loading="lazy">
+                            <img src="${url}" alt="Post image ${i + 1}" class="carousel-image ${i === 0 ? 'active' : ''}" data-index="${i}" ${getImageClick(i)} loading="lazy">
                         `).join('')}
                     </div>
                     <button class="carousel-btn prev" onclick="event.stopPropagation(); navigateCarousel(this, -1)">‹</button>
@@ -1555,16 +1556,62 @@
             dots[currentIndex].classList.add('active');
         }
 
-        // Open image viewer (fullscreen)
+        // Open image viewer (fullscreen) - single image
         function openImageViewer(url) {
+            openImageGallery([url], 0);
+        }
+
+        // Open image gallery (fullscreen with navigation)
+        let currentGalleryImages = [];
+        let currentGalleryIndex = 0;
+
+        function openImageGallery(images, startIndex = 0) {
+            currentGalleryImages = images;
+            currentGalleryIndex = startIndex;
+
+            const hasMultiple = images.length > 1;
+
             const viewer = document.createElement('div');
             viewer.className = 'image-viewer-overlay';
+            viewer.id = 'image-gallery-viewer';
             viewer.innerHTML = `
-                <img src="${url}" class="image-viewer-img" onclick="event.stopPropagation()">
-                <button class="image-viewer-close" onclick="this.parentElement.remove()">×</button>
+                <img src="${images[startIndex]}" class="image-viewer-img" id="gallery-image" onclick="event.stopPropagation()">
+                ${hasMultiple ? `
+                    <button class="gallery-nav-btn prev" onclick="event.stopPropagation(); navigateGallery(-1)">‹</button>
+                    <button class="gallery-nav-btn next" onclick="event.stopPropagation(); navigateGallery(1)">›</button>
+                    <div class="gallery-counter" id="gallery-counter">${startIndex + 1} / ${images.length}</div>
+                ` : ''}
+                <button class="image-viewer-close" onclick="event.stopPropagation(); closeGallery()">×</button>
             `;
-            viewer.onclick = () => viewer.remove();
+            viewer.onclick = (e) => {
+                if (e.target === viewer) closeGallery();
+            };
+
+            // Keyboard navigation
+            document.addEventListener('keydown', handleGalleryKeydown);
+
             document.body.appendChild(viewer);
+        }
+
+        function navigateGallery(direction) {
+            currentGalleryIndex = (currentGalleryIndex + direction + currentGalleryImages.length) % currentGalleryImages.length;
+            document.getElementById('gallery-image').src = currentGalleryImages[currentGalleryIndex];
+            const counter = document.getElementById('gallery-counter');
+            if (counter) {
+                counter.textContent = `${currentGalleryIndex + 1} / ${currentGalleryImages.length}`;
+            }
+        }
+
+        function closeGallery() {
+            const viewer = document.getElementById('image-gallery-viewer');
+            if (viewer) viewer.remove();
+            document.removeEventListener('keydown', handleGalleryKeydown);
+        }
+
+        function handleGalleryKeydown(e) {
+            if (e.key === 'Escape') closeGallery();
+            if (e.key === 'ArrowLeft') navigateGallery(-1);
+            if (e.key === 'ArrowRight') navigateGallery(1);
         }
 
         // ========================================
@@ -2452,6 +2499,49 @@
 
         .image-viewer-close:hover {
             background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Gallery navigation buttons */
+        .gallery-nav-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            font-size: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s ease;
+        }
+
+        .gallery-nav-btn:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .gallery-nav-btn.prev {
+            left: 20px;
+        }
+
+        .gallery-nav-btn.next {
+            right: 20px;
+        }
+
+        .gallery-counter {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 1rem;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
         }
 
         /* Responsive adjustments */
