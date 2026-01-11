@@ -96,7 +96,10 @@
             <div class="card">
                 <div class="card-header d-flex justify-between align-center">
                     <span>📋 Itens do Cronograma</span>
-                    <button class="btn btn-primary btn-sm" onclick="openAddItemModal()">+ Adicionar Item</button>
+                    <div class="btn-group">
+                        <button class="btn btn-outline btn-sm" onclick="copyScheduleToClipboard()">📋 Copiar</button>
+                        <button class="btn btn-primary btn-sm" onclick="openAddItemModal()">+ Adicionar Item</button>
+                    </div>
                 </div>
                 <div class="card-body" style="overflow-x: auto;">
                     <table class="schedule-table" id="schedule-table">
@@ -682,6 +685,50 @@ CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
             }
 
             WardApp.showToast('Tipo de pass salvo!');
+        }
+
+        function copyScheduleToClipboard() {
+            if (scheduleData.length === 0) {
+                WardApp.showToast('Nenhum item no cronograma para copiar', 'warning');
+                return;
+            }
+
+            // Header row
+            const header = ['System', 'Category', 'Questions', 'Data de Início', 'Data de Fim', '✓'].join('\t');
+
+            // Data rows
+            const rows = scheduleData.map(item => {
+                const startDate = item.start_date ? formatDateForExport(item.start_date) : '';
+                const endDate = item.end_date ? formatDateForExport(item.end_date) : '';
+                const completed = item.completed ? 'TRUE' : 'FALSE';
+
+                return [
+                    item.system || '',
+                    item.category || '',
+                    item.questions || '',
+                    startDate,
+                    endDate,
+                    completed
+                ].join('\t');
+            });
+
+            const text = [header, ...rows].join('\n');
+
+            navigator.clipboard.writeText(text).then(() => {
+                WardApp.showToast('Cronograma copiado para o clipboard!');
+            }).catch(err => {
+                console.error('Erro ao copiar:', err);
+                WardApp.showToast('Erro ao copiar para o clipboard', 'error');
+            });
+        }
+
+        function formatDateForExport(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr + 'T00:00:00');
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
         }
     </script>
 
