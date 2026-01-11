@@ -736,6 +736,39 @@
             'MATCH': 'category-match'
         };
 
+        // Natural sort function - handles numbers correctly (1, 2, 3, 11, 21 instead of 1, 11, 2, 21, 3)
+        function naturalSort(a, b) {
+            // Split strings into parts (alternating between text and numbers)
+            const aParts = a.match(/(\d+|\D+)/g) || [];
+            const bParts = b.match(/(\d+|\D+)/g) || [];
+
+            const minLen = Math.min(aParts.length, bParts.length);
+
+            for (let i = 0; i < minLen; i++) {
+                const aPart = aParts[i];
+                const bPart = bParts[i];
+
+                const aIsNum = /^\d+$/.test(aPart);
+                const bIsNum = /^\d+$/.test(bPart);
+
+                if (aIsNum && bIsNum) {
+                    // Both are numbers - compare numerically
+                    const diff = parseInt(aPart, 10) - parseInt(bPart, 10);
+                    if (diff !== 0) return diff;
+                } else if (aIsNum !== bIsNum) {
+                    // One is number, one is text - numbers come first
+                    return aIsNum ? -1 : 1;
+                } else {
+                    // Both are text - compare alphabetically (case-insensitive)
+                    const cmp = aPart.localeCompare(bPart, 'pt-BR', { sensitivity: 'base' });
+                    if (cmp !== 0) return cmp;
+                }
+            }
+
+            // If all compared parts are equal, shorter string comes first
+            return aParts.length - bParts.length;
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
@@ -916,10 +949,8 @@
                 }
             });
 
-            // Return sorted alphabetically by name
-            return Array.from(categories.values()).sort((a, b) =>
-                a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })
-            );
+            // Return sorted with natural sort (handles numbers correctly)
+            return Array.from(categories.values()).sort((a, b) => naturalSort(a.name, b.name));
         }
 
         function getVideosForPath(path) {
@@ -965,10 +996,8 @@
             // Show search results
             const grid = document.getElementById('categories-grid');
 
-            // Sort videos alphabetically by title
-            videos.sort((a, b) =>
-                a.title.localeCompare(b.title, 'pt-BR', { sensitivity: 'base' })
-            );
+            // Sort videos with natural sort (handles numbers correctly)
+            videos.sort((a, b) => naturalSort(a.title, b.title));
 
             let html = videos.map(video => `
                 <div class="category-card" onclick="showVideoFromSearch('${video.id}')">
@@ -1079,10 +1108,8 @@
 
                 // If there are also leaf videos at this level
                 if (leafVideos.length > 0) {
-                    // Sort videos alphabetically by title
-                    leafVideos.sort((a, b) =>
-                        a.title.localeCompare(b.title, 'pt-BR', { sensitivity: 'base' })
-                    );
+                    // Sort videos with natural sort (handles numbers correctly)
+                    leafVideos.sort((a, b) => naturalSort(a.title, b.title));
 
                     leafVideos.forEach(video => {
                         html += `
