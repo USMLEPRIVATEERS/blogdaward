@@ -535,13 +535,13 @@ function renderQuestion() {
     // Render choices - USMLE style with radio buttons and strikethrough
     const choices = question.choices;
     const choicesList = document.getElementById('choices-list');
-    const letters = ['A', 'B', 'C', 'D', 'E'];
     const userAnswer = userAnswers[question.id];
     const reviewAnswer = isReviewMode ? reviewResponses[question.id] : null;
     const questionStrikethroughs = strikethroughAnswers[question.id] || {};
 
     choicesList.innerHTML = choices.map((choice, index) => {
-        const letter = letters[index];
+        // Generate letter dynamically (A=65 in ASCII)
+        const letter = String.fromCharCode(65 + index);
         const isSelected = reviewAnswer ? reviewAnswer.selected_answer === letter : (userAnswer && userAnswer.answer === letter);
         const isCorrect = letter === question.correct_answer;
         const isStrikethrough = questionStrikethroughs[letter];
