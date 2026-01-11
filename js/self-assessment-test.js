@@ -587,7 +587,9 @@ function renderQuestion() {
     if (explanationEl) {
         if (isReviewMode && question.explanation) {
             explanationEl.style.display = 'block';
-            explanationEl.innerHTML = `<strong>Explicacao:</strong> ${question.explanation}`;
+            // Convert line breaks to <br> tags for proper display
+            const formattedExplanation = question.explanation.replace(/\n/g, '<br>');
+            explanationEl.innerHTML = `<strong>Explicacao:</strong><br>${formattedExplanation}`;
         } else {
             explanationEl.style.display = 'none';
         }
