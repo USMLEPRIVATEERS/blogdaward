@@ -949,6 +949,7 @@
                     <div class="form-group">
                         <label class="form-label">Data Fim</label>
                         <input type="date" class="form-input break-end-date" value="${endDate}">
+                        <span class="form-hint date-error" style="color: #dc2626; display: none;">A data de término deve ser igual ou posterior à data de início</span>
                     </div>
                 </div>
                 <div class="form-group" style="margin-top: 0.5rem;">
@@ -958,6 +959,51 @@
             `;
 
             container.appendChild(periodDiv);
+
+            // Add date validation listeners
+            const startInput = periodDiv.querySelector('.break-start-date');
+            const endInput = periodDiv.querySelector('.break-end-date');
+            const errorSpan = periodDiv.querySelector('.date-error');
+
+            function validateDates() {
+                const start = startInput.value;
+                const end = endInput.value;
+
+                if (start && end && end < start) {
+                    errorSpan.style.display = 'block';
+                    endInput.style.borderColor = '#dc2626';
+                    return false;
+                } else {
+                    errorSpan.style.display = 'none';
+                    endInput.style.borderColor = '';
+                    return true;
+                }
+            }
+
+            // When start date changes, update min of end date
+            startInput.addEventListener('change', function() {
+                if (this.value) {
+                    endInput.min = this.value;
+                }
+                validateDates();
+            });
+
+            // When end date changes, validate
+            endInput.addEventListener('change', function() {
+                if (!validateDates()) {
+                    // Auto-correct: set end date to start date if invalid
+                    if (startInput.value) {
+                        WardApp.showToast('A data de término foi ajustada para ser igual ou posterior à data de início', 'warning');
+                        this.value = startInput.value;
+                        validateDates();
+                    }
+                }
+            });
+
+            // Set initial min if startDate is provided
+            if (startDate) {
+                endInput.min = startDate;
+            }
         }
 
         function removeBreakPeriod(button) {
