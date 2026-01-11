@@ -554,6 +554,31 @@
                 return;
             }
 
+            // For internal assessments, also get the self_assessment_enrollments to get the proper enrollment_id
+            const internalAssessmentIds = [];
+            if (enrollments) {
+                enrollments.forEach(e => {
+                    if (e.assessment && e.assessment.is_internal && e.assessment.internal_self_assessment_id) {
+                        internalAssessmentIds.push(e.assessment.internal_self_assessment_id);
+                    }
+                });
+            }
+
+            let selfEnrollmentsMap = {};
+            if (internalAssessmentIds.length > 0) {
+                const { data: selfEnrollments } = await WardApp.db
+                    .from('self_assessment_enrollments')
+                    .select('id, self_assessment_id, status, completed_at')
+                    .eq('user_id', userData.id)
+                    .in('self_assessment_id', internalAssessmentIds);
+
+                if (selfEnrollments) {
+                    selfEnrollments.forEach(se => {
+                        selfEnrollmentsMap[se.self_assessment_id] = se;
+                    });
+                }
+            }
+
             // Group by section
             const sections = {
                 'Avaliação Inicial': [],
@@ -564,9 +589,14 @@
             if (enrollments && enrollments.length > 0) {
                 enrollments.forEach(enrollment => {
                     if (enrollment.assessment) {
+                        // Attach self_assessment_enrollment if available
+                        const internalId = enrollment.assessment.internal_self_assessment_id;
+                        const selfEnrollment = internalId ? selfEnrollmentsMap[internalId] : null;
+
                         sections[enrollment.assessment.section].push({
                             ...enrollment.assessment,
-                            enrollment
+                            enrollment,
+                            selfEnrollment
                         });
                     }
                 });
@@ -597,6 +627,7 @@
 
         function renderAssessmentCard(assessment) {
             const enrollment = assessment.enrollment;
+            const selfEnrollment = assessment.selfEnrollment; // From self_assessment_enrollments
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
@@ -606,11 +637,21 @@
             const isInternal = assessment.is_internal;
             const internalId = assessment.internal_self_assessment_id;
 
+            // For internal assessments, check if we have a self_assessment_enrollment
+            const hasSelfEnrollment = isInternal && selfEnrollment !== null;
+            const selfEnrollmentId = hasSelfEnrollment ? selfEnrollment.id : null;
+
             // Determine the current step/state
-            const hasRegistered = enrollment.student_marked_registered || enrollment.registration_confirmed_by_mentor;
+            // For internal: hasRegistered means they have a self_assessment_enrollment record
+            const hasRegistered = isInternal
+                ? hasSelfEnrollment
+                : (enrollment.student_marked_registered || enrollment.registration_confirmed_by_mentor);
             const isInPeriod = today >= startDate && today <= endDate;
             const isUnlocked = enrollment.is_unlocked;
-            const hasCompleted = enrollment.completed_at !== null;
+            // For internal: check selfEnrollment.completed_at, otherwise use enrollment.completed_at
+            const hasCompleted = isInternal
+                ? (selfEnrollment && selfEnrollment.completed_at !== null)
+                : (enrollment.completed_at !== null);
 
             // Calculate step states
             const step1Complete = hasRegistered;
@@ -637,7 +678,7 @@
 
                 if (isInternal) {
                     actionHtml = `
-                        <a href="self-assessment-inscricao.html?id=${internalId}&enrollment_id=${enrollment.id}" class="btn-action btn-primary-action">
+                        <a href="self-assessment-inscricao.html?id=${internalId}" class="btn-action btn-primary-action">
                             📝 Fazer Inscricao
                         </a>
                     `;
@@ -695,13 +736,13 @@
                     </div>
                 `;
 
-                if (isInternal) {
+                if (isInternal && selfEnrollmentId) {
                     actionHtml = `
-                        <a href="self-assessment-test.html?id=${internalId}" class="btn-action btn-success-action">
+                        <a href="self-assessment-test.html?enrollment_id=${selfEnrollmentId}" class="btn-action btn-success-action">
                             🎯 Iniciar Self Assessment
                         </a>
                     `;
-                } else {
+                } else if (!isInternal) {
                     actionHtml = `
                         <a href="${assessment.assessment_url}" target="_blank" class="btn-action btn-success-action">
                             🎯 Acessar Simulado
@@ -720,13 +761,13 @@
                     </div>
                 `;
 
-                if (isInternal) {
+                if (isInternal && selfEnrollmentId) {
                     actionHtml = `
-                        <a href="self-assessment-results.html?id=${internalId}" class="btn-action btn-primary-action">
+                        <a href="self-assessment-results.html?enrollment_id=${selfEnrollmentId}" class="btn-action btn-primary-action">
                             📊 Ver Resultados
                         </a>
                     `;
-                } else {
+                } else if (!isInternal) {
                     actionHtml = `
                         <button class="btn-action btn-disabled" disabled>
                             ✅ Simulado concluido
