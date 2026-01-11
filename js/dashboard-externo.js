@@ -49,8 +49,8 @@ async function checkAuth() {
     }
 
     // Update UI with user info
-    const firstName = currentUser.name?.split(' ')[0] || currentUser.full_name?.split(' ')[0] || 'Usuario';
-    document.getElementById('user-name').textContent = currentUser.name || currentUser.full_name || 'Usuario';
+    const firstName = currentUser.name?.split(' ')[0] || currentUser.full_name?.split(' ')[0] || 'Usuário';
+    document.getElementById('user-name').textContent = currentUser.name || currentUser.full_name || 'Usuário';
     document.getElementById('welcome-name').textContent = firstName;
 
     return currentUser;
@@ -103,7 +103,7 @@ function renderAssessments(assessments, enrollmentMap) {
         grid.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">📝</div>
-                <p>Nenhum Self Assessment disponivel no momento.</p>
+                <p>Nenhum Self Assessment disponível no momento.</p>
             </div>
         `;
         return;
@@ -208,7 +208,7 @@ function renderAssessmentCard(assessment, enrollment) {
 
     if (!enrollment) {
         // Not enrolled - show enroll button
-        statusBadge = '<span class="assessment-badge badge-available">Disponivel</span>';
+        statusBadge = '<span class="assessment-badge badge-available">Disponível</span>';
         actionsHtml = `
             <button class="btn-action btn-primary" onclick="enrollAssessment('${assessment.id}')">
                 Inscrever-se
@@ -239,7 +239,7 @@ function renderAssessmentCard(assessment, enrollment) {
                 actionsHtml = `
                     <div class="countdown-container scheduled-countdown" data-scheduled-time="${scheduledTime.getTime()}" data-enrollment-id="${enrollment.id}">
                         <div class="countdown-label">Prova agendada para ${scheduledLocal}</div>
-                        <div class="countdown-label" style="margin-top: 0.5rem;">Comeca em:</div>
+                        <div class="countdown-label" style="margin-top: 0.5rem;">Começa em:</div>
                         <div class="countdown-timer">
                             <span class="countdown-value scheduled-value">--:--:--</span>
                         </div>
@@ -248,14 +248,14 @@ function renderAssessmentCard(assessment, enrollment) {
             } else {
                 // Scheduled time has passed - can start but time is being deducted
                 const lateMinutes = Math.floor(-timeDiff / (1000 * 60));
-                statusBadge = '<span class="assessment-badge badge-in-progress">Prova Disponivel</span>';
+                statusBadge = '<span class="assessment-badge badge-in-progress">Prova Disponível</span>';
 
                 if (lateMinutes < assessment.time_per_block_minutes) {
                     // Still has time to start (late but not too late)
                     actionsHtml = `
                         <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; text-align: center;">
-                            <div style="color: #92400e; font-weight: 600;">Voce esta ${lateMinutes} minutos atrasado!</div>
-                            <div style="color: #78350f; font-size: 0.85rem;">O tempo sera descontado do primeiro bloco.</div>
+                            <div style="color: #92400e; font-weight: 600;">Você está ${lateMinutes} minutos atrasado!</div>
+                            <div style="color: #78350f; font-size: 0.85rem;">O tempo será descontado do primeiro bloco.</div>
                         </div>
                         <button class="btn-action btn-primary" onclick="startAssessment('${enrollment.id}')" style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);">
                             Iniciar Agora (${lateMinutes}min descontados)
@@ -265,8 +265,8 @@ function renderAssessmentCard(assessment, enrollment) {
                     // Too late - missed the exam
                     actionsHtml = `
                         <div style="background: #fee2e2; border: 2px solid #ef4444; border-radius: 8px; padding: 1rem; text-align: center;">
-                            <div style="color: #991b1b; font-weight: 600;">Prova perdida</div>
-                            <div style="color: #7f1d1d; font-size: 0.85rem;">Voce nao compareceu no horario agendado.</div>
+                            <div style="color: #991b1b; font-weight: 600;">Prova Perdida</div>
+                            <div style="color: #7f1d1d; font-size: 0.85rem;">Você não compareceu no horário agendado.</div>
                         </div>
                     `;
                 }
@@ -292,7 +292,7 @@ function renderAssessmentCard(assessment, enrollment) {
                 <div class="progress-bar">
                     <div class="progress-fill" style="width: ${progressPercent}%"></div>
                 </div>
-                <span class="progress-text">${progressPercent}% concluido</span>
+                <span class="progress-text">${progressPercent}% concluído</span>
             </div>
         `;
 
@@ -306,13 +306,13 @@ function renderAssessmentCard(assessment, enrollment) {
         const resultsReady = checkResultsReady(enrollment, assessment);
 
         if (resultsReady) {
-            statusBadge = '<span class="assessment-badge badge-results-ready">Resultado Disponivel</span>';
+            statusBadge = '<span class="assessment-badge badge-results-ready">Resultado Disponível</span>';
 
             // Check retake request status
             let retakeButton = '';
             if (enrollment.retake_requested_at && !enrollment.retake_approved_at && !enrollment.retake_denied_at) {
                 // Pending request
-                retakeButton = '<span class="retake-status-badge pending">Solicitacao Pendente</span>';
+                retakeButton = '<span class="retake-status-badge pending">Solicitação Pendente</span>';
             } else if (enrollment.retake_approved_at) {
                 // Approved - show button to start new attempt
                 retakeButton = `
@@ -348,7 +348,7 @@ function renderAssessmentCard(assessment, enrollment) {
 
             actionsHtml = `
                 <div class="countdown-container" data-release-time="${releaseTimestamp}">
-                    <div class="countdown-label">Resultado disponivel em:</div>
+                    <div class="countdown-label">Resultado disponível em:</div>
                     <div class="countdown-timer">
                         <span class="countdown-value" id="countdown-${enrollment.id}">--:--</span>
                     </div>
@@ -361,7 +361,7 @@ function renderAssessmentCard(assessment, enrollment) {
                 <div class="progress-bar">
                     <div class="progress-fill" style="width: 100%"></div>
                 </div>
-                <span class="progress-text">Prova concluida</span>
+                <span class="progress-text">Prova concluída</span>
             </div>
         `;
     }
@@ -376,7 +376,7 @@ function renderAssessmentCard(assessment, enrollment) {
             <div class="assessment-stats">
                 <div class="stat-item">
                     <div class="stat-value">${assessment.total_questions}</div>
-                    <div class="stat-label">Questoes</div>
+                    <div class="stat-label">Questões</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-value">${totalBlocks}</div>
@@ -518,12 +518,12 @@ async function submitRetakeRequest() {
 
     // Validate inputs
     if (!date || !time) {
-        showToast('Por favor, preencha a data e horario desejados', 'error');
+        showToast('Por favor, preencha a data e horário desejados', 'error');
         return;
     }
 
     if (!pendingRetakeRequestEnrollmentId) {
-        showToast('Erro: Nenhuma inscricao selecionada', 'error');
+        showToast('Erro: Nenhuma inscrição selecionada', 'error');
         closeRetakeModal();
         return;
     }
@@ -534,7 +534,7 @@ async function submitRetakeRequest() {
 
     // Validate date is in the future
     if (requestedDate <= new Date()) {
-        showToast('A data e horario devem ser no futuro', 'error');
+        showToast('A data e horário devem ser no futuro', 'error');
         return;
     }
 
@@ -564,14 +564,14 @@ async function submitRetakeRequest() {
         // Format date for display
         const displayDate = requestedDate.toLocaleDateString('pt-BR');
         const displayTime = requestedDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        showToast(`Solicitacao enviada para ${displayDate} as ${displayTime}. Aguarde aprovacao do mentor.`, 'success');
+        showToast(`Solicitação enviada para ${displayDate} às ${displayTime}. Aguarde aprovação do mentor.`, 'success');
 
         // Reload to update UI
         await loadDashboard();
     } catch (error) {
         console.error('Error requesting retake:', error);
         hideLoading();
-        showToast('Erro ao enviar solicitacao. Tente novamente.', 'error');
+        showToast('Erro ao enviar solicitação. Tente novamente.', 'error');
     }
 }
 
