@@ -44,7 +44,26 @@
                     <span class="avatar">👤</span>
                     <span id="user-greeting">O que esta acontecendo?</span>
                 </div>
-                <textarea id="post-content" class="post-textarea" placeholder="Compartilhe algo com a comunidade Ward..." maxlength="250"></textarea>
+
+                <!-- Formatting Toolbar -->
+                <div class="editor-toolbar">
+                    <button type="button" class="toolbar-btn" onclick="formatText('bold')" title="Negrito (Ctrl+B)">
+                        <b>B</b>
+                    </button>
+                    <button type="button" class="toolbar-btn" onclick="formatText('italic')" title="Itálico (Ctrl+I)">
+                        <i>I</i>
+                    </button>
+                    <span class="toolbar-divider"></span>
+                    <button type="button" class="toolbar-btn" onclick="formatText('insertUnorderedList')" title="Lista com marcadores">
+                        •―
+                    </button>
+                    <button type="button" class="toolbar-btn" onclick="formatText('insertOrderedList')" title="Lista numerada">
+                        1.
+                    </button>
+                </div>
+
+                <!-- Rich Text Editor -->
+                <div id="post-content" class="post-editor" contenteditable="true" data-placeholder="Compartilhe algo com a comunidade Ward..."></div>
 
                 <!-- Attachments Preview Area -->
                 <div id="attachments-preview" class="attachments-preview" style="display: none;">
@@ -355,25 +374,33 @@
 
             // Set character limit based on role
             const charLimit = isMentor ? CHAR_LIMIT_MENTOR : CHAR_LIMIT_ALUNO;
-            document.getElementById('post-content').maxLength = charLimit;
             document.getElementById('char-limit').textContent = charLimit;
 
             // Update greeting
             const name = userData.name || userData.full_name || 'Usuario';
             document.getElementById('user-greeting').textContent = `Oi ${name.split(' ')[0]}, o que esta acontecendo?`;
 
-            // Character counter and auto-resize
-            const textarea = document.getElementById('post-content');
-            textarea.addEventListener('input', function() {
-                document.getElementById('char-count').textContent = this.value.length;
+            // Setup rich text editor
+            const editor = document.getElementById('post-content');
 
-                // Auto-resize textarea
-                this.style.height = 'auto';
-                this.style.height = this.scrollHeight + 'px';
+            // Character counter for contenteditable
+            editor.addEventListener('input', function() {
+                const textLength = this.innerText.length;
+                document.getElementById('char-count').textContent = textLength;
+
+                // Warn if over limit
+                if (textLength > charLimit) {
+                    document.getElementById('char-count').style.color = '#dc2626';
+                } else {
+                    document.getElementById('char-count').style.color = '';
+                }
             });
 
-            // Listen for paste events to detect images
-            textarea.addEventListener('paste', handlePaste);
+            // Handle paste - clean up and allow formatted text
+            editor.addEventListener('paste', handleEditorPaste);
+
+            // Handle keyboard shortcuts
+            editor.addEventListener('keydown', handleEditorKeydown);
 
             await loadPosts();
 
@@ -724,7 +751,7 @@
                     </div>
 
                     <div class="post-content">
-                        ${post.content ? post.content.replace(/\n/g, '<br>') : ''}
+                        ${sanitizePostContent(post.content)}
                     </div>
 
                     ${renderPostImages(post.images, false)}
@@ -786,12 +813,12 @@
                     </div>
                     <button class="btn btn-sm btn-outline" onclick="copyPostLink(${postId})" title="Copiar link">🔗 Compartilhar</button>
                 </div>
-                <div class="post-text" id="post-text-display">${post.content ? post.content.replace(/\n/g, '<br>') : ''}</div>
+                <div class="post-text" id="post-text-display">${sanitizePostContent(post.content)}</div>
                 ${renderPostImages(post.images, true)}
                 ${renderPostAttachment(post.attachment_url, post.attachment_name)}
                 ${(isMentor || isOwnPost) ? `
                     <div id="post-edit-form" style="display: none;">
-                        <textarea id="edit-post-content" class="form-textarea" rows="4">${post.content || ''}</textarea>
+                        <div id="edit-post-content" class="post-editor" contenteditable="true">${post.content || ''}</div>
                         <div class="d-flex gap-2 mt-2">
                             <button class="btn btn-primary btn-sm" onclick="savePostEdit(${postId})">Salvar</button>
                             <button class="btn btn-secondary btn-sm" onclick="cancelPostEdit()">Cancelar</button>
@@ -847,8 +874,9 @@
         }
 
         async function savePostEdit(postId) {
-            const newContent = document.getElementById('edit-post-content').value.trim();
-            if (!newContent) {
+            const editEditor = document.getElementById('edit-post-content');
+            const newContent = editEditor.innerHTML.trim();
+            if (!newContent || !editEditor.innerText.trim()) {
                 WardApp.showToast('O conteudo nao pode estar vazio', 'warning');
                 return;
             }
@@ -1105,9 +1133,10 @@
         }
 
         async function createPost() {
-            const content = document.getElementById('post-content').value.trim();
+            const textContent = getEditorText().trim();
+            const htmlContent = getEditorHtml().trim();
 
-            if (!content && pendingImages.length === 0) {
+            if (!textContent && pendingImages.length === 0) {
                 WardApp.showToast('Escreva algo ou adicione uma imagem para publicar', 'warning');
                 return;
             }
@@ -1165,7 +1194,7 @@
 
                 // Create the post
                 const { data: newPost, error } = await WardApp.db.from('blog_posts').insert({
-                    content: content || '',
+                    content: htmlContent || '',
                     user_id: userData.id,
                     likes: 0,
                     dislikes: 0,
@@ -1186,10 +1215,7 @@
                 lastCreatedPostId = newPost.id;
 
                 // Clear form
-                const textarea = document.getElementById('post-content');
-                textarea.value = '';
-                textarea.style.height = 'auto';
-                document.getElementById('char-count').textContent = '0';
+                clearEditor();
                 clearAttachments();
 
                 WardApp.showToast('Post publicado!');
@@ -1208,6 +1234,222 @@
                 publishBtn.textContent = 'Publicar';
                 showUploadProgress(false);
             }
+        }
+
+        // ========================================
+        // RICH TEXT EDITOR FUNCTIONS
+        // ========================================
+
+        // Format text using execCommand
+        function formatText(command) {
+            document.execCommand(command, false, null);
+            document.getElementById('post-content').focus();
+        }
+
+        // Handle keyboard shortcuts in editor
+        function handleEditorKeydown(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch (e.key.toLowerCase()) {
+                    case 'b':
+                        e.preventDefault();
+                        formatText('bold');
+                        break;
+                    case 'i':
+                        e.preventDefault();
+                        formatText('italic');
+                        break;
+                }
+            }
+        }
+
+        // Handle paste in editor - clean up HTML but keep formatting
+        async function handleEditorPaste(e) {
+            // Check for image paste first
+            const items = e.clipboardData?.items;
+            if (items) {
+                for (const item of items) {
+                    if (item.type.startsWith('image/')) {
+                        e.preventDefault();
+                        const file = item.getAsFile();
+                        if (file) {
+                            await addImageFile(file);
+                        }
+                        return;
+                    }
+                }
+            }
+
+            // Get HTML content from clipboard
+            const html = e.clipboardData?.getData('text/html');
+            const text = e.clipboardData?.getData('text/plain');
+
+            if (html) {
+                e.preventDefault();
+                // Clean the HTML - keep only allowed tags
+                const cleanedHtml = cleanPastedHtml(html);
+                document.execCommand('insertHTML', false, cleanedHtml);
+            } else if (text) {
+                // Check if it looks like markdown and convert it
+                if (isMarkdown(text)) {
+                    e.preventDefault();
+                    const htmlFromMd = markdownToHtml(text);
+                    document.execCommand('insertHTML', false, htmlFromMd);
+                }
+                // Otherwise let default paste happen
+            }
+        }
+
+        // Clean pasted HTML - remove styles, scripts, keep only basic formatting
+        function cleanPastedHtml(html) {
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+
+            // Remove all style attributes
+            temp.querySelectorAll('*').forEach(el => {
+                el.removeAttribute('style');
+                el.removeAttribute('class');
+                el.removeAttribute('id');
+            });
+
+            // Remove scripts and style tags
+            temp.querySelectorAll('script, style, link, meta').forEach(el => el.remove());
+
+            // Convert headings to bold
+            temp.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(el => {
+                const b = document.createElement('b');
+                b.innerHTML = el.innerHTML;
+                el.replaceWith(b);
+            });
+
+            // Keep only allowed elements
+            const allowedTags = ['B', 'STRONG', 'I', 'EM', 'U', 'UL', 'OL', 'LI', 'BR', 'P', 'DIV'];
+
+            function cleanNode(node) {
+                if (node.nodeType === Node.TEXT_NODE) return;
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    if (!allowedTags.includes(node.tagName)) {
+                        // Replace with its contents
+                        const fragment = document.createDocumentFragment();
+                        while (node.firstChild) {
+                            fragment.appendChild(node.firstChild);
+                        }
+                        node.replaceWith(fragment);
+                    }
+                }
+            }
+
+            // Clean recursively
+            const walker = document.createTreeWalker(temp, NodeFilter.SHOW_ELEMENT);
+            const nodesToClean = [];
+            while (walker.nextNode()) {
+                nodesToClean.push(walker.currentNode);
+            }
+            nodesToClean.reverse().forEach(cleanNode);
+
+            return temp.innerHTML;
+        }
+
+        // Check if text looks like markdown
+        function isMarkdown(text) {
+            const mdPatterns = [
+                /^\s*[-*+]\s+/m,           // Unordered list
+                /^\s*\d+\.\s+/m,            // Ordered list
+                /\*\*[^*]+\*\*/,            // Bold
+                /\*[^*]+\*/,                // Italic
+                /^#+\s+/m,                  // Headers
+                /```[\s\S]*```/             // Code blocks
+            ];
+            return mdPatterns.some(pattern => pattern.test(text));
+        }
+
+        // Convert basic markdown to HTML
+        function markdownToHtml(text) {
+            let html = text;
+
+            // Escape HTML
+            html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            // Bold **text** or __text__
+            html = html.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+            html = html.replace(/__([^_]+)__/g, '<b>$1</b>');
+
+            // Italic *text* or _text_
+            html = html.replace(/\*([^*]+)\*/g, '<i>$1</i>');
+            html = html.replace(/_([^_]+)_/g, '<i>$1</i>');
+
+            // Headers
+            html = html.replace(/^### (.+)$/gm, '<b>$1</b>');
+            html = html.replace(/^## (.+)$/gm, '<b>$1</b>');
+            html = html.replace(/^# (.+)$/gm, '<b>$1</b>');
+
+            // Unordered lists
+            html = html.replace(/^[-*+] (.+)$/gm, '<li>$1</li>');
+
+            // Ordered lists
+            html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+            // Wrap consecutive <li> in <ul>
+            html = html.replace(/(<li>[\s\S]*?<\/li>)(?:\n|$)+/g, '<ul>$1</ul>');
+
+            // Line breaks
+            html = html.replace(/\n/g, '<br>');
+
+            // Clean up multiple <br>
+            html = html.replace(/(<br>){3,}/g, '<br><br>');
+
+            return html;
+        }
+
+        // Get plain text content from editor (for character count validation)
+        function getEditorText() {
+            const editor = document.getElementById('post-content');
+            return editor.innerText || '';
+        }
+
+        // Get HTML content from editor
+        function getEditorHtml() {
+            const editor = document.getElementById('post-content');
+            return editor.innerHTML || '';
+        }
+
+        // Clear editor
+        function clearEditor() {
+            const editor = document.getElementById('post-content');
+            editor.innerHTML = '';
+            document.getElementById('char-count').textContent = '0';
+        }
+
+        // Sanitize post content for display - allow only safe HTML tags
+        function sanitizePostContent(content) {
+            if (!content) return '';
+
+            // Check if content looks like plain text (no HTML tags)
+            if (!/<[^>]+>/.test(content)) {
+                // Plain text - convert newlines to <br>
+                return content.replace(/\n/g, '<br>');
+            }
+
+            // HTML content - sanitize it
+            const temp = document.createElement('div');
+            temp.innerHTML = content;
+
+            // Remove dangerous elements
+            temp.querySelectorAll('script, style, iframe, object, embed, form, input').forEach(el => el.remove());
+
+            // Remove all event handlers
+            temp.querySelectorAll('*').forEach(el => {
+                Array.from(el.attributes).forEach(attr => {
+                    if (attr.name.startsWith('on')) {
+                        el.removeAttribute(attr.name);
+                    }
+                });
+                // Remove href="javascript:"
+                if (el.hasAttribute('href') && el.getAttribute('href').toLowerCase().startsWith('javascript:')) {
+                    el.removeAttribute('href');
+                }
+            });
+
+            return temp.innerHTML;
         }
 
         // ========================================
@@ -1987,21 +2229,94 @@
             font-size: 0.9rem;
         }
 
-        .post-textarea {
-            width: 100%;
-            border: none;
-            resize: none;
-            font-size: 1rem;
-            line-height: 1.5;
+        /* Rich Text Editor */
+        .editor-toolbar {
+            display: flex;
+            gap: 0.25rem;
             padding: 0.5rem 0;
-            min-height: 80px;
-            max-height: none;
-            overflow-y: hidden;
-            font-family: inherit;
+            border-bottom: 1px solid var(--gray-200);
+            margin-bottom: 0.5rem;
         }
 
-        .post-textarea:focus {
+        .toolbar-btn {
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--gray-200);
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            color: var(--gray-600);
+            transition: all 0.2s ease;
+        }
+
+        .toolbar-btn:hover {
+            background: var(--gray-100);
+            border-color: var(--gray-300);
+            color: var(--gray-800);
+        }
+
+        .toolbar-btn:active {
+            background: var(--gray-200);
+        }
+
+        .toolbar-divider {
+            width: 1px;
+            height: 24px;
+            background: var(--gray-200);
+            margin: 4px 0.5rem;
+        }
+
+        .post-editor {
+            width: 100%;
+            border: none;
+            font-size: 1rem;
+            line-height: 1.6;
+            padding: 0.5rem 0;
+            min-height: 80px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: inherit;
             outline: none;
+            background: white;
+            color: black;
+        }
+
+        .post-editor:empty:before {
+            content: attr(data-placeholder);
+            color: var(--gray-400);
+            pointer-events: none;
+        }
+
+        .post-editor:focus {
+            outline: none;
+        }
+
+        /* Post content formatting - always white bg, black text */
+        .post-editor b, .post-editor strong,
+        .post-content b, .post-content strong,
+        .post-text b, .post-text strong {
+            font-weight: 700;
+        }
+
+        .post-editor i, .post-editor em,
+        .post-content i, .post-content em,
+        .post-text i, .post-text em {
+            font-style: italic;
+        }
+
+        .post-editor ul, .post-editor ol,
+        .post-content ul, .post-content ol,
+        .post-text ul, .post-text ol {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+        }
+
+        .post-editor li, .post-content li, .post-text li {
+            margin: 0.25rem 0;
         }
 
         .new-post-footer {
