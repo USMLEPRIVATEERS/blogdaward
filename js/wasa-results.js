@@ -19,6 +19,51 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Calculate 3-digit score from percentage
+function calculateThreeDigitScore(percentage) {
+    return Math.round(1.8458 * percentage + 107.6);
+}
+
+// Calculate percentile for a student given their score and all scores
+function calculatePercentile(studentScore, allScores) {
+    if (allScores.length === 0) return 0;
+    const belowCount = allScores.filter(s => s < studentScore).length;
+    return Math.round((belowCount / allScores.length) * 100);
+}
+
+// Get all completed scores for an assessment (for percentile calculation)
+// Uses total questions from assessment, not just answered questions
+function getAllScoresForAssessment(assessmentId) {
+    const scores = [];
+
+    // Get total questions for this assessment
+    const assessmentQuestions = questions.filter(q => q.self_assessment_id === assessmentId);
+    const totalQuestionsInAssessment = assessmentQuestions.length;
+
+    if (totalQuestionsInAssessment === 0) return scores;
+
+    // Get all enrollments for this assessment
+    const assessmentEnrollments = enrollments.filter(e =>
+        e.self_assessment_id === assessmentId &&
+        (e.completed_at || e.status === 'completed')
+    );
+
+    assessmentEnrollments.forEach(enrollment => {
+        // Get responses for this enrollment
+        const enrollmentResponses = responses.filter(r => r.enrollment_id === enrollment.id);
+        if (enrollmentResponses.length > 0) {
+            const correct = enrollmentResponses.filter(r => r.is_correct).length;
+            // Use total questions from assessment, not answered questions
+            // This means unanswered questions count as wrong
+            const percentage = (correct / totalQuestionsInAssessment) * 100;
+            const score = calculateThreeDigitScore(percentage);
+            scores.push(score);
+        }
+    });
+
+    return scores;
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -670,10 +715,20 @@ function showStudentDetail(userId) {
     });
 
     if (allStudentResponses.length > 0) {
-        // Calculate overall performance
+        // Get total questions from the first enrollment's assessment
+        const firstEnrollmentForQuestions = studentEnrollments[0];
+        const assessmentQuestionsForSummary = firstEnrollmentForQuestions
+            ? questions.filter(q => q.self_assessment_id === firstEnrollmentForQuestions.self_assessment_id)
+            : [];
+        const totalQuestionsInAssessmentSummary = assessmentQuestionsForSummary.length;
+
+        // Calculate overall performance based on TOTAL questions (not just answered)
         const totalAnswered = allStudentResponses.length;
         const totalCorrect = allStudentResponses.filter(r => r.is_correct).length;
-        const overallAccuracy = Math.round((totalCorrect / totalAnswered) * 100);
+        // Use total questions from assessment, unanswered = wrong
+        const overallAccuracy = totalQuestionsInAssessmentSummary > 0
+            ? Math.round((totalCorrect / totalQuestionsInAssessmentSummary) * 100)
+            : (totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : 0);
 
         // Get all question details for analysis
         const answeredQuestionIds = allStudentResponses.map(r => r.question_id);
@@ -711,18 +766,38 @@ function showStudentDetail(userId) {
         const summaryContent = document.getElementById('performance-summary-content');
         summarySection.style.display = 'block';
 
+        // Calculate 3-digit score
+        const threeDigitScore = calculateThreeDigitScore(overallAccuracy);
+        const isPassing = threeDigitScore >= 196;
+        const scoreColorClass = isPassing ? 'passing' : 'failing';
+
+        // Calculate percentile based on all completed assessments
+        // Get the first enrollment's assessment to calculate percentile
+        const firstEnrollment = studentEnrollments[0];
+        let percentile = 0;
+        let totalParticipants = 0;
+        if (firstEnrollment) {
+            const allScores = getAllScoresForAssessment(firstEnrollment.self_assessment_id);
+            totalParticipants = allScores.length;
+            if (allScores.length > 0) {
+                percentile = calculatePercentile(threeDigitScore, allScores);
+            }
+        }
+
         summaryContent.innerHTML = `
             <div class="summary-score-card">
-                <div class="summary-score-circle">
-                    <div class="summary-score-value">${overallAccuracy}%</div>
-                    <div class="summary-score-label">Acerto Geral</div>
+                <div class="summary-score-circle" style="border: 4px solid ${isPassing ? '#22c55e' : '#ef4444'};">
+                    <div class="summary-score-value" style="color: ${isPassing ? '#22c55e' : '#ef4444'};">${threeDigitScore}</div>
+                    <div class="summary-score-label">Score</div>
                 </div>
                 <div class="summary-details">
-                    <p><strong>Total de Questoes:</strong> ${totalAnswered}</p>
+                    <p><strong>Porcentagem de Acertos:</strong> ${overallAccuracy}%</p>
+                    <p><strong>Total de Questoes:</strong> ${totalQuestionsInAssessmentSummary}</p>
+                    <p><strong>Questoes Respondidas:</strong> ${totalAnswered}/${totalQuestionsInAssessmentSummary}</p>
                     <p><strong>Respostas Corretas:</strong> ${totalCorrect}</p>
                     <p><strong>Respostas Incorretas:</strong> ${totalAnswered - totalCorrect}</p>
-                    <p><strong>Assuntos Abordados:</strong> ${Object.keys(subjectStats).length}</p>
-                    <p><strong>Sistemas Abordados:</strong> ${Object.keys(systemStats).length}</p>
+                    <p><strong>Percentil:</strong> <span style="color: #7c3aed; font-weight: 700;">${percentile}%</span> <span style="color: #666; font-size: 0.85rem;">(${percentile}% dos ${totalParticipants} participantes tiveram score menor)</span></p>
+                    <p><strong>Status:</strong> <span style="color: ${isPassing ? '#22c55e' : '#ef4444'}; font-weight: 700;">${isPassing ? '✓ PASS' : '✗ FAIL'}</span> <span style="color: #666; font-size: 0.85rem;">(Score minimo: 196)</span></p>
                 </div>
             </div>
         `;
@@ -865,21 +940,27 @@ function renderStudentAssessments(userId, studentEnrollments) {
         let studentScore = '-';
         let studentAccuracy = 0;
         let studentCorrect = 0;
-        let studentTotal = 0;
+        let studentAnswered = 0;
+
+        // Get total questions for this assessment
+        const assessmentQuestions = questions.filter(q => q.self_assessment_id === assessment.id);
+        const totalQuestionsInAssessment = assessmentQuestions.length;
 
         // Get ALL responses for this enrollment (all blocks)
         const enrollmentResponses = responses.filter(r => r.enrollment_id === enrollment.id);
         studentCorrect = enrollmentResponses.filter(r => r.is_correct).length;
-        studentTotal = enrollmentResponses.length;
-        studentAccuracy = studentTotal > 0 ? Math.round((studentCorrect / studentTotal) * 100) : 0;
+        studentAnswered = enrollmentResponses.length;
+
+        // Calculate accuracy based on TOTAL questions in assessment (not just answered)
+        // This means unanswered questions count as wrong
+        studentAccuracy = totalQuestionsInAssessment > 0 ? Math.round((studentCorrect / totalQuestionsInAssessment) * 100) : 0;
 
         // Use calculated accuracy as score
-        if (studentTotal > 0) {
+        if (studentAnswered > 0) {
             studentScore = studentAccuracy + '%';
         }
 
-        // Calculate average for comparison
-        const assessmentQuestions = questions.filter(q => q.self_assessment_id === assessment.id);
+        // Calculate average for comparison (same logic)
         const assessmentResponses = responses.filter(r => {
             const attemptId = r.attempt_id;
             const attempt = attempts.find(a => a.id === attemptId);
@@ -951,6 +1032,12 @@ function renderStudentAssessments(userId, studentEnrollments) {
             statusBadge = '<span class="badge" style="background: #fef3c7; color: #92400e;">Inscrito</span>';
         }
 
+        // Calculate 3-digit score and percentile for this assessment
+        const assessmentThreeDigitScore = studentAnswered > 0 ? calculateThreeDigitScore(studentAccuracy) : 0;
+        const assessmentIsPassing = assessmentThreeDigitScore >= 196;
+        const allAssessmentScores = getAllScoresForAssessment(assessment.id);
+        const assessmentPercentile = allAssessmentScores.length > 0 ? calculatePercentile(assessmentThreeDigitScore, allAssessmentScores) : 0;
+
         const section = document.createElement('div');
         section.className = 'student-performance';
         section.innerHTML = `
@@ -960,13 +1047,16 @@ function renderStudentAssessments(userId, studentEnrollments) {
                 ${releaseButton}
             </div>
             <div class="student-score">
-                <div class="score-circle">
-                    <div class="score-value">${studentScore}</div>
+                <div class="score-circle" style="border-color: ${studentAnswered > 0 ? (assessmentIsPassing ? '#22c55e' : '#ef4444') : '#7c3aed'};">
+                    <div class="score-value" style="color: ${studentAnswered > 0 ? (assessmentIsPassing ? '#22c55e' : '#ef4444') : '#7c3aed'};">${studentAnswered > 0 ? assessmentThreeDigitScore : '-'}</div>
                     <div class="score-label">Score</div>
                 </div>
                 <div class="score-details">
-                    <p><strong>Acertos:</strong> ${studentCorrect}/${studentTotal} (${studentAccuracy}%)</p>
+                    <p><strong>Acertos:</strong> ${studentCorrect}/${totalQuestionsInAssessment} (${studentAccuracy}%)</p>
+                    <p><strong>Respondidas:</strong> ${studentAnswered}/${totalQuestionsInAssessment}</p>
                     <p><strong>Media Geral:</strong> ${avgAccuracy}%</p>
+                    <p><strong>Percentil:</strong> <span style="color: #7c3aed; font-weight: 700;">${assessmentPercentile}%</span> <span style="color: #666; font-size: 0.85rem;">(de ${allAssessmentScores.length} participantes)</span></p>
+                    <p><strong>Status:</strong> <span style="color: ${assessmentIsPassing ? '#22c55e' : '#ef4444'}; font-weight: 700;">${studentAnswered > 0 ? (assessmentIsPassing ? '✓ PASS' : '✗ FAIL') : '-'}</span></p>
                     <p>
                         <span class="comparison-badge ${comparisonClass}">
                             ${comparisonIcon} ${comparisonText}
