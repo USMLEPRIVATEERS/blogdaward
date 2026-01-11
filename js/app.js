@@ -572,7 +572,7 @@ async function loadSchedule(userId = null) {
             .from('schedules')
             .select('*')
             .eq('user_id', targetUserId)
-            .order('id', { ascending: true });
+            .order('start_date', { ascending: true });
 
         if (error) throw error;
         return data || [];
