@@ -3,14 +3,16 @@
 -- Registro de progresso diario dos alunos
 -- =============================================
 
--- Diario de estudos (texto livre, 250 caracteres)
+-- Diario de estudos
 CREATE TABLE IF NOT EXISTS study_diary (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
     date DATE NOT NULL,
-    entry_text VARCHAR(250), -- Limite de 250 caracteres
-    study_hours DECIMAL(4,2), -- Horas de estudo (opcional)
-    mood VARCHAR(20) CHECK (mood IN ('great', 'good', 'neutral', 'bad', 'terrible')), -- Humor (opcional)
+    hours DECIMAL(4,2), -- Horas de estudo
+    mood VARCHAR(20), -- Humor: great, good, neutral, tired, stressed
+    topics TEXT, -- Topicos estudados
+    notes TEXT, -- Anotacoes
+    resources JSONB DEFAULT '[]'::jsonb, -- Recursos usados (array)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(user_id, date)

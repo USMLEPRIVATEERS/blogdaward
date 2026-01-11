@@ -30,15 +30,19 @@ GRANT USAGE, SELECT ON SEQUENCE user_preparation_status_id_seq TO anon;
 GRANT USAGE, SELECT ON SEQUENCE user_preparation_status_id_seq TO authenticated;
 
 -- Create study_diary table
+-- NOTE: See sql/07_diaries.sql for full schema
+-- And sql/fix_study_diary_schema.sql for migration
 CREATE TABLE IF NOT EXISTS study_diary (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     date DATE NOT NULL DEFAULT CURRENT_DATE,
-    hours_studied DECIMAL(4,2),
-    topics_covered TEXT,
-    notes TEXT,
-    mood VARCHAR(20),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    hours DECIMAL(4,2), -- Horas de estudo
+    mood VARCHAR(20), -- great, good, neutral, tired, stressed
+    topics TEXT, -- Topicos estudados
+    notes TEXT, -- Anotacoes
+    resources JSONB DEFAULT '[]'::jsonb, -- Recursos usados
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 ALTER TABLE study_diary ENABLE ROW LEVEL SECURITY;
