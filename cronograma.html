@@ -429,9 +429,8 @@
             // Find current items (based on start_date <= today <= end_date)
             const currentItems = schedule.filter(item => {
                 if (!item.start_date || !item.end_date) return false;
-                const start = new Date(item.start_date);
-                const end = new Date(item.end_date);
-                start.setHours(0, 0, 0, 0);
+                const start = parseLocalDate(item.start_date);
+                const end = parseLocalDate(item.end_date);
                 end.setHours(23, 59, 59, 999);
                 return start <= today && today <= end && !item.completed;
             });
@@ -441,10 +440,10 @@
             let delayCount = 0;
 
             if (currentItems.length > 0) {
-                const firstCurrentStart = new Date(currentItems[0].start_date);
+                const firstCurrentStart = parseLocalDate(currentItems[0].start_date);
                 const overdueItems = schedule.filter(item => {
                     if (!item.end_date || item.completed) return false;
-                    const end = new Date(item.end_date);
+                    const end = parseLocalDate(item.end_date);
                     return end < firstCurrentStart;
                 });
                 hasDelays = overdueItems.length > 0;
@@ -453,7 +452,7 @@
                 // Check for any overdue items
                 const overdueItems = schedule.filter(item => {
                     if (!item.end_date || item.completed) return false;
-                    const end = new Date(item.end_date);
+                    const end = parseLocalDate(item.end_date);
                     end.setHours(23, 59, 59, 999);
                     return end < today;
                 });
@@ -479,10 +478,9 @@
                 // Check for next upcoming item
                 const upcomingItems = schedule.filter(item => {
                     if (!item.start_date || item.completed) return false;
-                    const start = new Date(item.start_date);
-                    start.setHours(0, 0, 0, 0);
+                    const start = parseLocalDate(item.start_date);
                     return start > today;
-                }).sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+                }).sort((a, b) => parseLocalDate(a.start_date) - parseLocalDate(b.start_date));
 
                 if (upcomingItems.length > 0) {
                     const next = upcomingItems[0];
@@ -556,10 +554,12 @@
 
         async function notifyMentorsAboutDelay() {
             // Create a delay signal automatically
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
             const overdueItems = scheduleData.filter(item => {
                 if (!item.end_date || item.completed) return false;
-                const end = new Date(item.end_date);
-                const today = new Date();
+                const end = parseLocalDate(item.end_date);
+                end.setHours(23, 59, 59, 999);
                 return end < today;
             });
 
@@ -658,14 +658,18 @@
                 const endDate = item.end_date ? formatShortDate(item.end_date) : '-';
 
                 // Check if overdue
-                const isOverdue = item.end_date && !item.completed && new Date(item.end_date) < new Date();
+                let isOverdue = false;
+                if (item.end_date && !item.completed) {
+                    const endCheck = parseLocalDate(item.end_date);
+                    endCheck.setHours(23, 59, 59, 999);
+                    isOverdue = endCheck < today;
+                }
 
                 // Check if current (being studied now)
                 let isCurrent = false;
                 if (item.start_date && item.end_date && !item.completed) {
-                    const start = new Date(item.start_date);
-                    const end = new Date(item.end_date);
-                    start.setHours(0, 0, 0, 0);
+                    const start = parseLocalDate(item.start_date);
+                    const end = parseLocalDate(item.end_date);
                     end.setHours(23, 59, 59, 999);
                     isCurrent = start <= today && today <= end;
                 }
@@ -702,14 +706,18 @@
                 const endDate = item.end_date ? formatShortDate(item.end_date) : '-';
 
                 // Check if overdue
-                const isOverdue = item.end_date && !item.completed && new Date(item.end_date) < new Date();
+                let isOverdue = false;
+                if (item.end_date && !item.completed) {
+                    const endCheck = parseLocalDate(item.end_date);
+                    endCheck.setHours(23, 59, 59, 999);
+                    isOverdue = endCheck < today;
+                }
 
                 // Check if current (being studied now)
                 let isCurrent = false;
                 if (item.start_date && item.end_date && !item.completed) {
-                    const start = new Date(item.start_date);
-                    const end = new Date(item.end_date);
-                    start.setHours(0, 0, 0, 0);
+                    const start = parseLocalDate(item.start_date);
+                    const end = parseLocalDate(item.end_date);
                     end.setHours(23, 59, 59, 999);
                     isCurrent = start <= today && today <= end;
                 }
@@ -778,6 +786,17 @@
             const month = monthNames[date.getMonth()];
             const year = date.getFullYear();
             return `${day} ${month} ${year}`;
+        }
+
+        // Parse date string as local date (avoids timezone shift)
+        function parseLocalDate(dateString) {
+            if (!dateString) return null;
+            // For ISO dates like "2026-01-11", parse as local to avoid UTC shift
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+                const [year, month, day] = dateString.split('-').map(Number);
+                return new Date(year, month - 1, day);
+            }
+            return new Date(dateString + 'T00:00:00');
         }
 
         // Generate consistent color for any course name using hash
