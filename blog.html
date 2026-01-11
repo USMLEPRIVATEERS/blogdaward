@@ -818,6 +818,21 @@
                 ${renderPostAttachment(post.attachment_url, post.attachment_name)}
                 ${(isMentor || isOwnPost) ? `
                     <div id="post-edit-form" style="display: none;">
+                        <div class="editor-toolbar">
+                            <button type="button" class="toolbar-btn" onclick="formatText('bold', 'edit-post-content')" title="Negrito (Ctrl+B)">
+                                <b>B</b>
+                            </button>
+                            <button type="button" class="toolbar-btn" onclick="formatText('italic', 'edit-post-content')" title="Itálico (Ctrl+I)">
+                                <i>I</i>
+                            </button>
+                            <span class="toolbar-divider"></span>
+                            <button type="button" class="toolbar-btn" onclick="formatText('insertUnorderedList', 'edit-post-content')" title="Lista com marcadores">
+                                •―
+                            </button>
+                            <button type="button" class="toolbar-btn" onclick="formatText('insertOrderedList', 'edit-post-content')" title="Lista numerada">
+                                1.
+                            </button>
+                        </div>
                         <div id="edit-post-content" class="post-editor" contenteditable="true">${post.content || ''}</div>
                         <div class="d-flex gap-2 mt-2">
                             <button class="btn btn-primary btn-sm" onclick="savePostEdit(${postId})">Salvar</button>
@@ -866,6 +881,12 @@
         function startEditPost() {
             document.getElementById('post-text-display').style.display = 'none';
             document.getElementById('post-edit-form').style.display = 'block';
+
+            // Add event handlers to the edit editor
+            const editEditor = document.getElementById('edit-post-content');
+            editEditor.addEventListener('paste', (e) => handleEditorPaste(e, 'edit-post-content'));
+            editEditor.addEventListener('keydown', (e) => handleEditorKeydown(e, 'edit-post-content'));
+            editEditor.focus();
         }
 
         function cancelPostEdit() {
@@ -1241,40 +1262,43 @@
         // ========================================
 
         // Format text using execCommand
-        function formatText(command) {
+        function formatText(command, targetId = 'post-content') {
+            const editor = document.getElementById(targetId);
+            editor.focus();
             document.execCommand(command, false, null);
-            document.getElementById('post-content').focus();
         }
 
         // Handle keyboard shortcuts in editor
-        function handleEditorKeydown(e) {
+        function handleEditorKeydown(e, targetId = 'post-content') {
             if (e.ctrlKey || e.metaKey) {
                 switch (e.key.toLowerCase()) {
                     case 'b':
                         e.preventDefault();
-                        formatText('bold');
+                        formatText('bold', targetId);
                         break;
                     case 'i':
                         e.preventDefault();
-                        formatText('italic');
+                        formatText('italic', targetId);
                         break;
                 }
             }
         }
 
         // Handle paste in editor - clean up HTML but keep formatting
-        async function handleEditorPaste(e) {
-            // Check for image paste first
-            const items = e.clipboardData?.items;
-            if (items) {
-                for (const item of items) {
-                    if (item.type.startsWith('image/')) {
-                        e.preventDefault();
-                        const file = item.getAsFile();
-                        if (file) {
-                            await addImageFile(file);
+        async function handleEditorPaste(e, targetId = 'post-content') {
+            // Check for image paste first (only for new post editor)
+            if (targetId === 'post-content') {
+                const items = e.clipboardData?.items;
+                if (items) {
+                    for (const item of items) {
+                        if (item.type.startsWith('image/')) {
+                            e.preventDefault();
+                            const file = item.getAsFile();
+                            if (file) {
+                                await addImageFile(file);
+                            }
+                            return;
                         }
-                        return;
                     }
                 }
             }
