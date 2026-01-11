@@ -306,6 +306,9 @@
         const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
         const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUaZ5Bu9SuDyA3fOJOC5nXCcVD50RlH-PAFhOVm9e2R3wT_AJqngyQXSLL02SaiO8p/exec';
 
+        // Track the last created post ID to show it at top temporarily
+        let lastCreatedPostId = null;
+
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
@@ -609,12 +612,22 @@
                 pinnedSection.style.display = 'none';
             }
 
+            // If user just created a post, move it to the top of regular posts
+            let sortedRegular = [...regular];
+            if (lastCreatedPostId && currentPage === 1) {
+                const myNewPostIndex = sortedRegular.findIndex(p => p.id === lastCreatedPostId);
+                if (myNewPostIndex > 0) {
+                    const [myNewPost] = sortedRegular.splice(myNewPostIndex, 1);
+                    sortedRegular.unshift(myNewPost);
+                }
+            }
+
             // Paginação dos posts regulares
-            const totalPosts = regular.length;
+            const totalPosts = sortedRegular.length;
             const totalPages = Math.ceil(totalPosts / postsPerPage);
             const startIndex = (currentPage - 1) * postsPerPage;
             const endIndex = startIndex + postsPerPage;
-            const paginatedPosts = regular.slice(startIndex, endIndex);
+            const paginatedPosts = sortedRegular.slice(startIndex, endIndex);
 
             // Renderizar posts da página atual
             postsContainer.innerHTML = paginatedPosts.map(post => renderPostCard(post, false)).join('');
@@ -1168,6 +1181,9 @@
                     WardApp.showToast('Erro ao criar post', 'error');
                     return;
                 }
+
+                // Save the new post ID to show it at top temporarily
+                lastCreatedPostId = newPost.id;
 
                 // Clear form
                 const textarea = document.getElementById('post-content');
