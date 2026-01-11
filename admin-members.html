@@ -71,11 +71,13 @@
                     <div class="form-group" style="flex: 1;">
                         <select id="filter-role" class="form-input" onchange="filterMembers()">
                             <option value="">Todas as funcoes</option>
-                            <option value="aluno">Alunos</option>
-                            <option value="mentor_iria">Mentor - Dra. Iria</option>
-                            <option value="mentor_marcos">Mentor - Marcos</option>
-                            <option value="mentor_guilherme">Mentor - Guilherme</option>
-                            <option value="mentor_romulo">Mentor - Romulo</option>
+                            <option value="aluno">🎓 Aluno</option>
+                            <option value="assessoria">📋 Assessoria</option>
+                            <option value="externo">🌐 Externo</option>
+                            <option value="mentor_iria">👩‍⚕️ Dra. Iria</option>
+                            <option value="mentor_marcos">🛠️ Marcos (Admin)</option>
+                            <option value="mentor_guilherme">🃏 Guilherme</option>
+                            <option value="mentor_romulo">🔬 Romulo</option>
                         </select>
                     </div>
                     <div class="form-group" style="flex: 1;">
@@ -85,6 +87,10 @@
                             <option value="inactive">Inativos</option>
                         </select>
                     </div>
+                    <div class="form-group" style="flex: 0.5; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="group-by-role" onchange="toggleGroupByRole()">
+                        <label for="group-by-role" style="cursor: pointer; white-space: nowrap;">Agrupar por funcao</label>
+                    </div>
                 </div>
             </div>
         </div>
@@ -92,15 +98,27 @@
         <!-- Members Table -->
         <div class="card">
             <div class="card-body" style="overflow-x: auto;">
-                <table class="admin-table">
+                <table class="admin-table" id="members-table">
                     <thead>
                         <tr>
-                            <th>Nome</th>
-                            <th>CPF</th>
-                            <th>Email</th>
-                            <th>Funcao</th>
-                            <th>Status</th>
-                            <th>Criado em</th>
+                            <th class="sortable" onclick="sortTable('full_name')">
+                                Nome <span class="sort-icon" data-column="full_name">↕</span>
+                            </th>
+                            <th class="sortable" onclick="sortTable('cpf')">
+                                CPF <span class="sort-icon" data-column="cpf">↕</span>
+                            </th>
+                            <th class="sortable" onclick="sortTable('email')">
+                                Email <span class="sort-icon" data-column="email">↕</span>
+                            </th>
+                            <th class="sortable" onclick="sortTable('role')">
+                                Funcao <span class="sort-icon" data-column="role">↕</span>
+                            </th>
+                            <th class="sortable" onclick="sortTable('status')">
+                                Status <span class="sort-icon" data-column="status">↕</span>
+                            </th>
+                            <th class="sortable" onclick="sortTable('created_at')">
+                                Criado em <span class="sort-icon" data-column="created_at">↓</span>
+                            </th>
                             <th>Acoes</th>
                         </tr>
                     </thead>
@@ -139,12 +157,13 @@
                 <div class="form-group">
                     <label class="form-label" for="new-role">Funcao *</label>
                     <select id="new-role" class="form-input">
-                        <option value="aluno">Aluno</option>
-                        <option value="assessoria">Avulso</option>
-                        <option value="mentor_iria">Mentor - Dra. Iria</option>
-                        <option value="mentor_marcos">Mentor - Marcos (Admin)</option>
-                        <option value="mentor_guilherme">Mentor - Guilherme</option>
-                        <option value="mentor_romulo">Mentor - Romulo</option>
+                        <option value="aluno">🎓 Aluno</option>
+                        <option value="assessoria">📋 Assessoria</option>
+                        <option value="externo">🌐 Externo</option>
+                        <option value="mentor_iria">👩‍⚕️ Dra. Iria</option>
+                        <option value="mentor_marcos">🛠️ Marcos (Admin)</option>
+                        <option value="mentor_guilherme">🃏 Guilherme</option>
+                        <option value="mentor_romulo">🔬 Romulo</option>
                     </select>
                 </div>
             </div>
@@ -180,12 +199,13 @@
                 <div class="form-group">
                     <label class="form-label" for="edit-role">Funcao *</label>
                     <select id="edit-role" class="form-input">
-                        <option value="aluno">Aluno</option>
-                        <option value="assessoria">Avulso</option>
-                        <option value="mentor_iria">Mentor - Dra. Iria</option>
-                        <option value="mentor_marcos">Mentor - Marcos (Admin)</option>
-                        <option value="mentor_guilherme">Mentor - Guilherme</option>
-                        <option value="mentor_romulo">Mentor - Romulo</option>
+                        <option value="aluno">🎓 Aluno</option>
+                        <option value="assessoria">📋 Assessoria</option>
+                        <option value="externo">🌐 Externo</option>
+                        <option value="mentor_iria">👩‍⚕️ Dra. Iria</option>
+                        <option value="mentor_marcos">🛠️ Marcos (Admin)</option>
+                        <option value="mentor_guilherme">🃏 Guilherme</option>
+                        <option value="mentor_romulo">🔬 Romulo</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -238,11 +258,20 @@
 
         const roleLabels = {
             aluno: '🎓 Aluno',
+            assessoria: '📋 Assessoria',
+            externo: '🌐 Externo',
             mentor_iria: '👩‍⚕️ Dra. Iria',
             mentor_marcos: '🛠️ Marcos (Admin)',
             mentor_guilherme: '🃏 Guilherme',
             mentor_romulo: '🔬 Romulo'
         };
+
+        // Ordem de prioridade para agrupamento
+        const roleOrder = ['mentor_marcos', 'mentor_iria', 'mentor_guilherme', 'mentor_romulo', 'aluno', 'assessoria', 'externo'];
+
+        // Estado de ordenacao
+        let currentSort = { column: 'created_at', direction: 'desc' };
+        let groupByRole = false;
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
@@ -310,6 +339,55 @@
             document.getElementById('total-mentors').textContent = mentors;
         }
 
+        function toggleGroupByRole() {
+            groupByRole = document.getElementById('group-by-role').checked;
+            filterMembers();
+        }
+
+        function sortTable(column) {
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = 'asc';
+            }
+            updateSortIcons();
+            filterMembers();
+        }
+
+        function updateSortIcons() {
+            document.querySelectorAll('.sort-icon').forEach(icon => {
+                const column = icon.dataset.column;
+                if (column === currentSort.column) {
+                    icon.textContent = currentSort.direction === 'asc' ? '↑' : '↓';
+                } else {
+                    icon.textContent = '↕';
+                }
+            });
+        }
+
+        function sortMembers(members) {
+            const sorted = [...members];
+            sorted.sort((a, b) => {
+                let aVal = a[currentSort.column] || '';
+                let bVal = b[currentSort.column] || '';
+
+                // Tratamento especial para datas
+                if (currentSort.column === 'created_at') {
+                    aVal = new Date(aVal).getTime();
+                    bVal = new Date(bVal).getTime();
+                } else if (typeof aVal === 'string') {
+                    aVal = aVal.toLowerCase();
+                    bVal = bVal.toLowerCase();
+                }
+
+                if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+                if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+            return sorted;
+        }
+
         function filterMembers() {
             const search = document.getElementById('search-members').value.toLowerCase();
             const role = document.getElementById('filter-role').value;
@@ -333,6 +411,9 @@
                 filtered = filtered.filter(m => (m.status || 'active') === status);
             }
 
+            // Aplicar ordenacao
+            filtered = sortMembers(filtered);
+
             renderMembersTable(filtered);
         }
 
@@ -344,35 +425,78 @@
                 return;
             }
 
-            tbody.innerHTML = members.map(member => {
-                const status = member.status || 'active';
+            if (groupByRole) {
+                // Agrupar por funcao
+                const groups = {};
+                members.forEach(member => {
+                    const role = member.role || 'outros';
+                    if (!groups[role]) {
+                        groups[role] = [];
+                    }
+                    groups[role].push(member);
+                });
 
-                return `
-                    <tr>
-                        <td>
-                            <div class="member-name-cell">
-                                <span class="member-avatar">👤</span>
-                                <strong>${member.full_name || 'Sem nome'}</strong>
-                            </div>
-                        </td>
-                        <td>${formatCPF(member.cpf)}</td>
-                        <td>${member.email || '-'}</td>
-                        <td>${roleLabels[member.role] || member.role}</td>
-                        <td>
-                            <span class="badge ${status === 'active' ? 'badge-success' : 'badge-secondary'}">
-                                ${status === 'active' ? 'Ativo' : 'Inativo'}
-                            </span>
-                        </td>
-                        <td>${WardApp.formatDate(member.created_at)}</td>
-                        <td>
-                            <div class="btn-group">
-                                <button class="btn btn-xs btn-outline" onclick="viewMember('${member.id}')">Ver</button>
-                                <button class="btn btn-xs btn-outline" onclick="editMember('${member.id}')">✏️</button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
+                // Ordenar os grupos pela ordem definida
+                const sortedRoles = Object.keys(groups).sort((a, b) => {
+                    const indexA = roleOrder.indexOf(a);
+                    const indexB = roleOrder.indexOf(b);
+                    if (indexA === -1 && indexB === -1) return 0;
+                    if (indexA === -1) return 1;
+                    if (indexB === -1) return -1;
+                    return indexA - indexB;
+                });
+
+                let html = '';
+                sortedRoles.forEach(role => {
+                    const groupMembers = groups[role];
+                    const roleLabel = roleLabels[role] || role;
+
+                    html += `
+                        <tr class="group-header">
+                            <td colspan="7">
+                                <strong>${roleLabel}</strong>
+                                <span class="group-count">(${groupMembers.length})</span>
+                            </td>
+                        </tr>
+                    `;
+
+                    html += groupMembers.map(member => renderMemberRow(member)).join('');
+                });
+
+                tbody.innerHTML = html;
+            } else {
+                tbody.innerHTML = members.map(member => renderMemberRow(member)).join('');
+            }
+        }
+
+        function renderMemberRow(member) {
+            const status = member.status || 'active';
+
+            return `
+                <tr>
+                    <td>
+                        <div class="member-name-cell">
+                            <span class="member-avatar">👤</span>
+                            <strong>${member.full_name || 'Sem nome'}</strong>
+                        </div>
+                    </td>
+                    <td>${formatCPF(member.cpf)}</td>
+                    <td>${member.email || '-'}</td>
+                    <td>${roleLabels[member.role] || member.role}</td>
+                    <td>
+                        <span class="badge ${status === 'active' ? 'badge-success' : 'badge-secondary'}">
+                            ${status === 'active' ? 'Ativo' : 'Inativo'}
+                        </span>
+                    </td>
+                    <td>${WardApp.formatDate(member.created_at)}</td>
+                    <td>
+                        <div class="btn-group">
+                            <button class="btn btn-xs btn-outline" onclick="viewMember('${member.id}')">Ver</button>
+                            <button class="btn btn-xs btn-outline" onclick="editMember('${member.id}')">✏️</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
         }
 
         async function addMember() {
@@ -697,6 +821,47 @@ Digite "EXCLUIR" para confirmar:`;
             color: var(--gray-600);
             font-size: 0.875rem;
             background: var(--gray-50);
+        }
+
+        .admin-table th.sortable {
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .admin-table th.sortable:hover {
+            background: var(--gray-100);
+        }
+
+        .sort-icon {
+            display: inline-block;
+            margin-left: 0.25rem;
+            color: var(--gray-400);
+            font-size: 0.75rem;
+        }
+
+        .admin-table th.sortable:hover .sort-icon {
+            color: var(--gray-600);
+        }
+
+        .group-header {
+            background: linear-gradient(135deg, var(--primary-50) 0%, var(--gray-100) 100%);
+        }
+
+        .group-header td {
+            padding: 0.75rem 1rem !important;
+            border-bottom: 2px solid var(--primary-200) !important;
+        }
+
+        .group-header strong {
+            font-size: 0.95rem;
+            color: var(--primary-700);
+        }
+
+        .group-count {
+            font-size: 0.8rem;
+            color: var(--gray-500);
+            margin-left: 0.5rem;
         }
 
         .member-name-cell {
