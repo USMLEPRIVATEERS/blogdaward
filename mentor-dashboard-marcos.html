@@ -627,6 +627,16 @@ Cardiovascular	Physiology	62	FALSE
         let currentSortColumn = 'name';
         let currentSortDirection = 'asc'; // 'asc' or 'desc'
 
+        // Parse date string as local date (avoids timezone shift)
+        function parseLocalDate(dateString) {
+            if (!dateString) return null;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+                const [year, month, day] = dateString.split('-').map(Number);
+                return new Date(year, month - 1, day);
+            }
+            return new Date(dateString + 'T00:00:00');
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
@@ -708,7 +718,7 @@ Cardiovascular	Physiology	62	FALSE
                 const overdueItems = studentSchedules.filter(s => {
                     if (s.completed) return false;
                     if (!s.end_date) return false;
-                    const endDate = new Date(s.end_date);
+                    const endDate = parseLocalDate(s.end_date);
                     endDate.setHours(23, 59, 59, 999);
                     return endDate < today;
                 });
