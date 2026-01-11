@@ -561,6 +561,7 @@
         let targetUserId = null; // The user whose schedule we're viewing
         let hideCompleted = false;
         let currentView = 'cards'; // Default view
+        let watchedLessons = new Set(); // Store watched lesson keys (course:lesson)
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
@@ -613,12 +614,80 @@
                 diaryLink.style.display = 'block';
             }
 
+            await loadWatchedLessons();
             await loadSchedule();
             await loadDelays();
 
             // Apply view preference
             switchView(currentView);
         });
+
+        // Load watched lessons for the target user
+        async function loadWatchedLessons() {
+            try {
+                const { data, error } = await WardApp.db
+                    .from('watched_lessons')
+                    .select('lesson_key')
+                    .eq('user_id', targetUserId);
+
+                if (error) {
+                    console.error('Error loading watched lessons:', error);
+                    return;
+                }
+
+                watchedLessons = new Set((data || []).map(item => item.lesson_key));
+            } catch (err) {
+                console.error('Error loading watched lessons:', err);
+            }
+        }
+
+        // Toggle watched status for a lesson
+        async function toggleWatchedLesson(courseName, lessonName, scheduleId) {
+            const lessonKey = `${courseName}:${lessonName}`;
+            const isCurrentlyWatched = watchedLessons.has(lessonKey);
+
+            try {
+                if (isCurrentlyWatched) {
+                    // Remove from watched
+                    const { error } = await WardApp.db
+                        .from('watched_lessons')
+                        .delete()
+                        .eq('user_id', targetUserId)
+                        .eq('lesson_key', lessonKey);
+
+                    if (error) throw error;
+                    watchedLessons.delete(lessonKey);
+                    WardApp.showToast('Aula desmarcada');
+                } else {
+                    // Add to watched
+                    const { error } = await WardApp.db
+                        .from('watched_lessons')
+                        .insert({
+                            user_id: targetUserId,
+                            schedule_id: scheduleId || null,
+                            course_name: courseName,
+                            lesson_name: lessonName,
+                            lesson_key: lessonKey,
+                            watched_at: new Date().toISOString()
+                        });
+
+                    if (error) throw error;
+                    watchedLessons.add(lessonKey);
+                    WardApp.showToast('Aula marcada como assistida!');
+                }
+
+                // Re-render to update UI
+                await loadSchedule();
+            } catch (err) {
+                console.error('Error toggling watched lesson:', err);
+                WardApp.showToast('Erro ao atualizar aula', 'error');
+            }
+        }
+
+        // Check if a lesson is watched
+        function isLessonWatched(courseName, lessonName) {
+            return watchedLessons.has(`${courseName}:${lessonName}`);
+        }
 
         async function setupViewingAsStudent(studentId) {
             // Get student info
@@ -782,7 +851,7 @@
                     currentCard.querySelector('.card-header').innerHTML = '📅 Proximo estudo';
 
                     // Parse recommended lessons for next item
-                    const nextLessonsHtml = formatRecommendedLessons(next.recommended_lessons);
+                    const nextLessonsHtml = formatRecommendedLessons(next.recommended_lessons, next.id);
 
                     contentDiv.innerHTML = `
                         <div>
@@ -821,7 +890,7 @@
                                 ✅ Marcar como Concluido
                             </button>
                         </div>
-                        ${formatRecommendedLessons(item.recommended_lessons)}
+                        ${formatRecommendedLessons(item.recommended_lessons, item.id)}
                     </div>
                 `).join('');
             }
@@ -978,7 +1047,7 @@
                         <td class="col-date">${startDate}</td>
                         <td class="col-date">${endDate}</td>
                         <td class="col-lessons" style="font-size: 0.8rem; max-width: 400px; white-space: normal; padding: 0.75rem;">
-                            ${item.recommended_lessons ? formatRecommendedLessons(item.recommended_lessons).replace(/border-top.*?;/, '').replace(/margin-top.*?;/, '').replace(/padding-top.*?;/, '') : '-'}
+                            ${item.recommended_lessons ? formatRecommendedLessons(item.recommended_lessons, item.id).replace(/border-top.*?;/, '').replace(/margin-top.*?;/, '').replace(/padding-top.*?;/, '') : '-'}
                         </td>
                         <td class="col-check">
                             <input type="checkbox"
@@ -1019,7 +1088,7 @@
                                   isOverdue ? 'overdue' : '';
 
                 // Parse recommended lessons with course-specific colors
-                const lessonsHtml = formatRecommendedLessons(item.recommended_lessons);
+                const lessonsHtml = formatRecommendedLessons(item.recommended_lessons, item.id);
 
                 return `
                     <div class="schedule-card-item ${cardClass}">
@@ -1121,7 +1190,8 @@
         }
 
         // Parse and format recommended lessons by course with distinct colors
-        function formatRecommendedLessons(lessonsString) {
+        // scheduleId is optional - used to associate watched lessons with a schedule item
+        function formatRecommendedLessons(lessonsString, scheduleId = null) {
             if (!lessonsString || !lessonsString.trim()) return '';
 
             // Split by pipe (|) to separate different courses
@@ -1131,7 +1201,8 @@
             if (courseSections.length === 0) return '';
 
             let html = '<div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e5e7eb;">';
-            html += '<div style="font-weight: 600; font-size: 0.85rem; color: #6b7280; margin-bottom: 0.75rem;">📚 Aulas Recomendadas:</div>';
+            html += '<div style="font-weight: 600; font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem;">📚 Aulas Recomendadas:</div>';
+            html += '<div style="font-size: 0.7rem; color: #9ca3af; margin-bottom: 0.75rem; font-style: italic;">Clique nas aulas para marcar como assistidas</div>';
 
             courseSections.forEach(section => {
                 // Extract course name (before the first colon)
@@ -1154,11 +1225,35 @@
                             <span>${courseName}</span>
                         </div>
                         <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-left: 1.5rem;">
-                            ${lessonList.map(lesson => `
-                                <span style="background: ${colorScheme.bg}; color: ${colorScheme.color}; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.75rem; font-weight: 500; border: 1px solid ${colorScheme.color}30;">
-                                    ${lesson}
-                                </span>
-                            `).join('')}
+                            ${lessonList.map(lesson => {
+                                const isWatched = isLessonWatched(courseName, lesson);
+                                const escapedCourseName = courseName.replace(/'/g, "\\'");
+                                const escapedLesson = lesson.replace(/'/g, "\\'");
+
+                                // Watched: filled background with checkmark
+                                // Not watched: only border (outline style)
+                                if (isWatched) {
+                                    return `
+                                        <span
+                                            onclick="toggleWatchedLesson('${escapedCourseName}', '${escapedLesson}', ${scheduleId || 'null'})"
+                                            style="background: ${colorScheme.color}; color: white; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.75rem; font-weight: 500; border: 2px solid ${colorScheme.color}; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 0.3rem;"
+                                            title="Clique para desmarcar"
+                                        >
+                                            <span style="font-size: 0.65rem;">✓</span> ${lesson}
+                                        </span>
+                                    `;
+                                } else {
+                                    return `
+                                        <span
+                                            onclick="toggleWatchedLesson('${escapedCourseName}', '${escapedLesson}', ${scheduleId || 'null'})"
+                                            style="background: transparent; color: ${colorScheme.color}; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.75rem; font-weight: 500; border: 2px solid ${colorScheme.color}; cursor: pointer; transition: all 0.2s ease;"
+                                            title="Clique para marcar como assistida"
+                                        >
+                                            ${lesson}
+                                        </span>
+                                    `;
+                                }
+                            }).join('')}
                         </div>
                     </div>
                 `;

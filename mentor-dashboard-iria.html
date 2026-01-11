@@ -955,7 +955,8 @@
                     questionnaireRes,
                     flashTestsCreatedRes,
                     flashTestsCompletedRes,
-                    flashCommentsRes
+                    flashCommentsRes,
+                    watchedLessonsRes
                 ] = await Promise.all([
                     // Links - new additions
                     WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('created_at', { ascending: false }).limit(20),
@@ -1006,7 +1007,9 @@
                     // Flash tests - completed
                     WardApp.db.from('flash_tests').select('*, users:user_id(full_name, email)').eq('status', 'completed').order('completed_at', { ascending: false }).limit(30),
                     // Flash question comments
-                    WardApp.db.from('flash_question_comments').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30)
+                    WardApp.db.from('flash_question_comments').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30),
+                    // Watched lessons - students marking lessons as watched
+                    WardApp.db.from('watched_lessons').select('*, users:user_id(full_name, email)').order('watched_at', { ascending: false }).limit(30)
                 ]);
 
                 // Combine all activities into a single timeline
@@ -1427,6 +1430,20 @@
                         fullContent: item.comment || '',
                         detail: '',
                         date: item.created_at
+                    });
+                });
+
+                // Watched lessons - students marking recommended lessons as watched
+                (watchedLessonsRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'watched_lesson',
+                        icon: '📺',
+                        color: '#10b981',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'marcou aula como assistida',
+                        title: `${item.course_name}: ${item.lesson_name}`,
+                        detail: '',
+                        date: item.watched_at
                     });
                 });
 
