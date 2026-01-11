@@ -45,9 +45,36 @@
                     <span id="user-greeting">O que esta acontecendo?</span>
                 </div>
                 <textarea id="post-content" class="post-textarea" placeholder="Compartilhe algo com a comunidade Ward..." maxlength="250"></textarea>
+
+                <!-- Attachments Preview Area -->
+                <div id="attachments-preview" class="attachments-preview" style="display: none;">
+                    <div id="images-preview" class="images-preview"></div>
+                    <div id="file-preview" class="file-preview"></div>
+                </div>
+
+                <!-- Upload Progress -->
+                <div id="upload-progress-area" style="display: none;">
+                    <div class="upload-progress-bar">
+                        <div id="upload-progress-fill" class="upload-progress-fill"></div>
+                    </div>
+                    <span id="upload-status-text" class="upload-status-text">Enviando...</span>
+                </div>
+
                 <div class="new-post-footer">
-                    <span class="char-count"><span id="char-count">0</span>/<span id="char-limit">250</span></span>
-                    <button class="btn btn-primary" onclick="createPost()">Publicar</button>
+                    <div class="post-footer-left">
+                        <span class="char-count"><span id="char-count">0</span>/<span id="char-limit">250</span></span>
+                        <div class="attachment-buttons">
+                            <button type="button" class="btn-attach" onclick="document.getElementById('image-upload').click()" title="Adicionar imagens (max 3)">
+                                🖼️ <span class="btn-attach-label">Imagens</span> <span id="image-count" class="attach-count"></span>
+                            </button>
+                            <button type="button" class="btn-attach" onclick="document.getElementById('file-upload').click()" title="Adicionar arquivo (max 1)">
+                                📎 <span class="btn-attach-label">Arquivo</span> <span id="file-count" class="attach-count"></span>
+                            </button>
+                            <input type="file" id="image-upload" accept="image/*" multiple style="display: none;" onchange="handleImageSelect(event)">
+                            <input type="file" id="file-upload" style="display: none;" onchange="handleFileSelect(event)">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="createPost()" id="publish-btn">Publicar</button>
                 </div>
             </div>
         </div>
@@ -272,6 +299,13 @@
         let userLikes = []; // IDs dos posts que o usuário curtiu
         let commentLikesMap = {}; // Map de comment_id -> array de user_ids que curtiram
 
+        // Attachment state for new posts
+        let pendingImages = []; // Array of {file, preview} or {url, preview}
+        let pendingFile = null; // {file, name} or null
+        const MAX_IMAGES = 3;
+        const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUaZ5Bu9SuDyA3fOJOC5nXCcVD50RlH-PAFhOVm9e2R3wT_AJqngyQXSLL02SaiO8p/exec';
+
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
@@ -334,6 +368,9 @@
                 this.style.height = 'auto';
                 this.style.height = this.scrollHeight + 'px';
             });
+
+            // Listen for paste events to detect images
+            textarea.addEventListener('paste', handlePaste);
 
             await loadPosts();
 
@@ -674,8 +711,11 @@
                     </div>
 
                     <div class="post-content" onclick="viewPost(${post.id})">
-                        ${post.content.replace(/\n/g, '<br>')}
+                        ${post.content ? post.content.replace(/\n/g, '<br>') : ''}
                     </div>
+
+                    ${renderPostImages(post.images)}
+                    ${renderPostAttachment(post.attachment_url, post.attachment_name)}
 
                     <div class="post-actions-bar">
                         <button class="action-btn ${post.user_liked ? 'liked' : ''}" onclick="toggleLike(${post.id}, ${post.user_liked ? 'true' : 'false'})">
@@ -733,10 +773,12 @@
                     </div>
                     <button class="btn btn-sm btn-outline" onclick="copyPostLink(${postId})" title="Copiar link">🔗 Compartilhar</button>
                 </div>
-                <div class="post-text" id="post-text-display">${post.content.replace(/\n/g, '<br>')}</div>
+                <div class="post-text" id="post-text-display">${post.content ? post.content.replace(/\n/g, '<br>') : ''}</div>
+                ${renderPostImages(post.images, true)}
+                ${renderPostAttachment(post.attachment_url, post.attachment_name)}
                 ${(isMentor || isOwnPost) ? `
                     <div id="post-edit-form" style="display: none;">
-                        <textarea id="edit-post-content" class="form-textarea" rows="4">${post.content}</textarea>
+                        <textarea id="edit-post-content" class="form-textarea" rows="4">${post.content || ''}</textarea>
                         <div class="d-flex gap-2 mt-2">
                             <button class="btn btn-primary btn-sm" onclick="savePostEdit(${postId})">Salvar</button>
                             <button class="btn btn-secondary btn-sm" onclick="cancelPostEdit()">Cancelar</button>
@@ -1052,40 +1094,456 @@
         async function createPost() {
             const content = document.getElementById('post-content').value.trim();
 
-            if (!content) {
-                WardApp.showToast('Escreva algo para publicar', 'warning');
+            if (!content && pendingImages.length === 0) {
+                WardApp.showToast('Escreva algo ou adicione uma imagem para publicar', 'warning');
                 return;
             }
 
-            const { data: newPost, error } = await WardApp.db.from('blog_posts').insert({
-                content,
-                user_id: userData.id,
-                likes: 0,
-                dislikes: 0,
-                is_pinned: false,
-                is_deleted: false
-            }).select().single();
+            const publishBtn = document.getElementById('publish-btn');
+            publishBtn.disabled = true;
+            publishBtn.textContent = 'Publicando...';
 
-            if (error) {
-                console.error('Error creating post:', error);
-                WardApp.showToast('Erro ao criar post', 'error');
-                return;
+            try {
+                // Upload images to Google Drive if any
+                let uploadedImageUrls = [];
+                let attachmentUrl = null;
+                let attachmentName = null;
+
+                if (pendingImages.length > 0 || pendingFile) {
+                    showUploadProgress(true);
+                }
+
+                // Upload images
+                for (let i = 0; i < pendingImages.length; i++) {
+                    const img = pendingImages[i];
+                    updateUploadStatus(`Enviando imagem ${i + 1} de ${pendingImages.length}...`);
+                    updateUploadProgress((i / (pendingImages.length + (pendingFile ? 1 : 0))) * 100);
+
+                    if (img.file) {
+                        // It's a file to upload
+                        const result = await uploadFileToGoogleDrive(img.file);
+                        if (result.success) {
+                            uploadedImageUrls.push(result.viewLink);
+                        } else {
+                            throw new Error(`Erro ao enviar imagem: ${result.error}`);
+                        }
+                    } else if (img.url) {
+                        // It's already a URL (external image)
+                        uploadedImageUrls.push(img.url);
+                    }
+                }
+
+                // Upload file attachment
+                if (pendingFile) {
+                    updateUploadStatus('Enviando arquivo...');
+                    updateUploadProgress(90);
+
+                    const result = await uploadFileToGoogleDrive(pendingFile.file);
+                    if (result.success) {
+                        attachmentUrl = result.viewLink;
+                        attachmentName = pendingFile.name;
+                    } else {
+                        throw new Error(`Erro ao enviar arquivo: ${result.error}`);
+                    }
+                }
+
+                updateUploadProgress(100);
+                updateUploadStatus('Salvando post...');
+
+                // Create the post
+                const { data: newPost, error } = await WardApp.db.from('blog_posts').insert({
+                    content: content || '',
+                    user_id: userData.id,
+                    likes: 0,
+                    dislikes: 0,
+                    is_pinned: false,
+                    is_deleted: false,
+                    images: uploadedImageUrls,
+                    attachment_url: attachmentUrl,
+                    attachment_name: attachmentName
+                }).select().single();
+
+                if (error) {
+                    console.error('Error creating post:', error);
+                    WardApp.showToast('Erro ao criar post', 'error');
+                    return;
+                }
+
+                // Clear form
+                const textarea = document.getElementById('post-content');
+                textarea.value = '';
+                textarea.style.height = 'auto';
+                document.getElementById('char-count').textContent = '0';
+                clearAttachments();
+
+                WardApp.showToast('Post publicado!');
+
+                // Reload posts to show the new post immediately
+                await loadPosts();
+
+                // Scroll to top to see the new post
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            } catch (err) {
+                console.error('Error creating post:', err);
+                WardApp.showToast(err.message || 'Erro ao criar post', 'error');
+            } finally {
+                publishBtn.disabled = false;
+                publishBtn.textContent = 'Publicar';
+                showUploadProgress(false);
             }
-
-            // Clear textarea and reset its size
-            const textarea = document.getElementById('post-content');
-            textarea.value = '';
-            textarea.style.height = 'auto';
-            document.getElementById('char-count').textContent = '0';
-
-            WardApp.showToast('Post publicado!');
-
-            // Reload posts to show the new post immediately
-            await loadPosts();
-
-            // Scroll to top to see the new post
-            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
+
+        // ========================================
+        // ATTACHMENT HANDLING FUNCTIONS
+        // ========================================
+
+        // Convert Google Drive link to embeddable image URL
+        function driveToImageUrl(driveLink) {
+            const match = driveLink.match(/\/d\/([a-zA-Z0-9_-]+)/);
+            if (match) {
+                return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+            }
+            return driveLink;
+        }
+
+        // Check if URL is an image
+        function isImageUrl(url) {
+            return /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(url) ||
+                   url.includes('drive.google.com') ||
+                   url.includes('imgur.com') ||
+                   url.includes('i.redd.it');
+        }
+
+        // Convert file to Base64
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const base64 = reader.result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Upload file to Google Drive
+        async function uploadFileToGoogleDrive(file) {
+            try {
+                const base64 = await fileToBase64(file);
+
+                const payload = {
+                    fileName: file.name,
+                    fileContent: base64,
+                    mimeType: file.type || 'application/octet-stream'
+                };
+
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Upload error:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        // Handle paste event (detect images)
+        async function handlePaste(event) {
+            const items = event.clipboardData?.items;
+            if (!items) return;
+
+            for (const item of items) {
+                // Check if it's an image file (pasted from clipboard)
+                if (item.type.startsWith('image/')) {
+                    event.preventDefault();
+                    const file = item.getAsFile();
+                    if (file) {
+                        await addImageFile(file);
+                    }
+                    return;
+                }
+
+                // Check if it's text that might be an image URL
+                if (item.type === 'text/plain') {
+                    item.getAsString(async (text) => {
+                        const trimmed = text.trim();
+                        if (isImageUrl(trimmed)) {
+                            // Ask if user wants to add as image
+                            if (pendingImages.length < MAX_IMAGES) {
+                                addImageUrl(trimmed);
+                                // Remove the URL from textarea
+                                const textarea = document.getElementById('post-content');
+                                setTimeout(() => {
+                                    textarea.value = textarea.value.replace(trimmed, '').trim();
+                                    document.getElementById('char-count').textContent = textarea.value.length;
+                                }, 0);
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
+        // Handle image file selection
+        async function handleImageSelect(event) {
+            const files = event.target.files;
+            if (!files) return;
+
+            for (const file of files) {
+                if (pendingImages.length >= MAX_IMAGES) {
+                    WardApp.showToast(`Máximo de ${MAX_IMAGES} imagens permitido`, 'warning');
+                    break;
+                }
+                await addImageFile(file);
+            }
+
+            // Reset input so same file can be selected again
+            event.target.value = '';
+        }
+
+        // Add image file to pending list
+        async function addImageFile(file) {
+            if (pendingImages.length >= MAX_IMAGES) {
+                WardApp.showToast(`Máximo de ${MAX_IMAGES} imagens permitido`, 'warning');
+                return;
+            }
+
+            if (file.size > MAX_FILE_SIZE) {
+                WardApp.showToast('Imagem muito grande. Máximo 5MB.', 'warning');
+                return;
+            }
+
+            // Create preview
+            const preview = await createImagePreview(file);
+            pendingImages.push({ file, preview });
+            updateAttachmentsPreview();
+        }
+
+        // Add external image URL
+        function addImageUrl(url) {
+            if (pendingImages.length >= MAX_IMAGES) {
+                WardApp.showToast(`Máximo de ${MAX_IMAGES} imagens permitido`, 'warning');
+                return;
+            }
+
+            const displayUrl = driveToImageUrl(url);
+            pendingImages.push({ url, preview: displayUrl });
+            updateAttachmentsPreview();
+            WardApp.showToast('Imagem adicionada!');
+        }
+
+        // Create image preview from file
+        function createImagePreview(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Handle file selection (non-image attachment)
+        function handleFileSelect(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+
+            if (file.size > MAX_FILE_SIZE) {
+                WardApp.showToast('Arquivo muito grande. Máximo 5MB.', 'warning');
+                event.target.value = '';
+                return;
+            }
+
+            pendingFile = { file, name: file.name };
+            updateAttachmentsPreview();
+
+            // Reset input
+            event.target.value = '';
+        }
+
+        // Remove image from pending list
+        function removeImage(index) {
+            pendingImages.splice(index, 1);
+            updateAttachmentsPreview();
+        }
+
+        // Remove file attachment
+        function removeFile() {
+            pendingFile = null;
+            updateAttachmentsPreview();
+        }
+
+        // Clear all attachments
+        function clearAttachments() {
+            pendingImages = [];
+            pendingFile = null;
+            updateAttachmentsPreview();
+        }
+
+        // Update the preview area
+        function updateAttachmentsPreview() {
+            const container = document.getElementById('attachments-preview');
+            const imagesPreview = document.getElementById('images-preview');
+            const filePreview = document.getElementById('file-preview');
+            const imageCount = document.getElementById('image-count');
+            const fileCount = document.getElementById('file-count');
+
+            // Update image count badge
+            imageCount.textContent = pendingImages.length > 0 ? `(${pendingImages.length})` : '';
+            fileCount.textContent = pendingFile ? '(1)' : '';
+
+            // Show/hide container
+            if (pendingImages.length === 0 && !pendingFile) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'block';
+
+            // Render images preview
+            if (pendingImages.length > 0) {
+                imagesPreview.innerHTML = pendingImages.map((img, i) => `
+                    <div class="image-preview-item">
+                        <img src="${img.preview}" alt="Preview ${i + 1}">
+                        <button type="button" class="remove-preview-btn" onclick="removeImage(${i})">×</button>
+                    </div>
+                `).join('');
+            } else {
+                imagesPreview.innerHTML = '';
+            }
+
+            // Render file preview
+            if (pendingFile) {
+                const ext = pendingFile.name.split('.').pop().toLowerCase();
+                const icon = getFileIcon(ext);
+                filePreview.innerHTML = `
+                    <div class="file-preview-item">
+                        <span class="file-icon">${icon}</span>
+                        <span class="file-name">${pendingFile.name}</span>
+                        <button type="button" class="remove-preview-btn" onclick="removeFile()">×</button>
+                    </div>
+                `;
+            } else {
+                filePreview.innerHTML = '';
+            }
+        }
+
+        // Get icon for file type
+        function getFileIcon(ext) {
+            const icons = {
+                'pdf': '📄',
+                'doc': '📝', 'docx': '📝',
+                'xls': '📊', 'xlsx': '📊',
+                'ppt': '📽️', 'pptx': '📽️',
+                'zip': '📦', 'rar': '📦', '7z': '📦',
+                'mp3': '🎵', 'wav': '🎵',
+                'mp4': '🎬', 'avi': '🎬', 'mov': '🎬'
+            };
+            return icons[ext] || '📎';
+        }
+
+        // Show/hide upload progress
+        function showUploadProgress(show) {
+            document.getElementById('upload-progress-area').style.display = show ? 'block' : 'none';
+        }
+
+        // Update upload progress
+        function updateUploadProgress(percent) {
+            document.getElementById('upload-progress-fill').style.width = `${percent}%`;
+        }
+
+        // Update upload status text
+        function updateUploadStatus(text) {
+            document.getElementById('upload-status-text').textContent = text;
+        }
+
+        // Render images for a post (card or modal view)
+        function renderPostImages(images, isModal = false) {
+            if (!images || images.length === 0) return '';
+
+            const imageUrls = images.map(url => driveToImageUrl(url));
+
+            if (imageUrls.length === 1) {
+                return `
+                    <div class="post-images ${isModal ? 'modal-view' : ''}">
+                        <img src="${imageUrls[0]}" alt="Post image" class="post-single-image" onclick="openImageViewer('${imageUrls[0]}')" loading="lazy">
+                    </div>
+                `;
+            }
+
+            // Multiple images - carousel
+            return `
+                <div class="post-images-carousel ${isModal ? 'modal-view' : ''}" data-index="0">
+                    <div class="carousel-container">
+                        ${imageUrls.map((url, i) => `
+                            <img src="${url}" alt="Post image ${i + 1}" class="carousel-image ${i === 0 ? 'active' : ''}" data-index="${i}" onclick="openImageViewer('${url}')" loading="lazy">
+                        `).join('')}
+                    </div>
+                    <button class="carousel-btn prev" onclick="event.stopPropagation(); navigateCarousel(this, -1)">‹</button>
+                    <button class="carousel-btn next" onclick="event.stopPropagation(); navigateCarousel(this, 1)">›</button>
+                    <div class="carousel-dots">
+                        ${imageUrls.map((_, i) => `<span class="carousel-dot ${i === 0 ? 'active' : ''}" data-index="${i}"></span>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Render file attachment for a post
+        function renderPostAttachment(url, name) {
+            if (!url || !name) return '';
+
+            const ext = name.split('.').pop().toLowerCase();
+            const icon = getFileIcon(ext);
+
+            return `
+                <div class="post-attachment">
+                    <a href="${url}" target="_blank" class="attachment-link" onclick="event.stopPropagation()">
+                        <span class="attachment-icon">${icon}</span>
+                        <span class="attachment-name">${name}</span>
+                        <span class="attachment-action">↗</span>
+                    </a>
+                </div>
+            `;
+        }
+
+        // Navigate carousel
+        function navigateCarousel(btn, direction) {
+            const carousel = btn.closest('.post-images-carousel');
+            const images = carousel.querySelectorAll('.carousel-image');
+            const dots = carousel.querySelectorAll('.carousel-dot');
+            let currentIndex = parseInt(carousel.dataset.index) || 0;
+
+            // Remove active class from current
+            images[currentIndex].classList.remove('active');
+            dots[currentIndex].classList.remove('active');
+
+            // Calculate new index
+            currentIndex = (currentIndex + direction + images.length) % images.length;
+            carousel.dataset.index = currentIndex;
+
+            // Add active class to new
+            images[currentIndex].classList.add('active');
+            dots[currentIndex].classList.add('active');
+        }
+
+        // Open image viewer (fullscreen)
+        function openImageViewer(url) {
+            const viewer = document.createElement('div');
+            viewer.className = 'image-viewer-overlay';
+            viewer.innerHTML = `
+                <img src="${url}" class="image-viewer-img" onclick="event.stopPropagation()">
+                <button class="image-viewer-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            viewer.onclick = () => viewer.remove();
+            document.body.appendChild(viewer);
+        }
+
+        // ========================================
+        // END ATTACHMENT FUNCTIONS
+        // ========================================
 
         function openPinModal(postId) {
             document.getElementById('pin-post-id').value = postId;
@@ -1615,6 +2073,375 @@
         @media (max-width: 768px) {
             #view-post-modal .modal {
                 max-width: 100%;
+            }
+        }
+
+        /* ========================================
+           ATTACHMENT STYLES - New Post Form
+           ======================================== */
+
+        .post-footer-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .attachment-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-attach {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: none;
+            border: 1px solid var(--gray-300);
+            border-radius: 6px;
+            padding: 0.4rem 0.6rem;
+            font-size: 0.85rem;
+            color: var(--gray-600);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-attach:hover {
+            background: var(--gray-100);
+            border-color: var(--gray-400);
+            color: var(--gray-700);
+        }
+
+        .btn-attach-label {
+            display: none;
+        }
+
+        @media (min-width: 480px) {
+            .btn-attach-label {
+                display: inline;
+            }
+        }
+
+        .attach-count {
+            font-size: 0.75rem;
+            color: var(--accent-orange);
+            font-weight: 600;
+        }
+
+        /* Attachments Preview */
+        .attachments-preview {
+            margin: 0.75rem 0;
+            padding: 0.75rem;
+            background: var(--gray-50);
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+        }
+
+        .images-preview {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.5rem;
+        }
+
+        .image-preview-item {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .image-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .remove-preview-btn {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .remove-preview-btn:hover {
+            background: rgba(220, 38, 38, 0.9);
+        }
+
+        .file-preview-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+        }
+
+        .file-icon {
+            font-size: 1.25rem;
+        }
+
+        .file-name {
+            flex: 1;
+            font-size: 0.85rem;
+            color: var(--gray-700);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Upload Progress */
+        .upload-progress-bar {
+            height: 6px;
+            background: var(--gray-200);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .upload-progress-fill {
+            height: 100%;
+            background: var(--accent-orange);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .upload-status-text {
+            font-size: 0.8rem;
+            color: var(--gray-500);
+            margin-top: 0.25rem;
+            display: block;
+        }
+
+        /* ========================================
+           POST IMAGES & CAROUSEL
+           ======================================== */
+
+        .post-images {
+            margin: 0.75rem 0;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .post-single-image {
+            width: 100%;
+            max-height: 400px;
+            object-fit: cover;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .post-single-image:hover {
+            transform: scale(1.01);
+        }
+
+        .post-images.modal-view .post-single-image {
+            max-height: 500px;
+        }
+
+        /* Carousel */
+        .post-images-carousel {
+            position: relative;
+            margin: 0.75rem 0;
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--gray-100);
+        }
+
+        .carousel-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+        }
+
+        .carousel-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            cursor: pointer;
+        }
+
+        .carousel-image.active {
+            opacity: 1;
+        }
+
+        .post-images-carousel.modal-view .carousel-container {
+            height: 400px;
+        }
+
+        .carousel-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            font-size: 1.25rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            transition: all 0.2s ease;
+            z-index: 10;
+        }
+
+        .carousel-btn:hover {
+            background: white;
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .carousel-btn.prev {
+            left: 10px;
+        }
+
+        .carousel-btn.next {
+            right: 10px;
+        }
+
+        .carousel-dots {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 6px;
+        }
+
+        .carousel-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .carousel-dot.active {
+            background: white;
+        }
+
+        /* Post Attachment */
+        .post-attachment {
+            margin: 0.75rem 0;
+        }
+
+        .attachment-link {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            text-decoration: none;
+            color: var(--gray-700);
+            transition: all 0.2s ease;
+        }
+
+        .attachment-link:hover {
+            background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+            border-color: #7dd3fc;
+        }
+
+        .attachment-icon {
+            font-size: 1.25rem;
+        }
+
+        .attachment-name {
+            flex: 1;
+            font-size: 0.9rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .attachment-action {
+            color: var(--accent-orange);
+            font-weight: 600;
+        }
+
+        /* Image Viewer Overlay */
+        .image-viewer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            cursor: pointer;
+        }
+
+        .image-viewer-img {
+            max-width: 95%;
+            max-height: 95%;
+            object-fit: contain;
+            cursor: default;
+        }
+
+        .image-viewer-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-viewer-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 480px) {
+            .carousel-container {
+                height: 200px;
+            }
+
+            .post-images-carousel.modal-view .carousel-container {
+                height: 250px;
+            }
+
+            .carousel-btn {
+                width: 30px;
+                height: 30px;
+                font-size: 1rem;
+            }
+
+            .image-preview-item {
+                width: 60px;
+                height: 60px;
             }
         }
     </style>
