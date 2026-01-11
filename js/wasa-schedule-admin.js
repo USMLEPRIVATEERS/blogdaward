@@ -590,6 +590,30 @@ async function deleteEvent(eventId) {
     showLoading();
 
     try {
+        // First, check for enrollments linked to this event
+        const { data: enrollments, error: checkError } = await window.supabase
+            .from('self_assessment_enrollments')
+            .select('id')
+            .eq('event_id', eventId);
+
+        if (checkError) {
+            console.error('Error checking enrollments:', checkError);
+        }
+
+        // If there are enrollments, unlink them first
+        if (enrollments && enrollments.length > 0) {
+            const { error: unlinkError } = await window.supabase
+                .from('self_assessment_enrollments')
+                .update({ event_id: null, is_event_enrollment: false })
+                .eq('event_id', eventId);
+
+            if (unlinkError) {
+                console.error('Error unlinking enrollments:', unlinkError);
+                throw new Error('Nao foi possivel desvincular as inscricoes do evento');
+            }
+        }
+
+        // Now delete the event
         const { error } = await window.supabase
             .from('self_assessment_events')
             .delete()
