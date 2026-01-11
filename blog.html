@@ -704,7 +704,7 @@
             const timeAgo = getTimeAgo(post.created_at);
 
             return `
-                <div class="post-card ${isPinned ? 'pinned' : ''}" data-post-id="${post.id}">
+                <div class="post-card ${isPinned ? 'pinned' : ''}" data-post-id="${post.id}" onclick="viewPost(${post.id})">
                     ${isPinned ? '<div class="pin-badge">📌 Fixado</div>' : ''}
 
                     <div class="post-header">
@@ -718,27 +718,27 @@
                         </div>
                         ${(isMentor || isOwnPost) ? `
                             <div class="post-menu">
-                                <button class="btn-icon" onclick="showPostMenu(event, ${post.id})">⋮</button>
+                                <button class="btn-icon" onclick="event.stopPropagation(); showPostMenu(event, ${post.id})">⋮</button>
                             </div>
                         ` : ''}
                     </div>
 
-                    <div class="post-content" onclick="viewPost(${post.id})">
+                    <div class="post-content">
                         ${post.content ? post.content.replace(/\n/g, '<br>') : ''}
                     </div>
 
-                    ${renderPostImages(post.images)}
+                    ${renderPostImages(post.images, false)}
                     ${renderPostAttachment(post.attachment_url, post.attachment_name)}
 
                     <div class="post-actions-bar">
-                        <button class="action-btn ${post.user_liked ? 'liked' : ''}" onclick="toggleLike(${post.id}, ${post.user_liked ? 'true' : 'false'})">
+                        <button class="action-btn ${post.user_liked ? 'liked' : ''}" onclick="event.stopPropagation(); toggleLike(${post.id}, ${post.user_liked ? 'true' : 'false'})">
                             ${post.user_liked ? '❤️' : '🤍'} <span>${post.likes || 0}</span>
                         </button>
-                        <button class="action-btn" onclick="viewPost(${post.id})">
+                        <button class="action-btn" onclick="event.stopPropagation(); viewPost(${post.id})">
                             💬 <span>${post.comments_count || 0}</span>
                         </button>
                         ${isMentor ? `
-                            <button class="action-btn" onclick="openPinModal(${post.id})">
+                            <button class="action-btn" onclick="event.stopPropagation(); openPinModal(${post.id})">
                                 📌
                             </button>
                         ` : ''}
@@ -1488,10 +1488,14 @@
 
             const imageUrls = images.map(url => driveToImageUrl(url));
 
+            // In card view: no onclick on images (clicking opens the post)
+            // In modal view: clicking opens fullscreen viewer
+            const imageClick = isModal ? `onclick="openImageViewer(this.src)"` : '';
+
             if (imageUrls.length === 1) {
                 return `
                     <div class="post-images ${isModal ? 'modal-view' : ''}">
-                        <img src="${imageUrls[0]}" alt="Post image" class="post-single-image" onclick="openImageViewer('${imageUrls[0]}')" loading="lazy">
+                        <img src="${imageUrls[0]}" alt="Post image" class="post-single-image" ${imageClick} loading="lazy">
                     </div>
                 `;
             }
@@ -1501,7 +1505,7 @@
                 <div class="post-images-carousel ${isModal ? 'modal-view' : ''}" data-index="0">
                     <div class="carousel-container">
                         ${imageUrls.map((url, i) => `
-                            <img src="${url}" alt="Post image ${i + 1}" class="carousel-image ${i === 0 ? 'active' : ''}" data-index="${i}" onclick="openImageViewer('${url}')" loading="lazy">
+                            <img src="${url}" alt="Post image ${i + 1}" class="carousel-image ${i === 0 ? 'active' : ''}" data-index="${i}" ${imageClick} loading="lazy">
                         `).join('')}
                     </div>
                     <button class="carousel-btn prev" onclick="event.stopPropagation(); navigateCarousel(this, -1)">‹</button>
@@ -1730,6 +1734,7 @@
             padding: 1.5rem;
             transition: all 0.3s ease;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            cursor: pointer;
         }
 
         .post-card:hover {
@@ -1843,7 +1848,6 @@
         }
 
         .post-content {
-            cursor: pointer;
             line-height: 1.5;
             margin-bottom: 0.75rem;
             word-wrap: break-word;
@@ -2255,22 +2259,24 @@
             margin: 0.75rem 0;
             border-radius: 12px;
             overflow: hidden;
+            background: var(--gray-100);
         }
 
         .post-single-image {
             width: 100%;
-            max-height: 400px;
-            object-fit: cover;
-            cursor: pointer;
+            max-height: 350px;
+            object-fit: contain;
+            display: block;
             transition: transform 0.2s ease;
-        }
-
-        .post-single-image:hover {
-            transform: scale(1.01);
         }
 
         .post-images.modal-view .post-single-image {
             max-height: 500px;
+            cursor: pointer;
+        }
+
+        .post-images.modal-view .post-single-image:hover {
+            transform: scale(1.01);
         }
 
         /* Carousel */
@@ -2285,7 +2291,7 @@
         .carousel-container {
             position: relative;
             width: 100%;
-            height: 300px;
+            height: 280px;
         }
 
         .carousel-image {
@@ -2294,10 +2300,9 @@
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
             opacity: 0;
             transition: opacity 0.3s ease;
-            cursor: pointer;
         }
 
         .carousel-image.active {
@@ -2306,6 +2311,10 @@
 
         .post-images-carousel.modal-view .carousel-container {
             height: 400px;
+        }
+
+        .post-images-carousel.modal-view .carousel-image {
+            cursor: pointer;
         }
 
         .carousel-btn {
