@@ -1852,9 +1852,107 @@ Cardiovascular	Physiology	62	FALSE
                 const step1 = dataByStep[1] || {};
                 const step2 = dataByStep[2] || {};
                 const step3 = dataByStep[3] || {};
+                const step4 = dataByStep[4] || {};
                 const step5 = dataByStep[5] || {};
                 const step7 = dataByStep[7] || {};
                 const step11 = dataByStep[11] || {};
+
+                // Helper function to format completed categories as intervals per system
+                function formatSystemsProgress(completedCategoriesStr, examType = 'step1') {
+                    if (!completedCategoriesStr) return null;
+
+                    let categories;
+                    try {
+                        categories = typeof completedCategoriesStr === 'string'
+                            ? JSON.parse(completedCategoriesStr)
+                            : completedCategoriesStr;
+                    } catch (e) {
+                        return null;
+                    }
+
+                    if (!Array.isArray(categories) || categories.length === 0) return null;
+
+                    // UWORLD_SYSTEMS data (simplified - just system names and category counts)
+                    const SYSTEMS_DATA = {
+                        'step1': {
+                            'biochemistry': { name: 'Biochemistry', count: 5 },
+                            'genetics': { name: 'Genetics', count: 6 },
+                            'microbiology': { name: 'Microbiology', count: 5 },
+                            'pathology': { name: 'Pathology', count: 3 },
+                            'pharmacology': { name: 'Pharmacology', count: 4 },
+                            'biostatistics': { name: 'Biostatistics', count: 5 },
+                            'psychiatry_behavioral': { name: 'Psychiatry', count: 10 },
+                            'social_sciences': { name: 'Social Sciences', count: 6 },
+                            'allergy_immunology': { name: 'Immunology', count: 6 },
+                            'cardiovascular': { name: 'Cardiovascular', count: 11 },
+                            'dermatology': { name: 'Dermatology', count: 6 },
+                            'ent': { name: 'ENT', count: 1 },
+                            'endocrine': { name: 'Endocrine', count: 10 },
+                            'female_reproductive': { name: 'Female Repro', count: 7 },
+                            'gi': { name: 'GI', count: 10 },
+                            'hematology_oncology': { name: 'Heme/Onc', count: 9 },
+                            'infectious_diseases': { name: 'Infectious', count: 8 },
+                            'male_reproductive': { name: 'Male Repro', count: 2 },
+                            'nervous': { name: 'Neurology', count: 16 },
+                            'ophthalmology': { name: 'Ophthalmology', count: 2 },
+                            'pregnancy': { name: 'OB/GYN', count: 2 },
+                            'pulmonary': { name: 'Pulmonary', count: 10 },
+                            'renal': { name: 'Renal', count: 13 },
+                            'rheumatology': { name: 'Rheumatology', count: 9 }
+                        },
+                        'step2ck': {
+                            'allergy_immunology_ck': { name: 'Immunology', count: 5 },
+                            'biostatistics_ck': { name: 'Biostatistics', count: 5 },
+                            'cardiovascular_ck': { name: 'Cardiovascular', count: 10 },
+                            'dermatology_ck': { name: 'Dermatology', count: 6 },
+                            'ent_ck': { name: 'ENT', count: 1 },
+                            'endocrine_ck': { name: 'Endocrine', count: 10 },
+                            'female_reproductive_ck': { name: 'Female Repro', count: 7 },
+                            'gi_ck': { name: 'GI', count: 10 },
+                            'general_principles_ck': { name: 'General', count: 1 },
+                            'hematology_oncology_ck': { name: 'Heme/Onc', count: 8 },
+                            'infectious_diseases_ck': { name: 'Infectious', count: 8 },
+                            'male_reproductive_ck': { name: 'Male Repro', count: 1 },
+                            'multisystem_ck': { name: 'Multisystem', count: 1 },
+                            'nervous_ck': { name: 'Neurology', count: 16 },
+                            'ophthalmology_ck': { name: 'Ophthalmology', count: 1 },
+                            'poisoning_environmental_ck': { name: 'Toxicology', count: 2 },
+                            'pregnancy_ck': { name: 'OB/GYN', count: 2 },
+                            'psychiatry_behavioral_ck': { name: 'Psychiatry', count: 10 },
+                            'pulmonary_ck': { name: 'Pulmonary', count: 10 },
+                            'renal_ck': { name: 'Renal', count: 11 },
+                            'rheumatology_ck': { name: 'Rheumatology', count: 8 },
+                            'social_sciences_ck': { name: 'Social Sciences', count: 6 }
+                        }
+                    };
+
+                    const systemsData = SYSTEMS_DATA[examType] || SYSTEMS_DATA['step1'];
+
+                    // Group completed categories by system
+                    const completedBySystem = {};
+                    categories.forEach(cat => {
+                        if (!completedBySystem[cat.system]) {
+                            completedBySystem[cat.system] = [];
+                        }
+                        completedBySystem[cat.system].push(cat.category);
+                    });
+
+                    // Format each system's progress
+                    const results = [];
+                    Object.keys(completedBySystem).forEach(systemId => {
+                        const systemInfo = systemsData[systemId];
+                        if (!systemInfo) return;
+
+                        const completedCount = completedBySystem[systemId].length;
+                        const totalCount = systemInfo.count;
+
+                        // Simple format showing completed/total
+                        const emoji = completedCount === totalCount ? '✅' : '📝';
+                        results.push(`${emoji} ${systemInfo.name}: ${completedCount}/${totalCount}`);
+                    });
+
+                    return results.length > 0 ? results.join('<br>') : null;
+                }
 
                 let html = `
                     <!-- Summary Card -->
@@ -1909,6 +2007,21 @@ Cardiovascular	Physiology	62	FALSE
                         title: '📚 Cronograma USMLE',
                         color: '#8b5cf6',
                         fields: [
+                            { key: 'study_start_date', label: '📅 Início Estudos', data: step2, format: (v) => v ? new Date(v).toLocaleDateString('pt-BR') : '-' },
+                            { key: 'next_exam_date', label: '📅 Próxima Prova', data: step2, format: (v) => v ? new Date(v).toLocaleDateString('pt-BR') : '-' },
+                            { key: 'no_study_days', label: '🚫 Dias OFF', data: step2, format: (v) => {
+                                const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                                return Array.isArray(v) ? v.map(d => days[d]).join(', ') : '-';
+                            }},
+                            { key: 'break_periods', label: '🏝️ Pausas', data: step2, format: (v) => {
+                                if (!Array.isArray(v) || v.length === 0) return '-';
+                                return v.map(p => {
+                                    const start = p.start_date ? new Date(p.start_date).toLocaleDateString('pt-BR') : '?';
+                                    const end = p.end_date ? new Date(p.end_date).toLocaleDateString('pt-BR') : '?';
+                                    const reason = p.reason || 'Pausa';
+                                    return `${reason}: ${start} - ${end}`;
+                                }).join('<br>');
+                            }},
                             { key: 'pathway', label: 'Caminho', data: step2, format: translate },
                             { key: 'current_stage', label: 'Estágio', data: step2, format: translate },
                             { key: 'first_pass_months', label: 'First Pass', data: step2, format: (v, data) => {
@@ -1922,10 +2035,6 @@ Cardiovascular	Physiology	62	FALSE
                             { key: 'dedicated_months', label: 'Dedicated', data: step2, format: (v, data) => {
                                 const completed = data?.dedicated_completed;
                                 return completed ? `✅ ${v} meses (Concluído)` : `${v} meses`;
-                            }},
-                            { key: 'no_study_days', label: 'Dias OFF', data: step2, format: (v) => {
-                                const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-                                return Array.isArray(v) ? v.map(d => days[d]).join(', ') : '';
                             }}
                         ]
                     },
@@ -1938,38 +2047,35 @@ Cardiovascular	Physiology	62	FALSE
                             { key: 'questions_done', label: 'Questões Feitas', data: step3 },
                             { key: 'overall_percentage', label: 'Desempenho Geral', data: step3, format: (v) => v ? `${v}%` : '-' },
                             { key: 'lowest_system', label: 'Pior Sistema', data: step3 },
-                            { key: 'highest_system', label: 'Melhor Sistema', data: step3 }
+                            { key: 'highest_system', label: 'Melhor Sistema', data: step3 },
+                            { key: 'completed_categories', label: '📚 Systems Feitos', data: step4, format: (v) => {
+                                const examType = step4.exam_type || step2.next_exam || 'step1';
+                                const result = formatSystemsProgress(v, examType);
+                                return result || 'Nenhum registrado';
+                            }}
                         ]
                     },
                     {
-                        title: '📝 UWSAs Realizados',
+                        title: '📝 Simulados (UWSA & NBME)',
                         color: '#8b5cf6',
                         fields: [
-                            { key: 'did_uwsa', label: 'Fez UWSA', data: step3, format: (v) => v ? '✅' : '❌' },
                             { key: 'uwsa_exams', label: 'UWSAs', data: step3, format: (v) => {
-                                if (!Array.isArray(v) || v.length === 0) return '-';
+                                if (!Array.isArray(v) || v.length === 0) return step3.did_uwsa ? 'Nenhum registrado' : '❌ Não fez';
                                 return v.map(exam => {
                                     const name = exam.name || exam.id;
                                     const pct = exam.percentage ? `${exam.percentage}%` : '-';
                                     const date = exam.date ? new Date(exam.date).toLocaleDateString('pt-BR') : '-';
                                     return `${name}: ${pct} (${date})`;
-                                }).join(', ');
-                            }}
-                        ]
-                    },
-                    {
-                        title: '🎯 NBMEs Realizados',
-                        color: '#f97316',
-                        fields: [
-                            { key: 'did_nbme', label: 'Fez NBME', data: step3, format: (v) => v ? '✅' : '❌' },
+                                }).join('<br>');
+                            }},
                             { key: 'nbme_forms', label: 'NBMEs', data: step3, format: (v) => {
-                                if (!Array.isArray(v) || v.length === 0) return '-';
+                                if (!Array.isArray(v) || v.length === 0) return step3.did_nbme ? 'Nenhum registrado' : '❌ Não fez';
                                 return v.map(form => {
                                     const name = form.id ? form.id.replace('form_', 'Form ') : 'NBME';
                                     const pct = form.percentage ? `${form.percentage}%` : '-';
                                     const date = form.date ? new Date(form.date).toLocaleDateString('pt-BR') : '-';
                                     return `${name}: ${pct} (${date})`;
-                                }).join(', ');
+                                }).join('<br>');
                             }}
                         ]
                     },
