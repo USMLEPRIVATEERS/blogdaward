@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blog - USMLE Privateers</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏴‍☠️</text></svg>">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+
+    <style>
+        .post-editor {
+            background: var(--primary-white);
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-md);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .post-editor-textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 16px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--border-radius);
+            font-family: inherit;
+            font-size: 1rem;
+            resize: vertical;
+            transition: border-color var(--transition-fast);
+        }
+
+        .post-editor-textarea:focus {
+            outline: none;
+            border-color: var(--primary-red);
+        }
+
+        .char-counter {
+            text-align: right;
+            font-size: 0.85rem;
+            color: var(--gray-500);
+            margin-top: 8px;
+        }
+
+        .char-counter.warning { color: var(--warning-yellow); }
+        .char-counter.danger { color: var(--danger-red); }
+
+        .tags-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 16px 0;
+        }
+
+        .attachment-preview {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .attachment-item {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            background: var(--gray-100);
+        }
+
+        .attachment-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .attachment-remove {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 20px;
+            height: 20px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .filters-bar {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: var(--primary-white);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .featured-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            color: #333;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+    </style>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <!-- Header -->
+    <div id="header-container"></div>
+
+    <main class="main-container">
+        <div class="container">
+            <h1 class="mb-4">📰 Blog da Comunidade</h1>
+
+            <!-- Post Editor -->
+            <div class="post-editor" id="post-editor">
+                <h4 class="mb-3">Criar Post</h4>
+
+                <textarea
+                    id="post-content"
+                    class="post-editor-textarea"
+                    placeholder="Compartilhe sua experiência, dúvida ou dica com a comunidade... (máx. 2000 caracteres)"
+                    maxlength="2000"
+                    oninput="updateCharCounter()"
+                ></textarea>
+
+                <div class="char-counter" id="char-counter">0 / 2000</div>
+
+                <!-- Tags -->
+                <div class="mb-3">
+                    <label class="form-label">Tags (selecione pelo menos uma)</label>
+                    <div class="tags-selector" id="tags-selector">
+                        <!-- Tags will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Attachments -->
+                <div class="mb-3">
+                    <label class="form-label">Anexos (máx. 3 imagens + 1 arquivo)</label>
+                    <input type="file" id="file-input" accept="image/*,.pdf,.doc,.docx" multiple style="display: none;" onchange="handleFileSelect(event)">
+                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('file-input').click()">
+                        📎 Adicionar Anexo
+                    </button>
+                    <div class="attachment-preview" id="attachment-preview"></div>
+                </div>
+
+                <div class="d-flex justify-end gap-2">
+                    <button class="btn btn-secondary" onclick="clearPost()">Limpar</button>
+                    <button class="btn btn-primary" onclick="submitPost()" id="submit-btn">
+                        Publicar Post
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="filters-bar">
+                <select class="form-select" id="sort-select" onchange="loadPosts()" style="width: auto;">
+                    <option value="new">Mais Recentes</option>
+                    <option value="top">Mais Curtidos</option>
+                    <option value="hot">Em Alta</option>
+                </select>
+
+                <select class="form-select" id="tag-filter" onchange="loadPosts()" style="width: auto;">
+                    <option value="">Todas as Tags</option>
+                    <!-- Tags will be loaded -->
+                </select>
+
+                <select class="form-select" id="time-filter" onchange="loadPosts()" style="width: auto;">
+                    <option value="all">Todo período</option>
+                    <option value="week">Última semana</option>
+                    <option value="month">Último mês</option>
+                    <option value="3months">Últimos 3 meses</option>
+                </select>
+
+                <input type="text" class="form-input" id="search-input" placeholder="Buscar..." style="width: 200px;" onkeyup="debounceSearch()">
+            </div>
+
+            <!-- Posts List -->
+            <div id="posts-container">
+                <div class="loading-spinner" style="margin: 40px auto;"></div>
+            </div>
+
+            <!-- Load More -->
+            <div class="text-center mt-4" id="load-more-container" style="display: none;">
+                <button class="btn btn-secondary" onclick="loadMorePosts()">Carregar Mais</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <div id="footer-container"></div>
+
+    <!-- Scripts -->
+    <script src="js/app.js"></script>
+    <script>
+        let currentUser = null;
+        let allTags = [];
+        let selectedTags = [];
+        let attachments = [];
+        let posts = [];
+        let currentPage = 0;
+        const POSTS_PER_PAGE = 20;
+        let searchTimeout = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check auth
+            currentUser = await PrivateersApp.checkAuth();
+            if (!currentUser) return;
+
+            // Render navigation
+            document.getElementById('header-container').innerHTML = PrivateersApp.renderNavbar('blog');
+            document.getElementById('footer-container').innerHTML = PrivateersApp.renderFooter();
+
+            // Load tags
+            await loadTags();
+
+            // Load posts
+            await loadPosts();
+
+            // Maybe show question
+            await PrivateersApp.maybeShowQuestionPrompt();
+
+            // Log page view
+            await PrivateersApp.logActivity('page_view', { page: 'blog' });
+        });
+
+        async function loadTags() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('popular_tags')
+                    .select('*')
+                    .eq('is_visible', true);
+
+                if (error) throw error;
+
+                allTags = data || [];
+
+                // Render tags selector
+                const container = document.getElementById('tags-selector');
+                container.innerHTML = allTags.map(tag => `
+                    <span class="tag" data-tag-id="${tag.id}" onclick="toggleTag('${tag.id}')">
+                        ${tag.name}
+                    </span>
+                `).join('');
+
+                // Render filter dropdown
+                const filter = document.getElementById('tag-filter');
+                filter.innerHTML = '<option value="">Todas as Tags</option>' +
+                    allTags.map(tag => `<option value="${tag.id}">${tag.name}</option>`).join('');
+
+            } catch (err) {
+                console.error('Error loading tags:', err);
+                // Use default tags
+                allTags = [
+                    { id: '1', name: 'Relato de Pass' },
+                    { id: '2', name: 'Match' },
+                    { id: '3', name: 'Step 1' },
+                    { id: '4', name: 'Step 2 CK' },
+                    { id: '5', name: 'Dúvida' },
+                    { id: '6', name: 'Dica' }
+                ];
+                const container = document.getElementById('tags-selector');
+                container.innerHTML = allTags.map(tag => `
+                    <span class="tag" data-tag-id="${tag.id}" onclick="toggleTag('${tag.id}')">
+                        ${tag.name}
+                    </span>
+                `).join('');
+            }
+        }
+
+        function toggleTag(tagId) {
+            const index = selectedTags.indexOf(tagId);
+            if (index > -1) {
+                selectedTags.splice(index, 1);
+            } else {
+                selectedTags.push(tagId);
+            }
+
+            // Update UI
+            document.querySelectorAll('.tags-selector .tag').forEach(el => {
+                if (selectedTags.includes(el.dataset.tagId)) {
+                    el.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+        }
+
+        function updateCharCounter() {
+            const content = document.getElementById('post-content').value;
+            const counter = document.getElementById('char-counter');
+            const length = content.length;
+
+            counter.textContent = `${length} / 2000`;
+            counter.className = 'char-counter';
+
+            if (length >= 1800) {
+                counter.classList.add('danger');
+            } else if (length >= 1500) {
+                counter.classList.add('warning');
+            }
+        }
+
+        function handleFileSelect(e) {
+            const files = Array.from(e.target.files);
+            const imageCount = attachments.filter(a => a.type === 'image').length;
+            const fileCount = attachments.filter(a => a.type === 'file').length;
+
+            for (const file of files) {
+                const isImage = file.type.startsWith('image/');
+
+                if (isImage && imageCount + attachments.filter(a => a.type === 'image').length >= 3) {
+                    PrivateersApp.showToast('warning', 'Limite', 'Máximo 3 imagens permitidas');
+                    continue;
+                }
+
+                if (!isImage && fileCount + attachments.filter(a => a.type === 'file').length >= 1) {
+                    PrivateersApp.showToast('warning', 'Limite', 'Máximo 1 arquivo permitido');
+                    continue;
+                }
+
+                // Max 5MB
+                if (file.size > 5 * 1024 * 1024) {
+                    PrivateersApp.showToast('warning', 'Limite', 'Arquivo muito grande (máx 5MB)');
+                    continue;
+                }
+
+                attachments.push({
+                    file,
+                    type: isImage ? 'image' : 'file',
+                    preview: isImage ? URL.createObjectURL(file) : null
+                });
+            }
+
+            renderAttachments();
+        }
+
+        function renderAttachments() {
+            const container = document.getElementById('attachment-preview');
+            container.innerHTML = attachments.map((att, idx) => `
+                <div class="attachment-item">
+                    ${att.type === 'image'
+                        ? `<img src="${att.preview}" alt="Preview">`
+                        : `<div style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 2rem;">📄</div>`
+                    }
+                    <button class="attachment-remove" onclick="removeAttachment(${idx})">&times;</button>
+                </div>
+            `).join('');
+        }
+
+        function removeAttachment(index) {
+            if (attachments[index].preview) {
+                URL.revokeObjectURL(attachments[index].preview);
+            }
+            attachments.splice(index, 1);
+            renderAttachments();
+        }
+
+        function clearPost() {
+            document.getElementById('post-content').value = '';
+            selectedTags = [];
+            attachments = [];
+            document.querySelectorAll('.tags-selector .tag').forEach(el => el.classList.remove('active'));
+            renderAttachments();
+            updateCharCounter();
+        }
+
+        async function submitPost() {
+            const content = document.getElementById('post-content').value.trim();
+
+            // Validate content
+            const validation = PrivateersApp.validateResponse(content, 'textarea');
+            if (!validation.valid) {
+                PrivateersApp.showToast('error', 'Erro', 'Por favor, escreva um conteúdo válido (mínimo 3 caracteres).');
+                return;
+            }
+
+            if (selectedTags.length === 0) {
+                PrivateersApp.showToast('error', 'Erro', 'Selecione pelo menos uma tag.');
+                return;
+            }
+
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner loading-spinner-sm"></span> Publicando...';
+
+            try {
+                // Create post
+                const { data: post, error: postError } = await supabaseClient
+                    .from('blog_posts')
+                    .insert({
+                        user_id: currentUser.id,
+                        content: content
+                    })
+                    .select()
+                    .single();
+
+                if (postError) throw postError;
+
+                // Add tags
+                if (selectedTags.length > 0) {
+                    const tagInserts = selectedTags.map(tagId => ({
+                        post_id: post.id,
+                        tag_id: tagId
+                    }));
+
+                    await supabaseClient
+                        .from('blog_post_tags')
+                        .insert(tagInserts);
+                }
+
+                // Upload attachments (would need Supabase Storage setup)
+                // For now, skip attachment upload
+
+                PrivateersApp.showToast('success', 'Sucesso', 'Post publicado com sucesso!');
+                clearPost();
+
+                // Reload posts
+                currentPage = 0;
+                await loadPosts();
+
+                // Log activity
+                await PrivateersApp.logActivity('post_created', { post_id: post.id });
+
+            } catch (err) {
+                console.error('Error creating post:', err);
+                PrivateersApp.showToast('error', 'Erro', 'Não foi possível publicar o post.');
+            }
+
+            btn.disabled = false;
+            btn.textContent = 'Publicar Post';
+        }
+
+        async function loadPosts(reset = true) {
+            if (reset) {
+                currentPage = 0;
+                posts = [];
+            }
+
+            const container = document.getElementById('posts-container');
+            if (reset) {
+                container.innerHTML = '<div class="loading-spinner" style="margin: 40px auto;"></div>';
+            }
+
+            try {
+                let query = supabaseClient
+                    .from('active_blog_posts')
+                    .select('*')
+                    .range(currentPage * POSTS_PER_PAGE, (currentPage + 1) * POSTS_PER_PAGE - 1);
+
+                // Apply filters
+                const sortBy = document.getElementById('sort-select').value;
+                const tagFilter = document.getElementById('tag-filter').value;
+                const timeFilter = document.getElementById('time-filter').value;
+                const searchQuery = document.getElementById('search-input').value.trim();
+
+                // Sort
+                switch (sortBy) {
+                    case 'top':
+                        query = query.order('likes', { ascending: false });
+                        break;
+                    case 'hot':
+                        query = query.order('comments_count', { ascending: false });
+                        break;
+                    default:
+                        query = query.order('created_at', { ascending: false });
+                }
+
+                // Time filter
+                if (timeFilter !== 'all') {
+                    const now = new Date();
+                    let fromDate;
+                    switch (timeFilter) {
+                        case 'week':
+                            fromDate = new Date(now - 7 * 24 * 60 * 60 * 1000);
+                            break;
+                        case 'month':
+                            fromDate = new Date(now - 30 * 24 * 60 * 60 * 1000);
+                            break;
+                        case '3months':
+                            fromDate = new Date(now - 90 * 24 * 60 * 60 * 1000);
+                            break;
+                    }
+                    if (fromDate) {
+                        query = query.gte('created_at', fromDate.toISOString());
+                    }
+                }
+
+                // Search
+                if (searchQuery) {
+                    query = query.ilike('content', `%${searchQuery}%`);
+                }
+
+                const { data, error } = await query;
+
+                if (error) throw error;
+
+                if (reset) {
+                    posts = data || [];
+                } else {
+                    posts = posts.concat(data || []);
+                }
+
+                // Filter by tag if needed (client-side since tags is array)
+                let filteredPosts = posts;
+                if (tagFilter) {
+                    const tagName = allTags.find(t => t.id === tagFilter)?.name;
+                    if (tagName) {
+                        filteredPosts = posts.filter(p => p.tags && p.tags.includes(tagName));
+                    }
+                }
+
+                renderPosts(filteredPosts);
+
+                // Show/hide load more
+                document.getElementById('load-more-container').style.display =
+                    data && data.length >= POSTS_PER_PAGE ? 'block' : 'none';
+
+            } catch (err) {
+                console.error('Error loading posts:', err);
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">❌</div>
+                        <h4 class="empty-state-title">Erro ao carregar posts</h4>
+                        <button class="btn btn-primary" onclick="loadPosts()">Tentar novamente</button>
+                    </div>
+                `;
+            }
+        }
+
+        function renderPosts(postsToRender) {
+            const container = document.getElementById('posts-container');
+
+            if (!postsToRender || postsToRender.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📝</div>
+                        <h4 class="empty-state-title">Nenhum post encontrado</h4>
+                        <p class="empty-state-text">Seja o primeiro a compartilhar!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = postsToRender.map(post => `
+                <div class="blog-post" style="position: relative;">
+                    ${post.is_pinned ? '<div class="featured-badge">📌 Fixado</div>' : ''}
+                    ${post.is_featured ? '<div class="featured-badge">⭐ Destaque</div>' : ''}
+
+                    <div class="blog-post-header">
+                        <div class="avatar">${PrivateersApp.getInitials(post.author_name)}</div>
+                        <div>
+                            <span class="blog-post-author">${PrivateersApp.escapeHtml(post.author_name)}</span>
+                            ${PrivateersApp.getRoleBadge(post.author_role)}
+                            <span class="blog-post-date">${PrivateersApp.formatDate(post.created_at)}</span>
+                        </div>
+                    </div>
+
+                    <div class="blog-post-content">
+                        ${PrivateersApp.escapeHtml(post.content)}
+                    </div>
+
+                    ${post.tags && post.tags.length > 0 ? `
+                        <div class="blog-post-tags">
+                            ${post.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                        </div>
+                    ` : ''}
+
+                    <div class="blog-post-actions">
+                        <button class="blog-action-btn ${post.user_reaction === 'like' ? 'active' : ''}"
+                                onclick="toggleReaction('${post.id}', 'like')">
+                            👍 ${post.likes}
+                        </button>
+                        <button class="blog-action-btn ${post.user_reaction === 'dislike' ? 'active' : ''}"
+                                onclick="toggleReaction('${post.id}', 'dislike')">
+                            👎 ${post.dislikes}
+                        </button>
+                        <button class="blog-action-btn" onclick="toggleComments('${post.id}')">
+                            💬 ${post.comments_count}
+                        </button>
+                        ${post.user_id === currentUser.id || currentUser.role === 'fundador' ? `
+                            <button class="blog-action-btn" onclick="deletePost('${post.id}')" style="margin-left: auto;">
+                                🗑️
+                            </button>
+                        ` : ''}
+                    </div>
+
+                    <div class="comments-section" id="comments-${post.id}" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--gray-200);">
+                        <!-- Comments will be loaded here -->
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function toggleReaction(postId, reactionType) {
+            try {
+                // Check if user already reacted
+                const { data: existing } = await supabaseClient
+                    .from('blog_reactions')
+                    .select('*')
+                    .eq('post_id', postId)
+                    .eq('user_id', currentUser.id)
+                    .single();
+
+                if (existing) {
+                    if (existing.reaction === reactionType) {
+                        // Remove reaction
+                        await supabaseClient
+                            .from('blog_reactions')
+                            .delete()
+                            .eq('id', existing.id);
+                    } else {
+                        // Change reaction
+                        await supabaseClient
+                            .from('blog_reactions')
+                            .update({ reaction: reactionType })
+                            .eq('id', existing.id);
+                    }
+                } else {
+                    // Add reaction
+                    await supabaseClient
+                        .from('blog_reactions')
+                        .insert({
+                            post_id: postId,
+                            user_id: currentUser.id,
+                            reaction: reactionType
+                        });
+                }
+
+                // Reload posts to reflect changes
+                await loadPosts();
+
+            } catch (err) {
+                console.error('Error toggling reaction:', err);
+            }
+        }
+
+        async function deletePost(postId) {
+            if (!confirm('Tem certeza que deseja excluir este post?')) return;
+
+            try {
+                await supabaseClient
+                    .from('blog_posts')
+                    .update({ is_deleted: true })
+                    .eq('id', postId);
+
+                PrivateersApp.showToast('success', 'Sucesso', 'Post excluído.');
+                await loadPosts();
+
+            } catch (err) {
+                console.error('Error deleting post:', err);
+                PrivateersApp.showToast('error', 'Erro', 'Não foi possível excluir o post.');
+            }
+        }
+
+        function toggleComments(postId) {
+            const section = document.getElementById(`comments-${postId}`);
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                loadComments(postId);
+            } else {
+                section.style.display = 'none';
+            }
+        }
+
+        async function loadComments(postId) {
+            const section = document.getElementById(`comments-${postId}`);
+            section.innerHTML = '<div class="loading-spinner" style="margin: 20px auto;"></div>';
+
+            try {
+                const { data, error } = await supabaseClient
+                    .from('blog_comments')
+                    .select('*, users(full_name, role)')
+                    .eq('post_id', postId)
+                    .eq('is_deleted', false)
+                    .order('created_at', { ascending: true });
+
+                if (error) throw error;
+
+                section.innerHTML = `
+                    <div class="comments-list">
+                        ${data && data.length > 0 ? data.map(comment => `
+                            <div class="comment" style="display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--gray-100);">
+                                <div class="avatar avatar-sm">${PrivateersApp.getInitials(comment.users?.full_name)}</div>
+                                <div style="flex: 1;">
+                                    <div style="margin-bottom: 4px;">
+                                        <span style="font-weight: 500;">${PrivateersApp.escapeHtml(comment.users?.full_name || 'Anônimo')}</span>
+                                        <span class="text-muted" style="font-size: 0.8rem;">${PrivateersApp.formatDate(comment.created_at)}</span>
+                                    </div>
+                                    <p style="margin: 0; color: var(--gray-700);">${PrivateersApp.escapeHtml(comment.content)}</p>
+                                </div>
+                            </div>
+                        `).join('') : '<p class="text-muted text-center">Nenhum comentário ainda.</p>'}
+                    </div>
+
+                    <div class="add-comment" style="margin-top: 16px;">
+                        <div class="d-flex gap-2">
+                            <input type="text" class="form-input" id="comment-input-${postId}" placeholder="Escreva um comentário..." style="flex: 1;">
+                            <button class="btn btn-primary btn-sm" onclick="addComment('${postId}')">Enviar</button>
+                        </div>
+                    </div>
+                `;
+
+            } catch (err) {
+                console.error('Error loading comments:', err);
+                section.innerHTML = '<p class="text-muted text-center">Erro ao carregar comentários.</p>';
+            }
+        }
+
+        async function addComment(postId) {
+            const input = document.getElementById(`comment-input-${postId}`);
+            const content = input.value.trim();
+
+            if (!content) {
+                PrivateersApp.showToast('error', 'Erro', 'Digite um comentário.');
+                return;
+            }
+
+            // Validate comment
+            const validation = PrivateersApp.validateResponse(content, 'text');
+            if (!validation.valid) {
+                PrivateersApp.showToast('error', 'Erro', 'Por favor, escreva um comentário válido.');
+                return;
+            }
+
+            try {
+                await supabaseClient
+                    .from('blog_comments')
+                    .insert({
+                        post_id: postId,
+                        user_id: currentUser.id,
+                        content: content
+                    });
+
+                input.value = '';
+                await loadComments(postId);
+
+                // Log activity
+                await PrivateersApp.logActivity('comment_added', { post_id: postId });
+
+            } catch (err) {
+                console.error('Error adding comment:', err);
+                PrivateersApp.showToast('error', 'Erro', 'Não foi possível adicionar o comentário.');
+            }
+        }
+
+        function loadMorePosts() {
+            currentPage++;
+            loadPosts(false);
+        }
+
+        function debounceSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => loadPosts(), 300);
+        }
+    </script>
+</body>
+</html>

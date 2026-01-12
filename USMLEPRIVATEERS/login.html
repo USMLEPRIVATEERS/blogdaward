@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - USMLE Privateers</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏴‍☠️</text></svg>">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-logo">
+                <div style="font-size: 4rem;">🏴‍☠️</div>
+                <h1>USMLE Privateers</h1>
+                <p>We're all in the same boat!</p>
+            </div>
+
+            <!-- Tabs -->
+            <div class="login-tabs">
+                <button class="login-tab active" onclick="showTab('login')">Entrar</button>
+                <button class="login-tab" onclick="showTab('register')">Criar Conta</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" class="login-form active" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label class="form-label required">Email</label>
+                    <input type="email" id="login-email" class="form-input" placeholder="seu@email.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label required">Senha</label>
+                    <input type="password" id="login-password" class="form-input" placeholder="Sua senha" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block btn-lg" id="login-btn">
+                    Entrar
+                </button>
+
+                <p class="text-center mt-3 text-muted" style="font-size: 0.9rem;">
+                    Esqueceu a senha? <a href="mailto:contato@usmleprivateers.com">Fale conosco</a>
+                </p>
+            </form>
+
+            <!-- Register Form -->
+            <form id="register-form" class="login-form" onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label class="form-label required">Nome completo</label>
+                    <input type="text" id="register-name" class="form-input" placeholder="Seu nome completo" required minlength="3">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label required">Email</label>
+                    <input type="email" id="register-email" class="form-input" placeholder="seu@email.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label required">WhatsApp</label>
+                    <input type="tel" id="register-whatsapp" class="form-input" placeholder="+55 (11) 98765-4321" required>
+                    <span class="form-hint">Inclua o código do país (+55 para Brasil)</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label required">Senha</label>
+                    <input type="password" id="register-password" class="form-input" placeholder="Mínimo 6 caracteres" required minlength="6">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label required">Confirmar Senha</label>
+                    <input type="password" id="register-confirm" class="form-input" placeholder="Repita a senha" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="register-terms" required>
+                        <span class="form-check-label">
+                            Li e aceito os <a href="https://www.usmleprivateers.com/constitution" target="_blank">termos de uso</a> da comunidade
+                        </span>
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block btn-lg" id="register-btn">
+                    Criar Conta
+                </button>
+            </form>
+
+            <div class="login-divider">ou</div>
+
+            <div class="social-links" style="justify-content: center;">
+                <a href="index.html" class="btn btn-secondary btn-block">
+                    ← Voltar para Home
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/app.js"></script>
+    <script>
+        // Check if already logged in
+        const user = PrivateersApp.getCurrentUser();
+        if (user) {
+            window.location.href = 'dashboard.html';
+        }
+
+        function showTab(tab) {
+            // Update tabs
+            document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update forms
+            document.querySelectorAll('.login-form').forEach(f => f.classList.remove('active'));
+            document.getElementById(tab + '-form').classList.add('active');
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('login-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner loading-spinner-sm"></span> Entrando...';
+
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            await PrivateersApp.login(email, password);
+
+            btn.disabled = false;
+            btn.textContent = 'Entrar';
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+
+            const password = document.getElementById('register-password').value;
+            const confirm = document.getElementById('register-confirm').value;
+
+            if (password !== confirm) {
+                PrivateersApp.showToast('error', 'Erro', 'As senhas não coincidem');
+                return;
+            }
+
+            const btn = document.getElementById('register-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner loading-spinner-sm"></span> Criando conta...';
+
+            const fullName = document.getElementById('register-name').value;
+            const email = document.getElementById('register-email').value;
+            const whatsapp = document.getElementById('register-whatsapp').value;
+
+            await PrivateersApp.register(fullName, email, whatsapp, password);
+
+            btn.disabled = false;
+            btn.textContent = 'Criar Conta';
+        }
+    </script>
+</body>
+</html>

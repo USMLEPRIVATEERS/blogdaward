@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel ADM - USMLE Privateers</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏴‍☠️</text></svg>">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <!-- Header -->
+    <div id="header-container"></div>
+
+    <main class="main-container">
+        <div class="container">
+            <!-- Welcome Banner -->
+            <div class="card mb-4" style="background: linear-gradient(135deg, var(--primary-red) 0%, var(--accent-red-dark) 100%); color: white;">
+                <div class="card-body">
+                    <div class="d-flex align-center justify-between flex-wrap gap-3">
+                        <div>
+                            <h2 style="margin-bottom: 8px;">⚡ Painel de Administrador</h2>
+                            <p style="opacity: 0.9; margin: 0;">
+                                Olá, <strong id="adm-name">ADM</strong>! Você pode adicionar conteúdo à Wiki.
+                            </p>
+                        </div>
+                        <a href="dashboard.html" class="btn btn-outline-white">
+                            ← Voltar ao Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info Card -->
+            <div class="card mb-4" style="border-left: 4px solid var(--info-blue);">
+                <div class="card-body">
+                    <h4 class="mb-2">ℹ️ Permissões de ADM</h4>
+                    <ul style="margin: 0; padding-left: 20px; color: var(--gray-700);">
+                        <li>Você <strong>pode</strong> adicionar e editar conteúdo na Wiki</li>
+                        <li>Você <strong>pode</strong> criar posts no Blog</li>
+                        <li>Você <strong>não pode</strong> ver dados pessoais de outros membros</li>
+                        <li>Você <strong>não pode</strong> alterar estatísticas da landing page</li>
+                        <li>Você <strong>não pode</strong> gerenciar posts em destaque</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <h3 class="mb-3">Ações Rápidas</h3>
+            <div class="grid gap-4 mb-4" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                <a href="wiki.html" class="dashboard-card">
+                    <div class="dashboard-card-icon" style="background: linear-gradient(135deg, #0077b6 0%, #00b4d8 100%);">📚</div>
+                    <div class="dashboard-card-value">Gerenciar Wiki</div>
+                    <div class="dashboard-card-label">Adicionar e editar artigos</div>
+                </a>
+
+                <a href="blog.html" class="dashboard-card">
+                    <div class="dashboard-card-icon" style="background: linear-gradient(135deg, #059669 0%, #047857 100%);">📝</div>
+                    <div class="dashboard-card-value">Blog</div>
+                    <div class="dashboard-card-label">Criar posts para a comunidade</div>
+                </a>
+
+                <div class="dashboard-card" onclick="showAddArticleModal()" style="cursor: pointer;">
+                    <div class="dashboard-card-icon" style="background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);">➕</div>
+                    <div class="dashboard-card-value">Novo Artigo</div>
+                    <div class="dashboard-card-label">Criar artigo na Wiki</div>
+                </div>
+            </div>
+
+            <!-- Recent Wiki Articles -->
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">📚 Artigos Recentes da Wiki</h4>
+                    <a href="wiki.html" class="btn btn-sm btn-outline">Ver todos</a>
+                </div>
+                <div class="card-body" id="recent-articles">
+                    <div class="loading-spinner" style="margin: 20px auto;"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Add Article Modal -->
+    <div id="article-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">📄 Novo Artigo</h3>
+                <button class="modal-close" onclick="closeArticleModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="article-form" onsubmit="saveArticle(event)">
+                    <div class="form-group">
+                        <label class="form-label required">Pasta/Categoria</label>
+                        <select id="article-folder" class="form-select" required>
+                            <option value="">Selecione uma pasta...</option>
+                            <!-- Folders will be loaded -->
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label required">Título</label>
+                        <input type="text" id="article-title" class="form-input" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Resumo</label>
+                        <input type="text" id="article-summary" class="form-input" placeholder="Breve descrição do artigo">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label required">Conteúdo (Markdown)</label>
+                        <textarea id="article-content" class="form-textarea" rows="15" required placeholder="# Título
+
+## Subtítulo
+
+Seu conteúdo aqui...
+
+- Item 1
+- Item 2
+
+**Negrito** e *itálico*
+
+[Link](https://exemplo.com)"></textarea>
+                        <span class="form-hint">Use Markdown para formatação. # para títulos, ** para negrito, * para itálico.</span>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeArticleModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="document.getElementById('article-form').requestSubmit()">
+                    Publicar Artigo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div id="footer-container"></div>
+
+    <!-- Scripts -->
+    <script src="js/app.js"></script>
+    <script>
+        let currentUser = null;
+        let folders = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check auth - ADMs and founders
+            currentUser = await PrivateersApp.checkAuth(['adm', 'fundador']);
+            if (!currentUser) return;
+
+            // If founder, redirect to founder dashboard
+            if (currentUser.role === 'fundador') {
+                window.location.href = 'founder-dashboard.html';
+                return;
+            }
+
+            // Render navigation
+            document.getElementById('header-container').innerHTML = PrivateersApp.renderNavbar('admin');
+            document.getElementById('footer-container').innerHTML = PrivateersApp.renderFooter();
+
+            // Update ADM name
+            document.getElementById('adm-name').textContent = currentUser.full_name.split(' ')[0];
+
+            // Load data
+            await loadRecentArticles();
+            await loadFolders();
+
+            // Log page view
+            await PrivateersApp.logActivity('page_view', { page: 'adm-dashboard' });
+        });
+
+        async function loadRecentArticles() {
+            const container = document.getElementById('recent-articles');
+
+            try {
+                const { data, error } = await supabaseClient
+                    .from('recent_wiki_articles')
+                    .select('*')
+                    .limit(5);
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    container.innerHTML = data.map(article => `
+                        <a href="wiki.html?article=${article.id}" style="display: block; padding: 12px 0; border-bottom: 1px solid var(--gray-200); color: var(--gray-700);">
+                            <div class="d-flex justify-between align-center">
+                                <div>
+                                    <strong>${PrivateersApp.escapeHtml(article.title)}</strong>
+                                    <br>
+                                    <span class="text-muted" style="font-size: 0.85rem;">${article.folder_name}</span>
+                                </div>
+                                <span class="text-muted" style="font-size: 0.85rem;">${PrivateersApp.formatDate(article.updated_at)}</span>
+                            </div>
+                        </a>
+                    `).join('');
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state" style="padding: 20px;">
+                            <p class="text-muted">Nenhum artigo ainda. Crie o primeiro!</p>
+                            <button class="btn btn-primary btn-sm" onclick="showAddArticleModal()">Criar Artigo</button>
+                        </div>
+                    `;
+                }
+
+            } catch (err) {
+                console.error('Error loading articles:', err);
+                container.innerHTML = '<p class="text-muted text-center">Erro ao carregar artigos.</p>';
+            }
+        }
+
+        async function loadFolders() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('wiki_folders')
+                    .select('id, name, full_path')
+                    .eq('is_published', true)
+                    .order('full_path', { ascending: true });
+
+                if (error) throw error;
+
+                folders = data || [];
+
+                const select = document.getElementById('article-folder');
+                select.innerHTML = '<option value="">Selecione uma pasta...</option>' +
+                    folders.map(f => `<option value="${f.id}">${f.full_path?.replace(/::/g, ' > ') || f.name}</option>`).join('');
+
+            } catch (err) {
+                console.error('Error loading folders:', err);
+            }
+        }
+
+        function showAddArticleModal() {
+            document.getElementById('article-form').reset();
+            document.getElementById('article-modal').classList.add('active');
+        }
+
+        function closeArticleModal() {
+            document.getElementById('article-modal').classList.remove('active');
+        }
+
+        async function saveArticle(e) {
+            e.preventDefault();
+
+            const title = document.getElementById('article-title').value;
+            const content = document.getElementById('article-content').value;
+            const folderId = document.getElementById('article-folder').value;
+            const summary = document.getElementById('article-summary').value;
+
+            // Validate
+            if (!title || !content || !folderId) {
+                PrivateersApp.showToast('error', 'Erro', 'Preencha todos os campos obrigatórios.');
+                return;
+            }
+
+            try {
+                const slug = title.toLowerCase()
+                    .replace(/[^a-z0-9\s-]/g, '')
+                    .replace(/\s+/g, '-')
+                    .substring(0, 100);
+
+                const { error } = await supabaseClient
+                    .from('wiki_articles')
+                    .insert({
+                        folder_id: folderId,
+                        title: title,
+                        slug: slug,
+                        content: content,
+                        summary: summary || null,
+                        created_by: currentUser.id,
+                        is_published: true
+                    });
+
+                if (error) throw error;
+
+                PrivateersApp.showToast('success', 'Sucesso', 'Artigo publicado!');
+                closeArticleModal();
+                await loadRecentArticles();
+
+            } catch (err) {
+                console.error('Error saving article:', err);
+                PrivateersApp.showToast('error', 'Erro', 'Não foi possível salvar o artigo.');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfil - USMLE Privateers</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏴‍☠️</text></svg>">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <!-- Header -->
+    <div id="header-container"></div>
+
+    <!-- Profile Header -->
+    <div class="profile-header" id="profile-header">
+        <div class="container">
+            <div class="profile-avatar-large" id="profile-avatar">
+                <!-- Initials -->
+            </div>
+            <h1 class="profile-name" id="profile-name">Carregando...</h1>
+            <div class="profile-role-badge" id="profile-role">
+                <!-- Role badge -->
+            </div>
+
+            <div class="profile-stats">
+                <div class="profile-stat">
+                    <div class="profile-stat-value" id="stat-posts">0</div>
+                    <div class="profile-stat-label">Posts</div>
+                </div>
+                <div class="profile-stat">
+                    <div class="profile-stat-value" id="stat-likes">0</div>
+                    <div class="profile-stat-label">Curtidas</div>
+                </div>
+                <div class="profile-stat">
+                    <div class="profile-stat-value" id="stat-member-since">--</div>
+                    <div class="profile-stat-label">Membro desde</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <main class="main-container" style="margin-top: 0;">
+        <div class="container" style="max-width: 800px;">
+            <!-- Profile Tabs -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary btn-sm" onclick="showTab('info')" id="tab-info">
+                            👤 Informações
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="showTab('usmle')" id="tab-usmle">
+                            📚 USMLE Status
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="showTab('security')" id="tab-security">
+                            🔒 Segurança
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Info Tab -->
+                <div class="card-body tab-content" id="content-info">
+                    <form id="info-form" onsubmit="saveInfo(event)">
+                        <div class="grid gap-4" style="grid-template-columns: 1fr 1fr;">
+                            <div class="form-group">
+                                <label class="form-label">Nome Completo</label>
+                                <input type="text" id="full_name" class="form-input" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Email</label>
+                                <input type="email" id="email" class="form-input" disabled>
+                                <span class="form-hint">Email não pode ser alterado</span>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">WhatsApp</label>
+                                <input type="tel" id="whatsapp" class="form-input" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Instagram</label>
+                                <input type="text" id="instagram" class="form-input" placeholder="@seuuser">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">LinkedIn</label>
+                                <input type="url" id="linkedin" class="form-input" placeholder="https://linkedin.com/in/seuuser">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">País</label>
+                                <input type="text" id="country" class="form-input">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Instituição de Ensino</label>
+                                <input type="text" id="institution" class="form-input">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Ano de Formatura</label>
+                                <input type="number" id="graduation_year" class="form-input" min="1980" max="2040">
+                            </div>
+
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label class="form-label">Especialidade</label>
+                                <input type="text" id="specialty" class="form-input" placeholder="Ou especialidade de interesse">
+                            </div>
+
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label class="form-label">Bio</label>
+                                <textarea id="bio" class="form-textarea" rows="3" placeholder="Conte um pouco sobre você..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-end mt-4">
+                            <button type="submit" class="btn btn-primary" id="save-info-btn">
+                                Salvar Alterações
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- USMLE Status Tab -->
+                <div class="card-body tab-content" id="content-usmle" style="display: none;">
+                    <form id="usmle-form" onsubmit="saveUsmle(event)">
+                        <div class="mb-4">
+                            <label class="form-label">Situação Atual</label>
+                            <select id="education_status" class="form-select">
+                                <option value="estudante">Estudante de Medicina</option>
+                                <option value="formado">Médico Formado (MD)</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">Etapa Atual</label>
+                            <select id="current_step" class="form-select">
+                                <option value="iniciando">Ainda não comecei</option>
+                                <option value="step1_prep">Preparando Step 1</option>
+                                <option value="step1_done">Step 1 Aprovado</option>
+                                <option value="step2_prep">Preparando Step 2 CK</option>
+                                <option value="step2_done">Step 2 CK Aprovado</option>
+                                <option value="step3_prep">Preparando Step 3</option>
+                                <option value="step3_done">Step 3 Aprovado</option>
+                                <option value="match">Aplicando para Match</option>
+                            </select>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <h4 class="mb-3">🏆 Step 1</h4>
+                        <div class="grid gap-3 mb-4" style="grid-template-columns: 1fr 1fr 1fr;">
+                            <div class="form-group">
+                                <label class="form-check">
+                                    <input type="checkbox" id="step1_passed">
+                                    <span class="form-check-label">Aprovado</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Score</label>
+                                <input type="number" id="step1_score" class="form-input" min="1" max="300">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Data</label>
+                                <input type="date" id="step1_date" class="form-input">
+                            </div>
+                        </div>
+
+                        <h4 class="mb-3">⚡ Step 2 CK</h4>
+                        <div class="grid gap-3 mb-4" style="grid-template-columns: 1fr 1fr 1fr;">
+                            <div class="form-group">
+                                <label class="form-check">
+                                    <input type="checkbox" id="step2ck_passed">
+                                    <span class="form-check-label">Aprovado</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Score</label>
+                                <input type="number" id="step2ck_score" class="form-input" min="1" max="300">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Data</label>
+                                <input type="date" id="step2ck_date" class="form-input">
+                            </div>
+                        </div>
+
+                        <h4 class="mb-3">💎 Step 3</h4>
+                        <div class="grid gap-3 mb-4" style="grid-template-columns: 1fr 1fr 1fr;">
+                            <div class="form-group">
+                                <label class="form-check">
+                                    <input type="checkbox" id="step3_passed">
+                                    <span class="form-check-label">Aprovado</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Score</label>
+                                <input type="number" id="step3_score" class="form-input" min="1" max="300">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Data</label>
+                                <input type="date" id="step3_date" class="form-input">
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-end mt-4">
+                            <button type="submit" class="btn btn-primary" id="save-usmle-btn">
+                                Salvar Status USMLE
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Security Tab -->
+                <div class="card-body tab-content" id="content-security" style="display: none;">
+                    <form id="password-form" onsubmit="changePassword(event)">
+                        <h4 class="mb-3">Alterar Senha</h4>
+
+                        <div class="form-group">
+                            <label class="form-label">Senha Atual</label>
+                            <input type="password" id="current_password" class="form-input" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Nova Senha</label>
+                            <input type="password" id="new_password" class="form-input" required minlength="6">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Confirmar Nova Senha</label>
+                            <input type="password" id="confirm_password" class="form-input" required>
+                        </div>
+
+                        <div class="d-flex justify-end mt-4">
+                            <button type="submit" class="btn btn-primary" id="change-password-btn">
+                                Alterar Senha
+                            </button>
+                        </div>
+                    </form>
+
+                    <hr class="my-4">
+
+                    <h4 class="mb-3 text-danger">Zona de Perigo</h4>
+                    <p class="text-muted mb-3">
+                        Ações irreversíveis. Tenha certeza antes de prosseguir.
+                    </p>
+                    <button class="btn btn-danger" onclick="confirmDeleteAccount()">
+                        🗑️ Excluir Minha Conta
+                    </button>
+                </div>
+            </div>
+
+            <!-- My Posts -->
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">📝 Meus Posts</h4>
+                </div>
+                <div class="card-body" id="my-posts">
+                    <div class="loading-spinner" style="margin: 20px auto;"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <div id="footer-container"></div>
+
+    <!-- Scripts -->
+    <script src="js/app.js"></script>
+    <script>
+        let currentUser = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check auth
+            currentUser = await PrivateersApp.checkAuth();
+            if (!currentUser) return;
+
+            // Render navigation
+            document.getElementById('header-container').innerHTML = PrivateersApp.renderNavbar('profile');
+            document.getElementById('footer-container').innerHTML = PrivateersApp.renderFooter();
+
+            // Load profile data
+            loadProfile();
+
+            // Load my posts
+            loadMyPosts();
+
+            // Maybe show question
+            await PrivateersApp.maybeShowQuestionPrompt();
+
+            // Log page view
+            await PrivateersApp.logActivity('page_view', { page: 'profile' });
+        });
+
+        function loadProfile() {
+            // Header
+            document.getElementById('profile-avatar').textContent = PrivateersApp.getInitials(currentUser.full_name);
+            document.getElementById('profile-name').textContent = currentUser.full_name;
+            document.getElementById('profile-role').innerHTML = PrivateersApp.getRoleBadge(currentUser.role);
+
+            // Stats
+            const memberSince = new Date(currentUser.created_at);
+            document.getElementById('stat-member-since').textContent = memberSince.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+
+            // Info form
+            document.getElementById('full_name').value = currentUser.full_name || '';
+            document.getElementById('email').value = currentUser.email || '';
+            document.getElementById('whatsapp').value = currentUser.whatsapp || '';
+            document.getElementById('instagram').value = currentUser.instagram || '';
+            document.getElementById('linkedin').value = currentUser.linkedin || '';
+            document.getElementById('country').value = currentUser.country || '';
+            document.getElementById('institution').value = currentUser.institution || '';
+            document.getElementById('graduation_year').value = currentUser.graduation_year || '';
+            document.getElementById('specialty').value = currentUser.specialty || '';
+            document.getElementById('bio').value = currentUser.bio || '';
+
+            // USMLE form
+            document.getElementById('education_status').value = currentUser.education_status || 'estudante';
+            document.getElementById('current_step').value = currentUser.current_step || 'iniciando';
+            document.getElementById('step1_passed').checked = currentUser.step1_passed || false;
+            document.getElementById('step1_score').value = currentUser.step1_score || '';
+            document.getElementById('step1_date').value = currentUser.step1_date || '';
+            document.getElementById('step2ck_passed').checked = currentUser.step2ck_passed || false;
+            document.getElementById('step2ck_score').value = currentUser.step2ck_score || '';
+            document.getElementById('step2ck_date').value = currentUser.step2ck_date || '';
+            document.getElementById('step3_passed').checked = currentUser.step3_passed || false;
+            document.getElementById('step3_score').value = currentUser.step3_score || '';
+            document.getElementById('step3_date').value = currentUser.step3_date || '';
+        }
+
+        function showTab(tab) {
+            // Update buttons
+            document.querySelectorAll('[id^="tab-"]').forEach(btn => {
+                btn.className = 'btn btn-secondary btn-sm';
+            });
+            document.getElementById('tab-' + tab).className = 'btn btn-primary btn-sm';
+
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            document.getElementById('content-' + tab).style.display = 'block';
+        }
+
+        async function saveInfo(e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('save-info-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner loading-spinner-sm"></span> Salvando...';
+
+            try {
+                const updates = {
+                    full_name: document.getElementById('full_name').value,
+                    whatsapp: document.getElementById('whatsapp').value,
+                    instagram: document.getElementById('instagram').value,
+                    linkedin: document.getElementById('linkedin').value,
+                    country: document.getElementById('country').value,
+                    institution: document.getElementById('institution').value,
+                    graduation_year: document.getElementById('graduation_year').value ? parseInt(document.getElementById('graduation_year').value) : null,
+                    specialty: document.getElementById('specialty').value,
+                    bio: document.getElementById('bio').value
+                };
+
+                const { error } = await supabaseClient
+                    .from('users')
+                    .update(updates)
+                    .eq('id', currentUser.id);
+
+                if (error) throw error;
+
+                // Update local user
+                Object.assign(currentUser, updates);
+                localStorage.setItem('privateers_user', JSON.stringify(currentUser));
+
+                PrivateersApp.showToast('success', 'Sucesso', 'Informações atualizadas!');
+                loadProfile();
+
+            } catch (err) {
+                console.error('Error saving info:', err);
+                PrivateersApp.showToast('error', 'Erro', 'Não foi possível salvar.');
+            }
+
+            btn.disabled = false;
+            btn.textContent = 'Salvar Alterações';
+        }
+
+        async function saveUsmle(e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('save-usmle-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner loading-spinner-sm"></span> Salvando...';
+
+            try {
+                const updates = {
+                    education_status: document.getElementById('education_status').value,
+                    current_step: document.getElementById('current_step').value,
+                    step1_passed: document.getElementById('step1_passed').checked,
+                    step1_score: document.getElementById('step1_score').value ? parseInt(document.getElementById('step1_score').value) : null,
+                    step1_date: document.getElementById('step1_date').value || null,
+                    step2ck_passed: document.getElementById('step2ck_passed').checked,
+                    step2ck_score: document.getElementById('step2ck_score').value ? parseInt(document.getElementById('step2ck_score').value) : null,
+                    step2ck_date: document.getElementById('step2ck_date').value || null,
+                    step3_passed: document.getElementById('step3_passed').checked,
+                    step3_score: document.getElementById('step3_score').value ? parseInt(document.getElementById('step3_score').value) : null,
+                    step3_date: document.getElementById('step3_date').value || null
+                };
+
+                const { error } = await supabaseClient
+                    .from('users')
+                    .update(updates)
+                    .eq('id', currentUser.id);
+
+                if (error) throw error;
+
+                // Update local user
+                Object.assign(currentUser, updates);
+                localStorage.setItem('privateers_user', JSON.stringify(currentUser));
+
+                PrivateersApp.showToast('success', 'Sucesso', 'Status USMLE atualizado!');
+
+            } catch (err) {
+                console.error('Error saving USMLE:', err);
+                PrivateersApp.showToast('error', 'Erro', 'Não foi possível salvar.');
+            }
+
+            btn.disabled = false;
+            btn.textContent = 'Salvar Status USMLE';
+        }
+
+        async function changePassword(e) {
+            e.preventDefault();
+
+            const newPass = document.getElementById('new_password').value;
+            const confirmPass = document.getElementById('confirm_password').value;
+
+            if (newPass !== confirmPass) {
+                PrivateersApp.showToast('error', 'Erro', 'As senhas não coincidem.');
+                return;
+            }
+
+            const btn = document.getElementById('change-password-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner loading-spinner-sm"></span> Alterando...';
+
+            try {
+                const currentPass = document.getElementById('current_password').value;
+                const hashedCurrent = btoa(currentPass + '_privateers_salt_2024');
+
+                // Verify current password
+                if (currentUser.password_hash !== currentPass && currentUser.password_hash !== hashedCurrent) {
+                    PrivateersApp.showToast('error', 'Erro', 'Senha atual incorreta.');
+                    btn.disabled = false;
+                    btn.textContent = 'Alterar Senha';
+                    return;
+                }
+
+                const hashedNew = btoa(newPass + '_privateers_salt_2024');
+
+                const { error } = await supabaseClient
+                    .from('users')
+                    .update({ password_hash: hashedNew })
+                    .eq('id', currentUser.id);
+
+                if (error) throw error;
+
+                currentUser.password_hash = hashedNew;
+                localStorage.setItem('privateers_user', JSON.stringify(currentUser));
+
+                PrivateersApp.showToast('success', 'Sucesso', 'Senha alterada!');
+                document.getElementById('password-form').reset();
+
+            } catch (err) {
+                console.error('Error changing password:', err);
+                PrivateersApp.showToast('error', 'Erro', 'Não foi possível alterar a senha.');
+            }
+
+            btn.disabled = false;
+            btn.textContent = 'Alterar Senha';
+        }
+
+        async function loadMyPosts() {
+            const container = document.getElementById('my-posts');
+
+            try {
+                const { data, error } = await supabaseClient
+                    .from('blog_posts')
+                    .select('*')
+                    .eq('user_id', currentUser.id)
+                    .eq('is_deleted', false)
+                    .order('created_at', { ascending: false })
+                    .limit(10);
+
+                if (error) throw error;
+
+                document.getElementById('stat-posts').textContent = data?.length || 0;
+
+                // Calculate total likes
+                const totalLikes = data?.reduce((sum, post) => sum + (post.likes || 0), 0) || 0;
+                document.getElementById('stat-likes').textContent = totalLikes;
+
+                if (data && data.length > 0) {
+                    container.innerHTML = data.map(post => `
+                        <div style="padding: 16px 0; border-bottom: 1px solid var(--gray-200);">
+                            <p style="margin: 0 0 8px 0; color: var(--gray-700);">
+                                ${PrivateersApp.escapeHtml(post.content.substring(0, 150))}${post.content.length > 150 ? '...' : ''}
+                            </p>
+                            <div class="d-flex gap-3" style="font-size: 0.85rem; color: var(--gray-500);">
+                                <span>📅 ${PrivateersApp.formatDate(post.created_at)}</span>
+                                <span>👍 ${post.likes}</span>
+                                <span>💬 ${post.comments_count || 0}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state" style="padding: 20px;">
+                            <p class="text-muted">Você ainda não fez nenhum post.</p>
+                            <a href="blog.html" class="btn btn-primary btn-sm">Criar Primeiro Post</a>
+                        </div>
+                    `;
+                }
+
+            } catch (err) {
+                console.error('Error loading posts:', err);
+                container.innerHTML = '<p class="text-muted text-center">Erro ao carregar posts.</p>';
+            }
+        }
+
+        function confirmDeleteAccount() {
+            if (confirm('Tem certeza que deseja excluir sua conta? Esta ação é irreversível.')) {
+                if (confirm('Todos os seus dados serão perdidos. Confirma a exclusão?')) {
+                    deleteAccount();
+                }
+            }
+        }
+
+        async function deleteAccount() {
+            try {
+                await supabaseClient
+                    .from('users')
+                    .update({ status: 'inactive' })
+                    .eq('id', currentUser.id);
+
+                PrivateersApp.showToast('success', 'Conta Excluída', 'Sua conta foi excluída.');
+                setTimeout(() => {
+                    PrivateersApp.logout();
+                }, 2000);
+
+            } catch (err) {
+                console.error('Error deleting account:', err);
+                PrivateersApp.showToast('error', 'Erro', 'Não foi possível excluir a conta.');
+            }
+        }
+    </script>
+</body>
+</html>

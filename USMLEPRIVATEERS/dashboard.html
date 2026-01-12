@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - USMLE Privateers</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏴‍☠️</text></svg>">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <!-- Header will be injected -->
+    <div id="header-container"></div>
+
+    <main class="main-container">
+        <div class="container">
+            <!-- Welcome Banner -->
+            <div class="card mb-4" style="background: linear-gradient(135deg, var(--primary-red) 0%, var(--accent-red-dark) 100%); color: white;">
+                <div class="card-body">
+                    <div class="d-flex align-center justify-between flex-wrap gap-3">
+                        <div>
+                            <h2 style="margin-bottom: 8px;">Olá, <span id="user-name">Privateer</span>! 👋</h2>
+                            <p style="opacity: 0.9; margin: 0;">
+                                <span id="user-badge"></span>
+                                <span id="user-stage" class="ml-2"></span>
+                            </p>
+                        </div>
+                        <div class="text-right">
+                            <p style="font-size: 0.9rem; opacity: 0.8;">We're all in the same boat! 🏴‍☠️</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="grid gap-4 mb-4" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                <div class="stat-card">
+                    <div class="stat-card-emoji">🏆</div>
+                    <div class="stat-card-value" id="stat-champions">95</div>
+                    <div class="stat-card-label">Total Champions</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-card-emoji">📝</div>
+                    <div class="stat-card-value" id="stat-posts">--</div>
+                    <div class="stat-card-label">Posts no Blog</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-card-emoji">📚</div>
+                    <div class="stat-card-value" id="stat-wiki">--</div>
+                    <div class="stat-card-label">Artigos Wiki</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-card-emoji" id="questionnaire-emoji">📋</div>
+                    <div class="stat-card-value" id="stat-questionnaire">--</div>
+                    <div class="stat-card-label" id="questionnaire-label">Questionário</div>
+                </div>
+            </div>
+
+            <!-- Quick Access -->
+            <h3 class="mb-3">Acesso Rápido</h3>
+            <div class="grid gap-3 mb-4" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                <a href="blog.html" class="dashboard-card">
+                    <div class="dashboard-card-icon">📰</div>
+                    <div class="dashboard-card-value">Blog</div>
+                    <div class="dashboard-card-label">Veja os últimos posts e relatos</div>
+                </a>
+
+                <a href="wiki.html" class="dashboard-card">
+                    <div class="dashboard-card-icon">📚</div>
+                    <div class="dashboard-card-value">Wiki</div>
+                    <div class="dashboard-card-label">Acesse a base de conhecimento</div>
+                </a>
+
+                <a href="whatsapp.html" class="dashboard-card">
+                    <div class="dashboard-card-icon">💬</div>
+                    <div class="dashboard-card-value">WhatsApp</div>
+                    <div class="dashboard-card-label">Entre na comunidade WhatsApp</div>
+                </a>
+
+                <a href="profile.html" class="dashboard-card">
+                    <div class="dashboard-card-icon">👤</div>
+                    <div class="dashboard-card-value">Perfil</div>
+                    <div class="dashboard-card-label">Atualize seus dados</div>
+                </a>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="grid gap-4" style="grid-template-columns: 1fr 1fr;">
+                <!-- Recent Posts -->
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title">📝 Últimos Posts</h4>
+                        <a href="blog.html" class="btn btn-sm btn-outline">Ver todos</a>
+                    </div>
+                    <div class="card-body" id="recent-posts">
+                        <div class="loading-spinner" style="margin: 20px auto;"></div>
+                    </div>
+                </div>
+
+                <!-- Recent Wiki -->
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title">📚 Wiki Popular</h4>
+                        <a href="wiki.html" class="btn btn-sm btn-outline">Ver todos</a>
+                    </div>
+                    <div class="card-body" id="popular-wiki">
+                        <div class="loading-spinner" style="margin: 20px auto;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Champions Section -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h4 class="card-title">🏆 Nossos Campeões</h4>
+                </div>
+                <div class="card-body">
+                    <div class="grid gap-3" style="grid-template-columns: repeat(3, 1fr);">
+                        <div class="text-center p-3" style="background: var(--gray-100); border-radius: var(--border-radius);">
+                            <div style="font-size: 2rem;">🏆</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-red);" id="step1-champs">65</div>
+                            <div class="text-muted">Step 1</div>
+                        </div>
+                        <div class="text-center p-3" style="background: var(--gray-100); border-radius: var(--border-radius);">
+                            <div style="font-size: 2rem;">⚡</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-red);" id="step2-champs">24</div>
+                            <div class="text-muted">Step 2 CK</div>
+                        </div>
+                        <div class="text-center p-3" style="background: var(--gray-100); border-radius: var(--border-radius);">
+                            <div style="font-size: 2rem;">💎</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-red);" id="step3-champs">6</div>
+                            <div class="text-muted">Step 3</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <div id="footer-container"></div>
+
+    <!-- Scripts -->
+    <script src="js/app.js"></script>
+    <script>
+        let currentUser = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check auth
+            currentUser = await PrivateersApp.checkAuth();
+            if (!currentUser) return;
+
+            // If onboarding not completed, redirect
+            if (!currentUser.onboarding_completed) {
+                window.location.href = 'onboarding.html';
+                return;
+            }
+
+            // Render header and footer
+            document.getElementById('header-container').innerHTML = PrivateersApp.renderNavbar('dashboard');
+            document.getElementById('footer-container').innerHTML = PrivateersApp.renderFooter();
+
+            // Update user info
+            document.getElementById('user-name').textContent = currentUser.full_name.split(' ')[0];
+            document.getElementById('user-badge').innerHTML = PrivateersApp.getRoleBadge(currentUser.role);
+
+            // Stage label
+            const stageLabels = {
+                'iniciando': '🌱 Iniciando',
+                'step1_prep': '📖 Preparando Step 1',
+                'step1_done': '✅ Step 1 Aprovado',
+                'step2_prep': '📚 Preparando Step 2 CK',
+                'step2_done': '🎯 Step 2 CK Aprovado',
+                'step3_prep': '📗 Preparando Step 3',
+                'step3_done': '💎 Step 3 Aprovado',
+                'match': '🏆 Aplicando Match'
+            };
+            document.getElementById('user-stage').textContent = stageLabels[currentUser.current_step] || '';
+
+            // Load stats
+            await loadDashboardData();
+
+            // Maybe show question prompt
+            await PrivateersApp.maybeShowQuestionPrompt();
+
+            // Log page view
+            await PrivateersApp.logActivity('page_view', { page: 'dashboard' });
+        });
+
+        async function loadDashboardData() {
+            try {
+                // Load member stats
+                const stats = await PrivateersApp.loadMemberStats();
+                if (stats) {
+                    const total = (stats.step1_champions || 65) + (stats.step2ck_champions || 24) + (stats.step3_champions || 6);
+                    document.getElementById('stat-champions').textContent = total;
+                    document.getElementById('step1-champs').textContent = stats.step1_champions || 65;
+                    document.getElementById('step2-champs').textContent = stats.step2ck_champions || 24;
+                    document.getElementById('step3-champs').textContent = stats.step3_champions || 6;
+                }
+
+                // Load questionnaire status
+                const completed = await PrivateersApp.checkQuestionsCompleted();
+                if (completed) {
+                    document.getElementById('stat-questionnaire').textContent = '✅';
+                    document.getElementById('questionnaire-label').textContent = 'Completo!';
+                    document.getElementById('questionnaire-emoji').textContent = '✅';
+                } else {
+                    const nextQ = await PrivateersApp.getNextUnansweredQuestion();
+                    document.getElementById('stat-questionnaire').textContent = 'Pendente';
+                    document.getElementById('questionnaire-label').textContent = 'Responda para liberar WhatsApp';
+                }
+
+                // Load recent posts
+                const posts = await PrivateersApp.loadRecentPosts(5);
+                const postsContainer = document.getElementById('recent-posts');
+
+                if (posts && posts.length > 0) {
+                    document.getElementById('stat-posts').textContent = posts.length + '+';
+                    postsContainer.innerHTML = posts.map(post => `
+                        <div style="padding: 12px 0; border-bottom: 1px solid var(--gray-200);">
+                            <div class="d-flex align-center gap-2 mb-1">
+                                <div class="avatar avatar-sm">${PrivateersApp.getInitials(post.author_name)}</div>
+                                <span style="font-weight: 500;">${PrivateersApp.escapeHtml(post.author_name.split(' ')[0])}</span>
+                                <span class="text-muted" style="font-size: 0.8rem;">${PrivateersApp.formatDate(post.created_at)}</span>
+                            </div>
+                            <p style="margin: 0; font-size: 0.9rem; color: var(--gray-700);">
+                                ${PrivateersApp.escapeHtml(post.content.substring(0, 100))}...
+                            </p>
+                        </div>
+                    `).join('');
+                } else {
+                    postsContainer.innerHTML = `
+                        <div class="empty-state" style="padding: 20px;">
+                            <p class="text-muted">Nenhum post ainda. Seja o primeiro!</p>
+                            <a href="blog.html" class="btn btn-primary btn-sm">Criar Post</a>
+                        </div>
+                    `;
+                }
+
+                // Load wiki stats (simulated)
+                document.getElementById('stat-wiki').textContent = '20+';
+                const wikiContainer = document.getElementById('popular-wiki');
+                wikiContainer.innerHTML = `
+                    <a href="wiki.html?path=comece-aqui" class="wiki-item">
+                        <span>🚀</span>
+                        <span>Comece Aqui</span>
+                    </a>
+                    <a href="wiki.html?path=step1" class="wiki-item">
+                        <span>📚</span>
+                        <span>Step 1</span>
+                    </a>
+                    <a href="wiki.html?path=step2ck" class="wiki-item">
+                        <span>📖</span>
+                        <span>Step 2 CK</span>
+                    </a>
+                    <a href="wiki.html?path=recursos" class="wiki-item">
+                        <span>🛠️</span>
+                        <span>Recursos</span>
+                    </a>
+                    <a href="wiki.html?path=match" class="wiki-item">
+                        <span>🏆</span>
+                        <span>Match</span>
+                    </a>
+                `;
+
+            } catch (err) {
+                console.error('Error loading dashboard data:', err);
+            }
+        }
+    </script>
+</body>
+</html>

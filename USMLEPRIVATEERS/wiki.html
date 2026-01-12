@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wiki - USMLE Privateers</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏴‍☠️</text></svg>">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+
+    <style>
+        .wiki-container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 24px;
+            min-height: calc(100vh - 200px);
+        }
+
+        @media (max-width: 768px) {
+            .wiki-container {
+                grid-template-columns: 1fr;
+            }
+
+            .wiki-sidebar {
+                display: none;
+            }
+
+            .wiki-sidebar.mobile-open {
+                display: block;
+                position: fixed;
+                top: 70px;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: var(--primary-white);
+                z-index: 100;
+                overflow-y: auto;
+                padding: 20px;
+            }
+        }
+
+        .wiki-sidebar {
+            background: var(--primary-white);
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-md);
+            padding: 20px;
+            position: sticky;
+            top: 90px;
+            max-height: calc(100vh - 110px);
+            overflow-y: auto;
+        }
+
+        .wiki-content {
+            background: var(--primary-white);
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-md);
+            padding: 32px;
+            min-height: 400px;
+        }
+
+        .wiki-breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: var(--gray-600);
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .wiki-breadcrumb a {
+            color: var(--primary-red);
+        }
+
+        .wiki-breadcrumb-separator {
+            color: var(--gray-400);
+        }
+
+        .wiki-article-title {
+            font-size: 2rem;
+            margin-bottom: 16px;
+            color: var(--gray-900);
+        }
+
+        .wiki-article-meta {
+            display: flex;
+            gap: 16px;
+            color: var(--gray-600);
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .wiki-article-body {
+            line-height: 1.8;
+            color: var(--gray-700);
+        }
+
+        .wiki-article-body h2 {
+            margin-top: 32px;
+            margin-bottom: 16px;
+            color: var(--gray-800);
+        }
+
+        .wiki-article-body h3 {
+            margin-top: 24px;
+            margin-bottom: 12px;
+            color: var(--gray-800);
+        }
+
+        .wiki-article-body p {
+            margin-bottom: 16px;
+        }
+
+        .wiki-article-body ul, .wiki-article-body ol {
+            margin-bottom: 16px;
+            padding-left: 24px;
+        }
+
+        .wiki-article-body li {
+            margin-bottom: 8px;
+        }
+
+        .wiki-article-body a {
+            color: var(--primary-red);
+            text-decoration: underline;
+        }
+
+        .wiki-article-body code {
+            background: var(--gray-100);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .wiki-article-body blockquote {
+            border-left: 4px solid var(--primary-red);
+            padding-left: 16px;
+            margin: 16px 0;
+            color: var(--gray-600);
+            font-style: italic;
+        }
+
+        .folder-tree {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .folder-tree-item {
+            margin-bottom: 4px;
+        }
+
+        .folder-tree-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            background: none;
+            border: none;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            border-radius: var(--border-radius);
+            transition: background var(--transition-fast);
+            font-size: 0.95rem;
+        }
+
+        .folder-tree-toggle:hover {
+            background: var(--gray-100);
+        }
+
+        .folder-tree-toggle.active {
+            background: var(--primary-cream);
+            color: var(--primary-red);
+        }
+
+        .folder-tree-icon {
+            width: 20px;
+            text-align: center;
+        }
+
+        .folder-tree-arrow {
+            margin-left: auto;
+            transition: transform var(--transition-fast);
+        }
+
+        .folder-tree-toggle.open .folder-tree-arrow {
+            transform: rotate(90deg);
+        }
+
+        .folder-tree-children {
+            display: none;
+            padding-left: 24px;
+        }
+
+        .folder-tree-toggle.open + .folder-tree-children {
+            display: block;
+        }
+
+        .wiki-article-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            color: var(--gray-700);
+            border-radius: var(--border-radius);
+            font-size: 0.9rem;
+            transition: all var(--transition-fast);
+        }
+
+        .wiki-article-link:hover {
+            background: var(--primary-cream);
+            color: var(--primary-red);
+        }
+
+        .wiki-article-link.active {
+            background: var(--primary-red);
+            color: var(--primary-white);
+        }
+
+        .mobile-sidebar-toggle {
+            display: none;
+            margin-bottom: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-sidebar-toggle {
+                display: block;
+            }
+        }
+    </style>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <!-- Header -->
+    <div id="header-container"></div>
+
+    <main class="main-container">
+        <div class="container">
+            <button class="btn btn-secondary mobile-sidebar-toggle" onclick="toggleMobileSidebar()">
+                📂 Ver Categorias
+            </button>
+
+            <div class="wiki-container">
+                <!-- Sidebar -->
+                <aside class="wiki-sidebar" id="wiki-sidebar">
+                    <h4 class="mb-3">📚 Wiki USMLE</h4>
+
+                    <input type="text" class="form-input mb-3" id="wiki-search" placeholder="Buscar artigos..." onkeyup="searchWiki()">
+
+                    <nav id="folder-tree">
+                        <!-- Folder tree will be loaded here -->
+                        <div class="loading-spinner" style="margin: 20px auto;"></div>
+                    </nav>
+                </aside>
+
+                <!-- Content -->
+                <div class="wiki-content" id="wiki-content">
+                    <!-- Article content will be loaded here -->
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📚</div>
+                        <h4 class="empty-state-title">Bem-vindo à Wiki</h4>
+                        <p class="empty-state-text">Selecione um tópico no menu lateral para começar.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <div id="footer-container"></div>
+
+    <!-- Scripts -->
+    <script src="js/app.js"></script>
+    <script>
+        let currentUser = null;
+        let folders = [];
+        let articles = [];
+        let currentPath = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check auth
+            currentUser = await PrivateersApp.checkAuth();
+            if (!currentUser) return;
+
+            // Render navigation
+            document.getElementById('header-container').innerHTML = PrivateersApp.renderNavbar('wiki');
+            document.getElementById('footer-container').innerHTML = PrivateersApp.renderFooter();
+
+            // Load folder tree
+            await loadFolderTree();
+
+            // Check URL for path
+            const urlParams = new URLSearchParams(window.location.search);
+            const pathParam = urlParams.get('path');
+            const articleParam = urlParams.get('article');
+
+            if (articleParam) {
+                await loadArticle(articleParam);
+            } else if (pathParam) {
+                await openFolder(pathParam);
+            }
+
+            // Maybe show question
+            await PrivateersApp.maybeShowQuestionPrompt();
+
+            // Log page view
+            await PrivateersApp.logActivity('page_view', { page: 'wiki' });
+        });
+
+        async function loadFolderTree() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('wiki_folder_tree')
+                    .select('*')
+                    .eq('is_published', true)
+                    .order('order_position', { ascending: true });
+
+                if (error) throw error;
+
+                folders = data || [];
+                renderFolderTree();
+
+            } catch (err) {
+                console.error('Error loading folders:', err);
+                // Use default folders
+                folders = [
+                    { id: '1', name: 'Comece Aqui', slug: 'comece-aqui', icon: '🚀', depth: 0, parent_id: null },
+                    { id: '2', name: 'ECFMG', slug: 'ecfmg', icon: '📋', depth: 0, parent_id: null },
+                    { id: '3', name: 'Step 1', slug: 'step1', icon: '📚', depth: 0, parent_id: null },
+                    { id: '4', name: 'Step 2 CK', slug: 'step2ck', icon: '📖', depth: 0, parent_id: null },
+                    { id: '5', name: 'Step 3', slug: 'step3', icon: '🎓', depth: 0, parent_id: null },
+                    { id: '6', name: 'OET', slug: 'oet', icon: '🗣️', depth: 0, parent_id: null },
+                    { id: '7', name: 'Observership', slug: 'observership', icon: '👨‍⚕️', depth: 0, parent_id: null },
+                    { id: '8', name: 'Research', slug: 'research', icon: '🔬', depth: 0, parent_id: null },
+                    { id: '9', name: 'Match', slug: 'match', icon: '🏆', depth: 0, parent_id: null },
+                    { id: '10', name: 'Recursos', slug: 'recursos', icon: '🛠️', depth: 0, parent_id: null },
+                    { id: '11', name: 'FAQ', slug: 'faq', icon: '❓', depth: 0, parent_id: null }
+                ];
+                renderFolderTree();
+            }
+        }
+
+        function renderFolderTree() {
+            const container = document.getElementById('folder-tree');
+
+            // Build tree structure
+            const rootFolders = folders.filter(f => !f.parent_id);
+
+            const buildTree = (parentId = null) => {
+                const children = folders.filter(f => f.parent_id === parentId);
+                if (children.length === 0) return '';
+
+                return `
+                    <ul class="folder-tree">
+                        ${children.map(folder => {
+                            const hasChildren = folders.some(f => f.parent_id === folder.id);
+                            return `
+                                <li class="folder-tree-item">
+                                    <button class="folder-tree-toggle" onclick="toggleFolder('${folder.id}', '${folder.slug}')" data-folder-id="${folder.id}">
+                                        <span class="folder-tree-icon">${folder.icon || '📁'}</span>
+                                        <span>${folder.name}</span>
+                                        ${hasChildren || folder.article_count > 0 ? '<span class="folder-tree-arrow">›</span>' : ''}
+                                    </button>
+                                    <div class="folder-tree-children" id="children-${folder.id}">
+                                        ${buildTree(folder.id)}
+                                        <div class="articles-list" id="articles-${folder.id}"></div>
+                                    </div>
+                                </li>
+                            `;
+                        }).join('')}
+                    </ul>
+                `;
+            };
+
+            container.innerHTML = `
+                <ul class="folder-tree">
+                    ${rootFolders.map(folder => {
+                        const hasChildren = folders.some(f => f.parent_id === folder.id);
+                        return `
+                            <li class="folder-tree-item">
+                                <button class="folder-tree-toggle" onclick="toggleFolder('${folder.id}', '${folder.slug}')" data-folder-id="${folder.id}">
+                                    <span class="folder-tree-icon">${folder.icon || '📁'}</span>
+                                    <span>${folder.name}</span>
+                                    ${hasChildren || folder.article_count > 0 ? '<span class="folder-tree-arrow">›</span>' : ''}
+                                </button>
+                                <div class="folder-tree-children" id="children-${folder.id}">
+                                    ${buildTree(folder.id)}
+                                    <div class="articles-list" id="articles-${folder.id}"></div>
+                                </div>
+                            </li>
+                        `;
+                    }).join('')}
+                </ul>
+            `;
+        }
+
+        async function toggleFolder(folderId, slug) {
+            const toggle = document.querySelector(`[data-folder-id="${folderId}"]`);
+            const isOpen = toggle.classList.contains('open');
+
+            if (isOpen) {
+                toggle.classList.remove('open');
+            } else {
+                toggle.classList.add('open');
+
+                // Load articles for this folder
+                await loadFolderArticles(folderId);
+            }
+
+            // Update URL
+            window.history.replaceState({}, '', `?path=${slug}`);
+
+            // Log activity
+            await PrivateersApp.logActivity('wiki_folder_opened', { folder_id: folderId });
+        }
+
+        async function loadFolderArticles(folderId) {
+            const container = document.getElementById(`articles-${folderId}`);
+            if (!container) return;
+
+            try {
+                const { data, error } = await supabaseClient
+                    .from('wiki_articles')
+                    .select('id, title, slug')
+                    .eq('folder_id', folderId)
+                    .eq('is_published', true)
+                    .order('order_position', { ascending: true });
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    container.innerHTML = data.map(article => `
+                        <a href="?article=${article.id}" class="wiki-article-link" onclick="loadArticle('${article.id}'); event.preventDefault();">
+                            <span>📄</span>
+                            <span>${PrivateersApp.escapeHtml(article.title)}</span>
+                        </a>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p class="text-muted" style="padding: 8px 12px; font-size: 0.85rem;">Nenhum artigo ainda.</p>';
+                }
+
+            } catch (err) {
+                console.error('Error loading articles:', err);
+                container.innerHTML = '<p class="text-muted" style="padding: 8px 12px; font-size: 0.85rem;">Erro ao carregar artigos.</p>';
+            }
+        }
+
+        async function loadArticle(articleId) {
+            const content = document.getElementById('wiki-content');
+            content.innerHTML = '<div class="loading-spinner" style="margin: 40px auto;"></div>';
+
+            try {
+                const { data: article, error } = await supabaseClient
+                    .from('wiki_articles')
+                    .select('*, wiki_folders(name, full_path), users(full_name)')
+                    .eq('id', articleId)
+                    .single();
+
+                if (error) throw error;
+
+                if (!article) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">❌</div>
+                            <h4 class="empty-state-title">Artigo não encontrado</h4>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Build breadcrumb
+                const pathParts = article.wiki_folders?.full_path?.split('::') || [];
+                const breadcrumb = pathParts.map((part, idx) => {
+                    const folder = folders.find(f => f.slug === part);
+                    return `<a href="?path=${part}">${folder?.name || part}</a>`;
+                }).join('<span class="wiki-breadcrumb-separator">›</span>');
+
+                content.innerHTML = `
+                    <div class="wiki-breadcrumb">
+                        <a href="wiki.html">Wiki</a>
+                        <span class="wiki-breadcrumb-separator">›</span>
+                        ${breadcrumb}
+                        <span class="wiki-breadcrumb-separator">›</span>
+                        <span>${PrivateersApp.escapeHtml(article.title)}</span>
+                    </div>
+
+                    <h1 class="wiki-article-title">${PrivateersApp.escapeHtml(article.title)}</h1>
+
+                    <div class="wiki-article-meta">
+                        <span>📅 Atualizado em ${PrivateersApp.formatDate(article.updated_at)}</span>
+                        <span>👤 Por ${article.users?.full_name || 'Equipe Privateers'}</span>
+                        <span>👁️ ${article.views_count || 0} visualizações</span>
+                    </div>
+
+                    <div class="wiki-article-body">
+                        ${renderMarkdown(article.content)}
+                    </div>
+
+                    <div class="mt-4 pt-4" style="border-top: 1px solid var(--gray-200);">
+                        <button class="btn btn-secondary btn-sm" onclick="bookmarkArticle('${article.id}')">
+                            🔖 Salvar nos Favoritos
+                        </button>
+                    </div>
+                `;
+
+                // Update URL
+                window.history.replaceState({}, '', `?article=${articleId}`);
+
+                // Increment view count
+                await supabaseClient.rpc('increment_article_views', { article_uuid: articleId });
+
+                // Log activity
+                await PrivateersApp.logActivity('wiki_article_viewed', { article_id: articleId });
+
+            } catch (err) {
+                console.error('Error loading article:', err);
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">❌</div>
+                        <h4 class="empty-state-title">Erro ao carregar artigo</h4>
+                        <button class="btn btn-primary" onclick="loadArticle('${articleId}')">Tentar novamente</button>
+                    </div>
+                `;
+            }
+        }
+
+        async function openFolder(slug) {
+            const folder = folders.find(f => f.slug === slug);
+            if (folder) {
+                toggleFolder(folder.id, slug);
+            }
+        }
+
+        function renderMarkdown(content) {
+            if (!content) return '<p>Conteúdo não disponível.</p>';
+
+            // Simple markdown rendering (you could use a library like marked.js for full support)
+            return content
+                // Headers
+                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+                // Bold
+                .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+                // Italic
+                .replace(/\*(.*?)\*/gim, '<em>$1</em>')
+                // Links
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2" target="_blank">$1</a>')
+                // Lists
+                .replace(/^\s*-\s+(.*)$/gim, '<li>$1</li>')
+                .replace(/(<li>.*<\/li>)/gim, '<ul>$1</ul>')
+                // Blockquotes
+                .replace(/^>\s+(.*)$/gim, '<blockquote>$1</blockquote>')
+                // Code
+                .replace(/`([^`]+)`/gim, '<code>$1</code>')
+                // Paragraphs
+                .replace(/\n\n/gim, '</p><p>')
+                .replace(/^(.+)$/gim, '<p>$1</p>')
+                // Clean up
+                .replace(/<p><\/p>/gim, '')
+                .replace(/<p>(<h[1-3]>)/gim, '$1')
+                .replace(/(<\/h[1-3]>)<\/p>/gim, '$1');
+        }
+
+        async function bookmarkArticle(articleId) {
+            try {
+                await supabaseClient
+                    .from('wiki_bookmarks')
+                    .upsert({
+                        user_id: currentUser.id,
+                        article_id: articleId
+                    });
+
+                PrivateersApp.showToast('success', 'Sucesso', 'Artigo salvo nos favoritos!');
+
+            } catch (err) {
+                console.error('Error bookmarking:', err);
+                PrivateersApp.showToast('error', 'Erro', 'Não foi possível salvar o artigo.');
+            }
+        }
+
+        function searchWiki() {
+            const query = document.getElementById('wiki-search').value.toLowerCase();
+
+            // Filter folders
+            document.querySelectorAll('.folder-tree-toggle').forEach(toggle => {
+                const name = toggle.textContent.toLowerCase();
+                const item = toggle.closest('.folder-tree-item');
+
+                if (query && !name.includes(query)) {
+                    item.style.display = 'none';
+                } else {
+                    item.style.display = 'block';
+                }
+            });
+        }
+
+        function toggleMobileSidebar() {
+            document.getElementById('wiki-sidebar').classList.toggle('mobile-open');
+        }
+    </script>
+</body>
+</html>

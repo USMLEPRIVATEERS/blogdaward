@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Fundador - USMLE Privateers</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏴‍☠️</text></svg>">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+
+    <style>
+        .admin-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .admin-tab {
+            padding: 12px 20px;
+            background: var(--primary-white);
+            border: 2px solid var(--gray-200);
+            border-radius: var(--border-radius);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .admin-tab:hover {
+            border-color: var(--primary-red);
+        }
+
+        .admin-tab.active {
+            background: var(--primary-red);
+            border-color: var(--primary-red);
+            color: white;
+        }
+
+        .admin-section {
+            display: none;
+        }
+
+        .admin-section.active {
+            display: block;
+        }
+
+        .stats-editor {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .stats-editor-item {
+            background: var(--gray-100);
+            border-radius: var(--border-radius-lg);
+            padding: 24px;
+            text-align: center;
+        }
+
+        .stats-editor-item label {
+            display: block;
+            margin-bottom: 12px;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .stats-editor-item input {
+            width: 100%;
+            max-width: 120px;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            padding: 12px;
+        }
+
+        .member-row {
+            display: grid;
+            grid-template-columns: auto 1fr auto auto auto;
+            gap: 16px;
+            align-items: center;
+            padding: 16px;
+            background: var(--primary-white);
+            border-radius: var(--border-radius);
+            margin-bottom: 8px;
+            border: 1px solid var(--gray-200);
+        }
+
+        .member-row:hover {
+            background: var(--gray-100);
+        }
+
+        .question-card {
+            background: var(--primary-white);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--gray-200);
+            padding: 20px;
+            margin-bottom: 12px;
+        }
+
+        .question-card.drag-over {
+            border-color: var(--primary-red);
+            background: var(--primary-cream);
+        }
+
+        .question-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .question-drag-handle {
+            cursor: grab;
+            color: var(--gray-400);
+            font-size: 1.25rem;
+        }
+
+        .question-hierarchy {
+            background: var(--primary-light-pink);
+            color: var(--primary-red);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .post-feature-btn {
+            padding: 4px 8px;
+            font-size: 0.8rem;
+        }
+
+        .post-feature-btn.featured {
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            color: #333;
+        }
+    </style>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <!-- Header -->
+    <div id="header-container"></div>
+
+    <main class="main-container">
+        <div class="container">
+            <!-- Welcome Banner -->
+            <div class="card mb-4" style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); color: #333;">
+                <div class="card-body">
+                    <div class="d-flex align-center justify-between flex-wrap gap-3">
+                        <div>
+                            <h2 style="margin-bottom: 8px;">👑 Painel de Fundador</h2>
+                            <p style="opacity: 0.8; margin: 0;">
+                                Olá, <strong id="founder-name">Fundador</strong>! Você tem acesso total à plataforma.
+                            </p>
+                        </div>
+                        <a href="dashboard.html" class="btn" style="background: rgba(0,0,0,0.1); color: #333;">
+                            ← Voltar ao Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Tabs -->
+            <div class="admin-tabs">
+                <button class="admin-tab active" onclick="showSection('stats')">📊 Landing Stats</button>
+                <button class="admin-tab" onclick="showSection('posts')">📝 Posts em Destaque</button>
+                <button class="admin-tab" onclick="showSection('members')">👥 Membros</button>
+                <button class="admin-tab" onclick="showSection('questions')">❓ Questionário</button>
+                <button class="admin-tab" onclick="showSection('wiki')">📚 Wiki</button>
+            </div>
+
+            <!-- Landing Stats Section -->
+            <section id="section-stats" class="admin-section active">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title">📊 Estatísticas da Landing Page</h4>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-4">
+                            Defina os números de aprovados que aparecem na landing page.
+                            Estes números são exibidos na seção de heróis e cards de campeões.
+                        </p>
+
+                        <div class="stats-editor">
+                            <div class="stats-editor-item">
+                                <label>🏆 Step 1 Champions</label>
+                                <input type="number" id="step1-count" class="form-input" min="0" value="65">
+                            </div>
+                            <div class="stats-editor-item">
+                                <label>⚡ Step 2 CK Champions</label>
+                                <input type="number" id="step2-count" class="form-input" min="0" value="24">
+                            </div>
+                            <div class="stats-editor-item">
+                                <label>💎 Step 3 Champions</label>
+                                <input type="number" id="step3-count" class="form-input" min="0" value="6">
+                            </div>
+                        </div>
+
+                        <div class="text-center mt-4 p-3" style="background: var(--gray-100); border-radius: var(--border-radius);">
+                            <p class="mb-2"><strong>Total de Champions:</strong> <span id="total-count">95</span></p>
+                        </div>
+
+                        <div class="d-flex justify-end mt-4">
+                            <button class="btn btn-primary" onclick="saveStats()" id="save-stats-btn">
+                                💾 Salvar Estatísticas
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Featured Posts Section -->
+            <section id="section-posts" class="admin-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title">📝 Gerenciar Posts em Destaque</h4>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-4">
+                            Selecione posts com a tag "Relato de Pass" para aparecerem em destaque na landing page.
+                        </p>
+
+                        <!-- Filter -->
+                        <div class="d-flex gap-3 mb-4 flex-wrap">
+                            <select class="form-select" id="posts-filter" onchange="loadPosts()" style="width: auto;">
+                                <option value="all">Todos os Posts</option>
+                                <option value="relato-pass" selected>Apenas Relatos de Pass</option>
+                                <option value="featured">Apenas em Destaque</option>
+                            </select>
+
+                            <input type="text" class="form-input" id="posts-search" placeholder="Buscar por autor ou conteúdo..." style="width: 300px;" onkeyup="debounceSearch()">
+                        </div>
+
+                        <!-- Posts List -->
+                        <div id="posts-list">
+                            <div class="loading-spinner" style="margin: 40px auto;"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Members Section -->
+            <section id="section-members" class="admin-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title">👥 Todos os Membros</h4>
+                        <div class="d-flex gap-2">
+                            <input type="text" class="form-input" id="members-search" placeholder="Buscar..." style="width: 200px;" onkeyup="debounceSearchMembers()">
+                            <button class="btn btn-secondary btn-sm" onclick="exportMembers()">
+                                📥 Exportar CSV
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-4">
+                            Visualize todos os dados dos membros. Como fundador, você tem acesso a todas as informações.
+                        </p>
+
+                        <!-- Filters -->
+                        <div class="d-flex gap-3 mb-4 flex-wrap">
+                            <select class="form-select" id="members-role-filter" onchange="loadMembers()" style="width: auto;">
+                                <option value="">Todos os Roles</option>
+                                <option value="membro">Membros</option>
+                                <option value="adm">ADMs</option>
+                                <option value="fundador">Fundadores</option>
+                            </select>
+
+                            <select class="form-select" id="members-status-filter" onchange="loadMembers()" style="width: auto;">
+                                <option value="">Todos os Status</option>
+                                <option value="active">Ativos</option>
+                                <option value="pending">Pendentes</option>
+                                <option value="inactive">Inativos</option>
+                            </select>
+
+                            <select class="form-select" id="members-step-filter" onchange="loadMembers()" style="width: auto;">
+                                <option value="">Todas as Etapas</option>
+                                <option value="iniciando">Iniciando</option>
+                                <option value="step1_prep">Preparando Step 1</option>
+                                <option value="step1_done">Step 1 Aprovado</option>
+                                <option value="step2_prep">Preparando Step 2</option>
+                                <option value="step2_done">Step 2 Aprovado</option>
+                                <option value="match">Match</option>
+                            </select>
+                        </div>
+
+                        <!-- Stats -->
+                        <div class="grid gap-3 mb-4" style="grid-template-columns: repeat(4, 1fr);">
+                            <div class="stat-card">
+                                <div class="stat-card-value" id="total-members">--</div>
+                                <div class="stat-card-label">Total Membros</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-card-value" id="active-members">--</div>
+                                <div class="stat-card-label">Ativos</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-card-value" id="questionnaire-completed">--</div>
+                                <div class="stat-card-label">Questionário Completo</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-card-value" id="whatsapp-granted">--</div>
+                                <div class="stat-card-label">Acesso WhatsApp</div>
+                            </div>
+                        </div>
+
+                        <!-- Members Table -->
+                        <div class="table-container">
+                            <table class="table" id="members-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Email</th>
+                                        <th>WhatsApp</th>
+                                        <th>Status</th>
+                                        <th>Etapa</th>
+                                        <th>Questionário</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="members-tbody">
+                                    <tr><td colspan="7" class="text-center">Carregando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div class="d-flex justify-center gap-2 mt-4" id="members-pagination"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Questions Section -->
+            <section id="section-questions" class="admin-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title">❓ Gerenciar Questionário</h4>
+                        <button class="btn btn-primary btn-sm" onclick="showAddQuestionModal()">
+                            ➕ Nova Pergunta
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-4">
+                            Configure as perguntas do questionário. Ordene por nível hierárquico para controlar
+                            quais perguntas aparecem primeiro. Perguntas de hierarquia mais baixa (1) são mais importantes.
+                        </p>
+
+                        <!-- Questions List -->
+                        <div id="questions-list">
+                            <div class="loading-spinner" style="margin: 40px auto;"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Wiki Section -->
+            <section id="section-wiki" class="admin-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title">📚 Gerenciar Wiki</h4>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-secondary btn-sm" onclick="showAddFolderModal()">
+                                📁 Nova Pasta
+                            </button>
+                            <button class="btn btn-primary btn-sm" onclick="showAddArticleModal()">
+                                📄 Novo Artigo
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-4">
+                            Adicione e edite conteúdo na Wiki. ADMs também podem adicionar conteúdo, mas apenas fundadores podem excluir.
+                        </p>
+
+                        <div id="wiki-management">
+                            <div class="loading-spinner" style="margin: 40px auto;"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Member Details Modal -->
+    <div id="member-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">👤 Detalhes do Membro</h3>
+                <button class="modal-close" onclick="closeMemberModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="member-modal-body">
+                <!-- Member details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeMemberModal()">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Question Modal -->
+    <div id="question-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title" id="question-modal-title">➕ Nova Pergunta</h3>
+                <button class="modal-close" onclick="closeQuestionModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="question-form" onsubmit="saveQuestion(event)">
+                    <input type="hidden" id="question-id">
+
+                    <div class="form-group">
+                        <label class="form-label required">Texto da Pergunta</label>
+                        <textarea id="question-text" class="form-textarea" rows="2" required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Descrição/Ajuda</label>
+                        <input type="text" id="question-description" class="form-input" placeholder="Texto de ajuda opcional">
+                    </div>
+
+                    <div class="grid gap-3" style="grid-template-columns: 1fr 1fr;">
+                        <div class="form-group">
+                            <label class="form-label required">Tipo de Resposta</label>
+                            <select id="question-type" class="form-select" required onchange="toggleOptionsField()">
+                                <option value="text">Texto curto</option>
+                                <option value="textarea">Texto longo</option>
+                                <option value="number">Número</option>
+                                <option value="date">Data</option>
+                                <option value="select">Seleção única</option>
+                                <option value="multiselect">Seleção múltipla</option>
+                                <option value="radio">Radio buttons</option>
+                                <option value="scale">Escala 1-10</option>
+                                <option value="boolean">Sim/Não</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label required">Nível Hierárquico</label>
+                            <select id="question-hierarchy" class="form-select" required>
+                                <option value="1">1 - Mais Importante (perguntado primeiro)</option>
+                                <option value="2">2 - Importante</option>
+                                <option value="3">3 - Normal</option>
+                                <option value="4">4 - Menos Importante</option>
+                                <option value="5">5 - Opcional</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid gap-3" style="grid-template-columns: 1fr 1fr;">
+                        <div class="form-group">
+                            <label class="form-label">Categoria</label>
+                            <select id="question-category" class="form-select">
+                                <option value="basic">Informações Básicas</option>
+                                <option value="usmle">Status USMLE</option>
+                                <option value="goals">Objetivos</option>
+                                <option value="resources">Recursos</option>
+                                <option value="community">Comunidade</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Ordem na Categoria</label>
+                            <input type="number" id="question-order" class="form-input" value="0" min="0">
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="options-field" style="display: none;">
+                        <label class="form-label">Opções (uma por linha, formato: valor|rótulo)</label>
+                        <textarea id="question-options" class="form-textarea" rows="4" placeholder="step1|Step 1&#10;step2|Step 2 CK&#10;step3|Step 3"></textarea>
+                        <span class="form-hint">Exemplo: valor|Texto visível</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-check">
+                            <input type="checkbox" id="question-required">
+                            <span class="form-check-label">Pergunta obrigatória</span>
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeQuestionModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="document.getElementById('question-form').requestSubmit()">
+                    Salvar Pergunta
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div id="footer-container"></div>
+
+    <!-- Scripts -->
+    <script src="js/app.js"></script>
+    <script>
+        let currentUser = null;
+        let members = [];
+        let questions = [];
+        let featuredPostIds = [];
+        let searchTimeout = null;
+        let membersPage = 0;
+        const MEMBERS_PER_PAGE = 20;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check auth - founders only
+            currentUser = await PrivateersApp.checkAuth(['fundador']);
+            if (!currentUser) return;
+
+            // Render navigation
+            document.getElementById('header-container').innerHTML = PrivateersApp.renderNavbar('admin');
+            document.getElementById('footer-container').innerHTML = PrivateersApp.renderFooter();
+
+            // Update founder name
+            document.getElementById('founder-name').textContent = currentUser.full_name.split(' ')[0];
+
+            // Load initial data
+            await loadStats();
+
+            // Setup stats input listeners
+            ['step1-count', 'step2-count', 'step3-count'].forEach(id => {
+                document.getElementById(id).addEventListener('input', updateTotalCount);
+            });
+
+            // Log page view
+            await PrivateersApp.logActivity('page_view', { page: 'founder-dashboard' });
+        });
+
+        function showSection(sectionId) {
+            // Update tabs
+            document.querySelectorAll('.admin-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update sections
+            document.querySelectorAll('.admin-section').forEach(section => section.classList.remove('active'));
+            document.getElementById('section-' + sectionId).classList.add('active');
+
+            // Load section data
+            switch (sectionId) {
+                case 'posts':
+                    loadPosts();
+                    break;
+                case 'members':
+                    loadMembers();
+                    break;
+                case 'questions':
+                    loadQuestions();
+                    break;
+                case 'wiki':
+                    loadWikiManagement();
+                    break;
+            }
+        }
+
+        // ========================================
+        // STATS MANAGEMENT
+        // ========================================
+
+        async function loadStats() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('site_settings')
+                    .select('setting_value')
+                    .eq('setting_key', 'landing_stats')
+                    .single();
+
+                if (!error && data) {
+                    const stats = data.setting_value;
+                    document.getElementById('step1-count').value = stats.step1_champions || 65;
+                    document.getElementById('step2-count').value = stats.step2ck_champions || 24;
+                    document.getElementById('step3-count').value = stats.step3_champions || 6;
+                    updateTotalCount();
+                }
+            } catch (err) {
+                console.log('Stats not loaded, using defaults');
+            }
+        }
+
+        function updateTotalCount() {
+            const step1 = parseInt(document.getElementById('step1-count').value) || 0;
+            const step2 = parseInt(document.getElementById('step2-count').value) || 0;
+            const step3 = parseInt(document.getElementById('step3-count').value) || 0;
+            document.getElementById('total-count').textContent = step1 + step2 + step3;
+        }
+
+        async function saveStats() {
+            const btn = document.getElementById('save-stats-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner loading-spinner-sm"></span> Salvando...';
+
+            try {
+                const step1 = parseInt(document.getElementById('step1-count').value) || 0;
+                const step2 = parseInt(document.getElementById('step2-count').value) || 0;
+                const step3 = parseInt(document.getElementById('step3-count').value) || 0;
+
+                // Try using RPC function
+                const { error } = await supabaseClient.rpc('update_landing_stats', {
+                    p_step1_champions: step1,
+                    p_step2ck_champions: step2,
+                    p_step3_champions: step3,
+                    p_user_id: currentUser.id
+                });
+
+                if (error) {
+                    // Fallback to direct update
+                    await supabaseClient
+                        .from('site_settings')
+                        .update({
+                            setting_value: {
+                                step1_champions: step1,
+                                step2ck_champions: step2,
+                                step3_champions: step3,
+                                total_lives: 100,
+                                community_support: "24/7"
+                            },
+                            updated_by: currentUser.id,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('setting_key', 'landing_stats');
+                }
+
+                PrivateersApp.showToast('success', 'Sucesso', 'Estatísticas atualizadas na landing page!');
+
+            } catch (err) {
+                console.error('Error saving stats:', err);
+                PrivateersApp.showToast('error', 'Erro', 'Não foi possível salvar as estatísticas.');
+            }
+
+            btn.disabled = false;
+            btn.textContent = '💾 Salvar Estatísticas';
+        }
+
+        // ========================================
+        // POSTS MANAGEMENT
+        // ========================================
+
+        async function loadPosts() {
+            const container = document.getElementById('posts-list');
+            container.innerHTML = '<div class="loading-spinner" style="margin: 40px auto;"></div>';
+
+            try {
+                // Load featured post IDs
+                const { data: featured } = await supabaseClient
+                    .from('featured_posts')
+                    .select('post_id')
+                    .eq('is_active', true);
+
+                featuredPostIds = featured ? featured.map(f => f.post_id) : [];
+
+                // Load posts
+                let query = supabaseClient
+                    .from('active_blog_posts')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+
+                const filter = document.getElementById('posts-filter').value;
+                const search = document.getElementById('posts-search').value.trim();
+
+                if (search) {
+                    query = query.or(`content.ilike.%${search}%,author_name.ilike.%${search}%`);
+                }
+
+                const { data: posts, error } = await query;
+
+                if (error) throw error;
+
+                let filteredPosts = posts || [];
+
+                // Apply tag filter
+                if (filter === 'relato-pass') {
+                    filteredPosts = filteredPosts.filter(p => p.tags && p.tags.includes('Relato de Pass'));
+                } else if (filter === 'featured') {
+                    filteredPosts = filteredPosts.filter(p => featuredPostIds.includes(p.id));
+                }
+
+                if (filteredPosts.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📝</div>
+                            <h4 class="empty-state-title">Nenhum post encontrado</h4>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = filteredPosts.map(post => {
+                    const isFeatured = featuredPostIds.includes(post.id);
+                    return `
+                        <div class="blog-post" style="position: relative;">
+                            ${isFeatured ? '<div class="featured-badge">⭐ Em Destaque</div>' : ''}
+
+                            <div class="blog-post-header">
+                                <div class="avatar">${PrivateersApp.getInitials(post.author_name)}</div>
+                                <div>
+                                    <span class="blog-post-author">${PrivateersApp.escapeHtml(post.author_name)}</span>
+                                    ${PrivateersApp.getRoleBadge(post.author_role)}
+                                    <span class="blog-post-date">${PrivateersApp.formatDate(post.created_at)}</span>
+                                </div>
+                            </div>
+
+                            <div class="blog-post-content">
+                                ${PrivateersApp.escapeHtml(post.content.substring(0, 300))}${post.content.length > 300 ? '...' : ''}
+                            </div>
+
+                            ${post.tags && post.tags.length > 0 ? `
+                                <div class="blog-post-tags">
+                                    ${post.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                                </div>
+                            ` : ''}
+
+                            <div class="blog-post-actions">
+                                <span>👍 ${post.likes}</span>
+                                <span>💬 ${post.comments_count}</span>
+
+                                <div style="margin-left: auto;">
+                                    <button class="btn btn-sm post-feature-btn ${isFeatured ? 'featured' : 'btn-outline'}"
+                                            onclick="toggleFeaturePost('${post.id}', ${isFeatured})">
+                                        ${isFeatured ? '⭐ Remover Destaque' : '⭐ Colocar em Destaque'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                console.error('Error loading posts:', err);
+                container.innerHTML = '<p class="text-muted text-center">Erro ao carregar posts.</p>';
+            }
+        }
+
+        async function toggleFeaturePost(postId, isCurrentlyFeatured) {
+            try {
+                if (isCurrentlyFeatured) {
+                    // Unfeature
+                    await supabaseClient.rpc('unfeature_post', {
+                        p_post_id: postId,
+                        p_user_id: currentUser.id
+                    });
+                    PrivateersApp.showToast('success', 'Removido', 'Post removido dos destaques.');
+                } else {
+                    // Feature
+                    await supabaseClient.rpc('feature_post', {
+                        p_post_id: postId,
+                        p_user_id: currentUser.id,
+                        p_order: 0
+                    });
+                    PrivateersApp.showToast('success', 'Destaque', 'Post adicionado aos destaques da landing page!');
+                }
+
+                // Reload posts
+                await loadPosts();
+
+            } catch (err) {
+                console.error('Error toggling feature:', err);
+                PrivateersApp.showToast('error', 'Erro', 'Não foi possível atualizar o destaque.');
+            }
+        }
+
+        function debounceSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(loadPosts, 300);
+        }
+
+        // ========================================
+        // MEMBERS MANAGEMENT
+        // ========================================
+
+        async function loadMembers() {
+            const tbody = document.getElementById('members-tbody');
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center"><div class="loading-spinner" style="margin: 20px auto;"></div></td></tr>';
+
+            try {
+                let query = supabaseClient
+                    .from('users')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                // Apply filters
+                const roleFilter = document.getElementById('members-role-filter').value;
+                const statusFilter = document.getElementById('members-status-filter').value;
+                const stepFilter = document.getElementById('members-step-filter').value;
+                const search = document.getElementById('members-search')?.value?.trim();
+
+                if (roleFilter) query = query.eq('role', roleFilter);
+                if (statusFilter) query = query.eq('status', statusFilter);
+                if (stepFilter) query = query.eq('current_step', stepFilter);
+                if (search) query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
+
+                const { data, error } = await query;
+
+                if (error) throw error;
+
+                members = data || [];
+
+                // Update stats
+                document.getElementById('total-members').textContent = members.length;
+                document.getElementById('active-members').textContent = members.filter(m => m.status === 'active').length;
+                document.getElementById('questionnaire-completed').textContent = members.filter(m => m.questionnaire_completed).length;
+                document.getElementById('whatsapp-granted').textContent = members.filter(m => m.whatsapp_access_granted).length;
+
+                if (members.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Nenhum membro encontrado.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = members.map(member => `
+                    <tr>
+                        <td>
+                            <div class="d-flex align-center gap-2">
+                                <div class="avatar avatar-sm">${PrivateersApp.getInitials(member.full_name)}</div>
+                                <span>${PrivateersApp.escapeHtml(member.full_name)}</span>
+                            </div>
+                        </td>
+                        <td>${member.email}</td>
+                        <td>${member.whatsapp || '-'}</td>
+                        <td>
+                            <span class="badge ${member.status === 'active' ? 'badge-success' : member.status === 'pending' ? 'badge-warning' : 'badge-danger'}">
+                                ${member.status}
+                            </span>
+                        </td>
+                        <td>${member.current_step || '-'}</td>
+                        <td>
+                            ${member.questionnaire_completed
+                                ? '<span class="text-success">✓ Completo</span>'
+                                : '<span class="text-muted">Pendente</span>'
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline" onclick="showMemberDetails('${member.id}')">
+                                👁️ Ver
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+
+            } catch (err) {
+                console.error('Error loading members:', err);
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Erro ao carregar membros.</td></tr>';
+            }
+        }
+
+        function debounceSearchMembers() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(loadMembers, 300);
+        }
+
+        async function showMemberDetails(memberId) {
+            const member = members.find(m => m.id === memberId);
+            if (!member) return;
+
+            // Load questionnaire responses
+            let responses = {};
+            try {
+                const { data } = await supabaseClient
+                    .from('questionnaire_responses')
+                    .select('*, questionnaire_questions(question_text)')
+                    .eq('user_id', memberId);
+
+                if (data) {
+                    data.forEach(r => {
+                        responses[r.question_id] = {
+                            question: r.questionnaire_questions?.question_text,
+                            response: r.response
+                        };
+                    });
+                }
+            } catch (err) {
+                console.log('Could not load responses');
+            }
+
+            const body = document.getElementById('member-modal-body');
+            body.innerHTML = `
+                <div class="grid gap-4" style="grid-template-columns: 1fr 1fr;">
+                    <div>
+                        <h4 class="mb-3">📋 Informações Básicas</h4>
+                        <table class="table">
+                            <tr><th>Nome</th><td>${PrivateersApp.escapeHtml(member.full_name)}</td></tr>
+                            <tr><th>Email</th><td>${member.email}</td></tr>
+                            <tr><th>WhatsApp</th><td>${member.whatsapp || '-'}</td></tr>
+                            <tr><th>Instagram</th><td>${member.instagram || '-'}</td></tr>
+                            <tr><th>País</th><td>${member.country || '-'}</td></tr>
+                            <tr><th>Instituição</th><td>${member.institution || '-'}</td></tr>
+                            <tr><th>Formatura</th><td>${member.graduation_year || '-'}</td></tr>
+                            <tr><th>Especialidade</th><td>${member.specialty || '-'}</td></tr>
+                            <tr><th>Role</th><td>${PrivateersApp.getRoleBadge(member.role)}</td></tr>
+                            <tr><th>Status</th><td><span class="badge ${member.status === 'active' ? 'badge-success' : 'badge-warning'}">${member.status}</span></td></tr>
+                            <tr><th>Membro desde</th><td>${new Date(member.created_at).toLocaleDateString('pt-BR')}</td></tr>
+                            <tr><th>Último login</th><td>${member.last_login ? new Date(member.last_login).toLocaleDateString('pt-BR') : '-'}</td></tr>
+                        </table>
+                    </div>
+
+                    <div>
+                        <h4 class="mb-3">📚 Status USMLE</h4>
+                        <table class="table">
+                            <tr><th>Educação</th><td>${member.education_status === 'formado' ? 'Médico Formado' : 'Estudante'}</td></tr>
+                            <tr><th>Etapa Atual</th><td>${member.current_step || '-'}</td></tr>
+                            <tr><th>Step 1</th><td>${member.step1_passed ? `✅ Score: ${member.step1_score || '-'}` : '❌'}</td></tr>
+                            <tr><th>Step 2 CK</th><td>${member.step2ck_passed ? `✅ Score: ${member.step2ck_score || '-'}` : '❌'}</td></tr>
+                            <tr><th>Step 3</th><td>${member.step3_passed ? `✅ Score: ${member.step3_score || '-'}` : '❌'}</td></tr>
+                        </table>
+
+                        <h4 class="mb-3 mt-4">💬 Acesso</h4>
+                        <table class="table">
+                            <tr><th>Onboarding</th><td>${member.onboarding_completed ? '✅' : '❌'}</td></tr>
+                            <tr><th>Questionário</th><td>${member.questionnaire_completed ? '✅' : '❌'}</td></tr>
+                            <tr><th>WhatsApp</th><td>${member.whatsapp_access_granted ? '✅' : '❌'}</td></tr>
+                        </table>
+                    </div>
+                </div>
+
+                ${Object.keys(responses).length > 0 ? `
+                    <h4 class="mb-3 mt-4">📝 Respostas do Questionário</h4>
+                    <table class="table">
+                        ${Object.values(responses).map(r => `
+                            <tr>
+                                <th style="width: 40%;">${r.question || 'Pergunta'}</th>
+                                <td>${typeof r.response === 'object' ? JSON.stringify(r.response) : r.response}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                ` : ''}
+
+                ${member.bio ? `
+                    <h4 class="mb-3 mt-4">📖 Bio</h4>
+                    <p>${PrivateersApp.escapeHtml(member.bio)}</p>
+                ` : ''}
+            `;
+
+            document.getElementById('member-modal').classList.add('active');
+        }
+
+        function closeMemberModal() {
+            document.getElementById('member-modal').classList.remove('active');
+        }
+
+        function exportMembers() {
+            // Generate CSV
+            const headers = ['Nome', 'Email', 'WhatsApp', 'Status', 'Role', 'Etapa', 'Educação', 'País', 'Instituição', 'Formatura', 'Especialidade', 'Step1', 'Step2CK', 'Step3', 'Questionário Completo', 'WhatsApp Liberado', 'Criado em'];
+
+            const rows = members.map(m => [
+                m.full_name,
+                m.email,
+                m.whatsapp || '',
+                m.status,
+                m.role,
+                m.current_step || '',
+                m.education_status || '',
+                m.country || '',
+                m.institution || '',
+                m.graduation_year || '',
+                m.specialty || '',
+                m.step1_passed ? 'Sim' : 'Não',
+                m.step2ck_passed ? 'Sim' : 'Não',
+                m.step3_passed ? 'Sim' : 'Não',
+                m.questionnaire_completed ? 'Sim' : 'Não',
+                m.whatsapp_access_granted ? 'Sim' : 'Não',
+                new Date(m.created_at).toLocaleDateString('pt-BR')
+            ]);
+
+            const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+
+            // Download
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `privateers-membros-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            PrivateersApp.showToast('success', 'Exportado', 'Arquivo CSV gerado com sucesso!');
+        }
+
+        // ========================================
+        // QUESTIONS MANAGEMENT
+        // ========================================
+
+        async function loadQuestions() {
+            const container = document.getElementById('questions-list');
+            container.innerHTML = '<div class="loading-spinner" style="margin: 40px auto;"></div>';
+
+            try {
+                const { data, error } = await supabaseClient
+                    .from('questionnaire_questions')
+                    .select('*')
+                    .order('hierarchy_level', { ascending: true })
+                    .order('order_position', { ascending: true });
+
+                if (error) throw error;
+
+                questions = data || [];
+
+                if (questions.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">❓</div>
+                            <h4 class="empty-state-title">Nenhuma pergunta configurada</h4>
+                            <button class="btn btn-primary" onclick="showAddQuestionModal()">Adicionar Primeira Pergunta</button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = questions.map((q, idx) => `
+                    <div class="question-card" data-question-id="${q.id}">
+                        <div class="question-header">
+                            <span class="question-drag-handle">⠿</span>
+                            <span class="question-hierarchy">Nível ${q.hierarchy_level}</span>
+                            <span class="badge badge-primary">${q.category || 'geral'}</span>
+                            <span class="badge ${q.is_active ? 'badge-success' : 'badge-danger'}">${q.is_active ? 'Ativa' : 'Inativa'}</span>
+                            <span class="badge">${q.question_type}</span>
+                            ${q.is_required ? '<span class="badge badge-warning">Obrigatória</span>' : ''}
+                        </div>
+                        <p style="margin: 0 0 8px 0; font-weight: 500;">${PrivateersApp.escapeHtml(q.question_text)}</p>
+                        ${q.description ? `<p class="text-muted" style="font-size: 0.9rem; margin: 0 0 12px 0;">${PrivateersApp.escapeHtml(q.description)}</p>` : ''}
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline" onclick="editQuestion('${q.id}')">✏️ Editar</button>
+                            <button class="btn btn-sm btn-outline" onclick="toggleQuestionActive('${q.id}', ${q.is_active})">
+                                ${q.is_active ? '🔴 Desativar' : '🟢 Ativar'}
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteQuestion('${q.id}')">🗑️</button>
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (err) {
+                console.error('Error loading questions:', err);
+                container.innerHTML = '<p class="text-muted text-center">Erro ao carregar perguntas.</p>';
+            }
+        }
+
+        function showAddQuestionModal() {
+            document.getElementById('question-modal-title').textContent = '➕ Nova Pergunta';
+            document.getElementById('question-form').reset();
+            document.getElementById('question-id').value = '';
+            toggleOptionsField();
+            document.getElementById('question-modal').classList.add('active');
+        }
+
+        function editQuestion(questionId) {
+            const question = questions.find(q => q.id === questionId);
+            if (!question) return;
+
+            document.getElementById('question-modal-title').textContent = '✏️ Editar Pergunta';
+            document.getElementById('question-id').value = question.id;
+            document.getElementById('question-text').value = question.question_text;
+            document.getElementById('question-description').value = question.description || '';
+            document.getElementById('question-type').value = question.question_type;
+            document.getElementById('question-hierarchy').value = question.hierarchy_level || 1;
+            document.getElementById('question-category').value = question.category || 'basic';
+            document.getElementById('question-order').value = question.order_position || 0;
+            document.getElementById('question-required').checked = question.is_required || false;
+
+            // Options
+            if (question.options) {
+                const optionsText = question.options.map(o => `${o.value}|${o.label}`).join('\n');
+                document.getElementById('question-options').value = optionsText;
+            }
+
+            toggleOptionsField();
+            document.getElementById('question-modal').classList.add('active');
+        }
+
+        function closeQuestionModal() {
+            document.getElementById('question-modal').classList.remove('active');
+        }
+
+        function toggleOptionsField() {
+            const type = document.getElementById('question-type').value;
+            const needsOptions = ['select', 'multiselect', 'radio'].includes(type);
+            document.getElementById('options-field').style.display = needsOptions ? 'block' : 'none';
+        }
+
+        async function saveQuestion(e) {
+            e.preventDefault();
+
+            const questionId = document.getElementById('question-id').value;
+            const type = document.getElementById('question-type').value;
+
+            // Parse options
+            let options = null;
+            if (['select', 'multiselect', 'radio'].includes(type)) {
+                const optionsText = document.getElementById('question-options').value;
+                options = optionsText.split('\n').filter(line => line.trim()).map(line => {
+                    const [value, label] = line.split('|');
+                    return { value: value.trim(), label: (label || value).trim() };
+                });
+            }
+
+            const questionData = {
+                question_text: document.getElementById('question-text').value,
+                description: document.getElementById('question-description').value || null,
+                question_type: type,
+                hierarchy_level: parseInt(document.getElementById('question-hierarchy').value),
+                category: document.getElementById('question-category').value,
+                order_position: parseInt(document.getElementById('question-order').value),
+                is_required: document.getElementById('question-required').checked,
+                options: options,
+                is_active: true
+            };
+
+            try {
+                if (questionId) {
+                    // Update
+                    await supabaseClient
+                        .from('questionnaire_questions')
+                        .update(questionData)
+                        .eq('id', questionId);
+                } else {
+                    // Insert
+                    questionData.created_by = currentUser.id;
+                    await supabaseClient
+                        .from('questionnaire_questions')
+                        .insert(questionData);
+                }
+
+                PrivateersApp.showToast('success', 'Sucesso', 'Pergunta salva!');
+                closeQuestionModal();
+                await loadQuestions();
+
+            } catch (err) {
+                console.error('Error saving question:', err);
+                PrivateersApp.showToast('error', 'Erro', 'Não foi possível salvar a pergunta.');
+            }
+        }
+
+        async function toggleQuestionActive(questionId, isActive) {
+            try {
+                await supabaseClient
+                    .from('questionnaire_questions')
+                    .update({ is_active: !isActive })
+                    .eq('id', questionId);
+
+                PrivateersApp.showToast('success', 'Sucesso', `Pergunta ${isActive ? 'desativada' : 'ativada'}!`);
+                await loadQuestions();
+
+            } catch (err) {
+                console.error('Error toggling question:', err);
+                PrivateersApp.showToast('error', 'Erro', 'Não foi possível atualizar a pergunta.');
+            }
+        }
+
+        async function deleteQuestion(questionId) {
+            if (!confirm('Tem certeza que deseja excluir esta pergunta?')) return;
+
+            try {
+                await supabaseClient
+                    .from('questionnaire_questions')
+                    .delete()
+                    .eq('id', questionId);
+
+                PrivateersApp.showToast('success', 'Excluído', 'Pergunta removida!');
+                await loadQuestions();
+
+            } catch (err) {
+                console.error('Error deleting question:', err);
+                PrivateersApp.showToast('error', 'Erro', 'Não foi possível excluir a pergunta.');
+            }
+        }
+
+        // ========================================
+        // WIKI MANAGEMENT
+        // ========================================
+
+        async function loadWikiManagement() {
+            const container = document.getElementById('wiki-management');
+            container.innerHTML = `
+                <p class="text-muted mb-4">
+                    A gestão completa da Wiki está disponível na página Wiki com acesso de ADM/Fundador.
+                    Use os botões acima para adicionar novos conteúdos.
+                </p>
+                <a href="wiki.html" class="btn btn-primary">
+                    📚 Abrir Wiki
+                </a>
+            `;
+        }
+
+        function showAddFolderModal() {
+            PrivateersApp.showToast('info', 'Em breve', 'Funcionalidade de pasta será adicionada em breve.');
+        }
+
+        function showAddArticleModal() {
+            PrivateersApp.showToast('info', 'Em breve', 'Funcionalidade de artigo será adicionada em breve.');
+        }
+    </script>
+</body>
+</html>
