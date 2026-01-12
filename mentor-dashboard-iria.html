@@ -1686,16 +1686,18 @@
                 .from('schedules')
                 .select('user_id, end_date, completed');
 
-            // Load pass_type for all students to ensure we have the latest value
+            // Load pass_type and questionnaire_step for all students to ensure we have the latest value
             const { data: userPassTypes } = await WardApp.db
                 .from('users')
-                .select('id, pass_type')
+                .select('id, pass_type, questionnaire_step')
                 .eq('role', 'aluno');
 
-            // Create a map of user_id to pass_type for quick lookup
+            // Create maps of user_id to pass_type and questionnaire_step for quick lookup
             const passTypeMap = {};
+            const questionnaireMap = {};
             (userPassTypes || []).forEach(u => {
                 passTypeMap[u.id] = u.pass_type || 'first';
+                questionnaireMap[u.id] = u.questionnaire_step || 0;
             });
 
             const today = new Date();
@@ -1761,13 +1763,15 @@
                 const progress = student.totalCount > 0 ? Math.round((student.completedCount / student.totalCount) * 100) : 0;
                 const passType = passTypeMap[student.id] || 'first';
                 const passLabel = passType === 'first' ? 'First Pass' : passType === 'second' ? 'Second Pass' : 'Third Pass';
+                const questionnaireStep = questionnaireMap[student.id] || 0;
+                const questionnairePercent = Math.round((questionnaireStep / 11) * 100);
 
                 return `
                     <div style="background: ${statusColor}; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
                             <div style="flex: 1;">
                                 <div style="font-weight: 600; margin-bottom: 0.25rem;">${student.full_name || student.email}</div>
-                                <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.5rem;">${passLabel}</div>
+                                <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.5rem;">${passLabel} <span style="color: #9ca3af; font-size: 0.65rem;">| Quest. ${questionnairePercent}%</span></div>
                                 ${statusBadge}
                             </div>
                         </div>
