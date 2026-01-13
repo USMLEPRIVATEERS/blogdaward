@@ -1868,10 +1868,16 @@
         }
 
         async function markCallComplete(landmarkId) {
-            await WardApp.db
+            const { error } = await WardApp.db
                 .from('landmarks')
                 .update({ completed: true, completion_date: new Date().toISOString() })
                 .eq('id', landmarkId);
+
+            if (error) {
+                console.error('Error marking call complete:', error);
+                WardApp.showToast('Erro ao marcar call como concluída', 'error');
+                return;
+            }
 
             WardApp.showToast('Call marcada como concluida!');
             await loadPendingCalls();
@@ -1885,20 +1891,30 @@
 
         async function markScheduledCallComplete(callId, landmarkId) {
             // Mark the scheduled call as completed
-            await WardApp.db
+            const { error: callError } = await WardApp.db
                 .from('scheduled_calls')
-                .update({ status: 'completed' })
+                .update({ status: 'completed', updated_at: new Date().toISOString() })
                 .eq('id', callId);
+
+            if (callError) {
+                console.error('Error marking scheduled call complete:', callError);
+                WardApp.showToast('Erro ao marcar call como concluída', 'error');
+                return;
+            }
 
             // Also mark the landmark as completed
             if (landmarkId) {
-                await WardApp.db
+                const { error: landmarkError } = await WardApp.db
                     .from('landmarks')
                     .update({ completed: true, completion_date: new Date().toISOString() })
                     .eq('id', landmarkId);
+
+                if (landmarkError) {
+                    console.error('Error marking landmark complete:', landmarkError);
+                }
             }
 
-            WardApp.showToast('Chamada concluida com sucesso!');
+            WardApp.showToast('Chamada concluída com sucesso!');
             await loadPendingCalls();
             await loadPendingLandmarks();
             await updateStats();

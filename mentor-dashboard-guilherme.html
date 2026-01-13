@@ -533,7 +533,7 @@ Dica: Use as tags do AnKing em vez de decks separados!`
                                 <div class="call-student">${student?.full_name || student?.email || 'Aluno'}</div>
                                 <div class="call-time">🕐 ${formatDateTime(item.scheduled_date + 'T' + item.scheduled_time)}</div>
                             </div>
-                            <button class="btn btn-sm btn-primary" onclick="markCallComplete(${landmark?.id})">✓</button>
+                            <button class="btn btn-sm btn-primary" onclick="markScheduledCallComplete(${item.id}, ${landmark?.id})">✓</button>
                         </div>
                     `;
                 }).join('');
@@ -648,12 +648,47 @@ Dica: Use as tags do AnKing em vez de decks separados!`
         }
 
         async function markCallComplete(landmarkId) {
-            await WardApp.db
+            const { error } = await WardApp.db
                 .from('landmarks')
                 .update({ completed: true, completion_date: new Date().toISOString() })
                 .eq('id', landmarkId);
 
+            if (error) {
+                console.error('Error marking call complete:', error);
+                WardApp.showToast('Erro ao marcar call como concluída', 'error');
+                return;
+            }
+
             WardApp.showToast('Call marcada como concluida!');
+            loadPendingCalls();
+        }
+
+        async function markScheduledCallComplete(callId, landmarkId) {
+            // Mark the scheduled call as completed
+            const { error: callError } = await WardApp.db
+                .from('scheduled_calls')
+                .update({ status: 'completed', updated_at: new Date().toISOString() })
+                .eq('id', callId);
+
+            if (callError) {
+                console.error('Error marking scheduled call complete:', callError);
+                WardApp.showToast('Erro ao marcar call como concluída', 'error');
+                return;
+            }
+
+            // Also mark the landmark as completed
+            if (landmarkId) {
+                const { error: landmarkError } = await WardApp.db
+                    .from('landmarks')
+                    .update({ completed: true, completion_date: new Date().toISOString() })
+                    .eq('id', landmarkId);
+
+                if (landmarkError) {
+                    console.error('Error marking landmark complete:', landmarkError);
+                }
+            }
+
+            WardApp.showToast('Chamada concluída com sucesso!');
             loadPendingCalls();
         }
 
