@@ -215,7 +215,7 @@
                 <button class="modal-close" onclick="closeModal('view-project-modal')">&times;</button>
             </div>
             <div class="modal-body" style="max-height: 80vh; overflow-y: auto;">
-                <p class="text-muted mb-3" id="view-project-description"></p>
+                <div class="project-description-formatted mb-3" id="view-project-description"></div>
                 <div class="project-meta mb-3" id="project-meta"></div>
 
                 <!-- Progress -->
@@ -562,6 +562,39 @@
         let isMentor = false;
         let viewingAsStudentId = null;
 
+        // Sanitize and format description HTML
+        function formatDescription(text) {
+            if (!text) return '';
+
+            // Create a temporary div to parse HTML
+            const temp = document.createElement('div');
+            temp.innerHTML = text;
+
+            // Remove dangerous elements
+            const dangerousTags = ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'style', 'link'];
+            dangerousTags.forEach(tag => {
+                const elements = temp.querySelectorAll(tag);
+                elements.forEach(el => el.remove());
+            });
+
+            // Remove event handlers from all elements
+            const allElements = temp.querySelectorAll('*');
+            allElements.forEach(el => {
+                // Remove all on* attributes (onclick, onload, etc.)
+                Array.from(el.attributes).forEach(attr => {
+                    if (attr.name.startsWith('on') || attr.name === 'href' && attr.value.startsWith('javascript:')) {
+                        el.removeAttribute(attr.name);
+                    }
+                });
+                // Remove style attribute to prevent background colors
+                el.removeAttribute('style');
+                // Remove class to prevent external styling
+                el.removeAttribute('class');
+            });
+
+            return temp.innerHTML;
+        }
+
         const stageLabels = {
             nova_tarefa: 'Nova tarefa',
             testando_ideia: 'Testando ideia',
@@ -803,7 +836,7 @@
                                 ${project.status === 'completed' ? '✅ Concluido' : '🔄 Em andamento'}
                             </span>
                         </div>
-                        ${project.description ? `<p class="project-description">${project.description}</p>` : ''}
+                        ${project.description ? `<div class="project-description">${formatDescription(project.description)}</div>` : ''}
                         <div class="progress-container">
                             <div class="progress-bar">
                                 <div class="progress-fill" style="width: ${progress}%"></div>
@@ -824,7 +857,7 @@
             if (!currentProject) return;
 
             document.getElementById('view-project-title').textContent = currentProject.title;
-            document.getElementById('view-project-description').textContent = currentProject.description || '';
+            document.getElementById('view-project-description').innerHTML = formatDescription(currentProject.description || '');
 
             // Show project metadata (deadline, drive link)
             let metaHtml = '';
@@ -2032,9 +2065,56 @@ function toggleFolder(header) {
         }
 
         .project-description {
-            color: var(--gray-600);
+            color: #000;
+            background: #fff;
             font-size: 0.9rem;
             margin-bottom: 1rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            padding: 0.75rem;
+            border-radius: var(--radius-sm);
+        }
+
+        .project-description * {
+            color: #000 !important;
+            background: transparent !important;
+        }
+
+        .project-description-formatted {
+            color: #000 !important;
+            background: #fff !important;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--gray-200);
+        }
+
+        .project-description-formatted * {
+            color: #000 !important;
+            background: transparent !important;
+        }
+
+        .project-description-formatted h1,
+        .project-description-formatted h2,
+        .project-description-formatted h3,
+        .project-description-formatted h4,
+        .project-description-formatted h5,
+        .project-description-formatted h6 {
+            margin-top: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .project-description-formatted ul,
+        .project-description-formatted ol {
+            margin-left: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .project-description-formatted p {
+            margin-bottom: 0.5rem;
         }
 
         .project-footer {
