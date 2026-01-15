@@ -838,6 +838,59 @@
             box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
         }
 
+        /* Image Action Button Group */
+        .image-action-group {
+            display: inline-flex;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .image-action-group .btn-image-action {
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 0.6rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: all 0.2s;
+            border-radius: 0;
+        }
+
+        .image-action-group .btn-image-action:hover {
+            filter: brightness(1.1);
+        }
+
+        .image-action-group .btn-toggle-mode {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: white;
+            border: none;
+            border-left: 1px solid rgba(255,255,255,0.2);
+            padding: 0.6rem 0.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .image-action-group .btn-toggle-mode:hover {
+            background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+        }
+
+        .image-action-group .btn-toggle-mode svg {
+            width: 14px;
+            height: 14px;
+            transition: transform 0.2s;
+        }
+
+        .image-action-group.download-mode .btn-toggle-mode svg {
+            transform: rotate(180deg);
+        }
+
         /* Responsive */
         @media (max-width: 1024px) {
             .reports-container {
@@ -1273,9 +1326,19 @@
                 </div>
             </div>
             <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end;">
-                <div id="view-mode-buttons" style="display: flex; gap: 0.75rem;">
+                <div id="view-mode-buttons" style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
                     <button class="btn btn-share" onclick="shareReport()" title="Copiar link">🔗 Compartilhar</button>
-                    <button class="btn btn-download" onclick="downloadReportAsImage()" title="Baixar como imagem">📥 Baixar Imagem</button>
+                    <div class="image-action-group" id="image-action-group">
+                        <button class="btn-image-action" onclick="executeImageAction()" title="Copiar imagem">
+                            <span id="image-action-icon">📋</span>
+                            <span id="image-action-text">Copiar Imagem</span>
+                        </button>
+                        <button class="btn-toggle-mode" onclick="toggleImageMode()" title="Alternar modo">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M7 10l5 5 5-5H7z"/>
+                            </svg>
+                        </button>
+                    </div>
                     <button class="btn btn-secondary" onclick="closeModal('report-modal')">Fechar</button>
                     <button class="btn btn-outline" onclick="toggleEditMode(true)">✏️ Editar</button>
                     <button class="btn btn-danger" onclick="deleteReport()">🗑️ Excluir</button>
@@ -1299,6 +1362,7 @@
         let currentReportId = null;
         let currentMentorFilter = 'all';
         let mentorsMap = {};
+        let imageActionMode = 'copy'; // 'copy' or 'download'
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
@@ -1637,13 +1701,37 @@
             });
         }
 
-        async function downloadReportAsImage() {
-            if (!currentReportId) return;
+        function toggleImageMode() {
+            const group = document.getElementById('image-action-group');
+            const icon = document.getElementById('image-action-icon');
+            const text = document.getElementById('image-action-text');
+
+            if (imageActionMode === 'copy') {
+                imageActionMode = 'download';
+                icon.textContent = '📥';
+                text.textContent = 'Baixar Imagem';
+                group.classList.add('download-mode');
+            } else {
+                imageActionMode = 'copy';
+                icon.textContent = '📋';
+                text.textContent = 'Copiar Imagem';
+                group.classList.remove('download-mode');
+            }
+        }
+
+        function executeImageAction() {
+            if (imageActionMode === 'copy') {
+                copyReportAsImage();
+            } else {
+                downloadReportAsImage();
+            }
+        }
+
+        async function generateReportCanvas() {
+            if (!currentReportId) return null;
 
             const report = allReports.find(r => r.id === currentReportId);
-            if (!report) return;
-
-            WardApp.showToast('Gerando imagem...', 'info');
+            if (!report) return null;
 
             // Create a styled container for the screenshot
             const container = document.createElement('div');
@@ -1705,6 +1793,55 @@
                     backgroundColor: '#f8fafc',
                     logging: false
                 });
+                return { canvas, container, studentName, report };
+            } catch (error) {
+                document.body.removeChild(container);
+                throw error;
+            }
+        }
+
+        async function copyReportAsImage() {
+            WardApp.showToast('Gerando imagem...', 'info');
+
+            try {
+                const result = await generateReportCanvas();
+                if (!result) return;
+
+                const { canvas, container } = result;
+
+                // Convert canvas to blob and copy to clipboard
+                canvas.toBlob(async (blob) => {
+                    try {
+                        await navigator.clipboard.write([
+                            new ClipboardItem({ 'image/png': blob })
+                        ]);
+                        WardApp.showToast('Imagem copiada para a área de transferência!', 'success');
+                    } catch (err) {
+                        console.error('Clipboard write failed:', err);
+                        // Fallback: download instead
+                        WardApp.showToast('Não foi possível copiar. Baixando imagem...', 'warning');
+                        const link = document.createElement('a');
+                        link.download = `relatorio-${result.studentName.replace(/\s+/g, '-').toLowerCase()}-${result.report.call_date}.png`;
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                    }
+                    document.body.removeChild(container);
+                }, 'image/png');
+
+            } catch (error) {
+                console.error('Error generating image:', error);
+                WardApp.showToast('Erro ao gerar imagem', 'error');
+            }
+        }
+
+        async function downloadReportAsImage() {
+            WardApp.showToast('Gerando imagem...', 'info');
+
+            try {
+                const result = await generateReportCanvas();
+                if (!result) return;
+
+                const { canvas, container, studentName, report } = result;
 
                 // Download the image
                 const link = document.createElement('a');
@@ -1714,11 +1851,11 @@
                 link.click();
 
                 WardApp.showToast('Imagem baixada com sucesso!', 'success');
+                document.body.removeChild(container);
+
             } catch (error) {
                 console.error('Error generating image:', error);
                 WardApp.showToast('Erro ao gerar imagem', 'error');
-            } finally {
-                document.body.removeChild(container);
             }
         }
 
