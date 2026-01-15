@@ -621,14 +621,20 @@ Cardiovascular	Physiology	62	FALSE
 
     <!-- Call Details Modal -->
     <div id="call-details-modal" class="modal-overlay">
-        <div class="modal" style="max-width: 600px;">
+        <div class="modal" style="max-width: 650px;">
             <div class="modal-header">
                 <h3 class="modal-title">📞 Detalhes da Chamada</h3>
                 <button class="modal-close" onclick="closeModal('call-details-modal')">&times;</button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                 <div id="call-details-content">
                     <!-- Filled by JS -->
+                </div>
+                <!-- Add Note Section -->
+                <div id="add-note-section" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--gray-200);">
+                    <h4 style="margin: 0 0 0.75rem; font-size: 0.95rem;">➕ Adicionar Observação</h4>
+                    <textarea id="new-call-note" class="form-textarea" rows="3" placeholder="Escreva uma observação sobre esta chamada..." style="width: 100%; padding: 0.75rem; border: 2px solid var(--gray-200); border-radius: 8px; font-size: 0.9rem; resize: vertical;"></textarea>
+                    <button class="btn btn-primary btn-sm" onclick="addCallNote()" style="margin-top: 0.5rem;">💾 Salvar Observação</button>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1126,6 +1132,60 @@ Cardiovascular	Physiology	62	FALSE
             await markScheduledCallComplete(currentCallDetails.id, currentCallDetails.landmark_id);
             closeModal('call-details-modal');
             currentCallDetails = null;
+        }
+
+        async function addCallNote() {
+            if (!currentCallDetails) return;
+
+            const noteText = document.getElementById('new-call-note').value.trim();
+            if (!noteText) {
+                WardApp.showToast('Escreva uma observação', 'warning');
+                return;
+            }
+
+            const landmarkId = currentCallDetails.landmark_id;
+            if (!landmarkId) {
+                WardApp.showToast('Landmark não encontrado', 'error');
+                return;
+            }
+
+            try {
+                // Get current landmark notes
+                const { data: landmark, error: fetchError } = await WardApp.db
+                    .from('landmarks')
+                    .select('notes')
+                    .eq('id', landmarkId)
+                    .single();
+
+                if (fetchError) throw fetchError;
+
+                // Add new note to the array
+                const currentNotes = landmark?.notes || [];
+                const newNote = {
+                    text: noteText,
+                    author: userData.full_name || userData.email,
+                    date: new Date().toISOString()
+                };
+                currentNotes.push(newNote);
+
+                // Update landmark with new notes
+                const { error: updateError } = await WardApp.db
+                    .from('landmarks')
+                    .update({ notes: currentNotes, updated_at: new Date().toISOString() })
+                    .eq('id', landmarkId);
+
+                if (updateError) throw updateError;
+
+                WardApp.showToast('Observação adicionada!', 'success');
+                document.getElementById('new-call-note').value = '';
+
+                // Refresh the modal content
+                await viewCallDetails(currentCallDetails.id);
+
+            } catch (error) {
+                console.error('Error adding note:', error);
+                WardApp.showToast('Erro ao salvar observação', 'error');
+            }
         }
 
         async function loadGlobalFeed() {
