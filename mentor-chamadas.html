@@ -468,14 +468,21 @@
                     <!-- Filled by JS -->
                 </div>
                 <div class="form-group mt-3">
-                    <label class="form-label">Observacoes</label>
-                    <textarea id="call-notes" class="form-textarea" rows="3"></textarea>
+                    <label class="form-label">Observações da Chamada</label>
+                    <textarea id="call-notes" class="form-textarea" rows="2" placeholder="Notas sobre agendamento, horário, etc."></textarea>
+                </div>
+
+                <!-- Add Note to Landmark Section -->
+                <div id="add-landmark-note-section" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--gray-200);">
+                    <h4 style="margin: 0 0 0.75rem; font-size: 0.95rem; color: var(--gray-700);">➕ Adicionar Observação ao Landmark</h4>
+                    <textarea id="new-landmark-note" class="form-textarea" rows="3" placeholder="Escreva uma observação sobre esta chamada que ficará registrada no landmark do aluno..."></textarea>
+                    <button class="btn btn-primary btn-sm" onclick="addLandmarkNote()" style="margin-top: 0.5rem;">💾 Salvar Observação</button>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-danger" onclick="cancelCall()">Cancelar Chamada</button>
                 <button class="btn btn-success" onclick="completeCall()">Marcar Concluida</button>
-                <button class="btn btn-primary" onclick="saveCallNotes()">Salvar</button>
+                <button class="btn btn-primary" onclick="saveCallNotes()">Salvar Notas</button>
             </div>
         </div>
     </div>
@@ -490,6 +497,7 @@
         let regularAvailability = [];
         let specificDates = [];
         let scheduledCalls = [];
+        let currentCall = null; // Current call being viewed in modal
 
         const dayNames = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
         const dayNamesShort = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
@@ -1064,7 +1072,7 @@
             if (!call) {
                 const { data, error } = await WardApp.db
                     .from('scheduled_calls')
-                    .select('*, student:student_id(full_name, email), landmark:landmark_id(title, notes)')
+                    .select('*, student:student_id(full_name, email), landmark:landmark_id(id, title, notes)')
                     .eq('id', callId)
                     .single();
 
@@ -1075,8 +1083,12 @@
                 call = data;
             }
 
+            // Store current call for adding notes
+            currentCall = call;
+
             document.getElementById('call-id').value = callId;
             document.getElementById('call-notes').value = call.notes || '';
+            document.getElementById('new-landmark-note').value = '';
 
             // Build notes section from landmark if available
             let landmarkNotesHtml = '';
@@ -1109,6 +1121,14 @@
                 <p><strong>📊 Status:</strong> ${statusLabels[call.status] || call.status}</p>
                 ${landmarkNotesHtml}
             `;
+
+            // Show/hide add note section based on whether call has a landmark
+            const addNoteSection = document.getElementById('add-landmark-note-section');
+            if (call.landmark_id) {
+                addNoteSection.style.display = 'block';
+            } else {
+                addNoteSection.style.display = 'none';
+            }
 
             openModal('call-modal');
         }
@@ -1162,6 +1182,68 @@
             closeModal('call-modal');
             WardApp.showToast('Chamada cancelada');
             await loadScheduledCalls();
+        }
+
+        async function addLandmarkNote() {
+            if (!currentCall || !currentCall.landmark_id) {
+                WardApp.showToast('Esta chamada não tem um landmark associado', 'warning');
+                return;
+            }
+
+            const noteText = document.getElementById('new-landmark-note').value.trim();
+            if (!noteText) {
+                WardApp.showToast('Digite uma observação', 'warning');
+                return;
+            }
+
+            // Get current notes from landmark
+            const { data: landmark, error: fetchError } = await WardApp.db
+                .from('landmarks')
+                .select('notes')
+                .eq('id', currentCall.landmark_id)
+                .single();
+
+            if (fetchError) {
+                console.error('Error fetching landmark:', fetchError);
+                WardApp.showToast('Erro ao carregar landmark', 'error');
+                return;
+            }
+
+            // Build new notes array
+            const currentNotes = Array.isArray(landmark?.notes) ? landmark.notes : [];
+            const newNote = {
+                text: noteText,
+                author: userData.full_name || userData.email,
+                date: new Date().toISOString()
+            };
+            currentNotes.push(newNote);
+
+            // Update landmark with new notes
+            const { error: updateError } = await WardApp.db
+                .from('landmarks')
+                .update({
+                    notes: currentNotes,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', currentCall.landmark_id);
+
+            if (updateError) {
+                console.error('Error updating landmark:', updateError);
+                WardApp.showToast('Erro ao salvar observação', 'error');
+                return;
+            }
+
+            WardApp.showToast('Observação adicionada!', 'success');
+            document.getElementById('new-landmark-note').value = '';
+
+            // Refresh the modal to show the new note
+            await openCallModal(currentCall.id);
+
+            // Also refresh the calls lists
+            await loadScheduledCalls();
+            if (previousCallsLoaded) {
+                await loadPreviousCalls();
+            }
         }
 
         function openModal(id) {
