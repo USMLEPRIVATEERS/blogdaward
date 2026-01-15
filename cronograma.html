@@ -240,6 +240,89 @@
         </div>
     </div>
 
+    <!-- Register UWorld Session Modal -->
+    <div id="register-session-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">📝 Registrar Sessao de Questoes</h3>
+                <button class="modal-close" onclick="closeModal('register-session-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="register-diary-warning" class="alert alert-warning mb-3" style="display: none;">
+                    <span class="alert-icon">⚠️</span>
+                    <div class="alert-content">
+                        <strong>Diario nao ativado!</strong> Ative o Diario UWorld no seu Dashboard em "Ativacoes Opcionais" para usar esta funcionalidade.
+                    </div>
+                </div>
+                <div id="register-prep-warning" class="alert alert-info mb-3" style="display: none;">
+                    <span class="alert-icon">💡</span>
+                    <div class="alert-content">
+                        Configure sua "Preparacao Atual" no Dashboard para pre-preencher o campo Prova automaticamente.
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="register-date">Data *</label>
+                    <input type="date" id="register-date" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="register-exam">Prova</label>
+                    <input type="text" id="register-exam" class="form-input" placeholder="Ex: Step 1, Step 2 CK...">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="register-subject">Subject</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="register-subject" class="form-input" value="All" placeholder="Digite ou selecione..." autocomplete="off">
+                        <div id="register-subject-suggestions" class="autocomplete-suggestions"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="register-system">System *</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="register-system" class="form-input" placeholder="Digite ou selecione..." autocomplete="off">
+                        <div id="register-system-suggestions" class="autocomplete-suggestions"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="register-category">Category</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="register-category" class="form-input" placeholder="Digite ou selecione..." autocomplete="off">
+                        <div id="register-category-suggestions" class="autocomplete-suggestions"></div>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <div class="form-group">
+                        <label class="form-label" for="register-total">Total de Questoes *</label>
+                        <input type="number" id="register-total" class="form-input" min="1" placeholder="Ex: 40">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="register-correct">Corretas *</label>
+                        <input type="number" id="register-correct" class="form-input" min="0" placeholder="Ex: 28">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="register-time">Tempo (minutos)</label>
+                    <input type="number" id="register-time" class="form-input" min="0" placeholder="Ex: 60">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="register-mode">Modo</label>
+                    <select id="register-mode" class="form-input">
+                        <option value="timed">Timed</option>
+                        <option value="tutor">Tutor</option>
+                        <option value="untimed">Untimed</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="register-notes">Observacoes</label>
+                    <textarea id="register-notes" class="form-textarea" rows="2" placeholder="Dificuldades, topicos para revisar..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('register-session-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveRegisterSession()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
@@ -562,6 +645,8 @@
         let hideCompleted = false;
         let currentView = 'cards'; // Default view
         let watchedLessons = new Set(); // Store watched lesson keys (course:lesson)
+        let userPreparation = null; // User's current preparation focus
+        let autocompleteOptions = { subject: [], system: [], category: [] };
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
@@ -618,6 +703,17 @@
             await loadSchedule();
             await loadDelays();
 
+            // Load register modal data
+            await Promise.all([
+                loadUserPreparation(),
+                loadAutocompleteOptions()
+            ]);
+
+            // Setup autocomplete for register modal
+            setupAutocomplete('register-subject', 'subject');
+            setupAutocomplete('register-system', 'system');
+            setupAutocomplete('register-category', 'category');
+
             // Apply view preference
             switchView(currentView);
         });
@@ -639,6 +735,223 @@
             } catch (err) {
                 console.error('Error loading watched lessons:', err);
             }
+        }
+
+        // Register Modal Functions
+        async function loadUserPreparation() {
+            const { data } = await WardApp.db
+                .from('questionnaire_data')
+                .select('data')
+                .eq('user_id', targetUserId)
+                .eq('step', 1)
+                .maybeSingle();
+
+            if (data?.data?.current_focus) {
+                userPreparation = data.data.current_focus;
+            }
+        }
+
+        async function loadAutocompleteOptions() {
+            const { data } = await WardApp.db
+                .from('uworld_options')
+                .select('option_type, name')
+                .order('name');
+
+            if (data) {
+                autocompleteOptions = { subject: [], system: [], category: [] };
+                data.forEach(opt => {
+                    if (autocompleteOptions[opt.option_type]) {
+                        autocompleteOptions[opt.option_type].push(opt.name);
+                    }
+                });
+            }
+        }
+
+        function setupAutocomplete(inputId, optionType) {
+            const input = document.getElementById(inputId);
+            const suggestionsId = `${inputId}-suggestions`;
+            const suggestionsEl = document.getElementById(suggestionsId);
+
+            if (!input || !suggestionsEl) return;
+
+            input.addEventListener('input', () => {
+                const value = input.value.toLowerCase();
+                const options = autocompleteOptions[optionType] || [];
+                const filtered = value
+                    ? options.filter(opt => opt.toLowerCase().includes(value))
+                    : options;
+
+                if (filtered.length > 0 && value) {
+                    suggestionsEl.innerHTML = filtered.slice(0, 8).map(opt => `
+                        <div class="autocomplete-item" onclick="selectAutocomplete('${inputId}', '${opt.replace(/'/g, "\\'")}')">${opt}</div>
+                    `).join('');
+                    if (!filtered.some(opt => opt.toLowerCase() === value) && value.length > 1) {
+                        suggestionsEl.innerHTML += `
+                            <div class="autocomplete-item autocomplete-add" onclick="addNewOption('${optionType}', '${inputId}')">
+                                + Adicionar "${input.value}"
+                            </div>
+                        `;
+                    }
+                    suggestionsEl.style.display = 'block';
+                } else {
+                    suggestionsEl.style.display = 'none';
+                }
+            });
+
+            input.addEventListener('focus', () => {
+                const value = input.value.toLowerCase();
+                const options = autocompleteOptions[optionType] || [];
+                if (options.length > 0) {
+                    const filtered = value
+                        ? options.filter(opt => opt.toLowerCase().includes(value))
+                        : options;
+                    suggestionsEl.innerHTML = filtered.slice(0, 8).map(opt => `
+                        <div class="autocomplete-item" onclick="selectAutocomplete('${inputId}', '${opt.replace(/'/g, "\\'")}')">${opt}</div>
+                    `).join('');
+                    suggestionsEl.style.display = 'block';
+                }
+            });
+
+            input.addEventListener('blur', () => {
+                setTimeout(() => {
+                    suggestionsEl.style.display = 'none';
+                }, 200);
+            });
+        }
+
+        function selectAutocomplete(inputId, value) {
+            document.getElementById(inputId).value = value;
+            const suggestionsEl = document.getElementById(`${inputId}-suggestions`);
+            if (suggestionsEl) suggestionsEl.style.display = 'none';
+        }
+
+        async function addNewOption(optionType, inputId) {
+            const input = document.getElementById(inputId);
+            const value = input.value.trim();
+
+            if (!value) return;
+
+            const { error } = await WardApp.db
+                .from('uworld_options')
+                .insert({ option_type: optionType, name: value });
+
+            if (!error) {
+                if (!autocompleteOptions[optionType].includes(value)) {
+                    autocompleteOptions[optionType].push(value);
+                    autocompleteOptions[optionType].sort();
+                }
+                WardApp.showToast(`"${value}" adicionado!`, 'success');
+            }
+
+            const suggestionsEl = document.getElementById(`${inputId}-suggestions`);
+            if (suggestionsEl) suggestionsEl.style.display = 'none';
+        }
+
+        async function ensureOptionExists(optionType, value) {
+            if (!value || value === 'All') return;
+
+            if (!autocompleteOptions[optionType].includes(value)) {
+                const { error } = await WardApp.db
+                    .from('uworld_options')
+                    .insert({ option_type: optionType, name: value });
+
+                if (!error) {
+                    autocompleteOptions[optionType].push(value);
+                    autocompleteOptions[optionType].sort();
+                }
+            }
+        }
+
+        function openRegisterModal(system, category) {
+            // Check if diary is enabled
+            const diaryEnabled = localStorage.getItem('uworld_diary_enabled') === 'true';
+            const diaryWarning = document.getElementById('register-diary-warning');
+            const prepWarning = document.getElementById('register-prep-warning');
+
+            if (!diaryEnabled) {
+                diaryWarning.style.display = 'flex';
+            } else {
+                diaryWarning.style.display = 'none';
+            }
+
+            // Check if user has preparation set
+            if (!userPreparation) {
+                prepWarning.style.display = 'flex';
+            } else {
+                prepWarning.style.display = 'none';
+            }
+
+            // Set defaults
+            document.getElementById('register-date').value = WardApp.getTodayString();
+            document.getElementById('register-exam').value = userPreparation || '';
+            document.getElementById('register-subject').value = 'All';
+            document.getElementById('register-system').value = system || '';
+            document.getElementById('register-category').value = category || '';
+            document.getElementById('register-total').value = '';
+            document.getElementById('register-correct').value = '';
+            document.getElementById('register-time').value = '';
+            document.getElementById('register-mode').value = 'timed';
+            document.getElementById('register-notes').value = '';
+
+            openModal('register-session-modal');
+        }
+
+        async function saveRegisterSession() {
+            // Check if diary is enabled
+            const diaryEnabled = localStorage.getItem('uworld_diary_enabled') === 'true';
+            if (!diaryEnabled) {
+                WardApp.showToast('Ative o Diario UWorld no Dashboard primeiro!', 'warning');
+                return;
+            }
+
+            const date = document.getElementById('register-date').value;
+            const examType = document.getElementById('register-exam').value.trim();
+            const subject = document.getElementById('register-subject').value.trim();
+            const system = document.getElementById('register-system').value.trim();
+            const category = document.getElementById('register-category').value.trim();
+            const total = parseInt(document.getElementById('register-total').value);
+            const correct = parseInt(document.getElementById('register-correct').value);
+            const time = parseInt(document.getElementById('register-time').value) || null;
+            const mode = document.getElementById('register-mode').value;
+            const notes = document.getElementById('register-notes').value.trim();
+
+            if (!date || !system || isNaN(total) || isNaN(correct)) {
+                WardApp.showToast('Preencha os campos obrigatorios', 'warning');
+                return;
+            }
+
+            if (correct > total) {
+                WardApp.showToast('Corretas nao pode ser maior que total', 'warning');
+                return;
+            }
+
+            // Auto-add new options to database if they don't exist
+            await ensureOptionExists('subject', subject);
+            await ensureOptionExists('system', system);
+            await ensureOptionExists('category', category);
+
+            const { error } = await WardApp.db.from('uworld_diary').insert({
+                user_id: userData.id,
+                date: date,
+                exam_type: examType || null,
+                subject: subject || null,
+                system,
+                category: category || null,
+                total_questions: total,
+                correct_answers: correct,
+                time_minutes: time,
+                mode,
+                notes: notes || null
+            });
+
+            if (error) {
+                console.error('Error saving session:', error);
+                WardApp.showToast('Erro ao salvar sessao', 'error');
+                return;
+            }
+
+            closeModal('register-session-modal');
+            WardApp.showToast('Sessao registrada! 🎉', 'success');
         }
 
         // Toggle watched status for a lesson
@@ -858,10 +1171,6 @@
                             <div style="margin-bottom: 0.5rem;">
                                 <h3 style="margin: 0 0 0.75rem 0;">${next.system}: ${next.category}</h3>
                                 <div class="schedule-card-meta">
-                                    <div class="schedule-card-meta-item">
-                                        <div class="schedule-card-meta-label">Questões</div>
-                                        <div class="schedule-card-meta-value">${next.questions || '-'}</div>
-                                    </div>
                                     <div class="schedule-card-meta-item schedule-card-date">
                                         <div class="schedule-card-meta-label">📅 Início</div>
                                         <div class="schedule-card-meta-value schedule-card-date-value">${formatShortDate(next.start_date)}</div>
@@ -890,10 +1199,6 @@
                             <div style="flex: 1;">
                                 <h3 style="margin: 0 0 0.75rem 0; color: #16a34a;">📖 ${item.system}: ${item.category}</h3>
                                 <div class="schedule-card-meta">
-                                    <div class="schedule-card-meta-item">
-                                        <div class="schedule-card-meta-label">Questões</div>
-                                        <div class="schedule-card-meta-value">${item.questions || '-'}</div>
-                                    </div>
                                     <div class="schedule-card-meta-item schedule-card-date">
                                         <div class="schedule-card-meta-label">📅 Início</div>
                                         <div class="schedule-card-meta-value schedule-card-date-value">${formatShortDate(item.start_date)}</div>
@@ -904,9 +1209,14 @@
                                     </div>
                                 </div>
                             </div>
-                            <button class="btn btn-success" onclick="markCurrentComplete(${item.id}, ${hasDelays})" style="white-space: nowrap;">
-                                ✅ Marcar como Concluido
-                            </button>
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                <button class="btn btn-primary btn-sm" onclick="openRegisterModal('${item.system.replace(/'/g, "\\'")}', '${item.category.replace(/'/g, "\\'")}')" style="white-space: nowrap;">
+                                    📝 Registrar
+                                </button>
+                                <button class="btn btn-success btn-sm" onclick="markCurrentComplete(${item.id}, ${hasDelays})" style="white-space: nowrap;">
+                                    ✅ Concluido
+                                </button>
+                            </div>
                         </div>
                         ${formatRecommendedLessons(item.recommended_lessons, item.id)}
                     </div>
@@ -1127,10 +1437,6 @@
                             </div>
                         </div>
                         <div class="schedule-card-meta">
-                            <div class="schedule-card-meta-item">
-                                <div class="schedule-card-meta-label">Questões</div>
-                                <div class="schedule-card-meta-value">${item.questions || '-'}</div>
-                            </div>
                             <div class="schedule-card-meta-item schedule-card-date">
                                 <div class="schedule-card-meta-label">📅 Início</div>
                                 <div class="schedule-card-meta-value schedule-card-date-value">${startDate}</div>
@@ -1141,16 +1447,19 @@
                             </div>
                         </div>
                         ${lessonsHtml}
-                        ${!item.completed ? `
-                            <div class="card-actions">
+                        <div class="card-actions">
+                            <button class="btn-card-register" onclick="openRegisterModal('${item.system.replace(/'/g, "\\'")}', '${item.category.replace(/'/g, "\\'")}')" title="Registrar sessao de questoes">
+                                📝 Registrar
+                            </button>
+                            ${!item.completed ? `
                                 <button class="btn-card-delay" onclick="reportItemDelay(${item.id}, '${item.system}', '${item.category}')" title="Sinalizar atraso neste item">
-                                    ⚠️ Sinalizar Atraso
+                                    ⚠️ Atraso
                                 </button>
                                 <button class="btn-card-difficulty" onclick="openDifficultyModal('${item.system}', '${item.category}')" title="Sinalizar dificuldade neste item">
-                                    🆘 Sinalizar Dificuldade
+                                    🆘 Dificuldade
                                 </button>
-                            </div>
-                        ` : ''}
+                            ` : ''}
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -2433,6 +2742,68 @@
         .btn-card-difficulty:hover {
             background: linear-gradient(135deg, #fca5a5 0%, #f87171 100%);
             transform: scale(1.05);
+        }
+
+        .btn-card-register {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+            border: 1px solid #3b82f6;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-card-register:hover {
+            background: linear-gradient(135deg, #bfdbfe 0%, #93c5fd 100%);
+            transform: scale(1.05);
+        }
+
+        /* Autocomplete Styles */
+        .autocomplete-wrapper {
+            position: relative;
+        }
+
+        .autocomplete-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+
+        .autocomplete-item {
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+
+        .autocomplete-item:hover {
+            background: var(--gray-50);
+        }
+
+        .autocomplete-add {
+            color: var(--primary-color);
+            font-weight: 500;
+            background: #eff6ff;
+        }
+
+        .autocomplete-add:hover {
+            background: #dbeafe;
         }
 
         /* Responsive breakpoints */
