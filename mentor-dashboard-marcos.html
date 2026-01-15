@@ -619,6 +619,25 @@ Cardiovascular	Physiology	62	FALSE
         </div>
     </div>
 
+    <!-- Call Details Modal -->
+    <div id="call-details-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 class="modal-title">📞 Detalhes da Chamada</h3>
+                <button class="modal-close" onclick="closeModal('call-details-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="call-details-content">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('call-details-modal')">Fechar</button>
+                <button class="btn btn-primary" id="call-details-complete-btn" onclick="completeCallFromModal()">✓ Marcar como Concluída</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
@@ -628,6 +647,7 @@ Cardiovascular	Physiology	62	FALSE
     <script>
         let userData = null;
         let allStudents = [];
+        let currentCallDetails = null; // Store current call details for modal actions
         let studentsWithoutSchedule = new Set(); // IDs of students who have no schedule
         let lastCheckinMap = {}; // Map of user_id to last checkin date
         let scheduleProgressMap = {}; // Map of user_id to schedule progress
@@ -847,15 +867,21 @@ Cardiovascular	Physiology	62	FALSE
                 callsContainer.innerHTML = filteredScheduledCalls.map(item => {
                     const landmark = item.landmark;
                     const student = item.student;
+                    const hasNotes = item.notes && item.notes.trim().length > 0;
+                    const landmarkHasNotes = landmark?.notes && Array.isArray(landmark.notes) && landmark.notes.length > 0;
+                    const notesIndicator = (hasNotes || landmarkHasNotes) ? '<span style="color: #f59e0b; margin-left: 4px;" title="Tem observações">📝</span>' : '';
                     return `
-                        <div class="pending-call-card">
+                        <div class="pending-call-card" style="cursor: pointer;" onclick="viewCallDetails(${item.id})">
                             <div class="call-icon">📞</div>
                             <div class="call-info">
-                                <div class="call-title">${landmark?.title || 'Call'}</div>
+                                <div class="call-title">${landmark?.title || 'Call'}${notesIndicator}</div>
                                 <div class="call-student">${student?.full_name || student?.email || 'Aluno'}</div>
                                 <div class="call-time">🕐 ${formatDateTime(item.scheduled_date + 'T' + item.scheduled_time)}</div>
                             </div>
-                            <button class="btn btn-sm btn-primary" onclick="markScheduledCallComplete(${item.id}, ${landmark?.id})">✓</button>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); viewCallDetails(${item.id})" title="Ver detalhes">👁️</button>
+                                <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); markScheduledCallComplete(${item.id}, ${landmark?.id})">✓</button>
+                            </div>
                         </div>
                     `;
                 }).join('');
@@ -1013,6 +1039,93 @@ Cardiovascular	Physiology	62	FALSE
             WardApp.showToast('Chamada concluída com sucesso!');
             await loadPendingCalls();
             await loadDashboardData();
+        }
+
+        async function viewCallDetails(callId) {
+            // Load full call details
+            const { data: call, error } = await WardApp.db
+                .from('scheduled_calls')
+                .select('*, landmark:landmarks(*), student:users!scheduled_calls_student_id_fkey(id, full_name, email), mentor:users!scheduled_calls_mentor_id_fkey(id, full_name)')
+                .eq('id', callId)
+                .single();
+
+            if (error || !call) {
+                WardApp.showToast('Erro ao carregar detalhes da chamada', 'error');
+                return;
+            }
+
+            currentCallDetails = call;
+            const landmark = call.landmark;
+            const student = call.student;
+            const mentor = call.mentor;
+
+            const dateFormatted = formatDateTime(call.scheduled_date + 'T' + call.scheduled_time);
+
+            // Collect all notes
+            let notesHtml = '';
+
+            // Notes from scheduled_calls
+            if (call.notes && call.notes.trim()) {
+                notesHtml += `
+                    <div style="background: #fef3c7; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                        <strong style="color: #92400e;">📝 Observações do Agendamento:</strong>
+                        <p style="margin: 0.5rem 0 0; white-space: pre-wrap;">${call.notes}</p>
+                    </div>
+                `;
+            }
+
+            // Notes from landmark
+            if (landmark?.notes && Array.isArray(landmark.notes) && landmark.notes.length > 0) {
+                notesHtml += `
+                    <div style="background: #dbeafe; padding: 1rem; border-radius: 8px;">
+                        <strong style="color: #1e40af;">📋 Observações do Landmark:</strong>
+                        ${landmark.notes.map(n => `
+                            <div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.5); border-radius: 4px;">
+                                <div style="font-size: 0.75rem; color: #6b7280;">${n.author || 'Mentor'} - ${new Date(n.date).toLocaleDateString('pt-BR')}</div>
+                                <div style="white-space: pre-wrap;">${n.text}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            if (!notesHtml) {
+                notesHtml = '<p class="text-muted">Nenhuma observação registrada.</p>';
+            }
+
+            const content = document.getElementById('call-details-content');
+            content.innerHTML = `
+                <div style="display: grid; gap: 1rem;">
+                    <div style="background: var(--gray-100); padding: 1rem; border-radius: 8px;">
+                        <h4 style="margin: 0 0 0.5rem; color: var(--primary);">${landmark?.title || 'Chamada'}</h4>
+                        <div style="display: grid; gap: 0.5rem; font-size: 0.9rem;">
+                            <div><strong>👤 Aluno:</strong> ${student?.full_name || student?.email || 'N/A'}</div>
+                            <div><strong>👨‍💼 Mentor:</strong> ${mentor?.full_name || 'N/A'}</div>
+                            <div><strong>📅 Data/Hora:</strong> ${dateFormatted}</div>
+                            <div><strong>⏱️ Duração:</strong> ${call.duration_minutes || 30} minutos</div>
+                            <div><strong>📊 Status:</strong> <span style="color: ${call.status === 'scheduled' ? '#f59e0b' : '#10b981'};">${call.status === 'scheduled' ? 'Agendada' : call.status}</span></div>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 style="margin: 0 0 0.75rem;">📝 Observações</h4>
+                        ${notesHtml}
+                    </div>
+                </div>
+            `;
+
+            // Show/hide complete button based on status
+            const completeBtn = document.getElementById('call-details-complete-btn');
+            completeBtn.style.display = call.status === 'scheduled' ? 'inline-flex' : 'none';
+
+            openModal('call-details-modal');
+        }
+
+        async function completeCallFromModal() {
+            if (!currentCallDetails) return;
+
+            await markScheduledCallComplete(currentCallDetails.id, currentCallDetails.landmark_id);
+            closeModal('call-details-modal');
+            currentCallDetails = null;
         }
 
         async function loadGlobalFeed() {

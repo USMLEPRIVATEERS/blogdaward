@@ -234,15 +234,20 @@
         <!-- Tab: Scheduled Calls -->
         <div id="tab-scheduled" class="tab-content active">
             <div class="card">
-                <div class="card-header d-flex justify-between align-center">
-                    <span>📅 Proximas Chamadas</span>
-                    <div class="form-group" style="margin: 0; min-width: 150px;">
-                        <select id="filter-status" class="form-input" onchange="loadScheduledCalls()">
-                            <option value="all">Todas</option>
-                            <option value="scheduled" selected>Agendadas</option>
-                            <option value="completed">Concluidas</option>
-                            <option value="cancelled">Canceladas</option>
-                        </select>
+                <div class="card-header d-flex justify-between align-center flex-wrap gap-2">
+                    <span>📅 Chamadas</span>
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                        <div class="form-group" style="margin: 0; min-width: 200px;">
+                            <input type="text" id="filter-student" class="form-input" placeholder="🔍 Filtrar por aluno..." oninput="loadScheduledCalls()">
+                        </div>
+                        <div class="form-group" style="margin: 0; min-width: 150px;">
+                            <select id="filter-status" class="form-input" onchange="loadScheduledCalls()">
+                                <option value="all">Todas</option>
+                                <option value="scheduled" selected>Agendadas</option>
+                                <option value="completed">Concluidas</option>
+                                <option value="cancelled">Canceladas</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">
@@ -251,6 +256,25 @@
                     </div>
                     <div id="no-calls" class="empty-state" style="display: none;">
                         <p class="text-muted">Nenhuma chamada encontrada</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Previous Calls Section -->
+            <div class="card mt-4">
+                <div class="card-header d-flex justify-between align-center">
+                    <span>📜 Historico de Chamadas</span>
+                    <button class="btn btn-sm btn-outline" onclick="togglePreviousCalls()">
+                        <span id="toggle-previous-btn">▼ Mostrar</span>
+                    </button>
+                </div>
+                <div id="previous-calls-container" class="card-body" style="display: none;">
+                    <p class="text-muted mb-3">Chamadas concluídas ou canceladas dos últimos 90 dias</p>
+                    <div id="previous-calls-list" class="scheduled-calls-list">
+                        <!-- Filled by JS -->
+                    </div>
+                    <div id="no-previous-calls" class="empty-state" style="display: none;">
+                        <p class="text-muted">Nenhuma chamada anterior encontrada</p>
                     </div>
                 </div>
             </div>
@@ -884,10 +908,11 @@
         // ===== Scheduled Calls =====
         async function loadScheduledCalls() {
             const filter = document.getElementById('filter-status').value;
+            const studentSearch = (document.getElementById('filter-student').value || '').toLowerCase().trim();
 
             let query = WardApp.db
                 .from('scheduled_calls')
-                .select('*, student:student_id(full_name, email), landmark:landmark_id(title)')
+                .select('*, student:student_id(full_name, email), landmark:landmark_id(title, notes)')
                 .eq('mentor_id', userData.id)
                 .order('scheduled_date')
                 .order('scheduled_time');
@@ -897,8 +922,98 @@
             }
 
             const { data } = await query;
-            scheduledCalls = data || [];
+            let calls = data || [];
+
+            // Filter by student name if search term is provided
+            if (studentSearch) {
+                calls = calls.filter(call => {
+                    const studentName = (call.student?.full_name || '').toLowerCase();
+                    const studentEmail = (call.student?.email || '').toLowerCase();
+                    return studentName.includes(studentSearch) || studentEmail.includes(studentSearch);
+                });
+            }
+
+            scheduledCalls = calls;
             renderScheduledCalls();
+        }
+
+        let previousCallsLoaded = false;
+
+        async function togglePreviousCalls() {
+            const container = document.getElementById('previous-calls-container');
+            const btn = document.getElementById('toggle-previous-btn');
+
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                btn.textContent = '▲ Ocultar';
+                if (!previousCallsLoaded) {
+                    await loadPreviousCalls();
+                }
+            } else {
+                container.style.display = 'none';
+                btn.textContent = '▼ Mostrar';
+            }
+        }
+
+        async function loadPreviousCalls() {
+            const container = document.getElementById('previous-calls-list');
+            const noCalls = document.getElementById('no-previous-calls');
+
+            container.innerHTML = '<p class="text-muted">Carregando histórico...</p>';
+
+            // Get calls from last 90 days that are completed or cancelled
+            const ninetyDaysAgo = new Date();
+            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+            const dateStr = ninetyDaysAgo.toISOString().split('T')[0];
+
+            const { data, error } = await WardApp.db
+                .from('scheduled_calls')
+                .select('*, student:student_id(full_name, email), landmark:landmark_id(title, notes)')
+                .eq('mentor_id', userData.id)
+                .in('status', ['completed', 'cancelled'])
+                .gte('scheduled_date', dateStr)
+                .order('scheduled_date', { ascending: false })
+                .order('scheduled_time', { ascending: false });
+
+            if (error) {
+                container.innerHTML = '<p class="text-danger">Erro ao carregar histórico</p>';
+                return;
+            }
+
+            previousCallsLoaded = true;
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '';
+                noCalls.style.display = 'block';
+                return;
+            }
+
+            noCalls.style.display = 'none';
+
+            container.innerHTML = data.map(call => {
+                const statusClass = call.status === 'completed' ? 'completed' : 'cancelled';
+                const statusIcon = call.status === 'completed' ? '✅' : '❌';
+                const hasNotes = call.notes && call.notes.trim();
+                const landmarkHasNotes = call.landmark?.notes && Array.isArray(call.landmark.notes) && call.landmark.notes.length > 0;
+                const notesIndicator = (hasNotes || landmarkHasNotes) ? '📝 ' : '';
+
+                return `
+                    <div class="call-card ${statusClass}" style="cursor: pointer;" onclick="openCallModal(${call.id})">
+                        <div class="call-icon">${statusIcon}</div>
+                        <div class="call-info">
+                            <div class="call-title">${notesIndicator}${call.landmark?.title || 'Chamada'}</div>
+                            <div class="call-meta">
+                                <strong>${call.student?.full_name || call.student?.email}</strong><br>
+                                📅 ${WardApp.formatDate(call.scheduled_date)} às ${formatTime(call.scheduled_time)}
+                                ${call.notes ? `<br>📝 ${call.notes.length > 80 ? call.notes.substring(0, 80) + '...' : call.notes}` : ''}
+                            </div>
+                        </div>
+                        <div class="call-actions">
+                            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openCallModal(${call.id})">Ver</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
         function renderScheduledCalls() {
@@ -918,39 +1033,81 @@
                                    call.status === 'cancelled' ? 'cancelled' : 'pending';
                 const statusIcon = call.status === 'completed' ? '✅' :
                                   call.status === 'cancelled' ? '❌' : '📞';
+                const hasNotes = call.notes && call.notes.trim();
+                const landmarkHasNotes = call.landmark?.notes && Array.isArray(call.landmark.notes) && call.landmark.notes.length > 0;
+                const notesIndicator = (hasNotes || landmarkHasNotes) ? '📝 ' : '';
 
                 return `
-                    <div class="call-card ${statusClass}">
+                    <div class="call-card ${statusClass}" style="cursor: pointer;" onclick="openCallModal(${call.id})">
                         <div class="call-icon">${statusIcon}</div>
                         <div class="call-info">
-                            <div class="call-title">${call.landmark?.title || 'Chamada'}</div>
+                            <div class="call-title">${notesIndicator}${call.landmark?.title || 'Chamada'}</div>
                             <div class="call-meta">
                                 <strong>${call.student?.full_name || call.student?.email}</strong><br>
-                                📅 ${WardApp.formatDate(call.scheduled_date)} as ${formatTime(call.scheduled_time)}
-                                ${call.notes ? `<br>📝 ${call.notes}` : ''}
+                                📅 ${WardApp.formatDate(call.scheduled_date)} às ${formatTime(call.scheduled_time)}
+                                ${call.notes ? `<br>📝 ${call.notes.length > 80 ? call.notes.substring(0, 80) + '...' : call.notes}` : ''}
                             </div>
                         </div>
                         <div class="call-actions">
-                            <button class="btn btn-sm btn-outline" onclick="openCallModal(${call.id})">Ver</button>
+                            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openCallModal(${call.id})">👁️ Ver</button>
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        function openCallModal(callId) {
-            const call = scheduledCalls.find(c => c.id === callId);
-            if (!call) return;
+        async function openCallModal(callId) {
+            // First try to find in current scheduled calls
+            let call = scheduledCalls.find(c => c.id === callId);
+
+            // If not found, fetch from database (e.g., previous calls)
+            if (!call) {
+                const { data, error } = await WardApp.db
+                    .from('scheduled_calls')
+                    .select('*, student:student_id(full_name, email), landmark:landmark_id(title, notes)')
+                    .eq('id', callId)
+                    .single();
+
+                if (error || !data) {
+                    WardApp.showToast('Erro ao carregar chamada', 'error');
+                    return;
+                }
+                call = data;
+            }
 
             document.getElementById('call-id').value = callId;
             document.getElementById('call-notes').value = call.notes || '';
 
+            // Build notes section from landmark if available
+            let landmarkNotesHtml = '';
+            if (call.landmark?.notes && Array.isArray(call.landmark.notes) && call.landmark.notes.length > 0) {
+                landmarkNotesHtml = `
+                    <div style="background: #dbeafe; padding: 0.75rem; border-radius: 8px; margin-top: 0.5rem;">
+                        <strong style="color: #1e40af;">📋 Observações do Landmark:</strong>
+                        ${call.landmark.notes.map(n => `
+                            <div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.5); border-radius: 4px;">
+                                <div style="font-size: 0.75rem; color: #6b7280;">${n.author || 'Mentor'} - ${new Date(n.date).toLocaleDateString('pt-BR')}</div>
+                                <div style="white-space: pre-wrap;">${n.text}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            const statusLabels = {
+                scheduled: 'Agendada',
+                completed: 'Concluída',
+                cancelled: 'Cancelada',
+                pending: 'Pendente'
+            };
+
             document.getElementById('call-details').innerHTML = `
-                <p><strong>Aluno:</strong> ${call.student?.full_name || call.student?.email}</p>
-                <p><strong>Chamada:</strong> ${call.landmark?.title || 'Chamada'}</p>
-                <p><strong>Data:</strong> ${WardApp.formatDate(call.scheduled_date)}</p>
-                <p><strong>Horario:</strong> ${formatTime(call.scheduled_time)}</p>
-                <p><strong>Status:</strong> ${call.status}</p>
+                <p><strong>👤 Aluno:</strong> ${call.student?.full_name || call.student?.email}</p>
+                <p><strong>📞 Chamada:</strong> ${call.landmark?.title || 'Chamada'}</p>
+                <p><strong>📅 Data:</strong> ${WardApp.formatDate(call.scheduled_date)}</p>
+                <p><strong>🕐 Horário:</strong> ${formatTime(call.scheduled_time)}</p>
+                <p><strong>📊 Status:</strong> ${statusLabels[call.status] || call.status}</p>
+                ${landmarkNotesHtml}
             `;
 
             openModal('call-modal');
