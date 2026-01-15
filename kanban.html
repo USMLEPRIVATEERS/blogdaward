@@ -809,9 +809,36 @@
             setupFileDrop('project-file-drop', handleProjectFileDrop);
             setupFileDrop('task-file-drop', handleTaskFileDrop);
 
+            // Setup click outside modal to save (instead of just closing)
+            setupModalClickOutsideToSave();
+
             // Cleanup old archived projects
             await cleanupOldArchivedProjects();
         });
+
+        function setupModalClickOutsideToSave() {
+            // Project modal - click outside saves
+            const projectModal = document.getElementById('project-modal');
+            projectModal.addEventListener('click', (e) => {
+                // Only trigger if clicking directly on the overlay (not the modal content)
+                if (e.target === projectModal) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    saveProject();
+                }
+            });
+
+            // Task modal - click outside saves
+            const taskModal = document.getElementById('task-modal');
+            taskModal.addEventListener('click', (e) => {
+                // Only trigger if clicking directly on the overlay (not the modal content)
+                if (e.target === taskModal) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    saveTask();
+                }
+            });
+        }
 
         async function loadUserSelector() {
             const { data: users } = await WardApp.db
@@ -896,6 +923,7 @@
 
         async function loadKanban() {
             // Load projects with creator info and task counts
+            // Order by created_at DESC so newest projects appear at the top
             const { data: projects } = await WardApp.db
                 .from('kanban_projects')
                 .select(`
@@ -904,7 +932,7 @@
                     owner:user_id(id, full_name, name, email, role)
                 `)
                 .eq('user_id', currentKanbanUserId)
-                .order('position');
+                .order('created_at', { ascending: false });
 
             if (!projects) {
                 renderKanban([]);
