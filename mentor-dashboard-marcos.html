@@ -625,6 +625,8 @@ Cardiovascular	Physiology	62	FALSE
         let userData = null;
         let allStudents = [];
         let studentsWithoutSchedule = new Set(); // IDs of students who have no schedule
+        let lastCheckinMap = {}; // Map of user_id to last checkin date
+        let scheduleProgressMap = {}; // Map of user_id to schedule progress
         let currentSortColumn = 'name';
         let currentSortDirection = 'asc'; // 'asc' or 'desc'
 
@@ -1603,14 +1605,16 @@ Cardiovascular	Physiology	62	FALSE
                         bVal = b.questionnaire_step || 0;
                         break;
                     case 'schedule':
-                        // Will be calculated in renderStudentsTable
-                        aVal = 0;
-                        bVal = 0;
+                        // Use global schedule progress map
+                        const aSched = scheduleProgressMap[a.id] || { total: 0, completed: 0 };
+                        const bSched = scheduleProgressMap[b.id] || { total: 0, completed: 0 };
+                        aVal = aSched.total > 0 ? (aSched.completed / aSched.total) : -1;
+                        bVal = bSched.total > 0 ? (bSched.completed / bSched.total) : -1;
                         break;
                     case 'checkin':
-                        // Will be calculated in renderStudentsTable
-                        aVal = 0;
-                        bVal = 0;
+                        // Use global last checkin map - more recent = higher value
+                        aVal = lastCheckinMap[a.id] ? new Date(lastCheckinMap[a.id]).getTime() : 0;
+                        bVal = lastCheckinMap[b.id] ? new Date(lastCheckinMap[b.id]).getTime() : 0;
                         break;
                 }
 
@@ -1650,8 +1654,9 @@ Cardiovascular	Physiology	62	FALSE
                 .in('user_id', studentIds)
                 .order('created_at', { ascending: false });
 
-            // Build schedule progress map
+            // Build schedule progress map (local and global)
             const scheduleProgress = {};
+            scheduleProgressMap = {}; // Reset global map
             (schedules || []).forEach(s => {
                 if (!scheduleProgress[s.user_id]) {
                     scheduleProgress[s.user_id] = { total: 0, completed: 0 };
@@ -1659,14 +1664,19 @@ Cardiovascular	Physiology	62	FALSE
                 scheduleProgress[s.user_id].total++;
                 if (s.completed) scheduleProgress[s.user_id].completed++;
             });
+            // Copy to global map
+            Object.assign(scheduleProgressMap, scheduleProgress);
 
-            // Build last checkin map
+            // Build last checkin map (local and global)
             const lastCheckin = {};
+            lastCheckinMap = {}; // Reset global map
             (checkins || []).forEach(c => {
                 if (!lastCheckin[c.user_id]) {
                     lastCheckin[c.user_id] = c.created_at;
                 }
             });
+            // Copy to global map
+            Object.assign(lastCheckinMap, lastCheckin);
 
             // Function to render student row
             const renderStudentRow = (student) => {
