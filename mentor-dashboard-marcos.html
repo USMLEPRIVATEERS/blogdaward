@@ -206,6 +206,10 @@
                             <span class="action-icon">📋</span>
                             <span class="action-title">Questionários</span>
                         </a>
+                        <a href="relatorios.html" class="action-card">
+                            <span class="action-icon">📝</span>
+                            <span class="action-title">Relatórios</span>
+                        </a>
                         <div class="action-card" onclick="openModal('broadcast-modal')">
                             <span class="action-icon">📢</span>
                             <span class="action-title">Broadcast</span>
@@ -1043,7 +1047,8 @@ Cardiovascular	Physiology	62	FALSE
                     flashTestsCreatedRes,
                     flashTestsCompletedRes,
                     flashCommentsRes,
-                    watchedLessonsRes
+                    watchedLessonsRes,
+                    callReportsRes
                 ] = await Promise.all([
                     // Links - new additions
                     WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('created_at', { ascending: false }).limit(20),
@@ -1096,7 +1101,9 @@ Cardiovascular	Physiology	62	FALSE
                     // Flash question comments
                     WardApp.db.from('flash_question_comments').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30),
                     // Watched lessons - students marking lessons as watched
-                    WardApp.db.from('watched_lessons').select('*, users:user_id(full_name, email)').order('watched_at', { ascending: false }).limit(30)
+                    WardApp.db.from('watched_lessons').select('*, users:user_id(full_name, email)').order('watched_at', { ascending: false }).limit(30),
+                    // Call reports - mentor reports from calls
+                    WardApp.db.from('call_reports').select('*, student:student_id(full_name, email), mentor:mentor_id(full_name, email)').order('created_at', { ascending: false }).limit(20)
                 ]);
 
                 // Combine all activities into a single timeline
@@ -1531,6 +1538,22 @@ Cardiovascular	Physiology	62	FALSE
                         title: `${item.course_name}: ${item.lesson_name}`,
                         detail: '',
                         date: item.watched_at
+                    });
+                });
+
+                // Call reports - mentor reports from calls with students
+                (callReportsRes.data || []).forEach(item => {
+                    const studentName = item.student?.full_name || item.student?.email || 'Aluno';
+                    const mentorName = item.mentor?.full_name || 'Mentor';
+                    feed.push({
+                        type: 'call_report',
+                        icon: '📝',
+                        color: '#6366f1',
+                        user: mentorName,
+                        action: `adicionou relatório de chamada com ${studentName}`,
+                        title: item.title,
+                        detail: `📅 ${new Date(item.call_date + 'T12:00:00').toLocaleDateString('pt-BR')}`,
+                        date: item.created_at
                     });
                 });
 
