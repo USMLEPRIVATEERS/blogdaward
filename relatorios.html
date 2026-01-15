@@ -812,6 +812,28 @@
             transform: translateY(-1px);
         }
 
+        .btn-share {
+            background: linear-gradient(135deg, var(--secondary) 0%, #4f46e5 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-share:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-download {
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-download:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+        }
+
         /* Responsive */
         @media (max-width: 1024px) {
             .reports-container {
@@ -998,6 +1020,8 @@
             </div>
             <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end;">
                 <div id="view-mode-buttons" style="display: flex; gap: 0.75rem;">
+                    <button class="btn btn-share" onclick="shareReport()" title="Copiar link">🔗 Compartilhar</button>
+                    <button class="btn btn-download" onclick="downloadReportAsImage()" title="Baixar como imagem">📥 Baixar Imagem</button>
                     <button class="btn btn-secondary" onclick="closeModal('report-modal')">Fechar</button>
                     <button class="btn btn-outline" onclick="toggleEditMode(true)">✏️ Editar</button>
                     <button class="btn btn-danger" onclick="deleteReport()">🗑️ Excluir</button>
@@ -1011,6 +1035,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -1036,6 +1061,7 @@
             await loadMentors();
             await loadStudents();
             await loadAllReports();
+            checkSharedReportLink();
         });
 
         async function loadMentors() {
@@ -1332,6 +1358,129 @@
 
         function closeModal(modalId) {
             document.getElementById(modalId).classList.remove('active');
+        }
+
+        function shareReport() {
+            if (!currentReportId) return;
+
+            const report = allReports.find(r => r.id === currentReportId);
+            if (!report) return;
+
+            // Create shareable URL with report ID
+            const shareUrl = `${window.location.origin}/relatorios.html?report=${currentReportId}`;
+
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                WardApp.showToast('Link copiado para a área de transferência!', 'success');
+            }).catch(() => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = shareUrl;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                WardApp.showToast('Link copiado para a área de transferência!', 'success');
+            });
+        }
+
+        async function downloadReportAsImage() {
+            if (!currentReportId) return;
+
+            const report = allReports.find(r => r.id === currentReportId);
+            if (!report) return;
+
+            WardApp.showToast('Gerando imagem...', 'info');
+
+            // Create a styled container for the screenshot
+            const container = document.createElement('div');
+            container.style.cssText = `
+                position: fixed;
+                left: -9999px;
+                top: 0;
+                width: 800px;
+                padding: 40px;
+                background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+                font-family: 'Inter', sans-serif;
+            `;
+
+            const date = new Date(report.call_date + 'T12:00:00');
+            const formattedDate = date.toLocaleDateString('pt-BR');
+            const mentorName = report.mentor?.full_name || 'Mentor';
+            const studentName = selectedStudent?.full_name || 'Aluno';
+
+            container.innerHTML = `
+                <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 30px; border-radius: 16px 16px 0 0; margin: -40px -40px 0 -40px;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                            <span style="font-size: 24px;">📝</span>
+                        </div>
+                        <div>
+                            <div style="font-size: 14px; color: rgba(255,255,255,0.7); margin-bottom: 4px;">Ward Academy - Relatório de Chamada</div>
+                            <div style="font-size: 22px; font-weight: 700; color: white;">${report.title}</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="background: white; padding: 30px; border-radius: 0 0 16px 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); margin: 0 -40px -40px -40px;">
+                    <div style="display: flex; gap: 30px; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 2px solid #f3f4f6;">
+                        <div>
+                            <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; margin-bottom: 4px;">👤 Aluno</div>
+                            <div style="font-weight: 600; color: #111827;">${studentName}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; margin-bottom: 4px;">👨‍⚕️ Mentor</div>
+                            <div style="font-weight: 600; color: #111827;">${mentorName}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; margin-bottom: 4px;">📅 Data</div>
+                            <div style="font-weight: 600; color: #111827;">${formattedDate}</div>
+                        </div>
+                    </div>
+                    <div style="line-height: 1.7; color: #374151; font-size: 15px;">${report.report_text}</div>
+                    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center;">
+                        <div style="font-size: 12px; color: #9ca3af;">🎓 Ward Academy • wardacademy.org</div>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(container);
+
+            try {
+                const canvas = await html2canvas(container, {
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: '#f8fafc',
+                    logging: false
+                });
+
+                // Download the image
+                const link = document.createElement('a');
+                const filename = `relatorio-${studentName.replace(/\s+/g, '-').toLowerCase()}-${report.call_date}.png`;
+                link.download = filename;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+
+                WardApp.showToast('Imagem baixada com sucesso!', 'success');
+            } catch (error) {
+                console.error('Error generating image:', error);
+                WardApp.showToast('Erro ao gerar imagem', 'error');
+            } finally {
+                document.body.removeChild(container);
+            }
+        }
+
+        // Handle shared report links
+        function checkSharedReportLink() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const reportId = urlParams.get('report');
+            if (reportId) {
+                const report = allReports.find(r => r.id === parseInt(reportId));
+                if (report) {
+                    // Select the student first
+                    selectStudent(report.student_id);
+                    // Then view the report
+                    setTimeout(() => viewReport(parseInt(reportId)), 100);
+                }
+            }
         }
     </script>
 </body>
