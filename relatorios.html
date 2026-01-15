@@ -375,22 +375,32 @@
             font-weight: 600;
         }
 
-        .report-textarea {
-            width: 100%;
-            min-height: 300px;
+        .rich-text-editor {
+            min-height: 200px;
             padding: 1rem;
-            border: 1px solid #e5e7eb;
+            border: 2px solid #e2e8f0;
             border-radius: 8px;
-            font-size: 0.95rem;
+            background: white !important;
+            color: #1f2937 !important;
+            overflow-y: auto;
             line-height: 1.6;
-            resize: vertical;
-            font-family: inherit;
+            font-size: 0.95rem;
         }
 
-        .report-textarea:focus {
+        .rich-text-editor:focus {
             outline: none;
             border-color: #d97706;
-            box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
+        }
+
+        .rich-text-editor[contenteditable="true"]:empty:before {
+            content: attr(placeholder);
+            color: #94a3b8;
+        }
+
+        /* Force white background and black text for pasted content */
+        .rich-text-editor * {
+            background: transparent !important;
+            background-color: transparent !important;
         }
 
         @media (max-width: 768px) {
@@ -535,7 +545,11 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Relatório *</label>
-                        <textarea id="edit-report-text" class="report-textarea" placeholder="Cole ou digite o relatório da chamada aqui..."></textarea>
+                        <div class="rich-text-editor"
+                             id="edit-report-text"
+                             contenteditable="true"
+                             placeholder="Cole aqui texto formatado do Claude ou escreva o relatório...">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -748,7 +762,7 @@
             document.getElementById('edit-report-title').value = '';
             document.getElementById('edit-report-date').value = new Date().toISOString().split('T')[0];
             document.getElementById('edit-report-mentor').value = userData.id;
-            document.getElementById('edit-report-text').value = '';
+            document.getElementById('edit-report-text').innerHTML = '';
 
             toggleEditMode(true);
             openModal('report-modal');
@@ -774,7 +788,7 @@
             document.getElementById('edit-report-title').value = report.title;
             document.getElementById('edit-report-date').value = report.call_date;
             document.getElementById('edit-report-mentor').value = report.mentor_id;
-            document.getElementById('edit-report-text').value = report.report_text;
+            document.getElementById('edit-report-text').innerHTML = report.report_text;
 
             toggleEditMode(false);
             openModal('report-modal');
@@ -782,113 +796,9 @@
 
         function formatReportText(text) {
             if (!text) return '';
-
-            // Check if text already contains HTML tags (from AI outputs)
-            const hasHtmlTags = /<[a-z][\s\S]*>/i.test(text);
-
-            let html = text;
-
-            if (hasHtmlTags) {
-                // Already HTML - just clean up inline styles that might have dark backgrounds
-                html = html
-                    .replace(/style\s*=\s*"[^"]*background[^"]*"/gi, '')
-                    .replace(/style\s*=\s*'[^']*background[^']*'/gi, '')
-                    .replace(/style\s*=\s*"[^"]*color\s*:\s*(#[0-9a-f]{3,6}|rgb[^)]+\)|[a-z]+)[^"]*"/gi, '')
-                    .replace(/style\s*=\s*'[^']*color\s*:\s*(#[0-9a-f]{3,6}|rgb[^)]+\)|[a-z]+)[^']*'/gi, '')
-                    .replace(/class\s*=\s*"[^"]*"/gi, '')
-                    .replace(/class\s*=\s*'[^']*'/gi, '');
-            } else {
-                // Convert Markdown to HTML
-                html = text
-                    // Escape HTML entities first
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    // Code blocks (must be before other replacements)
-                    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-                    .replace(/`([^`]+)`/g, '<code>$1</code>')
-                    // Headers
-                    .replace(/^#### (.*$)/gim, '<h4>$1</h4>')
-                    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-                    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-                    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-                    // Horizontal rule
-                    .replace(/^---$/gim, '<hr>')
-                    .replace(/^\*\*\*$/gim, '<hr>')
-                    // Bold (must be before italic)
-                    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
-                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/__(.+?)__/g, '<strong>$1</strong>')
-                    // Italic
-                    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                    .replace(/_(.+?)_/g, '<em>$1</em>')
-                    // Blockquotes
-                    .replace(/^>\s*(.*)$/gim, '<blockquote>$1</blockquote>')
-                    // Links
-                    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-
-                // Process lists (more sophisticated)
-                const lines = html.split('\n');
-                let inList = false;
-                let listType = '';
-                let result = [];
-
-                for (let line of lines) {
-                    const unorderedMatch = line.match(/^(\s*)[-*+]\s+(.*)$/);
-                    const orderedMatch = line.match(/^(\s*)\d+\.\s+(.*)$/);
-
-                    if (unorderedMatch) {
-                        if (!inList || listType !== 'ul') {
-                            if (inList) result.push(`</${listType}>`);
-                            result.push('<ul>');
-                            inList = true;
-                            listType = 'ul';
-                        }
-                        result.push(`<li>${unorderedMatch[2]}</li>`);
-                    } else if (orderedMatch) {
-                        if (!inList || listType !== 'ol') {
-                            if (inList) result.push(`</${listType}>`);
-                            result.push('<ol>');
-                            inList = true;
-                            listType = 'ol';
-                        }
-                        result.push(`<li>${orderedMatch[2]}</li>`);
-                    } else {
-                        if (inList) {
-                            result.push(`</${listType}>`);
-                            inList = false;
-                            listType = '';
-                        }
-                        // Handle paragraphs
-                        if (line.trim() === '') {
-                            result.push('</p><p>');
-                        } else if (!line.startsWith('<h') && !line.startsWith('<hr') && !line.startsWith('<blockquote') && !line.startsWith('<pre')) {
-                            result.push(line);
-                        } else {
-                            result.push(line);
-                        }
-                    }
-                }
-                if (inList) result.push(`</${listType}>`);
-
-                html = result.join('\n');
-
-                // Wrap in paragraph if needed
-                if (!html.trim().startsWith('<')) {
-                    html = '<p>' + html + '</p>';
-                }
-
-                // Clean up empty paragraphs and fix line breaks
-                html = html
-                    .replace(/<p>\s*<\/p>/g, '')
-                    .replace(/<\/p>\s*<p>/g, '</p><p>')
-                    .replace(/\n(?!<)/g, '<br>\n');
-            }
-
-            // Merge consecutive blockquotes
-            html = html.replace(/<\/blockquote>\s*<blockquote>/g, '<br>');
-
-            return html;
+            // Text is already HTML from contenteditable - just return it
+            // CSS handles forcing white background and dark text
+            return text;
         }
 
         function toggleEditMode(isEdit) {
@@ -907,7 +817,7 @@
             const title = document.getElementById('edit-report-title').value.trim();
             const callDate = document.getElementById('edit-report-date').value;
             const mentorId = document.getElementById('edit-report-mentor').value;
-            const reportText = document.getElementById('edit-report-text').value.trim();
+            const reportText = document.getElementById('edit-report-text').innerHTML.trim();
 
             if (!title || !callDate || !mentorId || !reportText) {
                 WardApp.showToast('Preencha todos os campos obrigatórios', 'error');
