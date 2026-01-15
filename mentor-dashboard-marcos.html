@@ -624,6 +624,7 @@ Cardiovascular	Physiology	62	FALSE
     <script>
         let userData = null;
         let allStudents = [];
+        let studentsWithoutSchedule = new Set(); // IDs of students who have no schedule
         let currentSortColumn = 'name';
         let currentSortDirection = 'asc'; // 'asc' or 'desc'
 
@@ -672,8 +673,8 @@ Cardiovascular	Physiology	62	FALSE
             document.getElementById('total-links').textContent = linksRes.data?.length || 0;
 
             await loadGlobalFeed();
+            await loadScheduleStatus(); // Must run before renderStudentsTable to populate studentsWithoutSchedule
             await renderStudentsTable();
-            await loadScheduleStatus();
             await loadPendingCalls();
             await loadScheduleDelays();
         }
@@ -734,6 +735,14 @@ Cardiovascular	Physiology	62	FALSE
                     totalCount: studentSchedules.length,
                     completedCount
                 };
+            });
+
+            // Populate global set of students without schedule (for use in renderStudentsTable)
+            studentsWithoutSchedule.clear();
+            studentStatus.forEach(s => {
+                if (s.status === 'no_schedule') {
+                    studentsWithoutSchedule.add(s.id);
+                }
             });
 
             // Sort: overdue first, then no schedule, then on track
@@ -1670,8 +1679,8 @@ Cardiovascular	Physiology	62	FALSE
                 const questionnaireColor = getProgressColor(questionnaireProgress);
                 const scheduleColor = getProgressColor(schedPct);
 
-                // Check if student has filled questionnaire but has no schedule
-                const hasQuestionnaireNoSchedule = student.questionnaire_step > 0 && sp.total === 0;
+                // Check if student has filled questionnaire but has no schedule (uses global set from loadScheduleStatus)
+                const hasQuestionnaireNoSchedule = student.questionnaire_step > 0 && studentsWithoutSchedule.has(student.id);
                 const questionnaireIndicator = hasQuestionnaireNoSchedule
                     ? ' <span style="cursor: help; opacity: 0.7;" title="Preencheu questionário mas falta cronograma">📋</span>'
                     : '';
