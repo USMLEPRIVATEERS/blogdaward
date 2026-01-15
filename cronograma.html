@@ -260,6 +260,7 @@
                         Configure sua "Preparacao Atual" no Dashboard para pre-preencher o campo Prova automaticamente.
                     </div>
                 </div>
+                <div id="register-last-session-info" class="mb-3" style="display: none; padding: 0.75rem; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 8px; border-left: 4px solid #22c55e;"></div>
                 <div class="form-group">
                     <label class="form-label" for="register-date">Data *</label>
                     <input type="date" id="register-date" class="form-input">
@@ -869,7 +870,7 @@
             }
         }
 
-        function openRegisterModal(system, category) {
+        async function openRegisterModal(system, category) {
             // Check if diary is enabled
             const diaryEnabled = localStorage.getItem('uworld_diary_enabled') === 'true';
             const diaryWarning = document.getElementById('register-diary-warning');
@@ -888,17 +889,46 @@
                 prepWarning.style.display = 'none';
             }
 
-            // Set defaults
+            // Try to load last session for this system/category
+            let lastSession = null;
+            if (system && category) {
+                const { data } = await WardApp.db
+                    .from('uworld_diary')
+                    .select('*')
+                    .eq('user_id', targetUserId)
+                    .eq('system', system)
+                    .eq('category', category)
+                    .order('session_date', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                lastSession = data;
+            }
+
+            // Set values - use last session data if available, otherwise defaults
             document.getElementById('register-date').value = WardApp.getTodayString();
-            document.getElementById('register-exam').value = userPreparation || '';
-            document.getElementById('register-subject').value = 'All';
+            document.getElementById('register-exam').value = lastSession?.exam_type || userPreparation || '';
+            document.getElementById('register-subject').value = lastSession?.subject || 'All';
             document.getElementById('register-system').value = system || '';
             document.getElementById('register-category').value = category || '';
-            document.getElementById('register-total').value = '';
-            document.getElementById('register-correct').value = '';
-            document.getElementById('register-time').value = '';
-            document.getElementById('register-mode').value = 'timed';
+            document.getElementById('register-total').value = lastSession ? '' : '';
+            document.getElementById('register-correct').value = lastSession ? '' : '';
+            document.getElementById('register-time').value = lastSession?.time_spent || '';
+            document.getElementById('register-mode').value = lastSession?.mode || 'timed';
             document.getElementById('register-notes').value = '';
+
+            // Show indicator if pre-filled from last session
+            const lastSessionInfo = document.getElementById('register-last-session-info');
+            if (lastSessionInfo) {
+                if (lastSession) {
+                    const sessionDate = new Date(lastSession.session_date + 'T00:00:00');
+                    const formattedDate = sessionDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+                    lastSessionInfo.innerHTML = `<small style="color: #6b7280;">Ultima sessao em ${formattedDate}: ${lastSession.correct_answers}/${lastSession.total_questions} (${lastSession.percentage}%)</small>`;
+                    lastSessionInfo.style.display = 'block';
+                } else {
+                    lastSessionInfo.style.display = 'none';
+                }
+            }
 
             openModal('register-session-modal');
         }
