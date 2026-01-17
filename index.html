@@ -97,6 +97,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/app.js"></script>
+    <script src="js/security.js"></script>
+    <script src="js/secure-auth.js"></script>
     <script>
         // Modal functions
         function openRegisterModal() {
@@ -139,16 +141,34 @@
             const cpf = cpfFormatted.replace(/\D/g, '');
 
             if (!cpf || !password) {
-                WardApp.showToast('Preencha todos os campos', 'error');
+                showToast('Preencha todos os campos', 'error');
                 return;
             }
 
             if (cpf.length !== 11) {
-                WardApp.showToast('CPF deve ter 11 dígitos', 'error');
+                showToast('CPF deve ter 11 dígitos', 'error');
                 return;
             }
 
-            await WardApp.login(cpf, password);
+            // Validar CPF
+            if (window.WardSecurity && !WardSecurity.validateCPF(cpf)) {
+                showToast('CPF inválido', 'error');
+                return;
+            }
+
+            // Verificar rate limiting
+            if (window.WardSecurity && !WardSecurity.canAttemptLogin()) {
+                const remaining = WardSecurity.getLoginLockoutTime();
+                showToast(`Muitas tentativas. Aguarde ${remaining} segundos.`, 'error');
+                return;
+            }
+
+            // Usar login seguro se disponível, senão fallback para login normal
+            if (window.WardSecureAuth) {
+                await WardSecureAuth.login(cpf, password);
+            } else {
+                await WardApp.login(cpf, password);
+            }
         });
     </script>
 </body>

@@ -196,6 +196,13 @@ async function handleSubmit(e) {
         return;
     }
 
+    // Validar CPF com algoritmo (se WardSecurity disponível)
+    if (window.WardSecurity && !WardSecurity.validateCPF(cpf)) {
+        showError('cpf-error');
+        showToast('CPF inválido', 'error');
+        return;
+    }
+
     if (!isValidPhone(countryCode, phoneNumber)) {
         showError('phone-error');
         showToast('Numero de WhatsApp invalido', 'error');
@@ -208,8 +215,9 @@ async function handleSubmit(e) {
         return;
     }
 
-    if (password.length < 6) {
-        showToast('Senha deve ter no minimo 6 caracteres', 'error');
+    // Senha mínimo 8 caracteres (mais seguro)
+    if (password.length < 8) {
+        showToast('Senha deve ter no minimo 8 caracteres', 'error');
         return;
     }
 
@@ -226,6 +234,64 @@ async function handleSubmit(e) {
     showLoading();
     const btnRegister = document.getElementById('btn-register');
     btnRegister.disabled = true;
+
+    try {
+        // Usar registro seguro via RPC (hash bcrypt no servidor)
+        const { data, error } = await window.supabase.rpc('secure_register', {
+            p_cpf: cpf,
+            p_email: email,
+            p_password: password,
+            p_full_name: name,
+            p_role: 'externo'
+        });
+
+        if (error) {
+            console.error('Registration RPC error:', error);
+            // Fallback para método antigo se RPC não existir
+            if (error.message.includes('does not exist')) {
+                await handleLegacyRegistration(cpf, email, password, name, fullPhone);
+                return;
+            }
+            throw error;
+        }
+
+        if (!data.success) {
+            hideLoading();
+            btnRegister.disabled = false;
+            showToast(data.error || 'Erro ao criar conta', 'error');
+            return;
+        }
+
+        // Salvar WhatsApp separadamente (RPC não tem esse campo)
+        if (data.user_id) {
+            await window.supabase
+                .from('users')
+                .update({
+                    whatsapp: fullPhone,
+                    first_login_completed: true  // Usuários externos pulam questionário
+                })
+                .eq('id', data.user_id);
+        }
+
+        hideLoading();
+        showToast('Conta criada com sucesso!', 'success');
+
+        // Redirecionar para login
+        setTimeout(() => {
+            window.location.href = 'index.html';
+        }, 1500);
+
+    } catch (error) {
+        console.error('Registration error:', error);
+        hideLoading();
+        btnRegister.disabled = false;
+        showToast('Erro ao criar conta. Tente novamente.', 'error');
+    }
+}
+
+// Fallback para registro se RPC não estiver disponível
+async function handleLegacyRegistration(cpf, email, password, name, fullPhone) {
+    const btnRegister = document.getElementById('btn-register');
 
     try {
         // Check if CPF already exists
@@ -256,7 +322,7 @@ async function handleSubmit(e) {
             return;
         }
 
-        // Hash password
+        // Hash password (método legado - será migrado depois)
         const hashedPassword = btoa(password + '_ward_salt_2024');
 
         // Create user
@@ -271,7 +337,7 @@ async function handleSubmit(e) {
                 password_hash: hashedPassword,
                 role: 'externo',
                 status: 'active',
-                first_login_completed: true,  // External users skip questionnaire
+                first_login_completed: true,
                 created_at: new Date().toISOString()
             })
             .select()
@@ -283,8 +349,12 @@ async function handleSubmit(e) {
 
         hideLoading();
 
-        // Store user data and redirect
-        localStorage.setItem('ward_user', JSON.stringify(newUser));
+        // Armazenar dados do usuário de forma segura
+        if (window.WardSecurity) {
+            WardSecurity.storeUserSecurely(newUser);
+        } else {
+            localStorage.setItem('ward_user', JSON.stringify(newUser));
+        }
 
         showToast('Conta criada com sucesso!', 'success');
 
@@ -294,7 +364,7 @@ async function handleSubmit(e) {
         }, 1000);
 
     } catch (error) {
-        console.error('Registration error:', error);
+        console.error('Legacy registration error:', error);
         hideLoading();
         btnRegister.disabled = false;
         showToast('Erro ao criar conta. Tente novamente.', 'error');
