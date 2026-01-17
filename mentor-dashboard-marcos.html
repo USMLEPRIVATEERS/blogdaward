@@ -2120,6 +2120,24 @@ Cardiovascular	Physiology	62	FALSE
                     return translations[value?.toLowerCase()] || translations[value] || value;
                 };
 
+                // Helper function to format dates without timezone issues
+                // Parses YYYY-MM-DD directly without going through Date object
+                const formatDateBR = (dateStr) => {
+                    if (!dateStr) return '-';
+                    let datePart = String(dateStr);
+                    if (datePart.includes('T')) {
+                        datePart = datePart.split('T')[0];
+                    }
+                    const parts = datePart.split('-');
+                    if (parts.length === 3) {
+                        const day = parts[2].padStart(2, '0');
+                        const month = parts[1].padStart(2, '0');
+                        const year = parts[0];
+                        return `${day}/${month}/${year}`;
+                    }
+                    return dateStr;
+                };
+
                 // Extract data from all steps
                 const dataByStep = {};
                 responses.forEach(r => {
@@ -2252,7 +2270,7 @@ Cardiovascular	Physiology	62	FALSE
                             ${step2.next_exam_date ? `
                                 <div style="background: rgba(255,255,255,0.15); padding: 0.75rem; border-radius: 8px;">
                                     <div style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 0.25rem;">📅 Data Prova</div>
-                                    <div style="font-weight: 600;">${new Date(step2.next_exam_date).toLocaleDateString('pt-BR')}</div>
+                                    <div style="font-weight: 600;">${formatDateBR(step2.next_exam_date)}</div>
                                 </div>
                             ` : ''}
                             ${step11.current_location ? `
@@ -2276,7 +2294,7 @@ Cardiovascular	Physiology	62	FALSE
                         fields: [
                             { key: 'full_name', label: 'Nome', data: step1 },
                             { key: 'cpf', label: 'CPF', data: step1 },
-                            { key: 'graduation_date', label: 'Formatura', data: step1, format: (v) => new Date(v).toLocaleDateString('pt-BR') },
+                            { key: 'graduation_date', label: 'Formatura', data: step1, format: formatDateBR },
                             { key: 'medical_school', label: 'Faculdade', data: step1 },
                             { key: 'current_specialty', label: 'Especialidade Atual', data: step1 }
                         ]
@@ -2285,8 +2303,8 @@ Cardiovascular	Physiology	62	FALSE
                         title: '📚 Cronograma USMLE',
                         color: '#8b5cf6',
                         fields: [
-                            { key: 'study_start_date', label: '📅 Início Estudos', data: step2, format: (v) => v ? new Date(v).toLocaleDateString('pt-BR') : '-' },
-                            { key: 'next_exam_date', label: '📅 Próxima Prova', data: step2, format: (v) => v ? new Date(v).toLocaleDateString('pt-BR') : '-' },
+                            { key: 'study_start_date', label: '📅 Início Estudos', data: step2, format: formatDateBR },
+                            { key: 'next_exam_date', label: '📅 Próxima Prova', data: step2, format: formatDateBR },
                             { key: 'no_study_days', label: '🚫 Dias OFF', data: step2, format: (v) => {
                                 const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
                                 return Array.isArray(v) ? v.map(d => days[d]).join(', ') : '-';
@@ -2294,8 +2312,8 @@ Cardiovascular	Physiology	62	FALSE
                             { key: 'break_periods', label: '🏝️ Pausas', data: step2, format: (v) => {
                                 if (!Array.isArray(v) || v.length === 0) return '-';
                                 return v.map(p => {
-                                    const start = p.start_date ? new Date(p.start_date).toLocaleDateString('pt-BR') : '?';
-                                    const end = p.end_date ? new Date(p.end_date).toLocaleDateString('pt-BR') : '?';
+                                    const start = formatDateBR(p.start_date);
+                                    const end = formatDateBR(p.end_date);
                                     const reason = p.reason || 'Pausa';
                                     return `${reason}: ${start} - ${end}`;
                                 }).join('<br>');

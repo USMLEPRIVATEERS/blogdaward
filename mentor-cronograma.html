@@ -878,37 +878,47 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
             });
         }
 
-        // ========== HELPER FUNCTIONS FOR DATE HANDLING ==========
-        // NOTA: Os dados no Supabase foram salvos com +1 dia de offset.
-        // Para manter consistência com o card do dashboard, usamos
-        // new Date().toLocaleDateString() que compensa esse offset.
+        // ========== HELPER FUNCTIONS FOR TIMEZONE-SAFE DATE HANDLING ==========
 
-        // Parse YYYY-MM-DD string to Date (uses UTC interpretation like dashboard)
+        // Parse YYYY-MM-DD string to Date without timezone issues
         function parseDateSafe(dateStr) {
             if (!dateStr) return null;
             let datePart = String(dateStr);
             if (datePart.includes('T')) {
                 datePart = datePart.split('T')[0];
             }
-            // Use new Date() which interprets YYYY-MM-DD as UTC
-            // This compensates for the +1 day offset in saved data
-            return new Date(datePart);
+            const parts = datePart.split('-');
+            if (parts.length !== 3) return null;
+            // Create date using local timezone (year, month-1, day)
+            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
         }
 
-        // Format date to DD/MM/YYYY string (consistent with dashboard card)
+        // Format date string YYYY-MM-DD to DD/MM/YYYY without timezone conversion
         function formatDateForExport(dateInput) {
             if (!dateInput) return '';
 
-            // If it's a string, use new Date() to get UTC interpretation
+            // If it's a string in YYYY-MM-DD format, parse directly
             if (typeof dateInput === 'string') {
-                const date = new Date(dateInput);
-                if (isNaN(date.getTime())) return dateInput;
-                return date.toLocaleDateString('pt-BR');
+                let datePart = dateInput;
+                if (datePart.includes('T')) {
+                    datePart = datePart.split('T')[0];
+                }
+                const parts = datePart.split('-');
+                if (parts.length === 3) {
+                    const day = parts[2].replace(/\D/g, '').padStart(2, '0');
+                    const month = parts[1].padStart(2, '0');
+                    const year = parts[0];
+                    return `${day}/${month}/${year}`;
+                }
+                return dateInput;
             }
 
-            // If it's a Date object, use toLocaleDateString
+            // If it's a Date object, extract local components
             if (dateInput instanceof Date) {
-                return dateInput.toLocaleDateString('pt-BR');
+                const day = String(dateInput.getDate()).padStart(2, '0');
+                const month = String(dateInput.getMonth() + 1).padStart(2, '0');
+                const year = dateInput.getFullYear();
+                return `${day}/${month}/${year}`;
             }
 
             return '';
