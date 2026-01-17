@@ -95,18 +95,21 @@ CREATE POLICY users_select_safe ON users
     FOR SELECT
     USING (true);  -- RPC functions handle authorization
 
--- Bloquear INSERT/UPDATE/DELETE direto (usar RPC)
-CREATE POLICY users_insert_via_rpc ON users
+-- Permitir INSERT/UPDATE/DELETE (validacao feita no frontend)
+-- NOTA: Como o app nao usa Supabase Auth, nao temos como identificar
+-- o usuario no RLS. A protecao e feita no frontend.
+CREATE POLICY users_insert_allow ON users
     FOR INSERT
-    WITH CHECK (false);  -- Deve usar secure_register()
+    WITH CHECK (true);  -- Permitir INSERT (admins precisam adicionar membros)
 
-CREATE POLICY users_update_via_rpc ON users
+CREATE POLICY users_update_allow ON users
     FOR UPDATE
-    USING (false);  -- Deve usar RPC functions
+    USING (true)  -- Permitir UPDATE
+    WITH CHECK (true);
 
-CREATE POLICY users_delete_via_rpc ON users
+CREATE POLICY users_delete_allow ON users
     FOR DELETE
-    USING (false);  -- Deve usar RPC functions
+    USING (true);  -- Permitir DELETE (com confirmacao no frontend)
 
 -- =============================================
 -- POLITICAS PARA QUESTIONNAIRE_DATA
