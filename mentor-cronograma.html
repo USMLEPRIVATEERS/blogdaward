@@ -878,21 +878,73 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
             });
         }
 
-        function formatDateForExport(dateStr) {
-            if (!dateStr) return '';
-            // Handle ISO format (2026-02-14T00:00:00.000Z) by extracting just the date part
+        // ========== HELPER FUNCTIONS FOR TIMEZONE-SAFE DATE HANDLING ==========
+
+        // Parse YYYY-MM-DD string to Date without timezone issues
+        function parseDateSafe(dateStr) {
+            if (!dateStr) return null;
+            // Handle ISO format by extracting just the date part
             let datePart = String(dateStr);
             if (datePart.includes('T')) {
                 datePart = datePart.split('T')[0];
             }
-            // Parse YYYY-MM-DD directly without Date object to avoid timezone issues
             const parts = datePart.split('-');
-            if (parts.length !== 3) return dateStr;
-            // Clean any extra characters from the day part
-            const day = parts[2].replace(/\D/g, '').padStart(2, '0');
-            const month = parts[1].padStart(2, '0');
-            const year = parts[0];
-            return `${day}/${month}/${year}`; // DD/MM/YYYY
+            if (parts.length !== 3) return null;
+            // Create date using local timezone (year, month-1, day)
+            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        }
+
+        // Format Date to DD/MM/YYYY string
+        function formatDateForExport(dateInput) {
+            if (!dateInput) return '';
+
+            // If it's a string, parse it safely first
+            if (typeof dateInput === 'string') {
+                let datePart = dateInput;
+                if (datePart.includes('T')) {
+                    datePart = datePart.split('T')[0];
+                }
+                const parts = datePart.split('-');
+                if (parts.length === 3) {
+                    const day = parts[2].replace(/\D/g, '').padStart(2, '0');
+                    const month = parts[1].padStart(2, '0');
+                    const year = parts[0];
+                    return `${day}/${month}/${year}`;
+                }
+                return dateInput;
+            }
+
+            // If it's a Date object, extract components directly
+            if (dateInput instanceof Date) {
+                const day = String(dateInput.getDate()).padStart(2, '0');
+                const month = String(dateInput.getMonth() + 1).padStart(2, '0');
+                const year = dateInput.getFullYear();
+                return `${day}/${month}/${year}`;
+            }
+
+            return '';
+        }
+
+        // Format Date to YYYY-MM-DD string (for input fields)
+        function formatDateISO(dateInput) {
+            if (!dateInput) return '';
+
+            if (typeof dateInput === 'string') {
+                let datePart = dateInput;
+                if (datePart.includes('T')) {
+                    datePart = datePart.split('T')[0];
+                }
+                return datePart;
+            }
+
+            if (dateInput instanceof Date) {
+                const day = String(dateInput.getDate()).padStart(2, '0');
+                const month = String(dateInput.getMonth() + 1).padStart(2, '0');
+                const year = dateInput.getFullYear();
+                return `${year}-${month}-${day}`;
+            }
+
+            return '';
         }
 
         // ============== SCHEDULE GENERATOR ==============
@@ -1042,8 +1094,8 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
                     const today = new Date();
                     const threeMonthsLater = new Date(today);
                     threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3);
-                    document.getElementById('gen-start-date').value = today.toISOString().split('T')[0];
-                    document.getElementById('gen-end-date').value = threeMonthsLater.toISOString().split('T')[0];
+                    document.getElementById('gen-start-date').value = formatDateISO(today);
+                    document.getElementById('gen-end-date').value = formatDateISO(threeMonthsLater);
                 }
 
                 // Completed categories from step 4
@@ -1145,15 +1197,6 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
                 return;
             }
 
-            // Debug: mostrar valores originais das datas no console
-            console.log('🔍 DEBUG Break Periods:', genBreaks.map(b => ({
-                name: b.name,
-                start_raw: b.start,
-                end_raw: b.end,
-                start_formatted: formatDateForExport(b.start),
-                end_formatted: formatDateForExport(b.end)
-            })));
-
             container.innerHTML = genBreaks.map((b, i) => `
                 <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; font-size: 0.8rem;">
                     <span>🏝️</span>
@@ -1168,9 +1211,9 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
             if (genBlockedDays.has(date.getDay())) return false;
 
             for (const b of genBreaks) {
-                const start = new Date(b.start + 'T00:00:00');
-                const end = new Date(b.end + 'T00:00:00');
-                if (date >= start && date <= end) return false;
+                const start = parseDateSafe(b.start);
+                const end = parseDateSafe(b.end);
+                if (start && end && date >= start && date <= end) return false;
             }
 
             return true;
@@ -1239,10 +1282,10 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
                 return;
             }
 
-            const startDate = new Date(startDateStr + 'T00:00:00');
-            const endDate = new Date(endDateStr + 'T00:00:00');
+            const startDate = parseDateSafe(startDateStr);
+            const endDate = parseDateSafe(endDateStr);
 
-            if (startDate >= endDate) {
+            if (!startDate || !endDate || startDate >= endDate) {
                 WardApp.showToast('Data de início deve ser anterior à data de término', 'warning');
                 return;
             }
@@ -1310,8 +1353,8 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
                     <td style="padding: 0.5rem 0.75rem; color: #60a5fa; font-weight: 500;">${item.system}</td>
                     <td style="padding: 0.5rem 0.75rem; color: #f1f5f9;">${item.category}</td>
                     <td style="padding: 0.5rem 0.75rem; text-align: center; color: #60a5fa; font-family: monospace;">${item.questions}</td>
-                    <td style="padding: 0.5rem 0.75rem; color: #94a3b8; font-family: monospace;">${formatDateForExport(item.startDate.toISOString().split('T')[0])}</td>
-                    <td style="padding: 0.5rem 0.75rem; color: #94a3b8; font-family: monospace;">${formatDateForExport(item.endDate.toISOString().split('T')[0])}</td>
+                    <td style="padding: 0.5rem 0.75rem; color: #94a3b8; font-family: monospace;">${formatDateForExport(item.startDate)}</td>
+                    <td style="padding: 0.5rem 0.75rem; color: #94a3b8; font-family: monospace;">${formatDateForExport(item.endDate)}</td>
                 </tr>
             `).join('');
         }
@@ -1320,7 +1363,7 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
         function copyGeneratedSchedule() {
             const header = 'System\tCategory\tQuestions\tData de Início\tData de Fim\tAulas Recomendadas\t✓\n';
             const rows = genScheduleData.map(item =>
-                `${item.system}\t${item.category}\t${item.questions}\t${formatDateForExport(item.startDate.toISOString().split('T')[0])}\t${formatDateForExport(item.endDate.toISOString().split('T')[0])}\t${item.recommendedLessons || ''}\tFALSE`
+                `${item.system}\t${item.category}\t${item.questions}\t${formatDateForExport(item.startDate)}\t${formatDateForExport(item.endDate)}\t${item.recommendedLessons || ''}\tFALSE`
             ).join('\n');
 
             navigator.clipboard.writeText(header + rows);
@@ -1355,8 +1398,8 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
                 system: item.system,
                 category: item.category,
                 questions: item.questions,
-                start_date: item.startDate.toISOString().split('T')[0],
-                end_date: item.endDate.toISOString().split('T')[0],
+                start_date: formatDateISO(item.startDate),
+                end_date: formatDateISO(item.endDate),
                 recommended_lessons: item.recommendedLessons || null,
                 completed: false
             }));
