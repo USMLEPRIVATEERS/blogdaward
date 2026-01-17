@@ -878,48 +878,37 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
             });
         }
 
-        // ========== HELPER FUNCTIONS FOR TIMEZONE-SAFE DATE HANDLING ==========
+        // ========== HELPER FUNCTIONS FOR DATE HANDLING ==========
+        // NOTA: Os dados no Supabase foram salvos com +1 dia de offset.
+        // Para manter consistência com o card do dashboard, usamos
+        // new Date().toLocaleDateString() que compensa esse offset.
 
-        // Parse YYYY-MM-DD string to Date without timezone issues
+        // Parse YYYY-MM-DD string to Date (uses UTC interpretation like dashboard)
         function parseDateSafe(dateStr) {
             if (!dateStr) return null;
-            // Handle ISO format by extracting just the date part
             let datePart = String(dateStr);
             if (datePart.includes('T')) {
                 datePart = datePart.split('T')[0];
             }
-            const parts = datePart.split('-');
-            if (parts.length !== 3) return null;
-            // Create date using local timezone (year, month-1, day)
-            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            // Use new Date() which interprets YYYY-MM-DD as UTC
+            // This compensates for the +1 day offset in saved data
+            return new Date(datePart);
         }
 
-        // Format Date to DD/MM/YYYY string
+        // Format date to DD/MM/YYYY string (consistent with dashboard card)
         function formatDateForExport(dateInput) {
             if (!dateInput) return '';
 
-            // If it's a string, parse it safely first
+            // If it's a string, use new Date() to get UTC interpretation
             if (typeof dateInput === 'string') {
-                let datePart = dateInput;
-                if (datePart.includes('T')) {
-                    datePart = datePart.split('T')[0];
-                }
-                const parts = datePart.split('-');
-                if (parts.length === 3) {
-                    const day = parts[2].replace(/\D/g, '').padStart(2, '0');
-                    const month = parts[1].padStart(2, '0');
-                    const year = parts[0];
-                    return `${day}/${month}/${year}`;
-                }
-                return dateInput;
+                const date = new Date(dateInput);
+                if (isNaN(date.getTime())) return dateInput;
+                return date.toLocaleDateString('pt-BR');
             }
 
-            // If it's a Date object, extract components directly
+            // If it's a Date object, use toLocaleDateString
             if (dateInput instanceof Date) {
-                const day = String(dateInput.getDate()).padStart(2, '0');
-                const month = String(dateInput.getMonth() + 1).padStart(2, '0');
-                const year = dateInput.getFullYear();
-                return `${day}/${month}/${year}`;
+                return dateInput.toLocaleDateString('pt-BR');
             }
 
             return '';
@@ -1033,13 +1022,6 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
                 if (step2Data && step2Data.data) {
                     const d = step2Data.data;
                     questionnaireInfoDiv.style.display = 'block';
-
-                    // DEBUG: Ver valores raw do Supabase
-                    console.log('🔴 RAW DATA FROM SUPABASE:', {
-                        study_start_date: d.study_start_date,
-                        next_exam_date: d.next_exam_date,
-                        break_periods: d.break_periods
-                    });
 
                     let summaryHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.5rem;">';
 
