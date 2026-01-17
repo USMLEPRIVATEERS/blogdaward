@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UWorld Schedule Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0f1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a2332;
+            --bg-input: #0d1421;
+            --accent-primary: #3b82f6;
+            --accent-secondary: #60a5fa;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border-color: #2d3a4f;
+            --border-focus: #3b82f6;
+            --shadow-glow: 0 0 40px rgba(59, 130, 246, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: var(--shadow-glow);
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Grid Layout */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: var(--accent-primary);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-icon {
+            width: 36px;
+            height: 36px;
+            background: rgba(59, 130, 246, 0.15);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        input[type="date"],
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+        }
+
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        textarea {
+            min-height: 200px;
+            resize: vertical;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        /* Date Row */
+        .date-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        /* Weekday Selector */
+        .weekday-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.5rem;
+        }
+
+        .weekday-btn {
+            padding: 0.75rem 0.5rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .weekday-btn:hover {
+            border-color: var(--accent-primary);
+            color: var(--text-primary);
+        }
+
+        .weekday-btn.blocked {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: var(--accent-danger);
+            color: var(--accent-danger);
+        }
+
+        .weekday-btn.blocked::after {
+            content: ' ✕';
+        }
+
+        /* Break Periods */
+        .breaks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .break-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 10px;
+            font-size: 0.875rem;
+        }
+
+        .break-item .break-icon {
+            font-size: 1rem;
+        }
+
+        .break-item .break-info {
+            flex: 1;
+        }
+
+        .break-item .break-dates {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--accent-warning);
+        }
+
+        .break-item .remove-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0.25rem;
+            font-size: 1rem;
+            transition: color 0.2s;
+        }
+
+        .break-item .remove-btn:hover {
+            color: var(--accent-danger);
+        }
+
+        .add-break-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr auto;
+            gap: 0.75rem;
+            align-items: end;
+        }
+
+        @media (max-width: 768px) {
+            .add-break-form {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent-primary);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #059669, var(--accent-success));
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+        }
+
+        /* Generate Button */
+        .generate-section {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .btn-generate {
+            padding: 1rem 3rem;
+            font-size: 1.1rem;
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .stats-bar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--accent-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Results Table */
+        .results-section {
+            grid-column: 1 / -1;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background: var(--bg-secondary);
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+        }
+
+        td {
+            padding: 0.875rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        tr:hover td {
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .category-cell {
+            font-weight: 500;
+        }
+
+        .questions-cell {
+            font-family: 'JetBrains Mono', monospace;
+            text-align: center;
+            color: var(--accent-secondary);
+        }
+
+        .date-cell {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .system-row td {
+            background: rgba(59, 130, 246, 0.08);
+            font-weight: 600;
+            color: var(--accent-secondary);
+        }
+
+        /* Export Buttons */
+        .export-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        /* Hidden */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease forwards;
+        }
+
+        /* Placeholder */
+        .placeholder-text {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            font-style: italic;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 1rem 1.5rem;
+            background: var(--accent-success);
+            color: white;
+            border-radius: 10px;
+            font-weight: 500;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">📚</div>
+                <h1>UWorld Schedule Generator</h1>
+            </div>
+            <p class="subtitle">Gere cronogramas de estudo inteligentes para sua preparação USMLE</p>
+        </header>
+
+        <div class="main-grid">
+            <!-- Configurações de Período -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">📅</div>
+                    <h2 class="card-title">Período de Estudos</h2>
+                </div>
+                <div class="date-row">
+                    <div class="form-group">
+                        <label for="startDate">Data de Início</label>
+                        <input type="date" id="startDate">
+                    </div>
+                    <div class="form-group">
+                        <label for="endDate">Data de Término</label>
+                        <input type="date" id="endDate">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Dias SEM Estudo (clique para bloquear)</label>
+                    <div class="weekday-grid">
+                        <button type="button" class="weekday-btn" data-day="0">Dom</button>
+                        <button type="button" class="weekday-btn" data-day="1">Seg</button>
+                        <button type="button" class="weekday-btn" data-day="2">Ter</button>
+                        <button type="button" class="weekday-btn" data-day="3">Qua</button>
+                        <button type="button" class="weekday-btn" data-day="4">Qui</button>
+                        <button type="button" class="weekday-btn" data-day="5">Sex</button>
+                        <button type="button" class="weekday-btn" data-day="6">Sáb</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Períodos de Pausa -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">🏝️</div>
+                    <h2 class="card-title">Períodos de Pausa</h2>
+                </div>
+                <div class="breaks-list" id="breaksList">
+                    <p class="placeholder-text">Nenhum período de pausa adicionado</p>
+                </div>
+                <div class="add-break-form">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="breakName">Motivo</label>
+                        <input type="text" id="breakName" placeholder="Ex: Congresso">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="breakStart">Início</label>
+                        <input type="date" id="breakStart">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="breakEnd">Fim</label>
+                        <input type="date" id="breakEnd">
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addBreak()" style="margin-bottom: 0; align-self: end;">
+                        ➕ Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dados de Entrada -->
+            <div class="card" style="grid-column: 1 / -1;">
+                <div class="card-header">
+                    <div class="card-icon">📋</div>
+                    <h2 class="card-title">Categorias e Questões</h2>
+                </div>
+                <div class="form-group">
+                    <label for="dataInput">Cole aqui os dados (separados por TAB): Category → Questions → Data de Início → Data de Fim</label>
+                    <textarea id="dataInput" placeholder="Congenital heart disease	32		
+Heart failure and shock	44		
+Hypertension	24		
+..."></textarea>
+                </div>
+                <p class="placeholder-text">💡 Dica: Copie da planilha e cole diretamente. As colunas "Data de Início" e "Data de Fim" serão preenchidas automaticamente.</p>
+            </div>
+
+            <!-- Botão Gerar -->
+            <div class="generate-section">
+                <button type="button" class="btn btn-primary btn-generate" onclick="generateSchedule()">
+                    ⚡ Gerar Cronograma
+                </button>
+            </div>
+
+            <!-- Estatísticas -->
+            <div class="stats-bar hidden" id="statsBar">
+                <div class="stat-card">
+                    <div class="stat-value" id="statQuestions">0</div>
+                    <div class="stat-label">Questões</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statDays">0</div>
+                    <div class="stat-label">Dias Úteis</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statAvg">0</div>
+                    <div class="stat-label">Questões/Dia</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statCategories">0</div>
+                    <div class="stat-label">Categorias</div>
+                </div>
+            </div>
+
+            <!-- Resultados -->
+            <div class="results-section hidden" id="resultsSection">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon">📊</div>
+                        <h2 class="card-title">Cronograma Gerado</h2>
+                    </div>
+                    <div class="table-container">
+                        <table id="resultsTable">
+                            <thead>
+                                <tr>
+                                    <th>Categoria</th>
+                                    <th style="text-align: center;">Questões</th>
+                                    <th>Data de Início</th>
+                                    <th>Data de Fim</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsBody">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="export-buttons">
+                        <button type="button" class="btn btn-success" onclick="copyToClipboard()">
+                            📋 Copiar Tabela
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="exportCSV()">
+                            📄 Exportar CSV
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="exportMarkdown()">
+                            📝 Exportar Markdown
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">Copiado para a área de transferência!</div>
+
+    <script>
+        // Estado da aplicação
+        let breaks = [];
+        let blockedDays = new Set();
+        let scheduleData = [];
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', () => {
+            // Definir datas padrão
+            const today = new Date();
+            const threeMonthsLater = new Date(today);
+            threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3);
+            
+            document.getElementById('startDate').value = formatDateForInput(today);
+            document.getElementById('endDate').value = formatDateForInput(threeMonthsLater);
+
+            // Event listeners para dias da semana
+            document.querySelectorAll('.weekday-btn').forEach(btn => {
+                btn.addEventListener('click', () => toggleWeekday(btn));
+            });
+        });
+
+        function formatDateForInput(date) {
+            return date.toISOString().split('T')[0];
+        }
+
+        function formatDateBR(date) {
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+        function parseDate(str) {
+            return new Date(str + 'T00:00:00');
+        }
+
+        function toggleWeekday(btn) {
+            const day = parseInt(btn.dataset.day);
+            if (blockedDays.has(day)) {
+                blockedDays.delete(day);
+                btn.classList.remove('blocked');
+            } else {
+                blockedDays.add(day);
+                btn.classList.add('blocked');
+            }
+        }
+
+        function addBreak() {
+            const name = document.getElementById('breakName').value.trim();
+            const start = document.getElementById('breakStart').value;
+            const end = document.getElementById('breakEnd').value;
+
+            if (!name || !start || !end) {
+                alert('Preencha todos os campos do período de pausa.');
+                return;
+            }
+
+            if (parseDate(start) > parseDate(end)) {
+                alert('A data de início deve ser anterior à data de fim.');
+                return;
+            }
+
+            breaks.push({ name, start, end });
+            renderBreaks();
+
+            // Limpar campos
+            document.getElementById('breakName').value = '';
+            document.getElementById('breakStart').value = '';
+            document.getElementById('breakEnd').value = '';
+        }
+
+        function removeBreak(index) {
+            breaks.splice(index, 1);
+            renderBreaks();
+        }
+
+        function renderBreaks() {
+            const container = document.getElementById('breaksList');
+            
+            if (breaks.length === 0) {
+                container.innerHTML = '<p class="placeholder-text">Nenhum período de pausa adicionado</p>';
+                return;
+            }
+
+            container.innerHTML = breaks.map((b, i) => `
+                <div class="break-item fade-in">
+                    <span class="break-icon">🏝️</span>
+                    <div class="break-info">
+                        <strong>${b.name}</strong>
+                        <div class="break-dates">${formatDateBR(parseDate(b.start))} → ${formatDateBR(parseDate(b.end))}</div>
+                    </div>
+                    <button class="remove-btn" onclick="removeBreak(${i})">✕</button>
+                </div>
+            `).join('');
+        }
+
+        function isStudyDay(date) {
+            // Verificar dia da semana bloqueado
+            if (blockedDays.has(date.getDay())) {
+                return false;
+            }
+
+            // Verificar períodos de pausa
+            for (const b of breaks) {
+                const start = parseDate(b.start);
+                const end = parseDate(b.end);
+                if (date >= start && date <= end) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        function getStudyDays(startDate, endDate) {
+            const days = [];
+            const current = new Date(startDate);
+            
+            while (current <= endDate) {
+                if (isStudyDay(current)) {
+                    days.push(new Date(current));
+                }
+                current.setDate(current.getDate() + 1);
+            }
+            
+            return days;
+        }
+
+        function parseInputData(text) {
+            const lines = text.trim().split('\n');
+            const data = [];
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                
+                const parts = line.split('\t');
+                const category = parts[0]?.trim();
+                const questions = parseInt(parts[1]?.trim());
+
+                if (category && !isNaN(questions) && questions > 0) {
+                    data.push({ category, questions });
+                }
+            }
+
+            return data;
+        }
+
+        function generateSchedule() {
+            const startDateStr = document.getElementById('startDate').value;
+            const endDateStr = document.getElementById('endDate').value;
+            const inputData = document.getElementById('dataInput').value;
+
+            if (!startDateStr || !endDateStr) {
+                alert('Defina as datas de início e término.');
+                return;
+            }
+
+            if (!inputData.trim()) {
+                alert('Cole os dados das categorias.');
+                return;
+            }
+
+            const startDate = parseDate(startDateStr);
+            const endDate = parseDate(endDateStr);
+
+            if (startDate >= endDate) {
+                alert('A data de início deve ser anterior à data de término.');
+                return;
+            }
+
+            const categories = parseInputData(inputData);
+            if (categories.length === 0) {
+                alert('Nenhuma categoria válida encontrada. Verifique o formato dos dados.');
+                return;
+            }
+
+            const studyDays = getStudyDays(startDate, endDate);
+            if (studyDays.length === 0) {
+                alert('Não há dias de estudo disponíveis no período selecionado.');
+                return;
+            }
+
+            const totalQuestions = categories.reduce((sum, c) => sum + c.questions, 0);
+            const questionsPerDay = totalQuestions / studyDays.length;
+
+            // Distribuir categorias pelos dias
+            scheduleData = [];
+            let currentPosition = 0;
+
+            for (const cat of categories) {
+                const daysNeeded = cat.questions / questionsPerDay;
+                
+                const startIdx = Math.min(Math.floor(currentPosition), studyDays.length - 1);
+                currentPosition += daysNeeded;
+                const endIdx = Math.min(Math.max(Math.floor(currentPosition - 0.01), startIdx), studyDays.length - 1);
+
+                scheduleData.push({
+                    category: cat.category,
+                    questions: cat.questions,
+                    startDate: studyDays[startIdx],
+                    endDate: studyDays[endIdx]
+                });
+            }
+
+            // Atualizar estatísticas
+            document.getElementById('statQuestions').textContent = totalQuestions.toLocaleString();
+            document.getElementById('statDays').textContent = studyDays.length;
+            document.getElementById('statAvg').textContent = questionsPerDay.toFixed(1);
+            document.getElementById('statCategories').textContent = categories.length;
+
+            // Renderizar tabela
+            renderResults();
+
+            // Mostrar seções
+            document.getElementById('statsBar').classList.remove('hidden');
+            document.getElementById('resultsSection').classList.remove('hidden');
+
+            // Scroll para resultados
+            document.getElementById('statsBar').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function renderResults() {
+            const tbody = document.getElementById('resultsBody');
+            
+            tbody.innerHTML = scheduleData.map(item => `
+                <tr class="fade-in">
+                    <td class="category-cell">${item.category}</td>
+                    <td class="questions-cell">${item.questions}</td>
+                    <td class="date-cell">${formatDateBR(item.startDate)}</td>
+                    <td class="date-cell">${formatDateBR(item.endDate)}</td>
+                </tr>
+            `).join('');
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function copyToClipboard() {
+            const header = 'Category\tQuestions\tData de Início\tData de Fim\n';
+            const rows = scheduleData.map(item => 
+                `${item.category}\t${item.questions}\t${formatDateBR(item.startDate)}\t${formatDateBR(item.endDate)}`
+            ).join('\n');
+            
+            navigator.clipboard.writeText(header + rows);
+            showToast('📋 Tabela copiada para a área de transferência!');
+        }
+
+        function exportCSV() {
+            const header = 'Category,Questions,Data de Início,Data de Fim\n';
+            const rows = scheduleData.map(item => 
+                `"${item.category}",${item.questions},${formatDateBR(item.startDate)},${formatDateBR(item.endDate)}`
+            ).join('\n');
+            
+            const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'cronograma_uworld.csv';
+            link.click();
+            
+            showToast('📄 Arquivo CSV baixado!');
+        }
+
+        function exportMarkdown() {
+            let md = '| Category | Questions | Data de Início | Data de Fim |\n';
+            md += '|----------|:---------:|:--------------:|:-----------:|\n';
+            
+            for (const item of scheduleData) {
+                md += `| ${item.category} | ${item.questions} | ${formatDateBR(item.startDate)} | ${formatDateBR(item.endDate)} |\n`;
+            }
+            
+            navigator.clipboard.writeText(md);
+            showToast('📝 Markdown copiado para a área de transferência!');
+        }
+    </script>
+</body>
+</html>
