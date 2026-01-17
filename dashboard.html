@@ -86,8 +86,15 @@
     <main class="main-container">
         <!-- Welcome Banner -->
         <div class="welcome-banner">
-            <h1 class="welcome-title">Bem-vindo(a), <span id="user-name">Aluno</span>! 👋</h1>
-            <p class="welcome-subtitle">Continue sua jornada rumo ao USMLE</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h1 class="welcome-title">Bem-vindo(a), <span id="user-name">Aluno</span>! 👋</h1>
+                    <p class="welcome-subtitle">Continue sua jornada rumo ao USMLE</p>
+                </div>
+                <button class="btn btn-outline" onclick="openTutorialModal()" style="background: rgba(255,255,255,0.9); border: 2px solid #d97706; color: #d97706; font-weight: 600;">
+                    🎬 Tutorial da Plataforma
+                </button>
+            </div>
         </div>
 
         <div class="dashboard-grid">
@@ -529,6 +536,38 @@
         </div>
     </div>
 
+    <!-- Tutorial Modal -->
+    <div id="tutorial-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 800px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%);">
+                <h3 class="modal-title" style="color: white;">🎬 Como usar a Plataforma da Ward Academy</h3>
+                <button class="modal-close" onclick="closeTutorialModal()" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 0;">
+                <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
+                    <iframe
+                        id="tutorial-video-iframe"
+                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
+                        src=""
+                        title="Tutorial - Como usar a Plataforma"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowfullscreen>
+                    </iframe>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <label class="form-check" style="margin: 0;">
+                    <input type="checkbox" id="tutorial-watched-checkbox" onchange="toggleTutorialWatched()">
+                    <span class="form-check-label" style="font-weight: 500;">
+                        Não mostrar novamente ao entrar na página
+                    </span>
+                </label>
+                <button class="btn btn-primary" onclick="closeTutorialModal()">Fechar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
@@ -625,6 +664,11 @@
 
             // Load toggle states
             loadToggleStates();
+
+            // Check tutorial status (only for students, not mentors viewing as students)
+            if (userData.role === 'aluno' && !viewingAsStudent) {
+                await checkTutorialStatus();
+            }
         });
 
         async function loadDashboard() {
@@ -1667,6 +1711,84 @@
                 }
             }
         });
+
+        // ================================================
+        // TUTORIAL VIDEO SYSTEM
+        // ================================================
+        const TUTORIAL_VIDEO_URL = 'https://www.youtube.com/embed/DLHPFOPdg0I';
+        let tutorialWatchedStatus = false;
+
+        // Check if user has watched the tutorial
+        async function checkTutorialStatus() {
+            try {
+                const { data } = await WardApp.db
+                    .from('user_tutorials')
+                    .select('watched')
+                    .eq('user_id', targetUserId)
+                    .eq('tutorial_key', 'dashboard_tutorial')
+                    .single();
+
+                if (data) {
+                    tutorialWatchedStatus = data.watched;
+                    document.getElementById('tutorial-watched-checkbox').checked = data.watched;
+                }
+
+                // If not watched, show tutorial automatically
+                if (!tutorialWatchedStatus) {
+                    setTimeout(() => {
+                        openTutorialModal();
+                    }, 1000); // Small delay to let page load
+                }
+            } catch (e) {
+                // Record doesn't exist yet, show tutorial
+                setTimeout(() => {
+                    openTutorialModal();
+                }, 1000);
+            }
+        }
+
+        // Open tutorial modal
+        function openTutorialModal() {
+            const iframe = document.getElementById('tutorial-video-iframe');
+            iframe.src = TUTORIAL_VIDEO_URL + '?autoplay=1';
+            document.getElementById('tutorial-modal').classList.add('active');
+        }
+
+        // Close tutorial modal
+        function closeTutorialModal() {
+            const iframe = document.getElementById('tutorial-video-iframe');
+            iframe.src = ''; // Stop video
+            document.getElementById('tutorial-modal').classList.remove('active');
+        }
+
+        // Toggle tutorial watched status
+        async function toggleTutorialWatched() {
+            const checkbox = document.getElementById('tutorial-watched-checkbox');
+            const watched = checkbox.checked;
+
+            try {
+                // Upsert the record
+                const { error } = await WardApp.db
+                    .from('user_tutorials')
+                    .upsert({
+                        user_id: targetUserId,
+                        tutorial_key: 'dashboard_tutorial',
+                        watched: watched,
+                        watched_at: watched ? new Date().toISOString() : null
+                    }, {
+                        onConflict: 'user_id,tutorial_key'
+                    });
+
+                if (error) throw error;
+
+                tutorialWatchedStatus = watched;
+                WardApp.showToast(watched ? 'Tutorial marcado como assistido!' : 'Tutorial será exibido novamente ao entrar na página');
+            } catch (e) {
+                console.error('Error saving tutorial status:', e);
+                checkbox.checked = !watched; // Revert on error
+                WardApp.showToast('Erro ao salvar preferência', 'error');
+            }
+        }
     </script>
 
     <style>
