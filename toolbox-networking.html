@@ -1834,17 +1834,56 @@
             const edges = [];
             const addedUsers = new Set();
 
+            // Helper to get first and last name
+            function getShortName(fullName) {
+                if (!fullName) return '?';
+                const parts = fullName.trim().split(' ');
+                if (parts.length === 1) return parts[0];
+                return `${parts[0]} ${parts[parts.length - 1]}`;
+            }
+
+            // Helper to build tooltip for contacts
+            function buildContactTooltip(contact) {
+                let lines = [contact.name];
+                if (contact.position?.name) lines.push(`📋 ${contact.position.name}`);
+                if (contact.specialty?.name) lines.push(`🏥 ${contact.specialty.name}`);
+                if (contact.institution) lines.push(`🏛️ ${contact.institution}`);
+                if (contact.state?.name) {
+                    const location = contact.city?.name
+                        ? `${contact.city.name}, ${contact.state.name}`
+                        : contact.state.name;
+                    lines.push(`📍 ${location}`);
+                }
+                const connectionCount = allConnections.filter(c => c.contact_id === contact.id).length;
+                if (connectionCount > 0) lines.push(`👥 ${connectionCount} conexão(ões)`);
+                return lines.join('\n');
+            }
+
             // Add contact nodes
             contacts.forEach(contact => {
                 // Count connections for this contact to determine node size
                 const connectionCount = allConnections.filter(c => c.contact_id === contact.id).length;
 
+                // Build compact label with first+last name and position
+                let label = getShortName(contact.name);
+                if (contact.position?.name) {
+                    // Abbreviate common positions
+                    const posAbbrev = contact.position.name
+                        .replace('Program Director', 'PD')
+                        .replace('Attending', 'Att.')
+                        .replace('Resident', 'Res.')
+                        .replace('Fellow', 'Fel.')
+                        .replace('Professor', 'Prof.');
+                    label += `\n${posAbbrev}`;
+                }
+
                 nodes.push({
                     id: `contact-${contact.id}`,
-                    label: contact.name.split(' ')[0],
-                    title: `${contact.name}\n${contact.position?.name || ''}\n${contact.institution || ''}`,
+                    label: label,
+                    title: buildContactTooltip(contact),
                     color: { background: '#22c55e', border: '#16a34a' },
-                    size: Math.max(15, 15 + connectionCount * 3) // Bigger nodes have more connections
+                    size: Math.max(18, 18 + connectionCount * 4), // Bigger nodes have more connections
+                    font: { size: 11, multi: true }
                 });
 
                 // Add connections
@@ -1853,12 +1892,14 @@
                     // Add user node if not exists
                     if (!addedUsers.has(conn.user_id)) {
                         addedUsers.add(conn.user_id);
+                        const userName = getShortName(conn.user?.full_name);
                         nodes.push({
                             id: `user-${conn.user_id}`,
-                            label: conn.user?.full_name?.split(' ')[0] || 'Membro',
-                            title: conn.user?.full_name || 'Membro da Ward',
+                            label: userName,
+                            title: `${conn.user?.full_name || 'Membro'}\n🎓 Membro Ward Academy`,
                             color: { background: '#0ea5e9', border: '#0284c7' },
-                            size: 12
+                            size: 14,
+                            font: { size: 10 }
                         });
                     }
 
