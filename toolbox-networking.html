@@ -18,31 +18,43 @@
             min-height: 100vh;
         }
 
-        /* Header */
-        .app-header {
+        /* Floating Action Button */
+        .fab {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
             background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
             color: white;
-            padding: 1rem 1.5rem;
+            border: none;
+            font-size: 1.75rem;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(14, 165, 233, 0.4);
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 4px 20px rgba(14, 165, 233, 0.3);
-            position: sticky;
-            top: 0;
+            justify-content: center;
+            transition: all 0.3s ease;
             z-index: 100;
         }
 
-        .app-header h1 {
-            margin: 0;
-            font-size: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
+        .fab:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 25px rgba(14, 165, 233, 0.5);
         }
 
-        .header-actions {
-            display: flex;
-            gap: 0.75rem;
+        .fab:active {
+            transform: scale(0.95);
+        }
+
+        @media (max-width: 768px) {
+            .fab {
+                bottom: 1.5rem;
+                right: 1.5rem;
+                width: 56px;
+                height: 56px;
+            }
         }
 
         .btn {
@@ -109,7 +121,7 @@
         .main-container {
             display: grid;
             grid-template-columns: 320px 1fr 400px;
-            height: calc(100vh - 64px);
+            height: 100vh;
             overflow: hidden;
         }
 
@@ -125,9 +137,26 @@
         @media (max-width: 768px) {
             .main-container {
                 grid-template-columns: 1fr;
+                height: 100vh;
             }
             .filters-panel {
-                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 85%;
+                max-width: 320px;
+                height: 100vh;
+                z-index: 200;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                box-shadow: 4px 0 20px rgba(0,0,0,0.1);
+            }
+            .filters-panel.open {
+                transform: translateX(0);
+                display: block;
+            }
+            .contacts-panel {
+                padding-bottom: 5rem;
             }
         }
 
@@ -852,47 +881,93 @@
         .mobile-filter-btn {
             display: none;
             position: fixed;
-            bottom: 1.5rem;
+            bottom: 2rem;
             left: 1.5rem;
-            padding: 1rem;
-            background: #0ea5e9;
+            width: 50px;
+            height: 50px;
+            padding: 0;
+            background: #64748b;
             color: white;
             border: none;
             border-radius: 50%;
-            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);
+            box-shadow: 0 4px 15px rgba(100, 116, 139, 0.4);
             cursor: pointer;
             font-size: 1.25rem;
             z-index: 99;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mobile-filter-btn:hover {
+            background: #475569;
+        }
+
+        /* Mobile Overlay */
+        .mobile-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 199;
+        }
+
+        .mobile-overlay.active {
+            display: block;
+        }
+
+        /* Close button for mobile filters */
+        .filters-close-btn {
+            display: none;
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #f1f5f9;
+            border: none;
+            font-size: 1.25rem;
+            cursor: pointer;
+            color: #64748b;
         }
 
         @media (max-width: 768px) {
             .mobile-filter-btn {
                 display: flex;
             }
+            .filters-close-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .filters-panel {
+                padding-top: 3.5rem;
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <header class="app-header">
-        <h1>
-            <span>🤝</span>
-            Compartilhar Networking
-        </h1>
-        <div class="header-actions">
-            <button class="btn btn-secondary" onclick="window.location.href='toolbox.html'">
-                ← Voltar
-            </button>
-            <button class="btn btn-primary" onclick="openAddContactModal()">
-                + Adicionar Contato
-            </button>
-        </div>
-    </header>
+    <!-- Floating Action Button -->
+    <button class="fab" onclick="openAddContactModal()" title="Adicionar Contato">
+        +
+    </button>
+
+    <!-- Mobile Filter Button -->
+    <button class="mobile-filter-btn" onclick="toggleFilters()" title="Filtros">
+        🔍
+    </button>
+
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay" id="mobile-overlay" onclick="toggleFilters()"></div>
 
     <!-- Main Container -->
     <div class="main-container">
         <!-- Filters Panel (Left) -->
         <div class="filters-panel" id="filters-panel">
+            <button class="filters-close-btn" onclick="toggleFilters()">✕</button>
             <!-- Stats -->
             <div class="stats-panel">
                 <div class="stats-grid">
@@ -2174,9 +2249,11 @@
             }, 3000);
         }
 
-        function toggleMobileFilters() {
+        function toggleFilters() {
             const panel = document.getElementById('filters-panel');
-            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            const overlay = document.getElementById('mobile-overlay');
+            panel.classList.toggle('open');
+            overlay.classList.toggle('active');
         }
     </script>
 </body>
