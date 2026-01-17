@@ -687,6 +687,10 @@
             const app = apps.find(a => a.id === appId);
             if (!app) return;
 
+            // Update URL for sharing (without reloading page)
+            const newUrl = `${window.location.pathname}?app=${appId}`;
+            window.history.pushState({ appId }, app.title, newUrl);
+
             // Update modal title
             document.getElementById('modal-app-title').textContent = app.title;
 
@@ -726,7 +730,30 @@
 
             // Restore body scroll
             document.body.style.overflow = '';
+
+            // Restore URL without app parameter
+            window.history.pushState({}, 'Toolbox', window.location.pathname);
         }
+
+        // Handle browser back/forward navigation
+        window.addEventListener('popstate', function(e) {
+            if (e.state && e.state.appId) {
+                openApp(e.state.appId);
+            } else {
+                // Close app if open
+                const modal = document.getElementById('app-modal');
+                if (modal.classList.contains('active')) {
+                    const iframe = document.getElementById('app-iframe');
+                    const modalContent = document.querySelector('.app-modal-content');
+                    const exitBtn = document.getElementById('fullscreen-exit-btn');
+                    modalContent.classList.remove('fullscreen');
+                    exitBtn.classList.remove('visible');
+                    modal.classList.remove('active');
+                    iframe.src = '';
+                    document.body.style.overflow = '';
+                }
+            }
+        });
 
         function toggleFullscreen() {
             const modalContent = document.querySelector('.app-modal-content');
