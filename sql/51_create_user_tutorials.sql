@@ -1,7 +1,10 @@
 -- Table to track which tutorials users have watched
 -- Used to avoid showing tutorials repeatedly
 
-CREATE TABLE IF NOT EXISTS user_tutorials (
+-- Drop existing table if it exists (in case of schema changes)
+DROP TABLE IF EXISTS user_tutorials CASCADE;
+
+CREATE TABLE user_tutorials (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     tutorial_key VARCHAR(100) NOT NULL,
