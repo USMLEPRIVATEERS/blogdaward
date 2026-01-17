@@ -1777,41 +1777,82 @@
                 nodes: {
                     shape: 'dot',
                     font: {
-                        size: 11,
-                        color: '#1e293b',
-                        face: 'Inter, sans-serif',
-                        vadjust: 35, // Positive value = label BELOW node
-                        multi: true,
-                        background: 'white',
-                        strokeWidth: 2,
-                        strokeColor: 'white'
+                        size: 12,
+                        color: '#334155',
+                        face: 'Inter, -apple-system, sans-serif',
+                        vadjust: 8,
+                        multi: 'html',
+                        bold: {
+                            color: '#0f172a',
+                            size: 13,
+                            face: 'Inter, -apple-system, sans-serif',
+                            mod: 'bold'
+                        },
+                        ital: {
+                            color: '#64748b',
+                            size: 10,
+                            face: 'Inter, -apple-system, sans-serif'
+                        },
+                        mono: {
+                            color: '#0284c7',
+                            size: 9,
+                            face: 'monospace'
+                        }
                     },
                     borderWidth: 3,
-                    shadow: true
+                    shadow: {
+                        enabled: true,
+                        color: 'rgba(0,0,0,0.15)',
+                        size: 8,
+                        x: 0,
+                        y: 3
+                    },
+                    scaling: {
+                        min: 18,
+                        max: 40
+                    }
                 },
                 edges: {
-                    color: { color: '#94a3b8', highlight: '#0ea5e9', hover: '#0ea5e9' },
+                    color: {
+                        color: '#cbd5e1',
+                        highlight: '#0ea5e9',
+                        hover: '#0ea5e9',
+                        opacity: 0.8
+                    },
                     width: 2,
-                    smooth: { type: 'continuous' }
+                    smooth: {
+                        type: 'continuous',
+                        roundness: 0.5
+                    },
+                    shadow: {
+                        enabled: true,
+                        color: 'rgba(0,0,0,0.1)',
+                        size: 5,
+                        x: 0,
+                        y: 2
+                    }
                 },
                 physics: {
                     stabilization: {
                         enabled: true,
-                        iterations: 150,
+                        iterations: 200,
                         fit: true
                     },
                     barnesHut: {
-                        gravitationalConstant: -4000,
-                        centralGravity: 0.4,
-                        springLength: 180, // More space for labels
-                        springConstant: 0.03
+                        gravitationalConstant: -5000,
+                        centralGravity: 0.35,
+                        springLength: 200,
+                        springConstant: 0.025,
+                        damping: 0.15
                     }
                 },
                 interaction: {
                     hover: true,
-                    tooltipDelay: 200,
+                    tooltipDelay: 100,
                     zoomView: true,
-                    dragView: true
+                    dragView: true,
+                    hideEdgesOnDrag: false,
+                    hideEdgesOnZoom: false
                 }
             };
 
@@ -1821,7 +1862,7 @@
             network.on('stabilized', () => {
                 network.fit({
                     animation: {
-                        duration: 300,
+                        duration: 400,
                         easingFunction: 'easeInOutQuad'
                     }
                 });
@@ -1851,10 +1892,17 @@
                 return `${parts[0]} ${parts[parts.length - 1]}`;
             }
 
+            // Helper to abbreviate text
+            function abbreviate(text, maxLen = 20) {
+                if (!text) return '';
+                if (text.length <= maxLen) return text;
+                return text.substring(0, maxLen - 2) + '..';
+            }
+
             // Helper to build tooltip for contacts
             function buildContactTooltip(contact) {
-                let lines = [contact.name];
-                if (contact.position?.name) lines.push(`📋 ${contact.position.name}`);
+                let lines = [`👤 ${contact.name}`];
+                if (contact.position?.name) lines.push(`💼 ${contact.position.name}`);
                 if (contact.specialty?.name) lines.push(`🏥 ${contact.specialty.name}`);
                 if (contact.institution) lines.push(`🏛️ ${contact.institution}`);
                 if (contact.state?.name) {
@@ -1863,8 +1911,10 @@
                         : contact.state.name;
                     lines.push(`📍 ${location}`);
                 }
+                if (contact.email) lines.push(`✉️ ${contact.email}`);
                 const connectionCount = allConnections.filter(c => c.contact_id === contact.id).length;
-                if (connectionCount > 0) lines.push(`👥 ${connectionCount} conexão(ões)`);
+                if (connectionCount > 0) lines.push(`🔗 ${connectionCount} conexão(ões)`);
+                lines.push(`\n💡 Clique para ver detalhes`);
                 return lines.join('\n');
             }
 
@@ -1873,25 +1923,44 @@
                 // Count connections for this contact to determine node size
                 const connectionCount = allConnections.filter(c => c.contact_id === contact.id).length;
 
-                // Build compact label with first+last name and position
-                let label = getShortName(contact.name);
+                // Build elegant multi-line label
+                // Format: <b>Name</b> + <i>details</i>
+                let labelLines = [];
+
+                // Name (bold) - first + last
+                const shortName = getShortName(contact.name);
+                labelLines.push(`<b>${shortName}</b>`);
+
+                // Position or specialty (italic, smaller)
                 if (contact.position?.name) {
-                    // Abbreviate common positions
                     const posAbbrev = contact.position.name
                         .replace('Program Director', 'PD')
-                        .replace('Attending', 'Att.')
-                        .replace('Resident', 'Res.')
-                        .replace('Fellow', 'Fel.')
-                        .replace('Professor', 'Prof.');
-                    label += `\n${posAbbrev}`;
+                        .replace('Attending Physician', 'Attending')
+                        .replace('Research Coordinator', 'Research Coord.');
+                    labelLines.push(`<i>${abbreviate(posAbbrev, 18)}</i>`);
+                } else if (contact.specialty?.name) {
+                    labelLines.push(`<i>${abbreviate(contact.specialty.name, 18)}</i>`);
                 }
+
+                // Institution (mono/code style, even smaller)
+                if (contact.institution) {
+                    labelLines.push(`<code>${abbreviate(contact.institution, 16)}</code>`);
+                }
+
+                const label = labelLines.join('\n');
 
                 nodes.push({
                     id: `contact-${contact.id}`,
                     label: label,
                     title: buildContactTooltip(contact),
-                    color: { background: '#22c55e', border: '#16a34a' },
-                    size: Math.max(20, 20 + connectionCount * 5) // Bigger nodes have more connections
+                    color: {
+                        background: '#22c55e',
+                        border: '#15803d',
+                        highlight: { background: '#4ade80', border: '#16a34a' },
+                        hover: { background: '#4ade80', border: '#16a34a' }
+                    },
+                    size: Math.max(22, 22 + connectionCount * 6),
+                    borderWidth: 3
                 });
 
                 // Add connections
@@ -1901,20 +1970,39 @@
                     if (!addedUsers.has(conn.user_id)) {
                         addedUsers.add(conn.user_id);
                         const userName = getShortName(conn.user?.full_name);
+
+                        // Member label with formatting
+                        const memberLabel = `<b>${userName}</b>\n<i>Ward Academy</i>`;
+
                         nodes.push({
                             id: `user-${conn.user_id}`,
-                            label: userName,
-                            title: `${conn.user?.full_name || 'Membro'}\n🎓 Membro Ward Academy`,
-                            color: { background: '#0ea5e9', border: '#0284c7' },
-                            size: 16
+                            label: memberLabel,
+                            title: `👤 ${conn.user?.full_name || 'Membro'}\n🎓 Membro Ward Academy\n\n💡 Clique no contato verde para detalhes`,
+                            color: {
+                                background: '#0ea5e9',
+                                border: '#0369a1',
+                                highlight: { background: '#38bdf8', border: '#0284c7' },
+                                hover: { background: '#38bdf8', border: '#0284c7' }
+                            },
+                            size: 18,
+                            borderWidth: 2
                         });
                     }
 
-                    // Add edge
+                    // Add edge with connection type styling
+                    const connType = conn.connection_type || 'other';
+                    let edgeColor = '#cbd5e1';
+                    if (connType === 'personal') edgeColor = '#22c55e';
+                    else if (connType === 'email') edgeColor = '#3b82f6';
+                    else if (connType === 'phone') edgeColor = '#f59e0b';
+                    else if (connType === 'knows_someone') edgeColor = '#a855f7';
+
                     edges.push({
                         from: `user-${conn.user_id}`,
                         to: `contact-${contact.id}`,
-                        title: getConnectionLabel(conn.connection_type)
+                        title: `🔗 ${getConnectionLabel(conn.connection_type)}`,
+                        color: { color: edgeColor, opacity: 0.7 },
+                        width: connType === 'personal' ? 3 : 2
                     });
                 });
             });
