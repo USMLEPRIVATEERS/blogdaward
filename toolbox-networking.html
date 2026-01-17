@@ -1767,27 +1767,46 @@
                 nodes: {
                     shape: 'dot',
                     font: { size: 12, color: '#1e293b' },
-                    borderWidth: 2
+                    borderWidth: 2,
+                    shadow: true
                 },
                 edges: {
-                    color: { color: '#cbd5e1', highlight: '#0ea5e9' },
-                    width: 1.5,
+                    color: { color: '#94a3b8', highlight: '#0ea5e9', hover: '#0ea5e9' },
+                    width: 2,
                     smooth: { type: 'continuous' }
                 },
                 physics: {
-                    stabilization: { iterations: 100 },
+                    stabilization: {
+                        enabled: true,
+                        iterations: 150,
+                        fit: true
+                    },
                     barnesHut: {
-                        gravitationalConstant: -2000,
-                        springLength: 150
+                        gravitationalConstant: -3000,
+                        centralGravity: 0.5,
+                        springLength: 120,
+                        springConstant: 0.04
                     }
                 },
                 interaction: {
                     hover: true,
-                    tooltipDelay: 200
+                    tooltipDelay: 200,
+                    zoomView: true,
+                    dragView: true
                 }
             };
 
             network = new vis.Network(container, { nodes: [], edges: [] }, options);
+
+            // Auto-fit after stabilization
+            network.on('stabilized', () => {
+                network.fit({
+                    animation: {
+                        duration: 300,
+                        easingFunction: 'easeInOutQuad'
+                    }
+                });
+            });
 
             network.on('click', (params) => {
                 if (params.nodes.length > 0) {
@@ -1807,12 +1826,15 @@
 
             // Add contact nodes
             contacts.forEach(contact => {
+                // Count connections for this contact to determine node size
+                const connectionCount = allConnections.filter(c => c.contact_id === contact.id).length;
+
                 nodes.push({
                     id: `contact-${contact.id}`,
                     label: contact.name.split(' ')[0],
                     title: `${contact.name}\n${contact.position?.name || ''}\n${contact.institution || ''}`,
                     color: { background: '#22c55e', border: '#16a34a' },
-                    size: 15
+                    size: Math.max(15, 15 + connectionCount * 3) // Bigger nodes have more connections
                 });
 
                 // Add connections
@@ -1840,6 +1862,19 @@
             });
 
             network.setData({ nodes, edges });
+
+            // Auto-fit to show all nodes after data loads
+            if (nodes.length > 0) {
+                // Wait for physics stabilization then fit
+                network.once('stabilizationIterationsDone', () => {
+                    network.fit({
+                        animation: {
+                            duration: 500,
+                            easingFunction: 'easeInOutQuad'
+                        }
+                    });
+                });
+            }
         }
 
         function resetNetworkView() {
