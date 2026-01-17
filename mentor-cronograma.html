@@ -880,10 +880,19 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
 
         function formatDateForExport(dateStr) {
             if (!dateStr) return '';
+            // Handle ISO format (2026-02-14T00:00:00.000Z) by extracting just the date part
+            let datePart = String(dateStr);
+            if (datePart.includes('T')) {
+                datePart = datePart.split('T')[0];
+            }
             // Parse YYYY-MM-DD directly without Date object to avoid timezone issues
-            const parts = dateStr.split('-');
+            const parts = datePart.split('-');
             if (parts.length !== 3) return dateStr;
-            return `${parts[2]}/${parts[1]}/${parts[0]}`; // DD/MM/YYYY
+            // Clean any extra characters from the day part
+            const day = parts[2].replace(/\D/g, '').padStart(2, '0');
+            const month = parts[1].padStart(2, '0');
+            const year = parts[0];
+            return `${day}/${month}/${year}`; // DD/MM/YYYY
         }
 
         // ============== SCHEDULE GENERATOR ==============
@@ -1135,6 +1144,15 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
                 container.innerHTML = '<p class="placeholder-text" style="color: #64748b; font-size: 0.85rem;">Nenhum período de pausa</p>';
                 return;
             }
+
+            // Debug: mostrar valores originais das datas no console
+            console.log('🔍 DEBUG Break Periods:', genBreaks.map(b => ({
+                name: b.name,
+                start_raw: b.start,
+                end_raw: b.end,
+                start_formatted: formatDateForExport(b.start),
+                end_formatted: formatDateForExport(b.end)
+            })));
 
             container.innerHTML = genBreaks.map((b, i) => `
                 <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; font-size: 0.8rem;">
