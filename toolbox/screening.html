@@ -2071,6 +2071,7 @@
         function findDuplicatesByDOI(studies) {
             const doiMap = new Map();
             const duplicates = [];
+            const numFilesLoaded = fileContents.length || 1;
 
             studies.forEach((study, index) => {
                 const normalizedDoi = normalizeDOI(study.doi);
@@ -2084,19 +2085,54 @@
 
             doiMap.forEach((group, doi) => {
                 if (group.length > 1) {
-                    duplicates.push({
-                        doi: doi,
-                        items: group
-                    });
+                    // Dupla checagem: se grupo tem mais itens que arquivos carregados,
+                    // verificar ano e título para separar possíveis artigos diferentes
+                    if (group.length > numFilesLoaded) {
+                        const subgroups = applyDoubleCheckDOI(group);
+                        subgroups.forEach(subgroup => {
+                            if (subgroup.length > 1) {
+                                duplicates.push({
+                                    doi: doi,
+                                    items: subgroup,
+                                    doubleChecked: true
+                                });
+                            }
+                        });
+                    } else {
+                        duplicates.push({
+                            doi: doi,
+                            items: group
+                        });
+                    }
                 }
             });
 
             return duplicates;
         }
 
+        // Dupla checagem para grupos de DOI suspeitos
+        // Agrupa por ano + título normalizado
+        function applyDoubleCheckDOI(items) {
+            const subgroupMap = new Map();
+
+            items.forEach(item => {
+                const year = (item.year || '').trim();
+                const normalizedTitle = normalizeTitle(item.title);
+                const key = `${year}|||${normalizedTitle}`;
+
+                if (!subgroupMap.has(key)) {
+                    subgroupMap.set(key, []);
+                }
+                subgroupMap.get(key).push(item);
+            });
+
+            return Array.from(subgroupMap.values());
+        }
+
         function findDuplicatesByTitle(studies) {
             const titleMap = new Map();
             const duplicates = [];
+            const numFilesLoaded = fileContents.length || 1;
 
             studies.forEach((study, index) => {
                 const normalizedTitle = normalizeTitle(study.title);
@@ -2110,14 +2146,68 @@
 
             titleMap.forEach((group, title) => {
                 if (group.length > 1) {
-                    duplicates.push({
-                        normalizedTitle: title,
-                        items: group
-                    });
+                    // Dupla checagem: se grupo tem mais itens que arquivos carregados,
+                    // verificar ano e sobrenome do primeiro autor para separar possíveis artigos diferentes
+                    if (group.length > numFilesLoaded) {
+                        const subgroups = applyDoubleCheckTitle(group);
+                        subgroups.forEach(subgroup => {
+                            if (subgroup.length > 1) {
+                                duplicates.push({
+                                    normalizedTitle: title,
+                                    items: subgroup,
+                                    doubleChecked: true
+                                });
+                            }
+                        });
+                    } else {
+                        duplicates.push({
+                            normalizedTitle: title,
+                            items: group
+                        });
+                    }
                 }
             });
 
             return duplicates;
+        }
+
+        // Extrai o sobrenome do primeiro autor
+        function getFirstAuthorSurname(authors) {
+            if (!authors || (Array.isArray(authors) && authors.length === 0)) return '';
+
+            let firstAuthor = Array.isArray(authors) ? authors[0] : authors;
+            if (!firstAuthor) return '';
+
+            // Formato "Sobrenome, Nome" ou "Sobrenome N" ou "Nome Sobrenome"
+            firstAuthor = firstAuthor.trim();
+
+            // Se tem vírgula, pegar antes da vírgula
+            if (firstAuthor.includes(',')) {
+                return firstAuthor.split(',')[0].trim().toLowerCase();
+            }
+
+            // Se tem espaço, pegar a primeira palavra (geralmente sobrenome em formato RIS)
+            const parts = firstAuthor.split(/\s+/);
+            return parts[0].trim().toLowerCase();
+        }
+
+        // Dupla checagem para grupos de título suspeitos
+        // Agrupa por ano + sobrenome do primeiro autor
+        function applyDoubleCheckTitle(items) {
+            const subgroupMap = new Map();
+
+            items.forEach(item => {
+                const year = (item.year || '').trim();
+                const firstAuthorSurname = getFirstAuthorSurname(item.authors);
+                const key = `${year}|||${firstAuthorSurname}`;
+
+                if (!subgroupMap.has(key)) {
+                    subgroupMap.set(key, []);
+                }
+                subgroupMap.get(key).push(item);
+            });
+
+            return Array.from(subgroupMap.values());
         }
 
         // UI Functions for loading
@@ -6444,9 +6534,12 @@ HERE THE TABLE:
                 groupDiv.className = 'duplicate-card';
                 groupDiv.setAttribute('data-group-index', groupIndex);
 
+                const doubleCheckBadge = group.doubleChecked ?
+                    `<span class="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full" title="Este grupo passou pela dupla checagem (ano + título)">✓ Verificado</span>` : '';
+
                 let html = `
                     <div class="flex justify-between items-center mb-3">
-                        <h3 class="font-bold text-lg">Grupo ${groupIndex + 1} - DOI: ${group.doi}</h3>
+                        <h3 class="font-bold text-lg">Grupo ${groupIndex + 1} - DOI: ${group.doi}${doubleCheckBadge}</h3>
                         <div class="flex gap-2">
                             <button onclick="removeDuplicatesFromGroup(${groupIndex}, 'doi')"
                                 class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">
@@ -6479,11 +6572,18 @@ HERE THE TABLE:
                                     <p class="text-xs text-gray-600">Ano: ${yearDisplay}</p>
                                     ${journalDisplay ? `<p class="text-xs text-gray-600">Revista: ${journalDisplay}</p>` : ''}
                                 </div>
-                                <div class="ml-4">
-                                    <input type="radio" name="doi-group-${groupIndex}" value="${itemIndex}"
-                                        ${itemIndex === 0 ? 'checked' : ''}
-                                        onchange="selectDuplicate(${groupIndex}, ${itemIndex}, 'doi')">
-                                    <label class="text-xs ml-1">Manter este</label>
+                                <div class="ml-4 flex flex-col gap-1 items-end">
+                                    <div>
+                                        <input type="radio" name="doi-group-${groupIndex}" value="${itemIndex}"
+                                            ${itemIndex === 0 ? 'checked' : ''}
+                                            onchange="selectDuplicate(${groupIndex}, ${itemIndex}, 'doi')">
+                                        <label class="text-xs ml-1">Manter este</label>
+                                    </div>
+                                    <button onclick="removeFromDuplicateGroup(${groupIndex}, ${itemIndex}, 'doi')"
+                                        class="text-xs text-orange-600 hover:text-orange-800 hover:underline"
+                                        title="Remover este estudo do grupo de duplicados">
+                                        ⛔ Não é duplicado
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -6596,6 +6696,72 @@ HERE THE TABLE:
             }
         }
 
+        // Remove um estudo individual de um grupo de duplicados
+        function removeFromDuplicateGroup(groupIndex, itemIndex, type) {
+            const duplicates = type === 'doi' ? doiDuplicates : titleDuplicates;
+            const group = duplicates[groupIndex];
+
+            if (!group || !group.items || group.items.length <= 1) {
+                showToast('Não é possível remover - o grupo precisa ter pelo menos 2 itens.', 'error');
+                return;
+            }
+
+            // Remove o item do grupo
+            const removedItem = group.items.splice(itemIndex, 1)[0];
+
+            // Se após a remoção o grupo tiver apenas 1 item, remover o grupo inteiro
+            if (group.items.length === 1) {
+                // Marcar o grupo como "mantido" já que não é mais um grupo de duplicados
+                group._kept = true;
+
+                showToast(`Estudo removido do grupo. O grupo agora tem apenas 1 item e será mantido automaticamente.`, 'info');
+
+                // Remover o card visualmente
+                const listDiv = type === 'doi' ? document.getElementById('doiDuplicatesList') : document.getElementById('titleDuplicatesList');
+                const card = listDiv.querySelector(`[data-group-index="${groupIndex}"]`);
+
+                if (card) {
+                    card.style.transition = 'opacity 0.3s, transform 0.3s';
+                    card.style.opacity = '0';
+                    card.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        card.remove();
+
+                        // Atualizar contador
+                        const keptCount = duplicates.filter(g => g._kept).length;
+                        const remainingCount = duplicates.length - keptCount;
+
+                        if (type === 'doi') {
+                            document.getElementById('doiDuplicateCount').textContent = remainingCount;
+                        } else {
+                            document.getElementById('titleDuplicateCount').textContent = remainingCount;
+                        }
+
+                        // Se não há mais grupos, prosseguir
+                        if (remainingCount === 0) {
+                            if (type === 'doi') {
+                                closeDoiDeduplicationModal();
+                                proceedToTitleDeduplication();
+                            } else {
+                                closeTitleDeduplicationModal();
+                                finishDeduplication();
+                            }
+                        }
+                    }, 300);
+                }
+            } else {
+                // Re-renderizar o grupo com os itens restantes
+                showToast(`Estudo removido do grupo de duplicados.`, 'success');
+
+                // Re-renderizar o modal para refletir a mudança
+                if (type === 'doi') {
+                    showDoiDeduplicationModal();
+                } else {
+                    showTitleDeduplicationModal();
+                }
+            }
+        }
+
         function keepAllDoiDuplicates() {
             closeDoiDeduplicationModal();
             proceedToTitleDeduplication();
@@ -6658,9 +6824,12 @@ HERE THE TABLE:
                 groupDiv.className = 'duplicate-card';
                 groupDiv.setAttribute('data-group-index', groupIndex);
 
+                const doubleCheckBadge = group.doubleChecked ?
+                    `<span class="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full" title="Este grupo passou pela dupla checagem (ano + autor)">✓ Verificado</span>` : '';
+
                 let html = `
                     <div class="flex justify-between items-center mb-3">
-                        <h3 class="font-bold text-lg">Grupo ${groupIndex + 1}</h3>
+                        <h3 class="font-bold text-lg">Grupo ${groupIndex + 1}${doubleCheckBadge}</h3>
                         <div class="flex gap-2">
                             <button onclick="removeDuplicatesFromGroup(${groupIndex}, 'title')"
                                 class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">
@@ -6695,11 +6864,18 @@ HERE THE TABLE:
                                     <p class="text-xs text-gray-600">Ano: ${yearDisplay}</p>
                                     ${journalDisplay ? `<p class="text-xs text-gray-600">Revista: ${journalDisplay}</p>` : ''}
                                 </div>
-                                <div class="ml-4">
-                                    <input type="radio" name="title-group-${groupIndex}" value="${itemIndex}"
-                                        ${itemIndex === 0 ? 'checked' : ''}
-                                        onchange="selectDuplicate(${groupIndex}, ${itemIndex}, 'title')">
-                                    <label class="text-xs ml-1">Manter este</label>
+                                <div class="ml-4 flex flex-col gap-1 items-end">
+                                    <div>
+                                        <input type="radio" name="title-group-${groupIndex}" value="${itemIndex}"
+                                            ${itemIndex === 0 ? 'checked' : ''}
+                                            onchange="selectDuplicate(${groupIndex}, ${itemIndex}, 'title')">
+                                        <label class="text-xs ml-1">Manter este</label>
+                                    </div>
+                                    <button onclick="removeFromDuplicateGroup(${groupIndex}, ${itemIndex}, 'title')"
+                                        class="text-xs text-orange-600 hover:text-orange-800 hover:underline"
+                                        title="Remover este estudo do grupo de duplicados">
+                                        ⛔ Não é duplicado
+                                    </button>
                                 </div>
                             </div>
                         </div>
