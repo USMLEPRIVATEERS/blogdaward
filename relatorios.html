@@ -1495,6 +1495,20 @@
             renderReports();
         }
 
+        // Helper para formatar data sem problemas de timezone
+        function formatDateBR(dateStr) {
+            if (!dateStr) return '-';
+            let datePart = String(dateStr);
+            if (datePart.includes('T')) {
+                datePart = datePart.split('T')[0];
+            }
+            const parts = datePart.split('-');
+            if (parts.length === 3) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            return dateStr;
+        }
+
         function renderReports() {
             if (!selectedStudent) return;
 
@@ -1506,6 +1520,13 @@
                     return mentorName.includes(currentMentorFilter);
                 });
             }
+
+            // Ordenar por data mais recente primeiro
+            studentReports.sort((a, b) => {
+                const dateA = a.call_date || '';
+                const dateB = b.call_date || '';
+                return dateB.localeCompare(dateA); // Descending order
+            });
 
             const container = document.getElementById('reports-grid');
 
@@ -1521,8 +1542,7 @@
             }
 
             container.innerHTML = studentReports.map(r => {
-                const date = new Date(r.call_date + 'T12:00:00');
-                const formattedDate = date.toLocaleDateString('pt-BR');
+                const formattedDate = formatDateBR(r.call_date);
                 const mentorName = r.mentor?.full_name || 'Mentor';
                 const preview = stripHtml(r.report_text).substring(0, 150);
 
