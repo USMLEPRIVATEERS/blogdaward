@@ -434,6 +434,7 @@
             transition: all 0.3s ease;
             min-height: 0; /* Allow shrinking in grid */
             overflow: hidden;
+            position: relative;
         }
 
         .network-panel.fullscreen {
@@ -468,6 +469,46 @@
         #network-graph {
             flex: 1;
             min-height: 0; /* Allow shrinking */
+            position: relative;
+        }
+
+        /* Zoom Controls */
+        .zoom-controls {
+            position: absolute;
+            bottom: 1rem;
+            right: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            z-index: 10;
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            border: none;
+            background: white;
+            color: #475569;
+            font-size: 1.25rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .zoom-btn:hover {
+            background: #f0f9ff;
+            color: #0284c7;
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.25);
+        }
+
+        .zoom-btn:active {
+            transform: scale(0.95);
         }
 
         .network-legend {
@@ -1092,23 +1133,25 @@
             <div class="network-header">
                 <h3>🌐 Rede de Conexões</h3>
                 <div class="network-header-actions">
-                    <button class="btn btn-sm btn-outline" onclick="resetNetworkView()">↺ Reset</button>
+                    <button class="btn btn-sm btn-outline" onclick="resetNetworkView()" title="Centralizar">↺</button>
                     <button class="btn btn-sm btn-outline" onclick="toggleNetworkFullscreen()" id="network-fullscreen-btn" title="Maximizar">⛶</button>
                 </div>
             </div>
             <div id="network-graph"></div>
+            <!-- Zoom Controls -->
+            <div class="zoom-controls">
+                <button class="zoom-btn" onclick="zoomIn()" title="Zoom In">+</button>
+                <button class="zoom-btn" onclick="zoomOut()" title="Zoom Out">−</button>
+                <button class="zoom-btn" onclick="resetNetworkView()" title="Fit">⊙</button>
+            </div>
             <div class="network-legend">
                 <div class="legend-item">
-                    <div class="legend-dot" style="background: #0ea5e9;"></div>
-                    <span>Membros</span>
+                    <div class="legend-dot" style="background: #3b82f6;"></div>
+                    <span>Membros Ward</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-dot" style="background: #22c55e;"></div>
                     <span>Contatos</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-dot" style="background: #f59e0b;"></div>
-                    <span>Selecionado</span>
                 </div>
             </div>
         </div>
@@ -1775,42 +1818,87 @@
             const container = document.getElementById('network-graph');
             const options = {
                 nodes: {
-                    shape: 'box',
-                    margin: 10,
+                    shape: 'dot',
+                    size: 28,
                     font: {
-                        size: 14,
-                        face: 'Inter, sans-serif',
-                        multi: 'md',
-                        align: 'center'
+                        size: 12,
+                        face: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                        color: '#475569',
+                        strokeWidth: 4,
+                        strokeColor: 'rgba(255, 255, 255, 0.95)',
+                        vadjust: 45
                     },
-                    borderWidth: 2,
-                    borderWidthSelected: 3,
-                    shadow: true
+                    borderWidth: 3,
+                    borderWidthSelected: 4,
+                    shadow: {
+                        enabled: true,
+                        color: 'rgba(0, 0, 0, 0.15)',
+                        size: 8,
+                        x: 0,
+                        y: 3
+                    },
+                    chosen: {
+                        node: function(values, id, selected, hovering) {
+                            if (hovering || selected) {
+                                values.size = 32;
+                                values.shadowSize = 12;
+                            }
+                        }
+                    }
                 },
                 edges: {
-                    color: { color: '#94a3b8', highlight: '#0ea5e9' },
+                    color: {
+                        color: '#cbd5e1',
+                        highlight: '#0ea5e9',
+                        hover: '#94a3b8'
+                    },
                     width: 2,
-                    smooth: { type: 'continuous' },
-                    shadow: true
+                    smooth: {
+                        type: 'curvedCW',
+                        roundness: 0.15
+                    },
+                    shadow: {
+                        enabled: true,
+                        color: 'rgba(0, 0, 0, 0.08)',
+                        size: 3
+                    },
+                    hoverWidth: 0.5
                 },
                 physics: {
-                    stabilization: { iterations: 150 },
+                    stabilization: {
+                        iterations: 200,
+                        updateInterval: 25
+                    },
                     barnesHut: {
-                        gravitationalConstant: -3000,
-                        centralGravity: 0.3,
-                        springLength: 150
+                        gravitationalConstant: -4000,
+                        centralGravity: 0.4,
+                        springLength: 180,
+                        springConstant: 0.04,
+                        damping: 0.09
                     }
                 },
                 interaction: {
                     hover: true,
-                    tooltipDelay: 100
+                    tooltipDelay: 150,
+                    zoomView: true,
+                    dragView: true,
+                    navigationButtons: false,
+                    keyboard: {
+                        enabled: true,
+                        speed: { x: 10, y: 10, zoom: 0.02 }
+                    }
                 }
             };
 
             network = new vis.Network(container, { nodes: [], edges: [] }, options);
 
             network.on('stabilized', () => {
-                network.fit({ animation: { duration: 300 } });
+                network.fit({
+                    animation: {
+                        duration: 400,
+                        easingFunction: 'easeOutQuad'
+                    }
+                });
             });
 
             network.on('click', (params) => {
@@ -1829,88 +1917,111 @@
             const edges = [];
             const addedUsers = new Set();
 
-            function getShortName(fullName) {
+            // Elegant name formatting
+            function formatName(fullName) {
                 if (!fullName) return '?';
-                const parts = fullName.trim().split(' ');
+                const parts = fullName.trim().split(' ').filter(p => p.length > 0);
+                if (parts.length === 0) return '?';
                 if (parts.length === 1) return parts[0];
-                return parts[0] + ' ' + parts[parts.length - 1];
+                // First name + Last name initial
+                return parts[0] + ' ' + parts[parts.length - 1].charAt(0) + '.';
             }
 
-            function truncate(str, len = 20) {
+            function shortText(str, len = 15) {
                 if (!str) return '';
                 return str.length > len ? str.slice(0, len - 1) + '…' : str;
             }
 
-            // Add contact nodes (green boxes)
+            // Contact nodes (green - external contacts)
             contacts.forEach(contact => {
-                const name = getShortName(contact.name);
-                let lines = [name];
+                const displayName = formatName(contact.name);
+                let subtitle = '';
 
-                // Add position if exists
+                // Create subtitle with position or specialty
                 if (contact.position?.name) {
-                    lines.push(truncate(contact.position.name, 18));
-                }
-                // Add specialty if exists
-                if (contact.specialty?.name) {
-                    lines.push(truncate(contact.specialty.name, 18));
-                }
-                // Add institution if exists
-                if (contact.institution) {
-                    lines.push(truncate(contact.institution, 18));
+                    subtitle = shortText(contact.position.name, 16);
+                } else if (contact.specialty?.name) {
+                    subtitle = shortText(contact.specialty.name, 16);
                 }
 
-                const label = lines.join('\n');
+                // Label with name on top
+                const label = subtitle ? `${displayName}\n${subtitle}` : displayName;
 
-                // Tooltip with full details
-                let tooltip = contact.name;
-                if (contact.position?.name) tooltip += '\n💼 ' + contact.position.name;
-                if (contact.specialty?.name) tooltip += '\n🏥 ' + contact.specialty.name;
-                if (contact.institution) tooltip += '\n🏛️ ' + contact.institution;
+                // Detailed tooltip
+                let tooltip = `👤 ${contact.name}`;
+                if (contact.position?.name) tooltip += `\n💼 ${contact.position.name}`;
+                if (contact.specialty?.name) tooltip += `\n🏥 ${contact.specialty.name}`;
+                if (contact.institution) tooltip += `\n🏛️ ${contact.institution}`;
                 if (contact.state?.name) {
-                    tooltip += '\n📍 ' + (contact.city?.name ? contact.city.name + ', ' : '') + contact.state.name;
+                    const location = contact.city?.name ? `${contact.city.name}, ${contact.state.name}` : contact.state.name;
+                    tooltip += `\n📍 ${location}`;
                 }
-                tooltip += '\n\nClique para detalhes';
+                tooltip += '\n\n🖱️ Clique para ver detalhes';
 
                 nodes.push({
                     id: `contact-${contact.id}`,
                     label: label,
                     title: tooltip,
-                    color: { background: '#dcfce7', border: '#22c55e' },
-                    font: { color: '#166534' }
+                    color: {
+                        background: '#22c55e',
+                        border: '#15803d',
+                        highlight: { background: '#16a34a', border: '#166534' },
+                        hover: { background: '#4ade80', border: '#22c55e' }
+                    },
+                    font: {
+                        color: '#166534',
+                        strokeColor: 'rgba(255, 255, 255, 0.95)',
+                        strokeWidth: 4
+                    },
+                    size: 26
                 });
 
-                // Add connections
+                // Add member connections
                 const connections = allConnections.filter(c => c.contact_id === contact.id);
                 connections.forEach(conn => {
                     if (!addedUsers.has(conn.user_id)) {
                         addedUsers.add(conn.user_id);
-                        const userName = getShortName(conn.user?.full_name);
+                        const memberName = formatName(conn.user?.full_name);
 
                         nodes.push({
                             id: `user-${conn.user_id}`,
-                            label: userName + '\nWard Academy',
-                            title: (conn.user?.full_name || 'Membro') + '\n🎓 Membro Ward Academy',
-                            color: { background: '#dbeafe', border: '#3b82f6' },
-                            font: { color: '#1e40af' }
+                            label: `${memberName}\nWard`,
+                            title: `🎓 ${conn.user?.full_name || 'Membro'}\n📚 Membro Ward Academy`,
+                            color: {
+                                background: '#3b82f6',
+                                border: '#1d4ed8',
+                                highlight: { background: '#2563eb', border: '#1e40af' },
+                                hover: { background: '#60a5fa', border: '#3b82f6' }
+                            },
+                            font: {
+                                color: '#1e40af',
+                                strokeColor: 'rgba(255, 255, 255, 0.95)',
+                                strokeWidth: 4
+                            },
+                            size: 24
                         });
                     }
 
                     edges.push({
                         from: `user-${conn.user_id}`,
                         to: `contact-${contact.id}`,
-                        title: getConnectionLabel(conn.connection_type)
+                        title: getConnectionLabel(conn.connection_type),
+                        color: {
+                            color: '#94a3b8',
+                            highlight: '#0ea5e9'
+                        }
                     });
                 });
             });
 
             network.setData({ nodes, edges });
 
-            // Auto-fit
+            // Smooth auto-fit after stabilization
             if (nodes.length > 0) {
                 network.once('stabilizationIterationsDone', () => {
                     network.fit({
                         animation: {
-                            duration: 500,
+                            duration: 600,
                             easingFunction: 'easeInOutQuad'
                         }
                     });
@@ -1918,8 +2029,33 @@
             }
         }
 
+        // Zoom functions
+        function zoomIn() {
+            if (!network) return;
+            const scale = network.getScale();
+            network.moveTo({
+                scale: scale * 1.3,
+                animation: { duration: 200, easingFunction: 'easeOutQuad' }
+            });
+        }
+
+        function zoomOut() {
+            if (!network) return;
+            const scale = network.getScale();
+            network.moveTo({
+                scale: scale / 1.3,
+                animation: { duration: 200, easingFunction: 'easeOutQuad' }
+            });
+        }
+
         function resetNetworkView() {
-            network.fit({ animation: true });
+            if (!network) return;
+            network.fit({
+                animation: {
+                    duration: 400,
+                    easingFunction: 'easeInOutQuad'
+                }
+            });
         }
 
         // ================================================
