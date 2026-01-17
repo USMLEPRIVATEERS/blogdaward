@@ -1775,97 +1775,42 @@
             const container = document.getElementById('network-graph');
             const options = {
                 nodes: {
-                    shape: 'dot',
+                    shape: 'box',
+                    margin: 10,
                     font: {
-                        size: 12,
-                        color: '#334155',
-                        face: 'Inter, -apple-system, sans-serif',
-                        vadjust: 8,
-                        multi: 'html',
-                        bold: {
-                            color: '#0f172a',
-                            size: 13,
-                            face: 'Inter, -apple-system, sans-serif',
-                            mod: 'bold'
-                        },
-                        ital: {
-                            color: '#64748b',
-                            size: 10,
-                            face: 'Inter, -apple-system, sans-serif'
-                        },
-                        mono: {
-                            color: '#0284c7',
-                            size: 9,
-                            face: 'monospace'
-                        }
+                        size: 14,
+                        face: 'Inter, sans-serif',
+                        multi: 'md',
+                        align: 'center'
                     },
-                    borderWidth: 3,
-                    shadow: {
-                        enabled: true,
-                        color: 'rgba(0,0,0,0.15)',
-                        size: 8,
-                        x: 0,
-                        y: 3
-                    },
-                    scaling: {
-                        min: 18,
-                        max: 40
-                    }
+                    borderWidth: 2,
+                    borderWidthSelected: 3,
+                    shadow: true
                 },
                 edges: {
-                    color: {
-                        color: '#cbd5e1',
-                        highlight: '#0ea5e9',
-                        hover: '#0ea5e9',
-                        opacity: 0.8
-                    },
+                    color: { color: '#94a3b8', highlight: '#0ea5e9' },
                     width: 2,
-                    smooth: {
-                        type: 'continuous',
-                        roundness: 0.5
-                    },
-                    shadow: {
-                        enabled: true,
-                        color: 'rgba(0,0,0,0.1)',
-                        size: 5,
-                        x: 0,
-                        y: 2
-                    }
+                    smooth: { type: 'continuous' },
+                    shadow: true
                 },
                 physics: {
-                    stabilization: {
-                        enabled: true,
-                        iterations: 200,
-                        fit: true
-                    },
+                    stabilization: { iterations: 150 },
                     barnesHut: {
-                        gravitationalConstant: -5000,
-                        centralGravity: 0.35,
-                        springLength: 200,
-                        springConstant: 0.025,
-                        damping: 0.15
+                        gravitationalConstant: -3000,
+                        centralGravity: 0.3,
+                        springLength: 150
                     }
                 },
                 interaction: {
                     hover: true,
-                    tooltipDelay: 100,
-                    zoomView: true,
-                    dragView: true,
-                    hideEdgesOnDrag: false,
-                    hideEdgesOnZoom: false
+                    tooltipDelay: 100
                 }
             };
 
             network = new vis.Network(container, { nodes: [], edges: [] }, options);
 
-            // Auto-fit after stabilization
             network.on('stabilized', () => {
-                network.fit({
-                    animation: {
-                        duration: 400,
-                        easingFunction: 'easeInOutQuad'
-                    }
-                });
+                network.fit({ animation: { duration: 300 } });
             });
 
             network.on('click', (params) => {
@@ -1884,134 +1829,84 @@
             const edges = [];
             const addedUsers = new Set();
 
-            // Helper to get first and last name
             function getShortName(fullName) {
                 if (!fullName) return '?';
                 const parts = fullName.trim().split(' ');
                 if (parts.length === 1) return parts[0];
-                return `${parts[0]} ${parts[parts.length - 1]}`;
+                return parts[0] + ' ' + parts[parts.length - 1];
             }
 
-            // Helper to abbreviate text
-            function abbreviate(text, maxLen = 20) {
-                if (!text) return '';
-                if (text.length <= maxLen) return text;
-                return text.substring(0, maxLen - 2) + '..';
+            function truncate(str, len = 20) {
+                if (!str) return '';
+                return str.length > len ? str.slice(0, len - 1) + '…' : str;
             }
 
-            // Helper to build tooltip for contacts
-            function buildContactTooltip(contact) {
-                let lines = [`👤 ${contact.name}`];
-                if (contact.position?.name) lines.push(`💼 ${contact.position.name}`);
-                if (contact.specialty?.name) lines.push(`🏥 ${contact.specialty.name}`);
-                if (contact.institution) lines.push(`🏛️ ${contact.institution}`);
-                if (contact.state?.name) {
-                    const location = contact.city?.name
-                        ? `${contact.city.name}, ${contact.state.name}`
-                        : contact.state.name;
-                    lines.push(`📍 ${location}`);
-                }
-                if (contact.email) lines.push(`✉️ ${contact.email}`);
-                const connectionCount = allConnections.filter(c => c.contact_id === contact.id).length;
-                if (connectionCount > 0) lines.push(`🔗 ${connectionCount} conexão(ões)`);
-                lines.push(`\n💡 Clique para ver detalhes`);
-                return lines.join('\n');
-            }
-
-            // Add contact nodes
+            // Add contact nodes (green boxes)
             contacts.forEach(contact => {
-                // Count connections for this contact to determine node size
-                const connectionCount = allConnections.filter(c => c.contact_id === contact.id).length;
+                const name = getShortName(contact.name);
+                let lines = [name];
 
-                // Build elegant multi-line label
-                // Format: <b>Name</b> + <i>details</i>
-                let labelLines = [];
-
-                // Name (bold) - first + last
-                const shortName = getShortName(contact.name);
-                labelLines.push(`<b>${shortName}</b>`);
-
-                // Position or specialty (italic, smaller)
+                // Add position if exists
                 if (contact.position?.name) {
-                    const posAbbrev = contact.position.name
-                        .replace('Program Director', 'PD')
-                        .replace('Attending Physician', 'Attending')
-                        .replace('Research Coordinator', 'Research Coord.');
-                    labelLines.push(`<i>${abbreviate(posAbbrev, 18)}</i>`);
-                } else if (contact.specialty?.name) {
-                    labelLines.push(`<i>${abbreviate(contact.specialty.name, 18)}</i>`);
+                    lines.push(truncate(contact.position.name, 18));
                 }
-
-                // Institution (mono/code style, even smaller)
+                // Add specialty if exists
+                if (contact.specialty?.name) {
+                    lines.push(truncate(contact.specialty.name, 18));
+                }
+                // Add institution if exists
                 if (contact.institution) {
-                    labelLines.push(`<code>${abbreviate(contact.institution, 16)}</code>`);
+                    lines.push(truncate(contact.institution, 18));
                 }
 
-                const label = labelLines.join('\n');
+                const label = lines.join('\n');
+
+                // Tooltip with full details
+                let tooltip = contact.name;
+                if (contact.position?.name) tooltip += '\n💼 ' + contact.position.name;
+                if (contact.specialty?.name) tooltip += '\n🏥 ' + contact.specialty.name;
+                if (contact.institution) tooltip += '\n🏛️ ' + contact.institution;
+                if (contact.state?.name) {
+                    tooltip += '\n📍 ' + (contact.city?.name ? contact.city.name + ', ' : '') + contact.state.name;
+                }
+                tooltip += '\n\nClique para detalhes';
 
                 nodes.push({
                     id: `contact-${contact.id}`,
                     label: label,
-                    title: buildContactTooltip(contact),
-                    color: {
-                        background: '#22c55e',
-                        border: '#15803d',
-                        highlight: { background: '#4ade80', border: '#16a34a' },
-                        hover: { background: '#4ade80', border: '#16a34a' }
-                    },
-                    size: Math.max(22, 22 + connectionCount * 6),
-                    borderWidth: 3
+                    title: tooltip,
+                    color: { background: '#dcfce7', border: '#22c55e' },
+                    font: { color: '#166534' }
                 });
 
                 // Add connections
                 const connections = allConnections.filter(c => c.contact_id === contact.id);
                 connections.forEach(conn => {
-                    // Add user node if not exists
                     if (!addedUsers.has(conn.user_id)) {
                         addedUsers.add(conn.user_id);
                         const userName = getShortName(conn.user?.full_name);
 
-                        // Member label with formatting
-                        const memberLabel = `<b>${userName}</b>\n<i>Ward Academy</i>`;
-
                         nodes.push({
                             id: `user-${conn.user_id}`,
-                            label: memberLabel,
-                            title: `👤 ${conn.user?.full_name || 'Membro'}\n🎓 Membro Ward Academy\n\n💡 Clique no contato verde para detalhes`,
-                            color: {
-                                background: '#0ea5e9',
-                                border: '#0369a1',
-                                highlight: { background: '#38bdf8', border: '#0284c7' },
-                                hover: { background: '#38bdf8', border: '#0284c7' }
-                            },
-                            size: 18,
-                            borderWidth: 2
+                            label: userName + '\nWard Academy',
+                            title: (conn.user?.full_name || 'Membro') + '\n🎓 Membro Ward Academy',
+                            color: { background: '#dbeafe', border: '#3b82f6' },
+                            font: { color: '#1e40af' }
                         });
                     }
-
-                    // Add edge with connection type styling
-                    const connType = conn.connection_type || 'other';
-                    let edgeColor = '#cbd5e1';
-                    if (connType === 'personal') edgeColor = '#22c55e';
-                    else if (connType === 'email') edgeColor = '#3b82f6';
-                    else if (connType === 'phone') edgeColor = '#f59e0b';
-                    else if (connType === 'knows_someone') edgeColor = '#a855f7';
 
                     edges.push({
                         from: `user-${conn.user_id}`,
                         to: `contact-${contact.id}`,
-                        title: `🔗 ${getConnectionLabel(conn.connection_type)}`,
-                        color: { color: edgeColor, opacity: 0.7 },
-                        width: connType === 'personal' ? 3 : 2
+                        title: getConnectionLabel(conn.connection_type)
                     });
                 });
             });
 
             network.setData({ nodes, edges });
 
-            // Auto-fit to show all nodes after data loads
+            // Auto-fit
             if (nodes.length > 0) {
-                // Wait for physics stabilization then fit
                 network.once('stabilizationIterationsDone', () => {
                     network.fit({
                         animation: {
