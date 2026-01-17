@@ -1351,6 +1351,42 @@
         </div>
     </div>
 
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-confirm-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                <h3 class="modal-title" style="color: white;">🗑️ Confirmar Exclusão</h3>
+                <button class="modal-close" onclick="closeModal('delete-confirm-modal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 1rem; color: #374151;">
+                    Tem certeza que deseja excluir este relatório? Esta ação não pode ser desfeita.
+                </p>
+                <p style="margin-bottom: 1rem; color: #6b7280; font-size: 0.9rem;">
+                    Digite <strong style="color: #dc2626;">excluir</strong> para confirmar:
+                </p>
+                <input
+                    type="text"
+                    id="delete-confirm-input"
+                    class="form-input"
+                    placeholder="Digite 'excluir' aqui..."
+                    autocomplete="off"
+                    style="margin-bottom: 1rem;"
+                    oninput="checkDeleteConfirmation()"
+                >
+                <p id="delete-confirm-error" style="color: #dc2626; font-size: 0.85rem; display: none; margin-bottom: 1rem;">
+                    ⚠️ Digite "excluir" corretamente para confirmar
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('delete-confirm-modal')">Cancelar</button>
+                <button id="delete-confirm-btn" class="btn btn-danger" onclick="confirmDeleteReport()" disabled style="opacity: 0.5; cursor: not-allowed;">
+                    🗑️ Excluir Relatório
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script src="js/app.js"></script>
@@ -1666,10 +1702,52 @@
             }
         }
 
-        async function deleteReport() {
+        // Open delete confirmation modal
+        function deleteReport() {
             if (!currentReportId) return;
 
-            if (!confirm('Tem certeza que deseja excluir este relatório?')) return;
+            // Reset the confirmation input
+            document.getElementById('delete-confirm-input').value = '';
+            document.getElementById('delete-confirm-error').style.display = 'none';
+            document.getElementById('delete-confirm-btn').disabled = true;
+            document.getElementById('delete-confirm-btn').style.opacity = '0.5';
+            document.getElementById('delete-confirm-btn').style.cursor = 'not-allowed';
+
+            openModal('delete-confirm-modal');
+        }
+
+        // Check if user typed "excluir" correctly
+        function checkDeleteConfirmation() {
+            const input = document.getElementById('delete-confirm-input');
+            const btn = document.getElementById('delete-confirm-btn');
+            const error = document.getElementById('delete-confirm-error');
+
+            if (input.value.toLowerCase().trim() === 'excluir') {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+                error.style.display = 'none';
+            } else {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+                if (input.value.length > 0) {
+                    error.style.display = 'block';
+                } else {
+                    error.style.display = 'none';
+                }
+            }
+        }
+
+        // Actually delete the report after confirmation
+        async function confirmDeleteReport() {
+            if (!currentReportId) return;
+
+            const input = document.getElementById('delete-confirm-input');
+            if (input.value.toLowerCase().trim() !== 'excluir') {
+                WardApp.showToast('Digite "excluir" para confirmar', 'warning');
+                return;
+            }
 
             try {
                 const { error } = await WardApp.db
@@ -1680,6 +1758,7 @@
                 if (error) throw error;
 
                 WardApp.showToast('Relatório excluído!', 'success');
+                closeModal('delete-confirm-modal');
                 closeModal('report-modal');
                 await loadAllReports();
                 renderReports();
