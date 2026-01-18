@@ -1488,11 +1488,33 @@
         let cities = [];
         let currentContactId = null;
         let network = null;
+        let isMentor = false;
+
+        // Abbreviate name for privacy (students only see abbreviated names)
+        function abbreviateName(fullName) {
+            if (!fullName) return '?';
+            const parts = fullName.trim().split(' ').filter(p => p.length > 0);
+            if (parts.length === 0) return '?';
+            if (parts.length === 1) return parts[0].charAt(0) + '.';
+            // First name initial + Last name initial: "John Smith" -> "J. S."
+            const firstInitial = parts[0].charAt(0);
+            const lastInitial = parts[parts.length - 1].charAt(0);
+            return `${firstInitial}. ${lastInitial}.`;
+        }
+
+        // Get display name based on user role (mentors see full name, students see abbreviated)
+        function getDisplayName(fullName) {
+            if (isMentor) return fullName;
+            return abbreviateName(fullName);
+        }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
+
+            // Check if user is mentor
+            isMentor = userData.role && userData.role.startsWith('mentor_');
 
             showLoading();
             initNetwork(); // Initialize network FIRST before loading contacts
@@ -1767,7 +1789,7 @@
                 return `
                     <div class="contact-card" onclick="openContactDetail(${contact.id})">
                         <div class="contact-card-header">
-                            <h3 class="contact-name">${escapeHtml(contact.name)}</h3>
+                            <h3 class="contact-name">${escapeHtml(getDisplayName(contact.name))}</h3>
                             ${contact.position ? `<span class="contact-position">${contact.position.name}</span>` : ''}
                         </div>
                         <div class="contact-info">
@@ -1950,7 +1972,8 @@
 
             // Contact nodes (green - external contacts)
             contacts.forEach(contact => {
-                const displayName = formatName(contact.name);
+                // For students, use abbreviated name; for mentors, use formatted name
+                const displayName = isMentor ? formatName(contact.name) : abbreviateName(contact.name);
                 let subtitle = '';
 
                 // Create subtitle with institution (priority) or specialty
@@ -1963,8 +1986,8 @@
                 // Label with name on top
                 const label = subtitle ? `${displayName}\n${subtitle}` : displayName;
 
-                // Detailed tooltip
-                let tooltip = `👤 ${contact.name}`;
+                // Detailed tooltip (also abbreviated for students)
+                let tooltip = `👤 ${getDisplayName(contact.name)}`;
                 if (contact.position?.name) tooltip += `\n💼 ${contact.position.name}`;
                 if (contact.specialty?.name) tooltip += `\n🏥 ${contact.specialty.name}`;
                 if (contact.institution) tooltip += `\n🏛️ ${contact.institution}`;
@@ -2083,8 +2106,8 @@
             const contact = allContacts.find(c => c.id === contactId);
             if (!contact) return;
 
-            // Fill detail info
-            document.getElementById('detail-name').textContent = contact.name;
+            // Fill detail info (students see abbreviated name, mentors see full name)
+            document.getElementById('detail-name').textContent = getDisplayName(contact.name);
             document.getElementById('detail-position').textContent = contact.position?.name || 'Não informado';
             document.getElementById('detail-specialty').textContent = contact.specialty?.name || '-';
             document.getElementById('detail-institution').textContent = contact.institution || '-';
@@ -2093,17 +2116,27 @@
                 : '-';
             document.getElementById('detail-date').textContent = new Date(contact.created_at).toLocaleDateString('pt-BR');
 
-            // Contact info
+            // Contact info (only visible to mentors for privacy)
             const contactInfo = document.getElementById('detail-contact-info');
             let infoHtml = '';
-            if (contact.email) {
-                infoHtml += `<div class="info-item"><div class="info-item-label">Email</div><div class="info-item-value">${contact.email}</div></div>`;
-            }
-            if (contact.phone) {
-                infoHtml += `<div class="info-item"><div class="info-item-label">Telefone</div><div class="info-item-value">${contact.phone}</div></div>`;
-            }
-            if (contact.linkedin_url) {
-                infoHtml += `<div class="info-item"><div class="info-item-label">LinkedIn</div><div class="info-item-value"><a href="${contact.linkedin_url}" target="_blank">Ver Perfil</a></div></div>`;
+            if (isMentor) {
+                if (contact.email) {
+                    infoHtml += `<div class="info-item"><div class="info-item-label">Email</div><div class="info-item-value">${contact.email}</div></div>`;
+                }
+                if (contact.phone) {
+                    infoHtml += `<div class="info-item"><div class="info-item-label">Telefone</div><div class="info-item-value">${contact.phone}</div></div>`;
+                }
+                if (contact.linkedin_url) {
+                    infoHtml += `<div class="info-item"><div class="info-item-label">LinkedIn</div><div class="info-item-value"><a href="${contact.linkedin_url}" target="_blank">Ver Perfil</a></div></div>`;
+                }
+            } else {
+                // For students, show a message to contact mentor for details
+                if (contact.email || contact.phone || contact.linkedin_url) {
+                    infoHtml = `<div style="padding: 0.75rem; background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 8px; font-size: 0.85rem; color: #92400e;">
+                        🔒 <strong>Informações de contato protegidas.</strong><br>
+                        <span style="font-size: 0.8rem;">Pergunte no grupo ou contate um mentor para obter os dados deste contato.</span>
+                    </div>`;
+                }
             }
             contactInfo.innerHTML = infoHtml ? `<div class="info-grid">${infoHtml}</div>` : '';
 
@@ -2323,7 +2356,7 @@
             const contact = allContacts.find(c => c.id === currentContactId);
             if (!contact) return;
 
-            document.getElementById('my-conn-contact-name').textContent = contact.name;
+            document.getElementById('my-conn-contact-name').textContent = getDisplayName(contact.name);
             document.getElementById('my-conn-description').value = '';
             document.getElementById('my-conn-strength').value = 3;
             // Uncheck all checkboxes and remove selected class
