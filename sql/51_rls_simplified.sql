@@ -145,7 +145,8 @@ DECLARE
         'study_diary', 'uworld_diary', 'uworld_system_performance',
         'study_stats_daily', 'landmarks', 'schedules', 'schedule_delays',
         'messages', 'notifications', 'research_projects', 'research_tasks',
-        'research_coauthors', 'research_notes', 'research_stages_completed'
+        'research_coauthors', 'research_notes', 'research_stages_completed',
+        'call_reports'
     ];
 BEGIN
     FOREACH tbl IN ARRAY tables
