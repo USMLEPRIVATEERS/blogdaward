@@ -1,6 +1,354 @@
 // UWorld Systems and Categories Data
 // This file contains all system categories for different USMLE/OET exams
 
+// ===== SYSTEM-SUBJECT DATA (NEW DEFAULT) =====
+const UWORLD_SYSTEMS_BY_SUBJECT = {
+    'step1': [
+        {
+            id: 'cardiovascular',
+            name: 'Cardiovascular System',
+            categories: [
+                { id: 'cardio_pathology', name: 'Pathology' },
+                { id: 'cardio_pathophysiology', name: 'Pathophysiology' },
+                { id: 'cardio_pharmacology', name: 'Pharmacology' },
+                { id: 'cardio_physiology', name: 'Physiology' },
+                { id: 'cardio_anatomy', name: 'Anatomy' },
+                { id: 'cardio_embryology', name: 'Embryology' },
+                { id: 'cardio_genetics', name: 'Genetics' },
+                { id: 'cardio_biochemistry', name: 'Biochemistry' },
+                { id: 'cardio_histology', name: 'Histology' },
+                { id: 'cardio_immunology', name: 'Immunology' },
+                { id: 'cardio_microbiology', name: 'Microbiology' }
+            ]
+        },
+        {
+            id: 'renal',
+            name: 'Renal, Urinary Systems & Electrolytes',
+            categories: [
+                { id: 'renal_pathology', name: 'Pathology' },
+                { id: 'renal_physiology', name: 'Physiology' },
+                { id: 'renal_pharmacology', name: 'Pharmacology' },
+                { id: 'renal_pathophysiology', name: 'Pathophysiology' },
+                { id: 'renal_embryology', name: 'Embryology' },
+                { id: 'renal_anatomy', name: 'Anatomy' },
+                { id: 'renal_histology', name: 'Histology' },
+                { id: 'renal_biochemistry', name: 'Biochemistry' },
+                { id: 'renal_immunology', name: 'Immunology' },
+                { id: 'renal_genetics', name: 'Genetics' }
+            ]
+        },
+        {
+            id: 'pulmonary',
+            name: 'Pulmonary & Critical Care',
+            categories: [
+                { id: 'pulm_pathophysiology', name: 'Pathophysiology' },
+                { id: 'pulm_pathology', name: 'Pathology' },
+                { id: 'pulm_microbiology', name: 'Microbiology' },
+                { id: 'pulm_physiology', name: 'Physiology' },
+                { id: 'pulm_pharmacology', name: 'Pharmacology' },
+                { id: 'pulm_anatomy', name: 'Anatomy' },
+                { id: 'pulm_immunology', name: 'Immunology' },
+                { id: 'pulm_biochemistry', name: 'Biochemistry' },
+                { id: 'pulm_embryology', name: 'Embryology' },
+                { id: 'pulm_histology', name: 'Histology' },
+                { id: 'pulm_genetics', name: 'Genetics' }
+            ]
+        },
+        {
+            id: 'gi',
+            name: 'Gastrointestinal & Nutrition',
+            categories: [
+                { id: 'gi_pathology', name: 'Pathology' },
+                { id: 'gi_pathophysiology', name: 'Pathophysiology' },
+                { id: 'gi_anatomy', name: 'Anatomy' },
+                { id: 'gi_pharmacology', name: 'Pharmacology' },
+                { id: 'gi_embryology', name: 'Embryology' },
+                { id: 'gi_microbiology', name: 'Microbiology' },
+                { id: 'gi_physiology', name: 'Physiology' },
+                { id: 'gi_biochemistry', name: 'Biochemistry' },
+                { id: 'gi_histology', name: 'Histology' },
+                { id: 'gi_behavioral', name: 'Behavioral science' },
+                { id: 'gi_genetics', name: 'Genetics' },
+                { id: 'gi_immunology', name: 'Immunology' }
+            ]
+        },
+        {
+            id: 'endocrine',
+            name: 'Endocrine, Diabetes & Metabolism',
+            categories: [
+                { id: 'endo_pathophysiology', name: 'Pathophysiology' },
+                { id: 'endo_pharmacology', name: 'Pharmacology' },
+                { id: 'endo_physiology', name: 'Physiology' },
+                { id: 'endo_pathology', name: 'Pathology' },
+                { id: 'endo_biochemistry', name: 'Biochemistry' },
+                { id: 'endo_embryology', name: 'Embryology' },
+                { id: 'endo_anatomy', name: 'Anatomy' },
+                { id: 'endo_biostatistics', name: 'Biostatistics' },
+                { id: 'endo_genetics', name: 'Genetics' },
+                { id: 'endo_histology', name: 'Histology' }
+            ]
+        },
+        {
+            id: 'female_reproductive',
+            name: 'Female Reproductive System & Breast',
+            categories: [
+                { id: 'female_pathology', name: 'Pathology' },
+                { id: 'female_anatomy', name: 'Anatomy' },
+                { id: 'female_pathophysiology', name: 'Pathophysiology' },
+                { id: 'female_microbiology', name: 'Microbiology' },
+                { id: 'female_genetics', name: 'Genetics' },
+                { id: 'female_physiology', name: 'Physiology' },
+                { id: 'female_histology', name: 'Histology' },
+                { id: 'female_pharmacology', name: 'Pharmacology' },
+                { id: 'female_behavioral', name: 'Behavioral science' },
+                { id: 'female_embryology', name: 'Embryology' }
+            ]
+        },
+        {
+            id: 'male_reproductive',
+            name: 'Male Reproductive System',
+            categories: [
+                { id: 'male_pathology', name: 'Pathology' },
+                { id: 'male_anatomy', name: 'Anatomy' },
+                { id: 'male_pharmacology', name: 'Pharmacology' },
+                { id: 'male_physiology', name: 'Physiology' },
+                { id: 'male_embryology', name: 'Embryology' },
+                { id: 'male_behavioral', name: 'Behavioral science' },
+                { id: 'male_genetics', name: 'Genetics' },
+                { id: 'male_microbiology', name: 'Microbiology' },
+                { id: 'male_pathophysiology', name: 'Pathophysiology' },
+                { id: 'male_histology', name: 'Histology' }
+            ]
+        },
+        {
+            id: 'pregnancy',
+            name: 'Pregnancy, Childbirth & Puerperium',
+            categories: [
+                { id: 'preg_pathophysiology', name: 'Pathophysiology' },
+                { id: 'preg_physiology', name: 'Physiology' },
+                { id: 'preg_pathology', name: 'Pathology' },
+                { id: 'preg_pharmacology', name: 'Pharmacology' },
+                { id: 'preg_embryology', name: 'Embryology' },
+                { id: 'preg_anatomy', name: 'Anatomy' },
+                { id: 'preg_genetics', name: 'Genetics' },
+                { id: 'preg_microbiology', name: 'Microbiology' },
+                { id: 'preg_histology', name: 'Histology' }
+            ]
+        },
+        {
+            id: 'psychiatry_behavioral',
+            name: 'Psychiatric/Behavioral & Substance Use Disorder',
+            categories: [
+                { id: 'psych_behavioral', name: 'Behavioral science' },
+                { id: 'psych_pharmacology', name: 'Pharmacology' },
+                { id: 'psych_pathophysiology', name: 'Pathophysiology' },
+                { id: 'psych_anatomy', name: 'Anatomy' },
+                { id: 'psych_biochemistry', name: 'Biochemistry' }
+            ]
+        },
+        {
+            id: 'social_sciences',
+            name: 'Social Sciences (Ethics/Legal/Professional)',
+            categories: [
+                { id: 'social_behavioral', name: 'Behavioral science' },
+                { id: 'social_biostatistics', name: 'Biostatistics' },
+                { id: 'social_immunology', name: 'Immunology' }
+            ]
+        },
+        {
+            id: 'nervous',
+            name: 'Nervous System',
+            categories: [
+                { id: 'neuro_anatomy', name: 'Anatomy' },
+                { id: 'neuro_pathology', name: 'Pathology' },
+                { id: 'neuro_pharmacology', name: 'Pharmacology' },
+                { id: 'neuro_pathophysiology', name: 'Pathophysiology' },
+                { id: 'neuro_microbiology', name: 'Microbiology' },
+                { id: 'neuro_embryology', name: 'Embryology' },
+                { id: 'neuro_physiology', name: 'Physiology' },
+                { id: 'neuro_biochemistry', name: 'Biochemistry' },
+                { id: 'neuro_genetics', name: 'Genetics' },
+                { id: 'neuro_histology', name: 'Histology' },
+                { id: 'neuro_behavioral', name: 'Behavioral science' }
+            ]
+        },
+        {
+            id: 'rheumatology',
+            name: 'Rheumatology/Orthopedics & Sports',
+            categories: [
+                { id: 'rheum_anatomy', name: 'Anatomy' },
+                { id: 'rheum_pathology', name: 'Pathology' },
+                { id: 'rheum_pharmacology', name: 'Pharmacology' },
+                { id: 'rheum_pathophysiology', name: 'Pathophysiology' },
+                { id: 'rheum_physiology', name: 'Physiology' },
+                { id: 'rheum_biochemistry', name: 'Biochemistry' },
+                { id: 'rheum_immunology', name: 'Immunology' },
+                { id: 'rheum_microbiology', name: 'Microbiology' },
+                { id: 'rheum_histology', name: 'Histology' },
+                { id: 'rheum_embryology', name: 'Embryology' },
+                { id: 'rheum_genetics', name: 'Genetics' }
+            ]
+        },
+        {
+            id: 'dermatology',
+            name: 'Dermatology',
+            categories: [
+                { id: 'derm_pathology', name: 'Pathology' },
+                { id: 'derm_microbiology', name: 'Microbiology' },
+                { id: 'derm_pathophysiology', name: 'Pathophysiology' },
+                { id: 'derm_immunology', name: 'Immunology' },
+                { id: 'derm_pharmacology', name: 'Pharmacology' },
+                { id: 'derm_histology', name: 'Histology' },
+                { id: 'derm_biochemistry', name: 'Biochemistry' },
+                { id: 'derm_embryology', name: 'Embryology' },
+                { id: 'derm_genetics', name: 'Genetics' }
+            ]
+        },
+        {
+            id: 'pathology_general',
+            name: 'Pathology (General Principles)',
+            categories: [
+                { id: 'pathgen_pathology', name: 'Pathology' },
+                { id: 'pathgen_immunology', name: 'Immunology' },
+                { id: 'pathgen_pathophysiology', name: 'Pathophysiology' }
+            ]
+        },
+        {
+            id: 'hematology_oncology',
+            name: 'Hematology & Oncology',
+            categories: [
+                { id: 'heme_pathology', name: 'Pathology' },
+                { id: 'heme_pharmacology', name: 'Pharmacology' },
+                { id: 'heme_pathophysiology', name: 'Pathophysiology' },
+                { id: 'heme_biochemistry', name: 'Biochemistry' },
+                { id: 'heme_immunology', name: 'Immunology' },
+                { id: 'heme_physiology', name: 'Physiology' },
+                { id: 'heme_genetics', name: 'Genetics' },
+                { id: 'heme_microbiology', name: 'Microbiology' },
+                { id: 'heme_biostatistics', name: 'Biostatistics' }
+            ]
+        },
+        {
+            id: 'allergy_immunology',
+            name: 'Allergy & Immunology',
+            categories: [
+                { id: 'allergy_immunology', name: 'Immunology' },
+                { id: 'allergy_pathophysiology', name: 'Pathophysiology' },
+                { id: 'allergy_pharmacology', name: 'Pharmacology' },
+                { id: 'allergy_pathology', name: 'Pathology' },
+                { id: 'allergy_microbiology', name: 'Microbiology' }
+            ]
+        },
+        {
+            id: 'microbiology_general',
+            name: 'Microbiology (General Principles)',
+            categories: [
+                { id: 'microgen_microbiology', name: 'Microbiology' }
+            ]
+        },
+        {
+            id: 'infectious_diseases',
+            name: 'Infectious Diseases',
+            categories: [
+                { id: 'infect_microbiology', name: 'Microbiology' },
+                { id: 'infect_pharmacology', name: 'Pharmacology' },
+                { id: 'infect_immunology', name: 'Immunology' },
+                { id: 'infect_pathology', name: 'Pathology' },
+                { id: 'infect_pathophysiology', name: 'Pathophysiology' },
+                { id: 'infect_genetics', name: 'Genetics' },
+                { id: 'infect_histology', name: 'Histology' }
+            ]
+        },
+        {
+            id: 'biochemistry_general',
+            name: 'Biochemistry (General Principles)',
+            categories: [
+                { id: 'biochemgen_biochemistry', name: 'Biochemistry' },
+                { id: 'biochemgen_genetics', name: 'Genetics' }
+            ]
+        },
+        {
+            id: 'genetics_general',
+            name: 'Genetics (General Principles)',
+            categories: [
+                { id: 'gengen_genetics', name: 'Genetics' },
+                { id: 'gengen_biochemistry', name: 'Biochemistry' }
+            ]
+        },
+        {
+            id: 'biostatistics',
+            name: 'Biostatistics & Epidemiology',
+            categories: [
+                { id: 'biostats_biostatistics', name: 'Biostatistics' },
+                { id: 'biostats_genetics', name: 'Genetics' }
+            ]
+        },
+        {
+            id: 'pharmacology_general',
+            name: 'Pharmacology (General Principles)',
+            categories: [
+                { id: 'pharmgen_pharmacology', name: 'Pharmacology' },
+                { id: 'pharmgen_immunology', name: 'Immunology' }
+            ]
+        },
+        {
+            id: 'poisoning_environmental',
+            name: 'Poisoning & Environmental Exposure',
+            categories: [
+                { id: 'poison_pharmacology', name: 'Pharmacology' },
+                { id: 'poison_pathophysiology', name: 'Pathophysiology' },
+                { id: 'poison_biochemistry', name: 'Biochemistry' },
+                { id: 'poison_pathology', name: 'Pathology' },
+                { id: 'poison_physiology', name: 'Physiology' }
+            ]
+        },
+        {
+            id: 'ent',
+            name: 'Ear, Nose & Throat (ENT)',
+            categories: [
+                { id: 'ent_anatomy', name: 'Anatomy' },
+                { id: 'ent_pathophysiology', name: 'Pathophysiology' },
+                { id: 'ent_embryology', name: 'Embryology' },
+                { id: 'ent_pathology', name: 'Pathology' },
+                { id: 'ent_microbiology', name: 'Microbiology' },
+                { id: 'ent_pharmacology', name: 'Pharmacology' },
+                { id: 'ent_genetics', name: 'Genetics' },
+                { id: 'ent_immunology', name: 'Immunology' },
+                { id: 'ent_physiology', name: 'Physiology' }
+            ]
+        },
+        {
+            id: 'ophthalmology',
+            name: 'Ophthalmology',
+            categories: [
+                { id: 'ophtho_pharmacology', name: 'Pharmacology' },
+                { id: 'ophtho_pathophysiology', name: 'Pathophysiology' },
+                { id: 'ophtho_anatomy', name: 'Anatomy' },
+                { id: 'ophtho_pathology', name: 'Pathology' },
+                { id: 'ophtho_microbiology', name: 'Microbiology' },
+                { id: 'ophtho_immunology', name: 'Immunology' },
+                { id: 'ophtho_physiology', name: 'Physiology' }
+            ]
+        },
+        {
+            id: 'miscellaneous',
+            name: 'Miscellaneous (Multisystem)',
+            categories: [
+                { id: 'misc_pathology', name: 'Pathology' },
+                { id: 'misc_genetics', name: 'Genetics' },
+                { id: 'misc_embryology', name: 'Embryology' },
+                { id: 'misc_pathophysiology', name: 'Pathophysiology' },
+                { id: 'misc_physiology', name: 'Physiology' },
+                { id: 'misc_anatomy', name: 'Anatomy' },
+                { id: 'misc_pharmacology', name: 'Pharmacology' },
+                { id: 'misc_biochemistry', name: 'Biochemistry' },
+                { id: 'misc_immunology', name: 'Immunology' }
+            ]
+        }
+    ]
+};
+
+// ===== SYSTEM-CATEGORY DATA (ORIGINAL) =====
 const UWORLD_SYSTEMS = {
     // ===== STEP 1 =====
     'step1': [

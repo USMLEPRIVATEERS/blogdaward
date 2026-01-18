@@ -25,14 +25,25 @@
             <div class="login-logo">🎓</div>
             <h1 class="questionnaire-title">UWorld - Progress Tracking</h1>
             <p class="questionnaire-step">Etapa 4 de 11</p>
-            <p class="form-hint mt-2" id="hint-text">Marque os Systems e Categories que ja finalizou</p>
+            <p class="form-hint mt-2" id="hint-text">Marque os Systems e Subjects que ja finalizou</p>
         </div>
 
         <!-- Form -->
         <form id="step4-form" class="questionnaire-form">
             <div class="questionnaire-section">
-                <h3 class="section-title">📋 Systems e Categories Concluidos</h3>
-                <p class="form-hint mb-3">Clique em um System para expandir e marcar as categories concluidas. Use o icone 🆘 para marcar dificuldade.</p>
+                <h3 class="section-title" id="section-title">📋 Systems e Subjects Concluidos</h3>
+
+                <!-- Toggle between Subject and Category view -->
+                <div class="view-toggle-container" style="margin-bottom: 1rem; display: flex; justify-content: center; gap: 0.5rem;">
+                    <button type="button" class="btn btn-sm view-toggle-btn active" id="btn-subject-view" onclick="switchView('subject')">
+                        📚 Por Subject
+                    </button>
+                    <button type="button" class="btn btn-sm view-toggle-btn" id="btn-category-view" onclick="switchView('category')">
+                        📂 Por Category
+                    </button>
+                </div>
+
+                <p class="form-hint mb-3" id="view-hint">Clique em um System para expandir e marcar os subjects concluidos. Use o icone 🆘 para marcar dificuldade.</p>
 
                 <div class="accordion" id="systems-accordion">
                     <!-- Will be populated by JavaScript based on selected exam -->
@@ -149,6 +160,23 @@
             border-color: #ffc107;
             opacity: 1;
         }
+        .view-toggle-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--gray-300);
+            background: white;
+            color: var(--gray-600);
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .view-toggle-btn:hover {
+            background: var(--gray-100);
+        }
+        .view-toggle-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -175,6 +203,7 @@
         let difficulties = {};
         let currentDifficultyCategory = null;
         let selectedExam = 'step1'; // Default
+        let currentViewMode = 'subject'; // Default to subject view
 
         // Load saved data on page load
         document.addEventListener('DOMContentLoaded', async () => {
@@ -184,11 +213,19 @@
                 selectedExam = step2Data.next_exam;
             }
 
-            // Build the accordion based on selected exam
-            buildSystemsAccordion(selectedExam);
-
-            // Then load step 4 saved data
+            // Load step 4 saved data to check if there's a saved view mode
             const savedData = await WardApp.loadQuestionnaireData(4);
+            if (savedData && savedData.view_mode) {
+                currentViewMode = savedData.view_mode;
+            }
+
+            // Update toggle buttons
+            updateToggleButtons();
+
+            // Build the accordion based on selected exam and view mode
+            buildSystemsAccordion(selectedExam, currentViewMode);
+
+            // Load saved categories
             if (savedData && savedData.completed_categories) {
                 try {
                     const categories = JSON.parse(savedData.completed_categories);
@@ -225,9 +262,47 @@
             setupEventListeners();
         });
 
-        function buildSystemsAccordion(exam) {
+        function switchView(mode) {
+            if (mode === currentViewMode) return;
+
+            currentViewMode = mode;
+            updateToggleButtons();
+            buildSystemsAccordion(selectedExam, currentViewMode);
+            setupEventListeners();
+        }
+
+        function updateToggleButtons() {
+            const subjectBtn = document.getElementById('btn-subject-view');
+            const categoryBtn = document.getElementById('btn-category-view');
+            const hintText = document.getElementById('hint-text');
+            const sectionTitle = document.getElementById('section-title');
+            const viewHint = document.getElementById('view-hint');
+
+            if (currentViewMode === 'subject') {
+                subjectBtn.classList.add('active');
+                categoryBtn.classList.remove('active');
+                hintText.textContent = 'Marque os Systems e Subjects que ja finalizou';
+                sectionTitle.textContent = '📋 Systems e Subjects Concluidos';
+                viewHint.textContent = 'Clique em um System para expandir e marcar os subjects concluidos. Use o icone 🆘 para marcar dificuldade.';
+            } else {
+                subjectBtn.classList.remove('active');
+                categoryBtn.classList.add('active');
+                hintText.textContent = 'Marque os Systems e Categories que ja finalizou';
+                sectionTitle.textContent = '📋 Systems e Categories Concluidos';
+                viewHint.textContent = 'Clique em um System para expandir e marcar as categories concluidas. Use o icone 🆘 para marcar dificuldade.';
+            }
+        }
+
+        function buildSystemsAccordion(exam, viewMode = 'subject') {
             const container = document.getElementById('systems-accordion');
-            const systems = UWORLD_SYSTEMS[exam] || UWORLD_SYSTEMS['step1'];
+
+            // Choose data source based on view mode
+            let systems;
+            if (viewMode === 'subject') {
+                systems = UWORLD_SYSTEMS_BY_SUBJECT[exam] || UWORLD_SYSTEMS_BY_SUBJECT['step1'];
+            } else {
+                systems = UWORLD_SYSTEMS[exam] || UWORLD_SYSTEMS['step1'];
+            }
 
             container.innerHTML = systems.map(system => `
                 <div class="accordion-item">
@@ -329,7 +404,8 @@
             WardApp.showLoading();
             const success = await WardApp.saveQuestionnaireProgress(4, {
                 completed_categories: JSON.stringify(completedCategories),
-                exam_type: selectedExam
+                exam_type: selectedExam,
+                view_mode: currentViewMode
             });
             WardApp.hideLoading();
 
@@ -351,7 +427,8 @@
 
             await WardApp.saveQuestionnaireProgress(4, {
                 completed_categories: JSON.stringify(completedCategories),
-                exam_type: selectedExam
+                exam_type: selectedExam,
+                view_mode: currentViewMode
             });
             // Redirect to correct dashboard based on role
             let userData = JSON.parse(localStorage.getItem('userData') || 'null');
