@@ -87,6 +87,17 @@
             </div>
         </div>
 
+        <!-- Networking Mentor Requests Alert -->
+        <div id="networking-requests-alert" class="card mb-4" style="display: none; border: 2px solid #3b82f6; background: linear-gradient(135deg, #dbeafe 0%, #ffffff 100%);">
+            <div class="card-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white;">
+                <span>🌐 Solicitações de Networking</span>
+                <span id="networking-requests-count" class="badge" style="background: white; color: #1d4ed8; padding: 0.25rem 0.75rem; border-radius: 12px; font-weight: 700;"></span>
+            </div>
+            <div class="card-body" id="networking-requests-list">
+                <!-- Filled by JS -->
+            </div>
+        </div>
+
         <!-- Compact Preferences & Tools -->
         <div class="card mb-4" style="padding: 0.75rem 1rem; background: #f9fafb;">
             <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;">
@@ -709,6 +720,7 @@ Cardiovascular	Physiology	62	FALSE
             await renderStudentsTable();
             await loadPendingCalls();
             await loadScheduleDelays();
+            await loadNetworkingRequests();
         }
 
         async function loadScheduleStatus() {
@@ -2056,6 +2068,91 @@ Cardiovascular	Physiology	62	FALSE
                     </div>
                 </div>
             `).join('');
+        }
+
+        async function loadNetworkingRequests() {
+            // Load all pending networking mentor requests
+            const { data: requests } = await WardApp.db
+                .from('networking_mentor_requests')
+                .select(`
+                    *,
+                    requester:requested_by(full_name, email),
+                    contact:contact_id(name, specialty_id, institution, state_code),
+                    owner:connection_owner_id(full_name, email)
+                `)
+                .eq('status', 'pending')
+                .order('created_at', { ascending: false });
+
+            if (!requests || requests.length === 0) {
+                document.getElementById('networking-requests-alert').style.display = 'none';
+                return;
+            }
+
+            // Show alert
+            document.getElementById('networking-requests-alert').style.display = 'block';
+            document.getElementById('networking-requests-count').textContent = requests.length;
+
+            // Render requests list
+            const requestsList = document.getElementById('networking-requests-list');
+            requestsList.innerHTML = requests.map(req => {
+                const requesterName = req.requester?.full_name || req.requester?.email || 'Aluno';
+                const contactName = req.contact?.name || 'Contato';
+                const ownerName = req.owner?.full_name || req.owner?.email || 'Membro';
+                const institution = req.contact?.institution || '';
+                const requestDate = new Date(req.created_at).toLocaleDateString('pt-BR');
+
+                return `
+                    <div style="background: white; border-left: 4px solid #3b82f6; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 0.5rem;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <div style="font-weight: 600; color: #1d4ed8; font-size: 1.05rem; margin-bottom: 0.5rem;">
+                                    🙋 ${requesterName} quer contato
+                                </div>
+                                <div style="background: #f1f5f9; padding: 0.75rem; border-radius: 6px; margin-bottom: 0.5rem;">
+                                    <div style="font-size: 0.9rem;">
+                                        <strong>👤 Contato:</strong> ${contactName}
+                                        ${institution ? `<span style="color: #6b7280;"> - ${institution}</span>` : ''}
+                                    </div>
+                                    <div style="font-size: 0.85rem; color: #6b7280; margin-top: 0.25rem;">
+                                        <strong>🔗 Quem conhece:</strong> ${ownerName}
+                                    </div>
+                                </div>
+                                ${req.message ? `
+                                    <div style="background: #fef3c7; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem; color: #92400e; margin-bottom: 0.5rem;">
+                                        💬 "${req.message}"
+                                    </div>
+                                ` : ''}
+                                <div style="font-size: 0.8rem; color: #9ca3af;">
+                                    Solicitado em: ${requestDate}
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <button class="btn btn-sm" onclick="resolveNetworkingRequest(${req.id}, 'resolved')" style="background: #22c55e; color: white; border: none;">
+                                    ✓ Resolvido
+                                </button>
+                                <button class="btn btn-sm btn-outline" onclick="resolveNetworkingRequest(${req.id}, 'dismissed')" style="font-size: 0.8rem;">
+                                    ✕ Dispensar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function resolveNetworkingRequest(requestId, status) {
+            const { error } = await WardApp.db
+                .from('networking_mentor_requests')
+                .update({
+                    status: status,
+                    resolved_by: userData.id,
+                    resolved_at: new Date().toISOString()
+                })
+                .eq('id', requestId);
+
+            if (!error) {
+                await loadNetworkingRequests();
+            }
         }
 
         function filterStudents() {
