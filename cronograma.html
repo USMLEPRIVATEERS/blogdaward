@@ -3256,11 +3256,17 @@
         let challengeSimilarCategories = [];
         let challengeSelectedCategory = null;
         let challengeRandomCategory = null;
+        let challengeCountedItems = new Set(); // Track which items have been counted
 
         // Initialize challenge counter from localStorage
         function initChallengeCounter() {
             const stored = localStorage.getItem(`challenge_count_${targetUserId}`);
             challengeCompletionCount = stored ? parseInt(stored) : 0;
+
+            // Load counted items from localStorage
+            const storedItems = localStorage.getItem(`challenge_counted_items_${targetUserId}`);
+            challengeCountedItems = storedItems ? new Set(JSON.parse(storedItems)) : new Set();
+
             updateChallengeCounterUI();
         }
 
@@ -3285,7 +3291,11 @@
         }
 
         // Called when an item is marked as complete
-        function onItemCompleted() {
+        function onItemCompleted(itemId) {
+            // Add item to counted set to prevent double counting
+            challengeCountedItems.add(itemId);
+            localStorage.setItem(`challenge_counted_items_${targetUserId}`, JSON.stringify([...challengeCountedItems]));
+
             challengeCompletionCount++;
             localStorage.setItem(`challenge_count_${targetUserId}`, challengeCompletionCount);
 
@@ -3341,7 +3351,9 @@
         // Reset challenge counter
         function resetChallengeCounter() {
             challengeCompletionCount = 0;
+            challengeCountedItems = new Set();
             localStorage.setItem(`challenge_count_${targetUserId}`, 0);
+            localStorage.setItem(`challenge_counted_items_${targetUserId}`, '[]');
             updateChallengeCounterUI();
         }
 
@@ -3772,16 +3784,13 @@
         // Modify toggleComplete to track completions for challenge
         const originalToggleComplete = toggleComplete;
         toggleComplete = async function(id, completed) {
-            // Check if item was already completed before this toggle
-            const item = scheduleData.find(s => s.id === id);
-            const wasAlreadyCompleted = item ? item.completed : false;
-
             await originalToggleComplete(id, completed);
 
-            // Only count NEW completions (not re-checking an already completed item)
-            // And not unchecking
-            if (completed && !wasAlreadyCompleted) {
-                onItemCompleted();
+            // Only count if:
+            // 1. Item is being marked as complete (not unchecked)
+            // 2. Item hasn't been counted before in this challenge cycle
+            if (completed && !challengeCountedItems.has(id)) {
+                onItemCompleted(id);
             }
         };
 
