@@ -294,6 +294,7 @@
         let viewingAsStudentId = null;
         let targetUserId = null; // The user whose diary we're viewing
         let userPreparation = null; // User's current preparation focus
+        let userScheduleType = 'subject'; // User's schedule type: 'subject' or 'category'
         let autocompleteOptions = { subject: [], system: [], category: [] };
 
         document.addEventListener('DOMContentLoaded', async () => {
@@ -349,9 +350,10 @@
             // Set default date to today
             document.getElementById('session-date').value = WardApp.getTodayString();
 
-            // Load user's preparation status and autocomplete options
+            // Load user's preparation status, schedule type, and autocomplete options
             await Promise.all([
                 loadUserPreparation(),
+                loadUserScheduleType(),
                 loadAutocompleteOptions()
             ]);
 
@@ -384,6 +386,37 @@
                 };
                 userPreparation = prepLabels[data.currently_preparing_for] || data.currently_preparing_for;
             }
+        }
+
+        async function loadUserScheduleType() {
+            const { data } = await WardApp.db
+                .from('users')
+                .select('schedule_type')
+                .eq('id', targetUserId)
+                .maybeSingle();
+
+            userScheduleType = data?.schedule_type || 'subject';
+
+            // Update modal fields visibility based on schedule type
+            updateModalFieldsForScheduleType();
+        }
+
+        function updateModalFieldsForScheduleType() {
+            const isSubjectMode = userScheduleType === 'subject';
+
+            // New Session Modal
+            const subjectGroup = document.getElementById('session-subject')?.closest('.form-group');
+            const categoryGroup = document.getElementById('session-category')?.closest('.form-group');
+
+            if (subjectGroup) subjectGroup.style.display = isSubjectMode ? 'block' : 'none';
+            if (categoryGroup) categoryGroup.style.display = isSubjectMode ? 'none' : 'block';
+
+            // Edit Session Modal
+            const editSubjectGroup = document.getElementById('edit-session-subject')?.closest('.form-group');
+            const editCategoryGroup = document.getElementById('edit-session-category')?.closest('.form-group');
+
+            if (editSubjectGroup) editSubjectGroup.style.display = isSubjectMode ? 'block' : 'none';
+            if (editCategoryGroup) editCategoryGroup.style.display = isSubjectMode ? 'none' : 'block';
         }
 
         async function loadAutocompleteOptions() {
