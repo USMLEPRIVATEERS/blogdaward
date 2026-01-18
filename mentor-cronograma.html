@@ -57,6 +57,13 @@
                             <option value="third">Third Pass</option>
                         </select>
                     </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Tipo de Cronograma</label>
+                        <select id="schedule-type-select" class="form-input" onchange="saveScheduleType()">
+                            <option value="category">Por Category</option>
+                            <option value="subject">Por Subject</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
@@ -108,7 +115,7 @@
                         <thead>
                             <tr>
                                 <th>System</th>
-                                <th>Category</th>
+                                <th id="category-header">Category</th>
                                 <th>Questoes</th>
                                 <th>Inicio</th>
                                 <th>Fim</th>
@@ -190,7 +197,7 @@ CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
                     <input type="text" id="item-system" class="form-input" placeholder="Ex: Cardiovascular">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Category *</label>
+                    <label class="form-label" id="add-item-category-label">Category *</label>
                     <input type="text" id="item-category" class="form-input" placeholder="Ex: Cardiac arrhythmias">
                 </div>
                 <div class="form-group">
@@ -229,7 +236,7 @@ CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
                     <input type="text" id="edit-item-system" class="form-input">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Category *</label>
+                    <label class="form-label" id="edit-item-category-label">Category *</label>
                     <input type="text" id="edit-item-category" class="form-input">
                 </div>
                 <div class="form-group">
@@ -451,7 +458,7 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
         async function loadStudents() {
             const { data: students } = await WardApp.db
                 .from('users')
-                .select('id, full_name, email, role, pass_type')
+                .select('id, full_name, email, role, pass_type, schedule_type')
                 .in('role', ['aluno', 'assessoria'])
                 .order('full_name');
 
@@ -477,6 +484,11 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
             // Load pass_type
             const passType = student?.pass_type || 'first';
             document.getElementById('pass-type-select').value = passType;
+
+            // Load schedule_type
+            const scheduleType = student?.schedule_type || 'category';
+            document.getElementById('schedule-type-select').value = scheduleType;
+            updateScheduleTypeHeader(scheduleType);
 
             // Load schedule
             const { data: schedule } = await WardApp.db
@@ -840,6 +852,54 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
             }
 
             WardApp.showToast('Tipo de pass salvo!');
+        }
+
+        async function saveScheduleType() {
+            if (!selectedStudentId) return;
+
+            const scheduleType = document.getElementById('schedule-type-select').value;
+
+            const { error } = await WardApp.db
+                .from('users')
+                .update({ schedule_type: scheduleType })
+                .eq('id', selectedStudentId);
+
+            if (error) {
+                console.error('Error saving schedule type:', error);
+                WardApp.showToast('Erro ao salvar tipo de cronograma', 'error');
+                return;
+            }
+
+            // Update local data
+            const student = allStudents.find(s => s.id == selectedStudentId);
+            if (student) student.schedule_type = scheduleType;
+
+            // Update header
+            updateScheduleTypeHeader(scheduleType);
+
+            WardApp.showToast('Tipo de cronograma salvo!');
+        }
+
+        function updateScheduleTypeHeader(scheduleType) {
+            const label = scheduleType === 'subject' ? 'Subject' : 'Category';
+
+            // Update table header
+            const header = document.getElementById('category-header');
+            if (header) {
+                header.textContent = label;
+            }
+
+            // Update add item modal label
+            const addLabel = document.getElementById('add-item-category-label');
+            if (addLabel) {
+                addLabel.textContent = label + ' *';
+            }
+
+            // Update edit item modal label
+            const editLabel = document.getElementById('edit-item-category-label');
+            if (editLabel) {
+                editLabel.textContent = label + ' *';
+            }
         }
 
         function copyScheduleToClipboard() {

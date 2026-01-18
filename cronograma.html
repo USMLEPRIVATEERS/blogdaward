@@ -124,7 +124,7 @@
                         <thead>
                             <tr>
                                 <th class="col-system">System</th>
-                                <th class="col-category">Category</th>
+                                <th class="col-category" id="schedule-category-header">Category</th>
                                 <th class="col-questions">Qtd</th>
                                 <th class="col-date">Inicio</th>
                                 <th class="col-date">Fim</th>
@@ -1895,11 +1895,59 @@
         // ================================================
         // TUTORIAL VIDEO SYSTEM
         // ================================================
-        const TUTORIAL_VIDEO_URL = 'https://www.youtube.com/embed/nj3eA5ZEm_Y';
+        // Tutorial videos based on schedule type
+        const TUTORIAL_VIDEO_CATEGORY = 'https://www.youtube.com/embed/nj3eA5ZEm_Y'; // Por Category
+        const TUTORIAL_VIDEO_SUBJECT = 'https://www.youtube.com/embed/s5zBIbABYAI';  // Por Subject
+        let currentTutorialVideoUrl = TUTORIAL_VIDEO_SUBJECT; // Default to subject video (for users without schedule)
         let tutorialWatchedStatus = false;
+        let userScheduleType = 'subject'; // Default schedule type
+
+        // Determine tutorial video based on schedule type
+        async function determineTutorialVideo() {
+            try {
+                // Get user's schedule_type
+                const { data: user } = await WardApp.db
+                    .from('users')
+                    .select('schedule_type')
+                    .eq('id', targetUserId)
+                    .single();
+
+                if (user && user.schedule_type) {
+                    userScheduleType = user.schedule_type;
+                }
+
+                // Check if user has any schedule items to determine type
+                if (scheduleData && scheduleData.length > 0) {
+                    // Has schedule - use the configured type
+                    currentTutorialVideoUrl = userScheduleType === 'category'
+                        ? TUTORIAL_VIDEO_CATEGORY
+                        : TUTORIAL_VIDEO_SUBJECT;
+                } else {
+                    // No schedule yet - default to subject video
+                    currentTutorialVideoUrl = TUTORIAL_VIDEO_SUBJECT;
+                }
+
+                // Update the table header label
+                updateScheduleTypeLabel();
+            } catch (e) {
+                console.log('Using default tutorial video');
+                currentTutorialVideoUrl = TUTORIAL_VIDEO_SUBJECT;
+            }
+        }
+
+        // Update the schedule table header label based on type
+        function updateScheduleTypeLabel() {
+            const header = document.getElementById('schedule-category-header');
+            if (header) {
+                header.textContent = userScheduleType === 'subject' ? 'Subject' : 'Category';
+            }
+        }
 
         // Check if user has watched the tutorial
         async function checkTutorialStatus() {
+            // First determine which video to show
+            await determineTutorialVideo();
+
             try {
                 const { data } = await WardApp.db
                     .from('user_tutorials')
@@ -1930,7 +1978,7 @@
         // Open tutorial modal
         function openTutorialModal() {
             const iframe = document.getElementById('tutorial-video-iframe');
-            iframe.src = TUTORIAL_VIDEO_URL + '?autoplay=1';
+            iframe.src = currentTutorialVideoUrl + '?autoplay=1';
             document.getElementById('tutorial-modal').classList.add('active');
         }
 
