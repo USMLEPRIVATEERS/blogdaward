@@ -39,7 +39,7 @@
     <main class="main-container">
         <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
             <h1>🔬 Projetos de Pesquisa</h1>
-            <div id="mentor-actions" class="btn-group" style="display: none;">
+            <div id="project-actions" class="btn-group" style="display: none;">
                 <button class="btn btn-primary" onclick="openModal('new-project-modal')">+ Novo Projeto</button>
             </div>
         </div>
@@ -66,6 +66,29 @@
                     <span class="stat-value" id="completed-projects">0</span>
                     <span class="stat-label">Concluidos</span>
                 </div>
+            </div>
+            <div class="stat-card" id="pending-stat-card" style="display: none;">
+                <div class="stat-icon">⏳</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="pending-projects">0</span>
+                    <span class="stat-label">Em Análise</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Projects Section (Mentors only) -->
+        <div id="pending-projects-section" class="card mb-4" style="display: none;">
+            <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border-radius: 12px 12px 0 0;">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <span style="font-size: 1.5rem;">⏳</span>
+                    <div>
+                        <h3 style="margin: 0; font-weight: 700;">Projetos Aguardando Aprovação</h3>
+                        <small style="opacity: 0.9;">Projetos criados por alunos que precisam de revisão</small>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body" id="pending-projects-list">
+                <!-- Filled by JS -->
             </div>
         </div>
 
@@ -710,13 +733,19 @@
 
             isMentor = userData.role && userData.role.startsWith('mentor_');
 
-            // Show project actions for mentors and students (students can add their own projects)
+            // Show project actions button for everyone (mentors and students can add projects)
+            // Students' projects will need mentor approval
             if (!viewingAsStudentId) {
-                document.getElementById('mentor-actions').style.display = 'flex';
+                document.getElementById('project-actions').style.display = 'flex';
                 await loadAllUsers();
             }
 
             await loadProjects();
+
+            // Show pending projects section for mentors
+            if (isMentor && !viewingAsStudentId) {
+                renderPendingProjects();
+            }
         });
 
         async function setupViewingAsStudent(studentId) {
@@ -809,13 +838,17 @@
                 .from('research_projects')
                 .select(`
                     *,
-                    tasks:research_tasks(*)
+                    tasks:research_tasks(*),
+                    creator:created_by(id, full_name, email)
                 `)
                 .order('created_at', { ascending: false });
 
-            // If not mentor, only show projects where user is a participant
+            // If mentor, load all projects
+            // If student, load projects where:
+            // - User is a participant AND status is not 'pending_approval'
+            // - OR user created the project (can see their own pending projects)
             if (!isMentor) {
-                query = query.contains('participants', [userData.id]);
+                // For students, we'll filter client-side to handle both conditions
             }
 
             const { data: projects, error } = await query;
@@ -825,26 +858,60 @@
                 return;
             }
 
-            allProjects = projects || [];
+            let filteredProjects = projects || [];
+
+            // For students, filter to show:
+            // - Approved projects where they're a participant
+            // - Their own pending projects
+            if (!isMentor) {
+                filteredProjects = filteredProjects.filter(p => {
+                    const isParticipant = p.participants && p.participants.includes(userData.id);
+                    const isCreator = p.created_by === userData.id;
+                    const isPending = p.status === 'pending_approval';
+
+                    // Show if: (participant AND not pending) OR (creator AND pending)
+                    return (isParticipant && !isPending) || isCreator;
+                });
+            }
+
+            allProjects = filteredProjects;
             updateStats();
             renderProjects();
         }
 
         function updateStats() {
-            const total = allProjects.length;
-            const completed = allProjects.filter(p => p.status === 'completed').length;
-            const active = total - completed;
+            // Filter out pending_approval from main stats (unless viewing own)
+            const approvedProjects = allProjects.filter(p => p.status !== 'pending_approval');
+            const pendingProjects = allProjects.filter(p => p.status === 'pending_approval');
+
+            const total = approvedProjects.length;
+            const completed = approvedProjects.filter(p => p.status === 'completed').length;
+            const active = approvedProjects.filter(p => p.status === 'active').length;
+            const pending = pendingProjects.length;
 
             document.getElementById('total-projects').textContent = total;
             document.getElementById('active-projects').textContent = active;
             document.getElementById('completed-projects').textContent = completed;
+            document.getElementById('pending-projects').textContent = pending;
+
+            // Show pending stat card if there are pending projects (for anyone)
+            const pendingStatCard = document.getElementById('pending-stat-card');
+            if (pending > 0) {
+                pendingStatCard.style.display = 'block';
+            } else {
+                pendingStatCard.style.display = 'none';
+            }
         }
 
         function renderProjects() {
             const container = document.getElementById('projects-container');
             const noProjects = document.getElementById('no-projects');
 
-            if (allProjects.length === 0) {
+            // Filter out pending_approval projects for the main list (they show in pending section)
+            const approvedProjects = allProjects.filter(p => p.status !== 'pending_approval');
+            const myPendingProjects = allProjects.filter(p => p.status === 'pending_approval' && p.created_by === userData.id);
+
+            if (approvedProjects.length === 0 && myPendingProjects.length === 0) {
                 container.innerHTML = '';
                 noProjects.style.display = 'block';
                 return;
@@ -852,33 +919,176 @@
 
             noProjects.style.display = 'none';
 
-            container.innerHTML = allProjects.map(project => {
-                const tasks = project.tasks || [];
-                const completedTasks = tasks.filter(t => t.stage === 'tarefa_concluida').length;
-                const progress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+            // Render my pending projects first (if student)
+            let html = '';
 
-                return `
-                    <div class="project-card" onclick="viewProject(${project.id})">
-                        <div class="project-header">
-                            <h3 class="project-title">${project.title}</h3>
-                            <span class="project-status ${project.status === 'completed' ? 'status-completed' : 'status-active'}">
-                                ${project.status === 'completed' ? '✅ Concluido' : '🔄 Em andamento'}
-                            </span>
-                        </div>
-                        ${project.description ? `<div class="project-description">${formatDescription(project.description)}</div>` : ''}
+            if (myPendingProjects.length > 0) {
+                html += `
+                    <div class="mb-4">
+                        <h3 style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: #92400e;">
+                            <span style="font-size: 1.25rem;">⏳</span>
+                            Seus Projetos em Análise
+                        </h3>
+                        <div class="projects-grid">
+                `;
+                html += myPendingProjects.map(project => renderProjectCard(project, true)).join('');
+                html += '</div></div>';
+            }
+
+            if (approvedProjects.length > 0) {
+                if (myPendingProjects.length > 0) {
+                    html += `<h3 style="margin-bottom: 1rem; color: #374151;">Projetos Aprovados</h3>`;
+                }
+                html += approvedProjects.map(project => renderProjectCard(project, false)).join('');
+            }
+
+            container.innerHTML = html;
+        }
+
+        function renderProjectCard(project, isPending) {
+            const tasks = project.tasks || [];
+            const completedTasks = tasks.filter(t => t.stage === 'tarefa_concluida').length;
+            const progress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+
+            let statusClass = 'status-active';
+            let statusText = '🔄 Em andamento';
+
+            if (project.status === 'completed') {
+                statusClass = 'status-completed';
+                statusText = '✅ Concluído';
+            } else if (project.status === 'pending_approval') {
+                statusClass = 'status-pending';
+                statusText = '⏳ Em Análise';
+            }
+
+            return `
+                <div class="project-card ${isPending ? 'pending' : ''}" onclick="viewProject(${project.id})">
+                    <div class="project-header">
+                        <h3 class="project-title">${project.title}</h3>
+                        <span class="project-status ${statusClass}">
+                            ${statusText}
+                        </span>
+                    </div>
+                    ${project.description ? `<div class="project-description">${formatDescription(project.description)}</div>` : ''}
+                    ${!isPending ? `
                         <div class="progress-container">
                             <div class="progress-bar">
                                 <div class="progress-fill" style="width: ${progress}%"></div>
                             </div>
                             <span class="progress-text">${progress}%</span>
                         </div>
-                        <div class="project-footer">
-                            <span>📋 ${tasks.length} tarefas</span>
-                            <span>👥 ${project.participants?.length || 0} participantes</span>
+                    ` : `
+                        <div style="padding: 0.75rem; background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 8px; margin: 0.5rem 0;">
+                            <small style="color: #92400e;">
+                                💡 Aguardando aprovação de um mentor para iniciar o projeto.
+                            </small>
+                        </div>
+                    `}
+                    <div class="project-footer">
+                        <span>📋 ${tasks.length} tarefas</span>
+                        <span>👥 ${project.participants?.length || 0} participantes</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Render pending projects for mentors
+        function renderPendingProjects() {
+            const section = document.getElementById('pending-projects-section');
+            const container = document.getElementById('pending-projects-list');
+
+            // Get all pending projects (mentors see all)
+            const pendingProjects = allProjects.filter(p => p.status === 'pending_approval');
+
+            if (pendingProjects.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+
+            container.innerHTML = pendingProjects.map(project => {
+                const creatorName = project.creator?.full_name || project.creator?.email || 'Desconhecido';
+                const createdDate = project.created_at ? WardApp.formatDate(project.created_at) : '';
+
+                return `
+                    <div class="pending-project-item" style="background: white; border: 2px solid #fde68a; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; transition: all 0.2s;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <h4 style="margin: 0 0 0.5rem 0; color: #1e293b; font-size: 1.1rem;">${project.title}</h4>
+                                <div style="display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.85rem; color: #64748b;">
+                                    <span style="display: flex; align-items: center; gap: 0.25rem;">
+                                        <span style="background: #f59e0b; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem;">👤</span>
+                                        ${creatorName}
+                                    </span>
+                                    <span>📅 ${createdDate}</span>
+                                    ${project.description ? `<span style="color: #94a3b8;">📝 ${project.description.substring(0, 50)}${project.description.length > 50 ? '...' : ''}</span>` : ''}
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <button onclick="viewProject(${project.id})" class="btn btn-sm" style="background: #f1f5f9; border: none; color: #475569;">
+                                    👁️ Ver Detalhes
+                                </button>
+                                <button onclick="approveProject(${project.id})" class="btn btn-sm" style="background: linear-gradient(135deg, #22c55e, #16a34a); border: none; color: white;">
+                                    ✅ Aprovar
+                                </button>
+                                <button onclick="rejectProject(${project.id})" class="btn btn-sm" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; color: white;">
+                                    ❌ Rejeitar
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `;
             }).join('');
+        }
+
+        // Approve a pending project
+        async function approveProject(projectId) {
+            if (!confirm('Aprovar este projeto de pesquisa?')) return;
+
+            const { error } = await WardApp.db
+                .from('research_projects')
+                .update({
+                    status: 'active',
+                    approved_by: userData.id,
+                    approved_at: new Date().toISOString()
+                })
+                .eq('id', projectId);
+
+            if (error) {
+                console.error('Error approving project:', error);
+                WardApp.showToast('Erro ao aprovar projeto', 'error');
+                return;
+            }
+
+            WardApp.showToast('Projeto aprovado!', 'success');
+            await loadProjects();
+            renderPendingProjects();
+        }
+
+        // Reject a pending project
+        async function rejectProject(projectId) {
+            const reason = prompt('Motivo da rejeição (opcional):');
+
+            if (!confirm('Rejeitar este projeto de pesquisa?')) return;
+
+            const { error } = await WardApp.db
+                .from('research_projects')
+                .update({
+                    status: 'cancelled',
+                    rejection_reason: reason || null
+                })
+                .eq('id', projectId);
+
+            if (error) {
+                console.error('Error rejecting project:', error);
+                WardApp.showToast('Erro ao rejeitar projeto', 'error');
+                return;
+            }
+
+            WardApp.showToast('Projeto rejeitado');
+            await loadProjects();
+            renderPendingProjects();
         }
 
         async function viewProject(projectId) {
@@ -1257,6 +1467,17 @@
                 }
             }
 
+            // Set status based on user role
+            // Mentors create active projects directly
+            // Students create projects pending approval
+            const projectStatus = isMentor ? 'active' : 'pending_approval';
+
+            // For students, add themselves as participant
+            let finalParticipants = participants;
+            if (!isMentor && !participants.includes(userData.id)) {
+                finalParticipants = [...participants, userData.id];
+            }
+
             // Insert project
             const { data: project, error } = await WardApp.db
                 .from('research_projects')
@@ -1266,8 +1487,8 @@
                     project_type: projectType,
                     deadline,
                     drive_link: driveLink,
-                    participants,
-                    status: 'active',
+                    participants: finalParticipants,
+                    status: projectStatus,
                     created_by: userData.id
                 })
                 .select()
@@ -1306,7 +1527,11 @@
             document.getElementById('create-drive-folder').checked = true;
             updateTitleFields();
 
-            WardApp.showToast('Projeto criado!');
+            if (isMentor) {
+                WardApp.showToast('Projeto criado!');
+            } else {
+                WardApp.showToast('Projeto enviado para análise! Um mentor irá revisar em breve.', 'info');
+            }
             await loadProjects();
         }
 
@@ -2142,6 +2367,26 @@ function toggleFolder(header) {
         .status-completed {
             background: #d1fae5;
             color: #065f46;
+        }
+
+        .status-pending {
+            background: linear-gradient(135deg, #fed7aa, #fdba74);
+            color: #9a3412;
+            animation: pulse-pending 2s infinite;
+        }
+
+        @keyframes pulse-pending {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        .project-card.pending {
+            border: 2px solid #fdba74;
+            background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 100%);
+        }
+
+        .project-card.pending:hover {
+            border-color: #f59e0b;
         }
 
         .project-description {
