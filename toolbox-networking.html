@@ -1165,6 +1165,19 @@
                 <button class="modal-close" onclick="closeModal('add-contact-modal')">&times;</button>
             </div>
             <div class="modal-body">
+                <!-- Privacy guarantee message -->
+                <div id="add-contact-privacy-message" style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border: 2px solid #22c55e; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                    <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+                        <span style="font-size: 1.5rem;">🔒</span>
+                        <div>
+                            <h4 style="margin: 0 0 0.35rem 0; color: #166534; font-size: 0.95rem;">Sua privacidade é garantida!</h4>
+                            <p style="margin: 0; color: #15803d; font-size: 0.85rem; line-height: 1.5;">
+                                <strong>Nome, email, telefone e LinkedIn</strong> ficarão em sigilo. Outros membros verão apenas a <strong>especialidade</strong> e <strong>localização</strong> do contato, e podem entrar em contato com você para mais informações.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
                 <form id="contact-form">
                     <input type="hidden" id="contact-id">
 
@@ -1342,6 +1355,9 @@
     <!-- Contact Detail Modal -->
     <div id="contact-detail-modal" class="modal-overlay">
         <div class="modal">
+            <!-- Contribution encouragement message (shown for students who haven't added contacts) -->
+            <div id="contribution-message-container" style="display: none; padding: 1rem 1rem 0 1rem;"></div>
+
             <div class="contact-detail-header" id="detail-header">
                 <h2 id="detail-name">Nome do Contato</h2>
                 <div class="contact-detail-position" id="detail-position">Posição</div>
@@ -2101,10 +2117,50 @@
         // CONTACT DETAIL
         // ================================================
 
+        // Check if current user has contributed any contact
+        function userHasContributedContacts() {
+            return allConnections.some(conn => conn.user_id === userData.id);
+        }
+
+        // Contribution encouragement message HTML
+        function getContributionMessage() {
+            return `
+                <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); border: 2px solid #3b82f6; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+                        <span style="font-size: 2rem;">🤝</span>
+                        <div>
+                            <h4 style="margin: 0 0 0.5rem 0; color: #1e40af; font-size: 1rem;">Fortaleça nossa rede!</h4>
+                            <p style="margin: 0 0 0.75rem 0; color: #1e3a8a; font-size: 0.9rem; line-height: 1.5;">
+                                Você ainda não compartilhou nenhum contato. Seria muito importante você adicionar algum contato seu nos Estados Unidos para fortalecer a rede de networking da Ward Academy!
+                            </p>
+                            <div style="background: rgba(255,255,255,0.7); border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem;">
+                                <p style="margin: 0; color: #1e40af; font-size: 0.85rem;">
+                                    🔒 <strong>Privacidade garantida:</strong> Nome, telefone, email e LinkedIn serão mantidos em sigilo.
+                                    Outros membros verão apenas especialidade e localização, e podem entrar em contato com você para mais informações.
+                                </p>
+                            </div>
+                            <button onclick="closeModal('contact-detail-modal'); openAddContactModal();" class="btn btn-sm" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; border: none; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                                ➕ Adicionar meu contato
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         async function openContactDetail(contactId) {
             currentContactId = contactId;
             const contact = allContacts.find(c => c.id === contactId);
             if (!contact) return;
+
+            // Show contribution message for students who haven't added any contacts
+            const contributionContainer = document.getElementById('contribution-message-container');
+            if (!isMentor && !userHasContributedContacts()) {
+                contributionContainer.innerHTML = getContributionMessage();
+                contributionContainer.style.display = 'block';
+            } else {
+                contributionContainer.style.display = 'none';
+            }
 
             // Fill detail info (students see abbreviated name, mentors see full name)
             document.getElementById('detail-name').textContent = getDisplayName(contact.name);
