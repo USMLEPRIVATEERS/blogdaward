@@ -551,20 +551,17 @@
                 return;
             }
 
-            // Create a simple password hash (base64 encoded)
-            const simpleHash = btoa(password + '_ward_salt_2024');
-
-            const { error } = await WardApp.db.from('users').insert({
-                cpf,
-                email: email || null,
-                password_hash: simpleHash,
-                full_name: name,
-                role,
-                status: 'active'
+            // Criar usuario com senha bcrypt no servidor
+            const { data: result, error } = await WardApp.db.rpc('create_user_secure', {
+                p_cpf: cpf,
+                p_email: email || '',
+                p_password: password,
+                p_full_name: name,
+                p_role: role
             });
 
-            if (error) {
-                WardApp.showToast('Erro ao criar membro: ' + error.message, 'error');
+            if (error || !result?.success) {
+                WardApp.showToast('Erro ao criar membro: ' + (result?.error || error?.message), 'error');
                 return;
             }
 
@@ -623,12 +620,7 @@
                 updated_at: new Date().toISOString()
             };
 
-            // Update password if provided
-            if (password && password.length >= 6) {
-                const simpleHash = btoa(password + '_ward_salt_2024');
-                updateData.password_hash = simpleHash;
-            }
-
+            // Update user data (without password)
             const { error } = await WardApp.db
                 .from('users')
                 .update(updateData)
@@ -637,6 +629,18 @@
             if (error) {
                 WardApp.showToast('Erro ao atualizar: ' + error.message, 'error');
                 return;
+            }
+
+            // Update password separately with bcrypt if provided
+            if (password && password.length >= 6) {
+                const { data: pwResult, error: pwError } = await WardApp.db.rpc('update_password_secure', {
+                    p_user_id: parseInt(memberId),
+                    p_password: password
+                });
+
+                if (pwError || !pwResult?.success) {
+                    WardApp.showToast('Usuario atualizado, mas erro ao alterar senha', 'warning');
+                }
             }
 
             closeModal('edit-member-modal');
