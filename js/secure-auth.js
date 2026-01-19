@@ -20,6 +20,8 @@ async function secureLogin(cpf, password) {
     try {
         // Validar CPF
         const cleanCPF = cpf.replace(/\D/g, '');
+        console.log('[SecureAuth] CPF limpo:', cleanCPF);
+
         if (window.WardSecurity && !WardSecurity.validateCPF(cleanCPF)) {
             hideLoading();
             showToast('CPF inválido', 'error');
@@ -28,18 +30,29 @@ async function secureLogin(cpf, password) {
         }
 
         // Buscar usuario pelo CPF
+        console.log('[SecureAuth] Buscando usuario pelo CPF...');
         const { data: userData, error: userError } = await WardApp.db
             .from('users')
             .select('*')
             .eq('cpf', cleanCPF)
             .single();
 
+        console.log('[SecureAuth] Resultado busca:', { userData, userError });
+
         if (userError || !userData) {
             hideLoading();
+            console.error('[SecureAuth] Usuario nao encontrado:', userError);
             showToast('CPF ou senha incorretos', 'error');
             if (window.WardSecurity) WardSecurity.recordLoginAttempt(false);
             return false;
         }
+
+        console.log('[SecureAuth] Usuario encontrado:', {
+            id: userData.id,
+            email: userData.email,
+            auth_id: userData.auth_id,
+            role: userData.role
+        });
 
         // Verificar se usuario esta inativo
         if (userData.status === 'inactive') {
@@ -50,20 +63,27 @@ async function secureLogin(cpf, password) {
 
         // Se usuario tem auth_id, usar Supabase Auth
         if (userData.auth_id && userData.email) {
+            console.log('[SecureAuth] Tentando login via Supabase Auth...');
+            console.log('[SecureAuth] Email:', userData.email);
+
             const { data: authData, error: authError } = await WardApp.db.auth.signInWithPassword({
                 email: userData.email,
                 password: password
             });
 
+            console.log('[SecureAuth] Resultado Supabase Auth:', { authData, authError });
+
             if (authError || !authData.user) {
                 hideLoading();
-                console.error('Supabase Auth error:', authError?.message);
+                console.error('[SecureAuth] Supabase Auth FALHOU:', authError?.message);
                 showToast('CPF ou senha incorretos', 'error');
                 if (window.WardSecurity) WardSecurity.recordLoginAttempt(false);
                 return false;
             }
-            console.log('Login via Supabase Auth successful');
+            console.log('[SecureAuth] Login via Supabase Auth SUCESSO!');
         } else {
+            console.log('[SecureAuth] Usuario SEM auth_id, usando sistema legado');
+            console.log('[SecureAuth] auth_id:', userData.auth_id, 'email:', userData.email);
             // Sistema legado para usuarios nao migrados
             const hashedPassword = btoa(password + '_ward_salt_2024');
             if (userData.password_hash !== password && userData.password_hash !== hashedPassword) {
