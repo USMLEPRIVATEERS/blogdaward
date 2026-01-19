@@ -1014,6 +1014,56 @@
                 padding-top: 3.5rem;
             }
         }
+
+        /* Autocomplete suggestions */
+        .name-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .suggestion-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+            transition: background 0.15s;
+        }
+
+        .suggestion-item:hover {
+            background: #f8fafc;
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        .suggestion-name {
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .suggestion-details {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+
+        .suggestion-hint {
+            padding: 0.5rem 1rem;
+            background: #fef3c7;
+            color: #92400e;
+            font-size: 0.8rem;
+            border-bottom: 1px solid #fde68a;
+        }
     </style>
 </head>
 <body>
@@ -1184,9 +1234,10 @@
                     <!-- Basic Info -->
                     <div class="form-section">
                         <h4>📝 Informações Básicas</h4>
-                        <div class="form-group">
+                        <div class="form-group" style="position: relative;">
                             <label class="form-label">Nome Completo *</label>
-                            <input type="text" class="form-input" id="contact-name" required placeholder="Ex: Dr. John Smith">
+                            <input type="text" class="form-input" id="contact-name" required placeholder="Ex: Dr. John Smith" autocomplete="off">
+                            <div id="name-suggestions" class="name-suggestions" style="display: none;"></div>
                         </div>
                         <div class="form-group" style="margin-top: 0.5rem;">
                             <label class="form-check" style="cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem;">
@@ -2256,8 +2307,117 @@
             // Reset contact details checkbox and hide section
             document.getElementById('show-contact-details').checked = false;
             document.getElementById('contact-details-section').style.display = 'none';
+            // Hide suggestions
+            document.getElementById('name-suggestions').style.display = 'none';
             openModal('add-contact-modal');
         }
+
+        // ================================================
+        // AUTOCOMPLETE - SUGESTOES DE CONTATOS EXISTENTES
+        // ================================================
+
+        let suggestionTimeout = null;
+
+        function initNameAutocomplete() {
+            const nameInput = document.getElementById('contact-name');
+            const suggestionsContainer = document.getElementById('name-suggestions');
+
+            nameInput.addEventListener('input', function() {
+                const query = this.value.trim();
+
+                // Limpar timeout anterior
+                if (suggestionTimeout) clearTimeout(suggestionTimeout);
+
+                // Esconder se query muito curta
+                if (query.length < 2) {
+                    suggestionsContainer.style.display = 'none';
+                    return;
+                }
+
+                // Debounce - esperar 300ms após parar de digitar
+                suggestionTimeout = setTimeout(() => {
+                    showNameSuggestions(query);
+                }, 300);
+            });
+
+            // Esconder sugestões ao clicar fora
+            document.addEventListener('click', function(e) {
+                if (!nameInput.contains(e.target) && !suggestionsContainer.contains(e.target)) {
+                    suggestionsContainer.style.display = 'none';
+                }
+            });
+        }
+
+        function showNameSuggestions(query) {
+            const suggestionsContainer = document.getElementById('name-suggestions');
+            const queryLower = query.toLowerCase();
+
+            // Buscar contatos que contenham o texto digitado
+            const matches = allContacts.filter(contact => {
+                const name = (contact.name || '').toLowerCase();
+                return name.includes(queryLower);
+            }).slice(0, 5); // Limitar a 5 sugestões
+
+            if (matches.length === 0) {
+                suggestionsContainer.style.display = 'none';
+                return;
+            }
+
+            // Renderizar sugestões
+            let html = `<div class="suggestion-hint">⚠️ Contatos existentes encontrados. Clique para adicionar sua conexão:</div>`;
+
+            html += matches.map(contact => {
+                const specialty = contact.specialty?.name || '';
+                const institution = contact.institution || '';
+                const details = [specialty, institution].filter(Boolean).join(' • ');
+
+                return `
+                    <div class="suggestion-item" onclick="selectSuggestedContact(${contact.id})">
+                        <div class="suggestion-name">${escapeHtml(contact.name)}</div>
+                        ${details ? `<div class="suggestion-details">${escapeHtml(details)}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            suggestionsContainer.innerHTML = html;
+            suggestionsContainer.style.display = 'block';
+        }
+
+        function selectSuggestedContact(contactId) {
+            const contact = allContacts.find(c => c.id === contactId);
+            if (!contact) return;
+
+            // Esconder sugestões e fechar modal de adicionar
+            document.getElementById('name-suggestions').style.display = 'none';
+            closeModal('add-contact-modal');
+
+            // Verificar se usuário já tem conexão com este contato
+            const myConnection = allConnections.find(c => c.contact_id === contactId && c.user_id === userData.id);
+
+            if (myConnection) {
+                showToast('Você já está conectado a este contato!', 'warning');
+                openContactDetail(contactId);
+                return;
+            }
+
+            // Abrir modal para adicionar conexão ao contato existente
+            currentContactId = contactId;
+            document.getElementById('my-conn-contact-name').textContent = getDisplayName(contact.name);
+            document.getElementById('my-conn-description').value = '';
+            document.getElementById('my-conn-strength').value = 3;
+            // Uncheck all checkboxes and remove selected class
+            document.querySelectorAll('input[name="my-connection-type"]').forEach(input => input.checked = false);
+            document.querySelectorAll('#add-my-connection-modal .connection-type-option').forEach(opt => opt.classList.remove('selected'));
+
+            openModal('add-my-connection-modal');
+            showToast('Contato já existe! Adicione sua conexão.', 'info');
+        }
+
+        // Inicializar autocomplete quando a página carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            // Esperar um pouco para garantir que os elementos existam
+            setTimeout(initNameAutocomplete, 500);
+        });
 
         function editCurrentContact() {
             const contact = allContacts.find(c => c.id === currentContactId);
