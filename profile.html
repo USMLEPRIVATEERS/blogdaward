@@ -1061,25 +1061,40 @@
 
             WardApp.showLoading();
 
+            console.log('[ChangePassword] User data:', {
+                id: user.id,
+                email: user.email,
+                auth_id: user.auth_id,
+                role: user.role
+            });
+
             // If user has auth_id, use Supabase Auth
             if (user.auth_id && user.email) {
+                console.log('[ChangePassword] Usando Supabase Auth...');
                 try {
                     // First verify old password by trying to sign in
+                    console.log('[ChangePassword] Verificando senha atual...');
                     const { data: signInData, error: signInError } = await WardApp.db.auth.signInWithPassword({
                         email: user.email,
                         password: oldPass
                     });
 
+                    console.log('[ChangePassword] Resultado signIn:', { signInData, signInError });
+
                     if (signInError) {
                         WardApp.hideLoading();
+                        console.error('[ChangePassword] Senha atual incorreta:', signInError.message);
                         WardApp.showToast('Senha atual incorreta', 'error');
                         return;
                     }
 
                     // Now update the password
+                    console.log('[ChangePassword] Atualizando senha...');
                     const { error: updateError } = await WardApp.db.auth.updateUser({
                         password: newPass
                     });
+
+                    console.log('[ChangePassword] Resultado updateUser:', { updateError });
 
                     if (updateError) {
                         WardApp.hideLoading();
@@ -1099,6 +1114,8 @@
                     WardApp.showToast('Erro ao alterar senha', 'error');
                     return;
                 }
+            } else {
+                console.log('[ChangePassword] Usuario SEM auth_id, usando sistema legado');
             }
 
             // Legacy password change (for users not migrated to Auth)
