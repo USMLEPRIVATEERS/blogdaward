@@ -1044,7 +1044,11 @@
             if (video) {
                 // Get all videos from the same path for playlist
                 const videoPath = video.tags.split('::').slice(0, -1).join('::') || video.tags;
-                const videosInPath = getVideosForPath(videoPath);
+                let videosInPath = getVideosForPath(videoPath);
+
+                // Sort videos by title using natural sort
+                videosInPath = [...videosInPath].sort((a, b) => naturalSort(a.title, b.title));
+
                 const videoIndex = videosInPath.findIndex(v => v.id == videoId);
                 showVideoSection(videosInPath, videoIndex >= 0 ? videoIndex : 0);
             }
@@ -1071,7 +1075,9 @@
 
             // If we have leaf videos and no more subcategories, show video view
             if (leafVideos.length > 0 && categories.length === 0) {
-                showVideoSection(leafVideos, 0);
+                // Sort videos by title using natural sort
+                const sortedLeafVideos = [...leafVideos].sort((a, b) => naturalSort(a.title, b.title));
+                showVideoSection(sortedLeafVideos, 0);
                 return;
             }
 
@@ -1108,8 +1114,8 @@
 
                 // If there are also leaf videos at this level
                 if (leafVideos.length > 0) {
-                    // Sort videos by order_position to maintain database order
-                    leafVideos.sort((a, b) => (a.order_position || 0) - (b.order_position || 0));
+                    // Sort videos by title using natural sort (handles numbers: 0, 1, 2, 3...)
+                    leafVideos.sort((a, b) => naturalSort(a.title, b.title));
 
                     leafVideos.forEach(video => {
                         html += `
@@ -1195,9 +1201,12 @@
 
         function showVideoFromCategory(videoId) {
             const currentPathStr = currentPath.join('::');
-            const videosInPath = currentPathStr
+            let videosInPath = currentPathStr
                 ? getVideosForPath(currentPathStr)
                 : allVideos;
+
+            // Sort videos by title using natural sort (handles numbers correctly: 0, 1, 2, 3 instead of 0, 1, 11, 2)
+            videosInPath = [...videosInPath].sort((a, b) => naturalSort(a.title, b.title));
 
             const videoIndex = videosInPath.findIndex(v => v.id == videoId);
             showVideoSection(videosInPath, videoIndex >= 0 ? videoIndex : 0);
