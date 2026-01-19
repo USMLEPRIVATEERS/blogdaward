@@ -1720,9 +1720,21 @@
             // First escape HTML for security
             let formatted = escapeHtml(text);
 
-            // Convert URLs to clickable links (opens in new tab)
-            const urlRegex = /(https?:\/\/[^\s<]+)/g;
-            formatted = formatted.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+            // Headers: ## text or ### text
+            formatted = formatted.replace(/^###\s+(.+)$/gm, '<h4 style="margin: 0.5rem 0; color: #e94560;">$1</h4>');
+            formatted = formatted.replace(/^##\s+(.+)$/gm, '<h3 style="margin: 0.75rem 0; color: #e94560;">$1</h3>');
+            formatted = formatted.replace(/^#\s+(.+)$/gm, '<h2 style="margin: 1rem 0; color: #e94560;">$1</h2>');
+
+            // Code blocks: ```code``` or `code`
+            formatted = formatted.replace(/```([^`]+)```/g, '<pre style="background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 6px; overflow-x: auto; font-family: monospace; font-size: 0.85rem;">$1</pre>');
+            formatted = formatted.replace(/`([^`]+)`/g, '<code style="background: rgba(0,0,0,0.3); padding: 0.2rem 0.4rem; border-radius: 4px; font-family: monospace; font-size: 0.9rem;">$1</code>');
+
+            // Markdown links: [text](url)
+            formatted = formatted.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #e94560;">$1</a>');
+
+            // Convert plain URLs to clickable links (opens in new tab)
+            const urlRegex = /(?<!\]|\()(https?:\/\/[^\s<\)]+)/g;
+            formatted = formatted.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #e94560;">$1</a>');
 
             // Convert Markdown-style formatting
             // Bold: **text** or __text__
@@ -1733,15 +1745,20 @@
             formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
             formatted = formatted.replace(/_([^_]+)_/g, '<em>$1</em>');
 
-            // Convert line breaks
-            formatted = formatted.replace(/\n/g, '<br>');
+            // Numbered lists: 1. item
+            formatted = formatted.replace(/^\d+\.\s+(.+)$/gm, '<li style="margin-left: 1.5rem;">$1</li>');
 
             // Convert bullet points: lines starting with - or *
-            formatted = formatted.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
-            // Wrap consecutive <li> items in <ul>
-            formatted = formatted.replace(/(<li>.*<\/li>(\s*<br>)?)+/g, (match) => {
-                return '<ul>' + match.replace(/<br>/g, '') + '</ul>';
-            });
+            formatted = formatted.replace(/^[-*]\s+(.+)$/gm, '<li style="margin-left: 1.5rem;">$1</li>');
+
+            // Convert line breaks (but not inside pre tags)
+            formatted = formatted.replace(/\n/g, '<br>');
+
+            // Clean up extra breaks around block elements
+            formatted = formatted.replace(/<br>(<h[234])/g, '$1');
+            formatted = formatted.replace(/(<\/h[234]>)<br>/g, '$1');
+            formatted = formatted.replace(/<br>(<pre)/g, '$1');
+            formatted = formatted.replace(/(<\/pre>)<br>/g, '$1');
 
             return formatted;
         }
