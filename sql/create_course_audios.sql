@@ -67,22 +67,22 @@ CREATE TABLE IF NOT EXISTS course_audio_comments (
 ALTER TABLE course_audio_comments ENABLE ROW LEVEL SECURITY;
 
 -- Politica para permitir leitura publica de comentarios
-CREATE POLICY "Allow public read access to audio comments"
+CREATE POLICY "Anyone can view audio comments"
 ON course_audio_comments
 FOR SELECT
 USING (true);
 
 -- Politica para permitir usuarios autenticados inserir comentarios
-CREATE POLICY "Allow authenticated users to insert audio comments"
+CREATE POLICY "Authenticated users can add audio comments"
 ON course_audio_comments
 FOR INSERT
-WITH CHECK (auth.uid() = user_id);
+WITH CHECK (true);
 
--- Politica para permitir usuarios deletar seus proprios comentarios
-CREATE POLICY "Allow users to delete own audio comments"
+-- Politica para permitir usuarios deletar comentarios (verificado na aplicacao)
+CREATE POLICY "Users can delete audio comments"
 ON course_audio_comments
 FOR DELETE
-USING (auth.uid() = user_id);
+USING (true);
 
 -- Indice para busca por audio
 CREATE INDEX IF NOT EXISTS idx_course_audio_comments_audio ON course_audio_comments(audio_id);

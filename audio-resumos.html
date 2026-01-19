@@ -214,8 +214,9 @@
             width: 4px;
             background: linear-gradient(180deg, #e94560 0%, #0f3460 100%);
             border-radius: 4px 4px 0 0;
-            transition: height 0.1s ease;
             min-height: 4px;
+            will-change: height;
+            transform: translateZ(0);
         }
 
         /* Google Drive Player Container */
@@ -889,33 +890,111 @@
             }
         });
 
+        // Visualizer state
+        let visualizerBars = [];
+        let currentHeights = [];
+        let targetHeights = [];
+        let beatPhase = 0;
+        let lastBeatTime = 0;
+        const BPM = 120; // Beats per minute simulation
+        const BEAT_INTERVAL = 60000 / BPM;
+
         function initVisualizer() {
             const container = document.getElementById('visualizer');
             const barCount = 40;
             container.innerHTML = '';
+            visualizerBars = [];
+            currentHeights = [];
+            targetHeights = [];
 
             for (let i = 0; i < barCount; i++) {
                 const bar = document.createElement('div');
                 bar.className = 'visualizer-bar';
                 bar.style.height = '4px';
                 container.appendChild(bar);
+                visualizerBars.push(bar);
+                currentHeights.push(4);
+                targetHeights.push(4);
             }
         }
 
         function startVisualizer() {
             isPlaying = true;
+            lastBeatTime = performance.now();
             animateVisualizer();
+        }
+
+        // Simplex-like noise for organic movement
+        function noise(x, seed) {
+            const n = Math.sin(x * 12.9898 + seed * 78.233) * 43758.5453;
+            return n - Math.floor(n);
         }
 
         function animateVisualizer() {
             if (!isPlaying) return;
 
-            const bars = document.querySelectorAll('.visualizer-bar');
-            bars.forEach((bar, index) => {
-                // Simulated equalizer effect
-                const height = Math.max(4, Math.random() * 80 + 10);
-                bar.style.height = `${height}px`;
-            });
+            const now = performance.now();
+            const barCount = visualizerBars.length;
+
+            // Check for beat
+            if (now - lastBeatTime >= BEAT_INTERVAL) {
+                lastBeatTime = now;
+                beatPhase = (beatPhase + 1) % 4;
+
+                // Generate new target heights on beat
+                for (let i = 0; i < barCount; i++) {
+                    const normalizedPos = i / barCount; // 0 to 1
+
+                    // Bass frequencies (left side) - stronger, more stable
+                    // Mid frequencies (center) - moderate
+                    // Treble frequencies (right side) - more variable
+
+                    let baseHeight, variance;
+
+                    if (normalizedPos < 0.3) {
+                        // Bass region - strong on beats
+                        baseHeight = beatPhase === 0 ? 70 : 40;
+                        variance = 15;
+                    } else if (normalizedPos < 0.6) {
+                        // Mid region - melodic, moderate variation
+                        baseHeight = 45 + Math.sin(beatPhase * Math.PI / 2) * 20;
+                        variance = 25;
+                    } else {
+                        // Treble region - high variation, sparkly
+                        baseHeight = 30;
+                        variance = 40;
+                    }
+
+                    // Add organic noise variation
+                    const noiseVal = noise(i * 0.1, now * 0.001);
+                    targetHeights[i] = Math.max(8, baseHeight + (noiseVal - 0.5) * variance * 2);
+                }
+            }
+
+            // Add continuous subtle variation between beats
+            const timeSinceBeat = now - lastBeatTime;
+            const beatProgress = timeSinceBeat / BEAT_INTERVAL;
+
+            for (let i = 0; i < barCount; i++) {
+                // Micro-variations for liveliness
+                const microNoise = noise(i * 0.3 + now * 0.005, i);
+                const microVariation = (microNoise - 0.5) * 8;
+
+                // Smooth interpolation towards target
+                const smoothing = 0.15;
+                const adjustedTarget = targetHeights[i] + microVariation;
+                currentHeights[i] += (adjustedTarget - currentHeights[i]) * smoothing;
+
+                // Decay effect after beat peak
+                if (beatProgress > 0.3) {
+                    const decay = 1 - (beatProgress - 0.3) * 0.4;
+                    currentHeights[i] *= Math.max(0.7, decay);
+                }
+
+                // Apply height
+                const finalHeight = Math.max(4, Math.min(90, currentHeights[i]));
+                visualizerBars[i].style.height = `${finalHeight}px`;
+            }
 
             animationId = requestAnimationFrame(animateVisualizer);
         }
@@ -927,10 +1006,24 @@
                 animationId = null;
             }
 
-            const bars = document.querySelectorAll('.visualizer-bar');
-            bars.forEach(bar => {
-                bar.style.height = '4px';
-            });
+            // Smooth fade out
+            const fadeOut = () => {
+                let stillAnimating = false;
+                visualizerBars.forEach((bar, i) => {
+                    currentHeights[i] *= 0.85;
+                    if (currentHeights[i] > 5) {
+                        stillAnimating = true;
+                        bar.style.height = `${currentHeights[i]}px`;
+                    } else {
+                        currentHeights[i] = 4;
+                        bar.style.height = '4px';
+                    }
+                });
+                if (stillAnimating && !isPlaying) {
+                    requestAnimationFrame(fadeOut);
+                }
+            };
+            fadeOut();
         }
 
         async function loadAudios() {
