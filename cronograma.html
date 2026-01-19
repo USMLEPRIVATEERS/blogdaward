@@ -1632,6 +1632,9 @@
                 diaryLink.style.display = 'block';
             }
 
+            // Load schedule_type BEFORE loading schedule so Register button works correctly
+            await loadUserScheduleType();
+
             await loadWatchedLessons();
             await loadSchedule();
             await loadDelays();
@@ -3141,6 +3144,23 @@
         let currentTutorialVideoUrl = TUTORIAL_VIDEO_SUBJECT; // Default to subject video (for users without schedule)
         let tutorialWatchedStatus = false;
         let userScheduleType = 'subject'; // Default schedule type
+
+        // Load user's schedule type (subject or category) - called early to ensure Register button works correctly
+        async function loadUserScheduleType() {
+            try {
+                const { data: user } = await WardApp.db
+                    .from('users')
+                    .select('schedule_type')
+                    .eq('id', targetUserId)
+                    .single();
+
+                if (user && user.schedule_type) {
+                    userScheduleType = user.schedule_type;
+                }
+            } catch (e) {
+                console.log('Using default schedule type: subject');
+            }
+        }
 
         // Determine tutorial video based on schedule type
         async function determineTutorialVideo() {
