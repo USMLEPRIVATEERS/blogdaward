@@ -438,7 +438,23 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
 
             // Check if mentor
             if (!userData.role || !userData.role.startsWith('mentor_')) {
+                WardApp.showToast('Acesso negado', 'error');
                 window.location.href = 'dashboard.html';
+                return;
+            }
+
+            // Verificacao adicional via Supabase Auth
+            const { data: { user: authUser } } = await WardApp.db.auth.getUser();
+            if (!authUser) {
+                WardApp.showToast('Sessao invalida. Faca login novamente.', 'error');
+                WardApp.logout();
+                return;
+            }
+
+            // Verificar se o auth_id corresponde ao usuario logado
+            if (userData.auth_id && userData.auth_id !== authUser.id) {
+                WardApp.showToast('Acesso negado: autenticacao invalida', 'error');
+                WardApp.logout();
                 return;
             }
 

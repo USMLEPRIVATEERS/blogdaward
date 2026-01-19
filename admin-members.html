@@ -279,6 +279,35 @@
 
             // Only Marcos can access this page
             if (userData.role !== 'mentor_marcos') {
+                WardApp.showToast('Acesso negado', 'error');
+                window.location.href = 'dashboard.html';
+                return;
+            }
+
+            // Verificacao OBRIGATORIA via Supabase Auth para paginas administrativas
+            const { data: { user: authUser } } = await WardApp.db.auth.getUser();
+            if (!authUser) {
+                WardApp.showToast('Sessao invalida. Faca login novamente.', 'error');
+                WardApp.logout();
+                return;
+            }
+
+            // Verificar se o auth_id corresponde ao usuario logado
+            if (!userData.auth_id || userData.auth_id !== authUser.id) {
+                WardApp.showToast('Acesso negado: autenticacao invalida', 'error');
+                WardApp.logout();
+                return;
+            }
+
+            // Verificacao extra: confirmar no banco que este auth_id pertence ao mentor_marcos
+            const { data: dbUser, error } = await WardApp.db
+                .from('users')
+                .select('id, role, auth_id')
+                .eq('auth_id', authUser.id)
+                .single();
+
+            if (error || !dbUser || dbUser.role !== 'mentor_marcos') {
+                WardApp.showToast('Acesso negado: voce nao tem permissao para esta pagina', 'error');
                 window.location.href = 'dashboard.html';
                 return;
             }
