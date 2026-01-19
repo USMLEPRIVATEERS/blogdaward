@@ -82,17 +82,36 @@ async function secureLogin(cpf, password) {
             }
             console.log('[SecureAuth] Login via Supabase Auth SUCESSO!');
         } else {
-            console.log('[SecureAuth] Usuario SEM auth_id, usando sistema legado');
-            console.log('[SecureAuth] auth_id:', userData.auth_id, 'email:', userData.email);
-            // Sistema legado para usuarios nao migrados
-            const hashedPassword = btoa(password + '_ward_salt_2024');
-            if (userData.password_hash !== password && userData.password_hash !== hashedPassword) {
+            console.log('[SecureAuth] Usuario SEM auth_id, usando RPC seguro');
+
+            // Sistema legado com verificacao de senha no servidor (bcrypt)
+            const { data: loginResult, error: rpcError } = await WardApp.db
+                .rpc('secure_login', {
+                    p_cpf: cleanCPF,
+                    p_password: password
+                });
+
+            console.log('[SecureAuth] Resultado RPC:', { loginResult, rpcError });
+
+            if (rpcError) {
                 hideLoading();
+                console.error('[SecureAuth] RPC error:', rpcError);
+                showToast('Erro ao verificar credenciais', 'error');
+                if (window.WardSecurity) WardSecurity.recordLoginAttempt(false);
+                return false;
+            }
+
+            if (!loginResult || !loginResult.success) {
+                hideLoading();
+                console.error('[SecureAuth] Login falhou:', loginResult?.error);
                 showToast('CPF ou senha incorretos', 'error');
                 if (window.WardSecurity) WardSecurity.recordLoginAttempt(false);
                 return false;
             }
-            console.log('Login via legacy system');
+
+            // Atualizar userData com dados retornados do servidor
+            Object.assign(userData, loginResult.user);
+            console.log('[SecureAuth] Login via RPC seguro SUCESSO!');
         }
 
         // Login bem sucedido
