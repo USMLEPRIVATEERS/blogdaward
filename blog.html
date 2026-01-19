@@ -1443,14 +1443,30 @@
             document.getElementById('char-count').textContent = '0';
         }
 
+        // Converte URLs em links clicaveis
+        function linkifyUrls(text) {
+            // Regex para detectar URLs (http, https, www)
+            const urlRegex = /(\b(https?:\/\/|www\.)[^\s<>"']+)/gi;
+            return text.replace(urlRegex, (url) => {
+                let href = url;
+                // Se começa com www, adiciona https://
+                if (url.toLowerCase().startsWith('www.')) {
+                    href = 'https://' + url;
+                }
+                return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #d97706; text-decoration: underline;">${url}</a>`;
+            });
+        }
+
         // Sanitize post content for display - allow only safe HTML tags
         function sanitizePostContent(content) {
             if (!content) return '';
 
             // Check if content looks like plain text (no HTML tags)
             if (!/<[^>]+>/.test(content)) {
-                // Plain text - convert newlines to <br>
-                return content.replace(/\n/g, '<br>');
+                // Plain text - convert newlines to <br> and URLs to links
+                let result = content.replace(/\n/g, '<br>');
+                result = linkifyUrls(result);
+                return result;
             }
 
             // HTML content - sanitize it
@@ -1470,6 +1486,25 @@
                 // Remove href="javascript:"
                 if (el.hasAttribute('href') && el.getAttribute('href').toLowerCase().startsWith('javascript:')) {
                     el.removeAttribute('href');
+                }
+            });
+
+            // Linkify URLs in text nodes
+            const walker = document.createTreeWalker(temp, NodeFilter.SHOW_TEXT, null, false);
+            const textNodes = [];
+            while (walker.nextNode()) {
+                textNodes.push(walker.currentNode);
+            }
+
+            textNodes.forEach(node => {
+                // Pular se o pai já é um link
+                if (node.parentNode.tagName === 'A') return;
+
+                const text = node.textContent;
+                if (/(https?:\/\/|www\.)/i.test(text)) {
+                    const span = document.createElement('span');
+                    span.innerHTML = linkifyUrls(text);
+                    node.parentNode.replaceChild(span, node);
                 }
             });
 
