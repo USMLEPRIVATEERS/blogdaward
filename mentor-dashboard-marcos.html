@@ -209,6 +209,10 @@
                             <span class="action-icon">🎬</span>
                             <span class="action-title">Adicionar Aula</span>
                         </div>
+                        <div class="action-card" onclick="openAudioManager()">
+                            <span class="action-icon">🎧</span>
+                            <span class="action-title">Adicionar Audio</span>
+                        </div>
                         <a href="mentor-assessments-marcos.html" class="action-card">
                             <span class="action-icon">📝</span>
                             <span class="action-title">Simulados</span>
@@ -545,6 +549,148 @@ Cardiovascular	Physiology	62	FALSE
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('course-manager-modal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio Manager Modal -->
+    <div id="audio-manager-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 1200px; width: 95%; max-height: 90vh;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); color: white;">
+                <h3 class="modal-title" style="margin: 0;">🎧 Gerenciar Audio Resumos - Estrutura de Pastas e Audios</h3>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="btn btn-sm" onclick="openAudioPreview()" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem;">
+                        <span>👁️</span> Visualizar Pagina de Audios
+                    </button>
+                    <button class="modal-close" onclick="closeModal('audio-manager-modal')" style="color: white;">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto; padding: 0;">
+                <div style="display: grid; grid-template-columns: 1fr 400px; height: 100%; min-height: 500px;">
+                    <!-- Left: Tree Structure -->
+                    <div style="border-right: 2px solid #e5e7eb; padding: 1.5rem; overflow-y: auto;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                            <h4 style="margin: 0; font-size: 1.1rem; color: #374151;">Estrutura dos Audios</h4>
+                            <button class="btn btn-sm btn-primary" onclick="addAudioRootFolder()" style="background: linear-gradient(135deg, #e94560 0%, #0f3460 100%);">
+                                <span>📁</span> Nova Pasta Raiz
+                            </button>
+                        </div>
+                        <div id="audio-tree-container" style="min-height: 400px;">
+                            <!-- Tree will be rendered here -->
+                        </div>
+                    </div>
+
+                    <!-- Right: Edit Panel -->
+                    <div id="audio-edit-panel" style="padding: 1.5rem; background: #f9fafb;">
+                        <div id="audio-edit-panel-empty" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #9ca3af;">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">🎧</div>
+                            <p style="text-align: center;">Selecione uma pasta ou audio para editar</p>
+                            <p style="text-align: center; font-size: 0.85rem;">ou crie uma nova pasta raiz</p>
+                        </div>
+
+                        <div id="audio-edit-panel-folder" style="display: none;">
+                            <h4 style="margin: 0 0 1rem 0; color: #374151;">✏️ Editar Pasta</h4>
+                            <div class="form-group">
+                                <label class="form-label">Nome da Pasta</label>
+                                <input type="text" id="audio-edit-folder-name" class="form-input" placeholder="Ex: USMLE Step 1">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Icone (emoji)</label>
+                                <input type="text" id="audio-edit-folder-icon" class="form-input" placeholder="📚" maxlength="2">
+                            </div>
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" id="audio-edit-folder-hidden">
+                                    <span>🙈 Ocultar pasta (nao aparece nos audios)</span>
+                                </label>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
+                                <button class="btn btn-primary btn-sm" onclick="saveAudioFolderEdit()">💾 Salvar</button>
+                                <button class="btn btn-sm btn-outline" onclick="addAudioSubfolder()">📁 Nova Subpasta</button>
+                                <button class="btn btn-sm btn-outline" onclick="addAudioToFolder()" style="background: linear-gradient(135deg, #e94560 0%, #0f3460 100%); color: white; border: none;">🎧 Novo Audio</button>
+                            </div>
+                            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e5e7eb;">
+                            <button class="btn btn-danger btn-sm" onclick="deleteAudioFolder()">🗑️ Excluir Pasta</button>
+                            <p style="font-size: 0.75rem; color: #ef4444; margin-top: 0.5rem;">⚠️ Exclui a pasta e todo seu conteudo</p>
+                        </div>
+
+                        <div id="audio-edit-panel-audio" style="display: none;">
+                            <h4 style="margin: 0 0 1rem 0; color: #374151;">🎧 Editar Audio</h4>
+                            <div class="form-group">
+                                <label class="form-label">Titulo do Audio</label>
+                                <input type="text" id="audio-edit-title" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Link do Google Drive</label>
+                                <input type="text" id="audio-edit-url" class="form-input" placeholder="https://drive.google.com/file/d/...">
+                                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">Cole o link compartilhado do Google Drive</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Descricao <span style="font-weight: normal; color: #6b7280; font-size: 0.8rem;">(opcional)</span></label>
+                                <textarea id="audio-edit-description" class="form-textarea" rows="4" placeholder="Descricao do audio..."></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Duracao (minutos)</label>
+                                <input type="number" id="audio-edit-duration" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" id="audio-edit-hidden">
+                                    <span>🙈 Ocultar audio (nao aparece na pagina)</span>
+                                </label>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
+                                <button class="btn btn-primary btn-sm" onclick="saveAudioEdit()">💾 Salvar</button>
+                            </div>
+                            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e5e7eb;">
+                            <button class="btn btn-danger btn-sm" onclick="deleteAudio()">🗑️ Excluir Audio</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('audio-manager-modal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio Quick Add Modal -->
+    <div id="audio-quick-add-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); color: white;">
+                <h3 class="modal-title" id="audio-quick-add-title">➕ Adicionar</h3>
+                <button class="modal-close" onclick="closeModal('audio-quick-add-modal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="audio-quick-add-folder-form" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Nome da Pasta *</label>
+                        <input type="text" id="audio-quick-folder-name" class="form-input" placeholder="Ex: Cardiovascular">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Icone (opcional)</label>
+                        <input type="text" id="audio-quick-folder-icon" class="form-input" placeholder="❤️" maxlength="2">
+                    </div>
+                </div>
+                <div id="audio-quick-add-audio-form" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Titulo do Audio *</label>
+                        <input type="text" id="audio-quick-title" class="form-input" placeholder="Ex: Resumo do Sistema Cardiovascular">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Link do Google Drive *</label>
+                        <input type="text" id="audio-quick-url" class="form-input" placeholder="https://drive.google.com/file/d/...">
+                        <p style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">Cole o link compartilhado do Google Drive</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Duracao (minutos)</label>
+                        <input type="number" id="audio-quick-duration" class="form-input" placeholder="15">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('audio-quick-add-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveAudioQuickAdd()" style="background: linear-gradient(135deg, #e94560 0%, #0f3460 100%);">Criar</button>
             </div>
         </div>
     </div>
@@ -3855,6 +4001,462 @@ Cardiovascular	Physiology	62	FALSE
                 throw error;
             }
         }
+
+        // =====================================================
+        // AUDIO MANAGER FUNCTIONS
+        // =====================================================
+
+        let audioStructure = [];
+        let selectedAudioNode = null;
+        let audioQuickAddMode = null;
+        let audioQuickAddParent = null;
+
+        async function openAudioManager() {
+            openModal('audio-manager-modal');
+            await loadAudioStructure();
+            renderAudioTree();
+        }
+
+        function openAudioPreview() {
+            window.open('audio-resumos.html', '_blank');
+        }
+
+        async function loadAudioStructure() {
+            const { data: audios, error } = await WardApp.db
+                .from('course_audios')
+                .select('*')
+                .order('order_position', { ascending: true });
+
+            if (error) {
+                console.error('Error loading audio structure:', error);
+                return;
+            }
+
+            const folderMap = new Map();
+            const rootFolders = [];
+
+            (audios || []).forEach(audio => {
+                if (!audio.tags) return;
+
+                const path = audio.tags.split('::');
+                let currentPath = '';
+                let parentFolder = null;
+
+                path.forEach((folderName, index) => {
+                    currentPath += (currentPath ? '::' : '') + folderName;
+
+                    if (!folderMap.has(currentPath)) {
+                        const folder = {
+                            id: `audio_folder_${currentPath}`,
+                            name: folderName,
+                            icon: getAudioFolderIcon(folderName),
+                            path: currentPath,
+                            type: 'folder',
+                            hidden: audio.is_hidden || false,
+                            children: [],
+                            audios: []
+                        };
+
+                        folderMap.set(currentPath, folder);
+
+                        if (parentFolder) {
+                            parentFolder.children.push(folder);
+                        } else {
+                            rootFolders.push(folder);
+                        }
+                    }
+
+                    parentFolder = folderMap.get(currentPath);
+                });
+
+                if (parentFolder) {
+                    parentFolder.audios.push({
+                        ...audio,
+                        type: 'audio'
+                    });
+                }
+            });
+
+            audioStructure = rootFolders;
+        }
+
+        function getAudioFolderIcon(name) {
+            const icons = {
+                'USMLE': '🩺',
+                'STEP_1': '1️⃣',
+                'STEP_2': '2️⃣',
+                'STEP_3': '3️⃣',
+                'PESQUISA': '🔬',
+                'MATCH': '🎯',
+                'OET': '🗣️',
+                'WARD_ACADEMY': '🎓'
+            };
+            return icons[name] || '🎧';
+        }
+
+        function renderAudioTree() {
+            const container = document.getElementById('audio-tree-container');
+
+            if (audioStructure.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: #9ca3af;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🎧</div>
+                        <p>Nenhum audio cadastrado ainda.</p>
+                        <p style="font-size: 0.85rem;">Clique em "Nova Pasta Raiz" para comecar.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = renderAudioFolders(audioStructure, 0);
+        }
+
+        function renderAudioFolders(folders, depth) {
+            return folders.map(folder => {
+                const indent = depth * 20;
+                const hasContent = folder.children.length > 0 || folder.audios.length > 0;
+                const hiddenBadge = folder.hidden ? '<span style="margin-left: 0.5rem; font-size: 0.75rem;">🙈</span>' : '';
+
+                let html = `
+                    <div class="tree-node folder-node" data-type="folder" data-id="${folder.id}" data-path="${folder.path}"
+                         style="padding: 0.5rem; padding-left: ${indent + 8}px; margin-bottom: 2px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; transition: all 0.15s; background: ${selectedAudioNode?.id === folder.id ? 'rgba(233, 69, 96, 0.1)' : 'transparent'}; border-left: ${selectedAudioNode?.id === folder.id ? '3px solid #e94560' : '3px solid transparent'};"
+                         onclick="selectAudioNode('folder', '${folder.id}', '${folder.path}')"
+                         onmouseover="this.style.background='rgba(233, 69, 96, 0.05)'"
+                         onmouseout="this.style.background='${selectedAudioNode?.id === folder.id ? 'rgba(233, 69, 96, 0.1)' : 'transparent'}'">
+                        <span style="font-size: 1.1rem;">${folder.icon}</span>
+                        <span style="flex: 1; font-weight: 500;">${folder.name.replace(/_/g, ' ')}${hiddenBadge}</span>
+                        ${hasContent ? `<span style="font-size: 0.75rem; color: #9ca3af;">${folder.audios.length} audio(s)</span>` : ''}
+                    </div>
+                `;
+
+                if (folder.children.length > 0) {
+                    html += renderAudioFolders(folder.children, depth + 1);
+                }
+
+                folder.audios.forEach(audio => {
+                    const audioHiddenBadge = audio.is_hidden ? '<span style="margin-left: 0.5rem; font-size: 0.75rem;">🙈</span>' : '';
+                    html += `
+                        <div class="tree-node audio-node" data-type="audio" data-id="${audio.id}" data-path="${folder.path}"
+                             style="padding: 0.5rem; padding-left: ${(depth + 1) * 20 + 8}px; margin-bottom: 2px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; transition: all 0.15s; background: ${selectedAudioNode?.id === audio.id ? 'rgba(233, 69, 96, 0.1)' : 'transparent'}; border-left: ${selectedAudioNode?.id === audio.id ? '3px solid #e94560' : '3px solid transparent'};"
+                             onclick="selectAudioNode('audio', '${audio.id}', '${folder.path}')"
+                             onmouseover="this.style.background='rgba(233, 69, 96, 0.05)'"
+                             onmouseout="this.style.background='${selectedAudioNode?.id === audio.id ? 'rgba(233, 69, 96, 0.1)' : 'transparent'}'">
+                            <span style="font-size: 0.9rem;">🎧</span>
+                            <span style="flex: 1; font-size: 0.9rem;">${audio.title}${audioHiddenBadge}</span>
+                            ${audio.duration_minutes ? `<span style="font-size: 0.75rem; color: #9ca3af;">${audio.duration_minutes}min</span>` : ''}
+                        </div>
+                    `;
+                });
+
+                return html;
+            }).join('');
+        }
+
+        function selectAudioNode(type, id, path) {
+            selectedAudioNode = { type, id, path };
+
+            document.getElementById('audio-edit-panel-empty').style.display = 'none';
+            document.getElementById('audio-edit-panel-folder').style.display = 'none';
+            document.getElementById('audio-edit-panel-audio').style.display = 'none';
+
+            if (type === 'folder') {
+                document.getElementById('audio-edit-panel-folder').style.display = 'block';
+
+                const folder = findAudioFolder(audioStructure, id);
+                if (folder) {
+                    document.getElementById('audio-edit-folder-name').value = folder.name;
+                    document.getElementById('audio-edit-folder-icon').value = folder.icon;
+                    document.getElementById('audio-edit-folder-hidden').checked = folder.hidden;
+                }
+            } else if (type === 'audio') {
+                document.getElementById('audio-edit-panel-audio').style.display = 'block';
+                loadAudioEdit(id);
+            }
+
+            renderAudioTree();
+        }
+
+        function findAudioFolder(folders, id) {
+            for (const folder of folders) {
+                if (folder.id === id) return folder;
+                if (folder.children.length > 0) {
+                    const found = findAudioFolder(folder.children, id);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        async function loadAudioEdit(audioId) {
+            const { data: audio, error } = await WardApp.db
+                .from('course_audios')
+                .select('*')
+                .eq('id', audioId)
+                .single();
+
+            if (error || !audio) {
+                console.error('Error loading audio:', error);
+                return;
+            }
+
+            document.getElementById('audio-edit-title').value = audio.title || '';
+            document.getElementById('audio-edit-url').value = audio.audio_url || '';
+            document.getElementById('audio-edit-description').value = audio.description || '';
+            document.getElementById('audio-edit-duration').value = audio.duration_minutes || '';
+            document.getElementById('audio-edit-hidden').checked = audio.is_hidden || false;
+        }
+
+        async function saveAudioFolderEdit() {
+            if (!selectedAudioNode || selectedAudioNode.type !== 'folder') return;
+
+            const newName = document.getElementById('audio-edit-folder-name').value.trim();
+            const newIcon = document.getElementById('audio-edit-folder-icon').value.trim() || '🎧';
+            const isHidden = document.getElementById('audio-edit-folder-hidden').checked;
+
+            if (!newName) {
+                WardApp.showToast('Nome da pasta e obrigatorio', 'warning');
+                return;
+            }
+
+            const folder = findAudioFolder(audioStructure, selectedAudioNode.id);
+            if (!folder) return;
+
+            const oldPath = folder.path;
+            const pathParts = oldPath.split('::');
+            pathParts[pathParts.length - 1] = newName;
+            const newPath = pathParts.join('::');
+
+            if (oldPath !== newPath) {
+                const { data: audios } = await WardApp.db
+                    .from('course_audios')
+                    .select('id, tags')
+                    .or(`tags.eq.${oldPath},tags.like.${oldPath}::%`);
+
+                for (const audio of audios || []) {
+                    let newTags = audio.tags;
+                    if (audio.tags === oldPath) {
+                        newTags = newPath;
+                    } else if (audio.tags.startsWith(oldPath + '::')) {
+                        newTags = audio.tags.replace(oldPath, newPath);
+                    }
+
+                    await WardApp.db
+                        .from('course_audios')
+                        .update({ tags: newTags, is_hidden: isHidden })
+                        .eq('id', audio.id);
+                }
+            } else {
+                const { data: audios } = await WardApp.db
+                    .from('course_audios')
+                    .select('id')
+                    .or(`tags.eq.${oldPath},tags.like.${oldPath}::%`);
+
+                for (const audio of audios || []) {
+                    await WardApp.db
+                        .from('course_audios')
+                        .update({ is_hidden: isHidden })
+                        .eq('id', audio.id);
+                }
+            }
+
+            WardApp.showToast('Pasta atualizada!');
+            await loadAudioStructure();
+            renderAudioTree();
+        }
+
+        async function saveAudioEdit() {
+            if (!selectedAudioNode || selectedAudioNode.type !== 'audio') return;
+
+            const title = document.getElementById('audio-edit-title').value.trim();
+            const url = document.getElementById('audio-edit-url').value.trim();
+            const description = document.getElementById('audio-edit-description').value.trim();
+            const duration = document.getElementById('audio-edit-duration').value;
+            const isHidden = document.getElementById('audio-edit-hidden').checked;
+
+            if (!title) {
+                WardApp.showToast('Titulo do audio e obrigatorio', 'warning');
+                return;
+            }
+
+            const { error } = await WardApp.db
+                .from('course_audios')
+                .update({
+                    title,
+                    audio_url: url || null,
+                    description: description || null,
+                    duration_minutes: duration ? parseInt(duration) : null,
+                    is_hidden: isHidden
+                })
+                .eq('id', selectedAudioNode.id);
+
+            if (error) {
+                console.error('Error updating audio:', error);
+                WardApp.showToast('Erro ao atualizar audio', 'error');
+                return;
+            }
+
+            WardApp.showToast('Audio atualizado!');
+            await loadAudioStructure();
+            renderAudioTree();
+        }
+
+        async function deleteAudioFolder() {
+            if (!selectedAudioNode || selectedAudioNode.type !== 'folder') return;
+
+            const folder = findAudioFolder(audioStructure, selectedAudioNode.id);
+            if (!folder) return;
+
+            if (!confirm(`Tem certeza que deseja excluir a pasta "${folder.name}" e todo seu conteudo?`)) return;
+
+            const { data: audios } = await WardApp.db
+                .from('course_audios')
+                .select('id')
+                .or(`tags.eq.${folder.path},tags.like.${folder.path}::%`);
+
+            for (const audio of audios || []) {
+                await WardApp.db
+                    .from('course_audios')
+                    .delete()
+                    .eq('id', audio.id);
+            }
+
+            WardApp.showToast('Pasta excluida!');
+            selectedAudioNode = null;
+            document.getElementById('audio-edit-panel-folder').style.display = 'none';
+            document.getElementById('audio-edit-panel-empty').style.display = 'flex';
+            await loadAudioStructure();
+            renderAudioTree();
+        }
+
+        async function deleteAudio() {
+            if (!selectedAudioNode || selectedAudioNode.type !== 'audio') return;
+
+            if (!confirm('Tem certeza que deseja excluir este audio?')) return;
+
+            const { error } = await WardApp.db
+                .from('course_audios')
+                .delete()
+                .eq('id', selectedAudioNode.id);
+
+            if (error) {
+                console.error('Error deleting audio:', error);
+                WardApp.showToast('Erro ao excluir audio', 'error');
+                return;
+            }
+
+            WardApp.showToast('Audio excluido!');
+            selectedAudioNode = null;
+            document.getElementById('audio-edit-panel-audio').style.display = 'none';
+            document.getElementById('audio-edit-panel-empty').style.display = 'flex';
+            await loadAudioStructure();
+            renderAudioTree();
+        }
+
+        function addAudioRootFolder() {
+            openAudioQuickAdd('folder', null, '');
+        }
+
+        function addAudioSubfolder() {
+            if (!selectedAudioNode || selectedAudioNode.type !== 'folder') return;
+            openAudioQuickAdd('folder', selectedAudioNode.id, selectedAudioNode.path);
+        }
+
+        function addAudioToFolder() {
+            if (!selectedAudioNode || selectedAudioNode.type !== 'folder') return;
+            openAudioQuickAdd('audio', selectedAudioNode.id, selectedAudioNode.path);
+        }
+
+        function openAudioQuickAdd(mode, parentId, parentPath) {
+            audioQuickAddMode = mode;
+            audioQuickAddParent = { id: parentId, path: parentPath };
+
+            document.getElementById('audio-quick-add-title').textContent = mode === 'folder' ? '📁 Nova Pasta' : '🎧 Novo Audio';
+            document.getElementById('audio-quick-add-folder-form').style.display = mode === 'folder' ? 'block' : 'none';
+            document.getElementById('audio-quick-add-audio-form').style.display = mode === 'audio' ? 'block' : 'none';
+
+            if (mode === 'folder') {
+                document.getElementById('audio-quick-folder-name').value = '';
+                document.getElementById('audio-quick-folder-icon').value = '';
+            } else {
+                document.getElementById('audio-quick-title').value = '';
+                document.getElementById('audio-quick-url').value = '';
+                document.getElementById('audio-quick-duration').value = '';
+            }
+
+            openModal('audio-quick-add-modal');
+        }
+
+        async function saveAudioQuickAdd() {
+            if (audioQuickAddMode === 'folder') {
+                await saveNewAudioFolder();
+            } else {
+                await saveNewAudio();
+            }
+        }
+
+        async function saveNewAudioFolder() {
+            const name = document.getElementById('audio-quick-folder-name').value.trim();
+            const icon = document.getElementById('audio-quick-folder-icon').value.trim() || '🎧';
+
+            if (!name) {
+                WardApp.showToast('Nome da pasta e obrigatorio', 'warning');
+                return;
+            }
+
+            const newPath = audioQuickAddParent.path ? `${audioQuickAddParent.path}::${name}` : name;
+
+            closeModal('audio-quick-add-modal');
+            WardApp.showToast('📁 Pasta preparada! Agora adicione o primeiro audio.', 'info');
+
+            setTimeout(() => {
+                openAudioQuickAdd('audio', `audio_folder_${newPath}`, newPath);
+            }, 300);
+        }
+
+        async function saveNewAudio() {
+            const title = document.getElementById('audio-quick-title').value.trim();
+            const url = document.getElementById('audio-quick-url').value.trim();
+            const duration = document.getElementById('audio-quick-duration').value;
+
+            if (!title) {
+                WardApp.showToast('Titulo do audio e obrigatorio', 'warning');
+                return;
+            }
+
+            if (!url) {
+                WardApp.showToast('Link do Google Drive e obrigatorio', 'warning');
+                return;
+            }
+
+            const tags = audioQuickAddParent.path || title.replace(/[^a-zA-Z0-9_]/g, '_');
+
+            const { error } = await WardApp.db
+                .from('course_audios')
+                .insert({
+                    title,
+                    audio_url: url,
+                    tags,
+                    duration_minutes: duration ? parseInt(duration) : null,
+                    order_position: 100,
+                    is_published: true,
+                    is_hidden: false
+                });
+
+            if (error) {
+                console.error('Error creating audio:', error);
+                WardApp.showToast('Erro ao criar audio', 'error');
+                return;
+            }
+
+            closeModal('audio-quick-add-modal');
+            WardApp.showToast('Audio criado com sucesso!');
+            await loadAudioStructure();
+            renderAudioTree();
+        }
+
+        // =====================================================
+        // END AUDIO MANAGER FUNCTIONS
+        // =====================================================
 
         // Diary preference functions
         async function loadDiaryPreference() {
