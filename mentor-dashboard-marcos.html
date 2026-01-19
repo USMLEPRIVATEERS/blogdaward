@@ -530,7 +530,7 @@ Cardiovascular	Physiology	62	FALSE
                                 <input type="text" id="edit-lesson-url" class="form-input" placeholder="https://youtube.com/...">
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Descrição <span style="font-weight: normal; color: #6b7280; font-size: 0.8rem;">(cole texto formatado do Claude)</span></label>
+                                <label class="form-label">Descrição <span style="font-weight: normal; color: #6b7280; font-size: 0.8rem;">(cole texto formatado - cores serão removidas)</span></label>
                                 <div id="edit-lesson-description"
                                      contenteditable="true"
                                      style="min-height: 150px; max-height: 300px; padding: 1rem; border: 2px solid #e2e8f0; border-radius: 8px; background: white; overflow-y: auto; line-height: 1.6; font-size: 0.9rem;"
@@ -541,6 +541,41 @@ Cardiovascular	Physiology	62	FALSE
                                     #edit-lesson-description ul, #edit-lesson-description ol { margin-left: 1.5rem; padding-left: 0.5rem; }
                                     #edit-lesson-description ul ul, #edit-lesson-description ol ul { margin-left: 1.5rem; }
                                 </style>
+                                <script>
+                                    // Strip color/background styles on paste
+                                    document.getElementById('edit-lesson-description').addEventListener('paste', function(e) {
+                                        e.preventDefault();
+                                        const html = e.clipboardData.getData('text/html');
+                                        const text = e.clipboardData.getData('text/plain');
+
+                                        if (html) {
+                                            // Parse and clean the HTML
+                                            const temp = document.createElement('div');
+                                            temp.innerHTML = html;
+
+                                            // Remove color and background styles from all elements
+                                            const allElements = temp.querySelectorAll('*');
+                                            allElements.forEach(el => {
+                                                el.style.color = '';
+                                                el.style.backgroundColor = '';
+                                                el.style.background = '';
+                                                // Remove color/bg from style attribute
+                                                if (el.getAttribute('style')) {
+                                                    let style = el.getAttribute('style');
+                                                    style = style.replace(/color\s*:\s*[^;]+;?/gi, '');
+                                                    style = style.replace(/background(-color)?\s*:\s*[^;]+;?/gi, '');
+                                                    el.setAttribute('style', style.trim() || '');
+                                                    if (!el.getAttribute('style')) el.removeAttribute('style');
+                                                }
+                                            });
+
+                                            // Insert cleaned HTML
+                                            document.execCommand('insertHTML', false, temp.innerHTML);
+                                        } else if (text) {
+                                            document.execCommand('insertText', false, text);
+                                        }
+                                    });
+                                </script>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Duração (minutos)</label>
