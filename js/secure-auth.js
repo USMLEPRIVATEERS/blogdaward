@@ -5,12 +5,11 @@
 // =============================================
 
 /**
- * Login seguro usando funcao RPC do Supabase
- * Hash bcrypt e verificado no servidor, nao no cliente
+ * Login seguro - suporta Supabase Auth e sistema legado
  */
 async function secureLogin(cpf, password) {
     // Verificar rate limiting
-    if (!WardSecurity.canAttemptLogin()) {
+    if (window.WardSecurity && !WardSecurity.canAttemptLogin()) {
         const remaining = WardSecurity.getLoginLockoutTime();
         showToast(`Muitas tentativas. Aguarde ${remaining} segundos.`, 'error');
         return false;
@@ -21,51 +20,88 @@ async function secureLogin(cpf, password) {
     try {
         // Validar CPF
         const cleanCPF = cpf.replace(/\D/g, '');
-        if (!WardSecurity.validateCPF(cleanCPF)) {
+        if (window.WardSecurity && !WardSecurity.validateCPF(cleanCPF)) {
             hideLoading();
             showToast('CPF inválido', 'error');
-            WardSecurity.recordLoginAttempt(false);
+            if (window.WardSecurity) WardSecurity.recordLoginAttempt(false);
             return false;
         }
 
-        // Chamar funcao RPC segura no Supabase
-        const { data, error } = await window.supabase.rpc('secure_login', {
-            p_cpf: cleanCPF,
-            p_password: password
-        });
+        // Buscar usuario pelo CPF
+        const { data: userData, error: userError } = await WardApp.db
+            .from('users')
+            .select('*')
+            .eq('cpf', cleanCPF)
+            .single();
 
-        if (error) {
-            console.error('Login RPC error:', error);
+        if (userError || !userData) {
             hideLoading();
-            showToast('Erro de conexão. Tente novamente.', 'error');
-            WardSecurity.recordLoginAttempt(false);
+            showToast('CPF ou senha incorretos', 'error');
+            if (window.WardSecurity) WardSecurity.recordLoginAttempt(false);
             return false;
         }
 
-        if (!data.success) {
+        // Verificar se usuario esta inativo
+        if (userData.status === 'inactive') {
             hideLoading();
-            showToast(data.error || 'CPF ou senha incorretos', 'error');
-            WardSecurity.recordLoginAttempt(false);
+            showToast('Esta conta está inativa. Entre em contato com o administrador.', 'error');
             return false;
+        }
+
+        // Se usuario tem auth_id, usar Supabase Auth
+        if (userData.auth_id && userData.email) {
+            const { data: authData, error: authError } = await WardApp.db.auth.signInWithPassword({
+                email: userData.email,
+                password: password
+            });
+
+            if (authError || !authData.user) {
+                hideLoading();
+                console.error('Supabase Auth error:', authError?.message);
+                showToast('CPF ou senha incorretos', 'error');
+                if (window.WardSecurity) WardSecurity.recordLoginAttempt(false);
+                return false;
+            }
+            console.log('Login via Supabase Auth successful');
+        } else {
+            // Sistema legado para usuarios nao migrados
+            const hashedPassword = btoa(password + '_ward_salt_2024');
+            if (userData.password_hash !== password && userData.password_hash !== hashedPassword) {
+                hideLoading();
+                showToast('CPF ou senha incorretos', 'error');
+                if (window.WardSecurity) WardSecurity.recordLoginAttempt(false);
+                return false;
+            }
+            console.log('Login via legacy system');
         }
 
         // Login bem sucedido
-        WardSecurity.recordLoginAttempt(true);
+        if (window.WardSecurity) WardSecurity.recordLoginAttempt(true);
 
-        // Armazenar dados do usuario de forma segura (sem password_hash)
-        WardSecurity.storeUserSecurely(data.user);
+        // Normalizar dados do usuario
+        const normalizedUser = {
+            ...userData,
+            name: userData.name || userData.full_name || userData.cpf
+        };
+
+        // Armazenar dados do usuario
+        if (window.WardSecurity) {
+            WardSecurity.storeUserSecurely(normalizedUser);
+        } else {
+            localStorage.setItem('ward_user', JSON.stringify(normalizedUser));
+        }
 
         hideLoading();
 
         // Redirecionar baseado no estado do usuario
-        redirectAfterLogin(data.user);
+        redirectAfterLogin(normalizedUser);
 
         return true;
     } catch (err) {
         hideLoading();
         console.error('Login error:', err);
         showToast('Erro ao fazer login. Tente novamente.', 'error');
-        WardSecurity.recordLoginAttempt(false);
+        if (window.WardSecurity) WardSecurity.recordLoginAttempt(false);
         return false;
     }
 }
