@@ -1,6 +1,22 @@
 -- =============================================
 -- WARD ACADEMY - MIGRACAO PARA SUPABASE AUTH
--- Execute este script no Supabase SQL Editor
+-- =============================================
+--
+-- ⚠️  ATENCAO: NAO EXECUTE ESTE SCRIPT COMPLETO!
+--
+-- Este script habilita RLS (Row Level Security) que vai
+-- BLOQUEAR o acesso de usuarios que ainda nao foram migrados
+-- para o Supabase Auth.
+--
+-- ORDEM DE EXECUCAO CORRETA:
+-- 1. Execute APENAS a parte de adicionar coluna auth_id (linhas 20-26)
+-- 2. Migre TODOS os usuarios para Supabase Auth
+-- 3. Vincule os auth_id usando sql/71_migrate_users_to_auth.sql
+-- 4. SOMENTE DEPOIS execute sql/74_enable_rls_final.sql
+--
+-- Se voce ja executou este script e esta tendo erros 406/500:
+-- Execute sql/73_disable_rls_temporarily.sql para desabilitar RLS
+--
 -- =============================================
 
 -- 1. Adicionar coluna auth_id para vincular com auth.users
