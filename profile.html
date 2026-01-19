@@ -1032,7 +1032,7 @@
             });
         });
 
-        // Password change function
+        // Password change function - supports both Supabase Auth and legacy
         async function changePassword() {
             const oldPass = document.getElementById('old-password').value;
             const newPass = document.getElementById('new-password').value;
@@ -1043,8 +1043,8 @@
                 return;
             }
 
-            if (newPass.length < 4) {
-                WardApp.showToast('A nova senha deve ter pelo menos 4 caracteres', 'warning');
+            if (newPass.length < 6) {
+                WardApp.showToast('A nova senha deve ter pelo menos 6 caracteres', 'warning');
                 return;
             }
 
@@ -1059,9 +1059,52 @@
                 return;
             }
 
-            // Check old password (support both plain and hashed)
+            WardApp.showLoading();
+
+            // If user has auth_id, use Supabase Auth
+            if (user.auth_id && user.email) {
+                try {
+                    // First verify old password by trying to sign in
+                    const { data: signInData, error: signInError } = await WardApp.db.auth.signInWithPassword({
+                        email: user.email,
+                        password: oldPass
+                    });
+
+                    if (signInError) {
+                        WardApp.hideLoading();
+                        WardApp.showToast('Senha atual incorreta', 'error');
+                        return;
+                    }
+
+                    // Now update the password
+                    const { error: updateError } = await WardApp.db.auth.updateUser({
+                        password: newPass
+                    });
+
+                    if (updateError) {
+                        WardApp.hideLoading();
+                        console.error('Error updating password:', updateError);
+                        WardApp.showToast('Erro ao alterar senha: ' + updateError.message, 'error');
+                        return;
+                    }
+
+                    WardApp.hideLoading();
+                    WardApp.showToast('Senha alterada com sucesso!', 'success');
+                    closeModal('password-modal');
+                    return;
+
+                } catch (err) {
+                    WardApp.hideLoading();
+                    console.error('Password change error:', err);
+                    WardApp.showToast('Erro ao alterar senha', 'error');
+                    return;
+                }
+            }
+
+            // Legacy password change (for users not migrated to Auth)
             const hashedOldPass = btoa(oldPass + '_ward_salt_2024');
             if (user.password_hash !== oldPass && user.password_hash !== hashedOldPass) {
+                WardApp.hideLoading();
                 WardApp.showToast('Senha atual incorreta', 'error');
                 return;
             }
@@ -1073,6 +1116,8 @@
                 .from('users')
                 .update({ password_hash: hashedNewPass })
                 .eq('id', user.id);
+
+            WardApp.hideLoading();
 
             if (error) {
                 console.error('Error updating password:', error);
