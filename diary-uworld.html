@@ -105,6 +105,16 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Category/Subject Performance -->
+            <div class="card">
+                <div class="card-header">📚 Performance por Category/Subject</div>
+                <div class="card-body">
+                    <div id="category-performance" class="system-bars">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Sessions List -->
@@ -613,6 +623,7 @@
             updateStats();
             renderWeeklyChart();
             renderSystemPerformance();
+            renderCategoryPerformance();
             renderSessions();
         }
 
@@ -749,6 +760,61 @@
             `).join('');
         }
 
+        function renderCategoryPerformance() {
+            const container = document.getElementById('category-performance');
+
+            // Calculate stats per category and subject combined
+            const categoryStats = {};
+            allSessions.forEach(s => {
+                // Add category stats
+                if (s.category) {
+                    const key = `📁 ${s.category}`;
+                    if (!categoryStats[key]) {
+                        categoryStats[key] = { total: 0, correct: 0 };
+                    }
+                    categoryStats[key].total += s.total_questions;
+                    categoryStats[key].correct += s.correct_answers;
+                }
+                // Add subject stats
+                if (s.subject) {
+                    const key = `📖 ${s.subject}`;
+                    if (!categoryStats[key]) {
+                        categoryStats[key] = { total: 0, correct: 0 };
+                    }
+                    categoryStats[key].total += s.total_questions;
+                    categoryStats[key].correct += s.correct_answers;
+                }
+            });
+
+            // Sort by total questions
+            const sorted = Object.entries(categoryStats)
+                .map(([name, stats]) => ({
+                    name,
+                    total: stats.total,
+                    rate: Math.round((stats.correct / stats.total) * 100)
+                }))
+                .sort((a, b) => b.total - a.total)
+                .slice(0, 6); // Top 6
+
+            if (sorted.length === 0) {
+                container.innerHTML = '<p class="text-muted">Nenhum dado ainda</p>';
+                return;
+            }
+
+            container.innerHTML = sorted.map(s => `
+                <div class="system-bar-item">
+                    <div class="system-bar-header">
+                        <span class="system-name">${s.name}</span>
+                        <span class="system-rate">${s.rate}%</span>
+                    </div>
+                    <div class="system-bar-track">
+                        <div class="system-bar-fill" style="width: ${s.rate}%; background: ${s.rate >= 70 ? '#22c55e' : s.rate >= 50 ? '#f59e0b' : '#ef4444'}"></div>
+                    </div>
+                    <div class="system-bar-footer">${s.total} questoes</div>
+                </div>
+            `).join('');
+        }
+
         function renderSessions() {
             const container = document.getElementById('sessions-list');
             const noSessions = document.getElementById('no-sessions');
@@ -765,13 +831,17 @@
                 const rate = Math.round((session.correct_answers / session.total_questions) * 100);
                 const rateColor = rate >= 70 ? 'text-success' : rate >= 50 ? 'text-warning' : 'text-danger';
                 const isViewing = viewingAsStudentId !== null;
+                const extraInfo = [session.category, session.subject].filter(Boolean).join(' | ');
 
                 return `
                     <div class="session-item" onclick="${isViewing ? '' : `editSession(${session.id})`}" style="${isViewing ? 'cursor: default;' : ''}">
                         <div class="session-date">
                             ${WardApp.formatDate(session.date)}
                         </div>
-                        <div class="session-system">${session.system}</div>
+                        <div class="session-system">
+                            ${session.system}
+                            ${extraInfo ? `<span class="session-extra">${extraInfo}</span>` : ''}
+                        </div>
                         <div class="session-stats">
                             <span class="session-questions">${session.correct_answers}/${session.total_questions}</span>
                             <span class="session-rate ${rateColor}">${rate}%</span>
@@ -1103,6 +1173,15 @@
 
         .session-system {
             font-weight: 500;
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+
+        .session-extra {
+            font-size: 0.75rem;
+            font-weight: 400;
+            color: var(--gray-500);
         }
 
         .session-stats {
