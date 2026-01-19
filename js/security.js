@@ -151,6 +151,7 @@ function createSafeUserData(userData) {
         name: userData.name || userData.full_name || userData.cpf,
         full_name: userData.full_name || userData.name,
         role: userData.role,
+        auth_id: userData.auth_id, // Necessario para Supabase Auth
         first_login_completed: userData.first_login_completed,
         questionnaire_step: userData.questionnaire_step || 0,
         status: userData.status
