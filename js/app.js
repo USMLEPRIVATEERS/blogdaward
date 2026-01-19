@@ -161,7 +161,7 @@ async function checkAuth() {
     return user;
 }
 
-// Login function
+// Login function - supports both old system and Supabase Auth
 async function login(cpf, password) {
     showLoading();
     try {
@@ -175,6 +175,7 @@ async function login(cpf, password) {
             }
         }
 
+        // First, find user by CPF
         const { data, error } = await supabaseClient
             .from('users')
             .select('*')
@@ -194,12 +195,34 @@ async function login(cpf, password) {
             return false;
         }
 
-        // Simple password check (supports both plain and hashed passwords)
-        const hashedPassword = btoa(password + '_ward_salt_2024');
-        if (data.password_hash !== password && data.password_hash !== hashedPassword) {
-            hideLoading();
-            showToast('CPF ou senha incorretos', 'error');
-            return false;
+        let authSuccess = false;
+
+        // If user has auth_id, try Supabase Auth first (SECURE)
+        if (data.auth_id && data.email) {
+            try {
+                const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
+                    email: data.email,
+                    password: password
+                });
+
+                if (!authError && authData.user) {
+                    authSuccess = true;
+                    console.log('Login via Supabase Auth successful');
+                }
+            } catch (authErr) {
+                console.log('Supabase Auth failed, trying legacy login');
+            }
+        }
+
+        // If Supabase Auth failed or user not migrated, try legacy login
+        if (!authSuccess) {
+            const hashedPassword = btoa(password + '_ward_salt_2024');
+            if (data.password_hash !== password && data.password_hash !== hashedPassword) {
+                hideLoading();
+                showToast('CPF ou senha incorretos', 'error');
+                return false;
+            }
+            console.log('Login via legacy system');
         }
 
         // Normalize user data (handle full_name vs name field)
