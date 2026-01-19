@@ -1824,15 +1824,19 @@
                 prepWarning.style.display = 'none';
             }
 
-            // Try to load last session for this system/category
+            // Try to load last session for this system/category or subject
             let lastSession = null;
             if (system && category) {
+                // Search based on schedule type
+                // If schedule_type is 'subject', search by subject field
+                // If schedule_type is 'category', search by category field
+                const searchField = userScheduleType === 'subject' ? 'subject' : 'category';
                 const { data } = await WardApp.db
                     .from('uworld_diary')
                     .select('*')
                     .eq('user_id', targetUserId)
                     .eq('system', system)
-                    .eq('category', category)
+                    .eq(searchField, category)
                     .order('session_date', { ascending: false })
                     .limit(1)
                     .maybeSingle();
@@ -1843,9 +1847,18 @@
             // Set values - use last session data if available, otherwise defaults
             document.getElementById('register-date').value = WardApp.getTodayString();
             document.getElementById('register-exam').value = lastSession?.exam_type || userPreparation || '';
-            document.getElementById('register-subject').value = lastSession?.subject || 'All';
             document.getElementById('register-system').value = system || '';
-            document.getElementById('register-category').value = category || '';
+
+            // Map the schedule's category field correctly based on schedule type
+            // If schedule_type is 'subject', the category field actually contains the Subject
+            // If schedule_type is 'category', the category field contains the Category
+            if (userScheduleType === 'subject') {
+                document.getElementById('register-subject').value = category || lastSession?.subject || 'All';
+                document.getElementById('register-category').value = lastSession?.category || '';
+            } else {
+                document.getElementById('register-subject').value = lastSession?.subject || 'All';
+                document.getElementById('register-category').value = category || '';
+            }
             document.getElementById('register-total').value = lastSession ? '' : '';
             document.getElementById('register-correct').value = lastSession ? '' : '';
             document.getElementById('register-time').value = lastSession?.time_spent || '';
