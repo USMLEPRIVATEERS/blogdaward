@@ -84,6 +84,12 @@ ON course_audio_comments
 FOR DELETE
 USING (true);
 
+-- Politica para permitir usuarios atualizar comentarios (verificado na aplicacao)
+CREATE POLICY "Users can update audio comments"
+ON course_audio_comments
+FOR UPDATE
+USING (true);
+
 -- Indice para busca por audio
 CREATE INDEX IF NOT EXISTS idx_course_audio_comments_audio ON course_audio_comments(audio_id);
 
