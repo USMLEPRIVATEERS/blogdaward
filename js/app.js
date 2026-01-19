@@ -195,27 +195,22 @@ async function login(cpf, password) {
             return false;
         }
 
-        let authSuccess = false;
-
-        // If user has auth_id, try Supabase Auth first (SECURE)
+        // If user has auth_id, use ONLY Supabase Auth (no fallback to legacy)
         if (data.auth_id && data.email) {
-            try {
-                const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
-                    email: data.email,
-                    password: password
-                });
+            const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
+                email: data.email,
+                password: password
+            });
 
-                if (!authError && authData.user) {
-                    authSuccess = true;
-                    console.log('Login via Supabase Auth successful');
-                }
-            } catch (authErr) {
-                console.log('Supabase Auth failed, trying legacy login');
+            if (authError || !authData.user) {
+                hideLoading();
+                console.error('Supabase Auth error:', authError?.message);
+                showToast('CPF ou senha incorretos', 'error');
+                return false;
             }
-        }
-
-        // If Supabase Auth failed or user not migrated, try legacy login
-        if (!authSuccess) {
+            console.log('Login via Supabase Auth successful');
+        } else {
+            // Legacy login for users not yet migrated to Auth
             const hashedPassword = btoa(password + '_ward_salt_2024');
             if (data.password_hash !== password && data.password_hash !== hashedPassword) {
                 hideLoading();
