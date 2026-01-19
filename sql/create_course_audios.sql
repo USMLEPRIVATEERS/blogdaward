@@ -57,7 +57,7 @@ CREATE TRIGGER trigger_update_course_audios_updated_at
 CREATE TABLE IF NOT EXISTS course_audio_comments (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     audio_id UUID NOT NULL REFERENCES course_audios(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
