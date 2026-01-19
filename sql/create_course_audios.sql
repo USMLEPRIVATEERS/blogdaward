@@ -49,3 +49,54 @@ CREATE TRIGGER trigger_update_course_audios_updated_at
     BEFORE UPDATE ON course_audios
     FOR EACH ROW
     EXECUTE FUNCTION update_course_audios_updated_at();
+
+-- =====================================================
+-- Tabela para comentarios dos audios
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS course_audio_comments (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    audio_id UUID NOT NULL REFERENCES course_audios(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Habilitar RLS
+ALTER TABLE course_audio_comments ENABLE ROW LEVEL SECURITY;
+
+-- Politica para permitir leitura publica de comentarios
+CREATE POLICY "Allow public read access to audio comments"
+ON course_audio_comments
+FOR SELECT
+USING (true);
+
+-- Politica para permitir usuarios autenticados inserir comentarios
+CREATE POLICY "Allow authenticated users to insert audio comments"
+ON course_audio_comments
+FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+-- Politica para permitir usuarios deletar seus proprios comentarios
+CREATE POLICY "Allow users to delete own audio comments"
+ON course_audio_comments
+FOR DELETE
+USING (auth.uid() = user_id);
+
+-- Indice para busca por audio
+CREATE INDEX IF NOT EXISTS idx_course_audio_comments_audio ON course_audio_comments(audio_id);
+
+-- Trigger para atualizar updated_at
+CREATE OR REPLACE FUNCTION update_course_audio_comments_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_update_course_audio_comments_updated_at
+    BEFORE UPDATE ON course_audio_comments
+    FOR EACH ROW
+    EXECUTE FUNCTION update_course_audio_comments_updated_at();

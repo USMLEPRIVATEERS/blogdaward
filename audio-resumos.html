@@ -514,6 +514,153 @@
         .player-instructions strong {
             color: #e94560;
         }
+
+        /* Share button */
+        .share-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+            margin-top: 0.5rem;
+        }
+
+        .share-btn:hover {
+            background: rgba(233, 69, 96, 0.2);
+            border-color: #e94560;
+        }
+
+        /* Comments section */
+        .comments-section {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .comments-header {
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .comment-form {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .comment-input {
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: #fff;
+            font-size: 0.9rem;
+        }
+
+        .comment-input:focus {
+            outline: none;
+            border-color: #e94560;
+            background: rgba(255,255,255,0.08);
+        }
+
+        .comment-input::placeholder {
+            color: rgba(255,255,255,0.4);
+        }
+
+        .comment-submit {
+            background: #e94560;
+            color: #fff;
+            border: none;
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .comment-submit:hover {
+            background: #d03550;
+        }
+
+        .comment-item {
+            display: flex;
+            gap: 0.75rem;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .comment-avatar {
+            width: 36px;
+            height: 36px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+
+        .comment-content {
+            flex: 1;
+        }
+
+        .comment-author {
+            color: #e94560;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .comment-text {
+            color: rgba(255,255,255,0.8);
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .comment-time {
+            color: rgba(255,255,255,0.4);
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+        }
+
+        .no-comments {
+            color: rgba(255,255,255,0.5);
+            text-align: center;
+            padding: 1rem;
+            font-size: 0.9rem;
+        }
+
+        /* Description formatting */
+        .audio-description a {
+            color: #e94560;
+            text-decoration: underline;
+        }
+
+        .audio-description strong, .audio-description b {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .audio-description ul, .audio-description ol {
+            margin-left: 1.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .audio-description li {
+            margin-bottom: 0.25rem;
+        }
     </style>
 </head>
 <body>
@@ -595,6 +742,9 @@
                             <div class="audio-info">
                                 <h2 class="audio-title" id="audio-title">Selecione um audio</h2>
                                 <p class="audio-path" id="audio-path"></p>
+                                <button class="share-btn" onclick="copyAudioLink()">
+                                    🔗 Copiar Link
+                                </button>
                             </div>
 
                             <!-- Instructions -->
@@ -619,6 +769,18 @@
 
                             <!-- Description -->
                             <div class="audio-description" id="audio-description" style="display: none;">
+                            </div>
+
+                            <!-- Comments -->
+                            <div class="comments-section">
+                                <h3 class="comments-header">Comentarios</h3>
+                                <div class="comment-form">
+                                    <input type="text" class="comment-input" id="comment-input" placeholder="Adicione um comentario...">
+                                    <button class="comment-submit" onclick="addComment()">Enviar</button>
+                                </div>
+                                <div id="comments-list">
+                                    <!-- Comments loaded here -->
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1070,10 +1232,10 @@
             document.getElementById('audio-title').textContent = audio.title;
             document.getElementById('audio-path').textContent = audio.tags.split('::').join(' > ');
 
-            // Description
+            // Description with formatting
             const descEl = document.getElementById('audio-description');
             if (audio.description) {
-                descEl.innerHTML = audio.description;
+                descEl.innerHTML = formatDescription(audio.description);
                 descEl.style.display = 'block';
             } else {
                 descEl.style.display = 'none';
@@ -1093,6 +1255,13 @@
             // Update navigation buttons
             document.getElementById('prev-btn').disabled = currentIndex === 0;
             document.getElementById('next-btn').disabled = currentIndex >= currentPlaylist.length - 1;
+
+            // Update URL with audio ID for sharing
+            const newUrl = `${window.location.pathname}?audio=${audio.id}`;
+            window.history.replaceState({}, '', newUrl);
+
+            // Load comments
+            loadComments(audio.id);
         }
 
         function getGoogleDriveFileId(url) {
@@ -1144,6 +1313,136 @@
                         renderCategories();
                         break;
                 }
+            }
+        });
+
+        // Copy audio link
+        function copyAudioLink() {
+            if (!currentAudio) return;
+
+            const url = `${window.location.origin}${window.location.pathname}?audio=${currentAudio.id}`;
+
+            navigator.clipboard.writeText(url).then(() => {
+                WardApp.showToast('Link copiado!');
+            }).catch(() => {
+                // Fallback for older browsers
+                const input = document.createElement('input');
+                input.value = url;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                WardApp.showToast('Link copiado!');
+            });
+        }
+
+        // Comments functions
+        async function loadComments(audioId) {
+            const { data: comments } = await WardApp.db
+                .from('course_audio_comments')
+                .select(`
+                    *,
+                    users:user_id (full_name)
+                `)
+                .eq('audio_id', audioId)
+                .order('created_at', { ascending: false });
+
+            renderComments(comments || []);
+        }
+
+        function renderComments(comments) {
+            const container = document.getElementById('comments-list');
+
+            if (comments.length === 0) {
+                container.innerHTML = '<div class="no-comments">Seja o primeiro a comentar!</div>';
+                return;
+            }
+
+            container.innerHTML = comments.map(c => `
+                <div class="comment-item">
+                    <div class="comment-avatar">👤</div>
+                    <div class="comment-content">
+                        <div class="comment-author">${c.users?.full_name || 'Usuario'}</div>
+                        <div class="comment-text">${escapeHtml(c.content)}</div>
+                        <div class="comment-time">${WardApp.formatDate(c.created_at)}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function addComment() {
+            const input = document.getElementById('comment-input');
+            const content = input.value.trim();
+
+            if (!content) {
+                WardApp.showToast('Digite um comentario', 'warning');
+                return;
+            }
+
+            if (!currentAudio) return;
+
+            const { error } = await WardApp.db
+                .from('course_audio_comments')
+                .insert({
+                    audio_id: currentAudio.id,
+                    user_id: userData.id,
+                    content: content
+                });
+
+            if (error) {
+                console.error('Error adding comment:', error);
+                WardApp.showToast('Erro ao adicionar comentario', 'error');
+                return;
+            }
+
+            input.value = '';
+            WardApp.showToast('Comentario adicionado!');
+            await loadComments(currentAudio.id);
+        }
+
+        // Text formatting functions
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDescription(text) {
+            if (!text) return '';
+
+            // First escape HTML for security
+            let formatted = escapeHtml(text);
+
+            // Convert URLs to clickable links (opens in new tab)
+            const urlRegex = /(https?:\/\/[^\s<]+)/g;
+            formatted = formatted.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+
+            // Convert Markdown-style formatting
+            // Bold: **text** or __text__
+            formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            formatted = formatted.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+
+            // Italic: *text* or _text_
+            formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            formatted = formatted.replace(/_([^_]+)_/g, '<em>$1</em>');
+
+            // Convert line breaks
+            formatted = formatted.replace(/\n/g, '<br>');
+
+            // Convert bullet points: lines starting with - or *
+            formatted = formatted.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
+            // Wrap consecutive <li> items in <ul>
+            formatted = formatted.replace(/(<li>.*<\/li>(\s*<br>)?)+/g, (match) => {
+                return '<ul>' + match.replace(/<br>/g, '') + '</ul>';
+            });
+
+            return formatted;
+        }
+
+        // Allow Enter key to submit comment
+        document.getElementById('comment-input')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                addComment();
             }
         });
     </script>
