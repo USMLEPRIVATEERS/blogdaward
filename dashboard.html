@@ -484,8 +484,37 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <button class="btn btn-warning" onclick="openRescheduleModal()" style="background: #f59e0b; color: white;">🔄 Reagendar</button>
                 <button class="btn btn-danger" onclick="cancelCall()">❌ Desmarcar Chamada</button>
                 <button class="btn btn-secondary" onclick="closeModal('call-details-modal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reschedule Call Modal -->
+    <div id="reschedule-call-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">🔄 Reagendar Chamada</h3>
+                <button class="modal-close" onclick="closeModal('reschedule-call-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="reschedule-call-id">
+                <div class="form-group">
+                    <label class="form-label"><strong>Nova Data:</strong></label>
+                    <input type="date" id="reschedule-date" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><strong>Novo Horário:</strong></label>
+                    <input type="time" id="reschedule-time" class="form-input">
+                </div>
+                <div style="background: #fef3c7; padding: 0.75rem; border-radius: 8px; margin-top: 1rem;">
+                    <small style="color: #92400e;">⚠️ A chamada será atualizada com a nova data e horário. O mentor será notificado.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="rescheduleCall()">✅ Confirmar Reagendamento</button>
+                <button class="btn btn-secondary" onclick="closeModal('reschedule-call-modal')">Cancelar</button>
             </div>
         </div>
     </div>
@@ -1431,6 +1460,57 @@
             } catch (err) {
                 console.error('Error cancelling call:', err);
                 WardApp.showToast('Erro ao desmarcar chamada', 'error');
+            }
+        }
+
+        function openRescheduleModal() {
+            if (!currentCallData) {
+                WardApp.showToast('Erro: dados da chamada não encontrados', 'error');
+                return;
+            }
+
+            // Pre-fill with current date/time
+            document.getElementById('reschedule-call-id').value = currentCallData.id;
+            document.getElementById('reschedule-date').value = currentCallData.scheduled_date || '';
+            document.getElementById('reschedule-time').value = currentCallData.scheduled_time || '';
+
+            openModal('reschedule-call-modal');
+        }
+
+        async function rescheduleCall() {
+            const callId = document.getElementById('reschedule-call-id').value;
+            const newDate = document.getElementById('reschedule-date').value;
+            const newTime = document.getElementById('reschedule-time').value;
+
+            if (!newDate || !newTime) {
+                WardApp.showToast('Por favor, preencha a data e horário', 'warning');
+                return;
+            }
+
+            try {
+                // UPDATE the existing call instead of creating a new one
+                const { error } = await WardApp.db
+                    .from('scheduled_calls')
+                    .update({
+                        scheduled_date: newDate,
+                        scheduled_time: newTime,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', callId);
+
+                if (error) {
+                    console.error('Error rescheduling call:', error);
+                    WardApp.showToast('Erro ao reagendar chamada', 'error');
+                    return;
+                }
+
+                closeModal('reschedule-call-modal');
+                closeModal('call-details-modal');
+                WardApp.showToast('🔄 Chamada reagendada com sucesso!', 'success');
+                await loadScheduledCalls();
+            } catch (err) {
+                console.error('Error rescheduling call:', err);
+                WardApp.showToast('Erro ao reagendar chamada', 'error');
             }
         }
 
