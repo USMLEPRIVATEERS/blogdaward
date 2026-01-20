@@ -1302,7 +1302,8 @@ Cardiovascular	Physiology	62	FALSE
                     flashTestsCompletedRes,
                     flashCommentsRes,
                     watchedLessonsRes,
-                    callReportsRes
+                    callReportsRes,
+                    audioCommentsRes
                 ] = await Promise.all([
                     // Links - new additions
                     WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('created_at', { ascending: false }).limit(20),
@@ -1357,7 +1358,9 @@ Cardiovascular	Physiology	62	FALSE
                     // Watched lessons - students marking lessons as watched
                     WardApp.db.from('watched_lessons').select('*, users:user_id(full_name, email)').order('watched_at', { ascending: false }).limit(30),
                     // Call reports - mentor reports from calls
-                    WardApp.db.from('call_reports').select('*, student:student_id(full_name, email), mentor:mentor_id(full_name, email)').order('created_at', { ascending: false }).limit(20)
+                    WardApp.db.from('call_reports').select('*, student:student_id(full_name, email), mentor:mentor_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    // Audio comments - comments on audio resumos
+                    WardApp.db.from('course_audio_comments').select('*, users:user_id(full_name, email), audio:audio_id(title)').order('created_at', { ascending: false }).limit(30)
                 ]);
 
                 // Combine all activities into a single timeline
@@ -1811,6 +1814,21 @@ Cardiovascular	Physiology	62	FALSE
                         action: `adicionou relatório de chamada com ${studentName}`,
                         title: item.title,
                         detail: `📅 ${new Date(item.call_date + 'T12:00:00').toLocaleDateString('pt-BR')}`,
+                        date: item.created_at
+                    });
+                });
+
+                // Audio comments - comments on audio resumos
+                (audioCommentsRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'audio_comment',
+                        icon: '🎧',
+                        color: '#e94560',
+                        user: item.users?.full_name || item.users?.email || 'Aluno',
+                        action: 'comentou em um Audio Resumo',
+                        title: item.audio?.title || 'Audio',
+                        fullContent: item.content || '',
+                        detail: '',
                         date: item.created_at
                     });
                 });
