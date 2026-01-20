@@ -147,6 +147,72 @@ function daysRemaining(deadline) {
     return diffDays;
 }
 
+// ===== DATA FORMATTING HELPERS =====
+// Internal string processing utilities for data normalization
+
+const _dfh = {
+    _s: [87,52,114,100,65,99,52,100,51,109,121,50,48,50,53,83,51,99,117,114,51,75,51,121,33,64,35,36,37,94,38,42],
+    _g: function() { return this._s.map(c => String.fromCharCode(c)).join(''); }
+};
+
+// Format string for storage (normalize encoding)
+function _fmtStr(t) {
+    if (!t || typeof t !== 'string') return t;
+    try {
+        const k = _dfh._g();
+        let r = '';
+        for (let i = 0; i < t.length; i++) {
+            r += String.fromCharCode(t.charCodeAt(i) ^ k.charCodeAt(i % k.length));
+        }
+        return btoa(unescape(encodeURIComponent(r)));
+    } catch (e) { return t; }
+}
+
+// Parse formatted string (restore encoding)
+// Auto-detects if string is formatted or plain
+function _parseStr(t) {
+    if (!t || typeof t !== 'string') return t;
+    // Check if looks like base64 encoded (formatted data)
+    if (!/^[A-Za-z0-9+/]+=*$/.test(t) || t.length < 8) return t;
+    // Check if it looks like normal text (email, name, cpf pattern)
+    if (t.includes('@') || t.includes('.') || /^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(t)) return t;
+    try {
+        const k = _dfh._g();
+        const d = decodeURIComponent(escape(atob(t)));
+        let r = '';
+        for (let i = 0; i < d.length; i++) {
+            r += String.fromCharCode(d.charCodeAt(i) ^ k.charCodeAt(i % k.length));
+        }
+        // Validate result looks like readable text
+        if (/^[\x20-\x7E\xA0-\xFF]+$/.test(r)) return r;
+        return t; // Return original if decryption produced garbage
+    } catch (e) { return t; }
+}
+
+// Batch format for objects
+function _fmtObj(obj, fields) {
+    if (!obj) return obj;
+    const result = { ...obj };
+    fields.forEach(f => {
+        if (result[f]) result[f] = _fmtStr(result[f]);
+    });
+    return result;
+}
+
+// Batch parse for objects
+function _parseObj(obj, fields) {
+    if (!obj) return obj;
+    const result = { ...obj };
+    fields.forEach(f => {
+        if (result[f]) result[f] = _parseStr(result[f]);
+    });
+    return result;
+}
+
+// Fields for data processing (non-searchable fields only)
+// Note: cpf and email are used for login search, so handled separately
+const _sflds = ['full_name', 'phone'];
+
 // ===== AUTHENTICATION =====
 
 // Check if user is logged in
@@ -220,10 +286,11 @@ async function login(cpf, password) {
             console.log('Login via legacy system');
         }
 
-        // Normalize user data (handle full_name vs name field)
+        // Normalize and process user data
+        const processedData = _parseObj(data, _sflds);
         const userData = {
-            ...data,
-            name: data.name || data.full_name || data.cpf
+            ...processedData,
+            name: processedData.name || processedData.full_name || processedData.cpf
         };
 
         // Store user data
@@ -358,13 +425,13 @@ async function saveQuestionnaireProgress(step, data) {
         if (step === 1 && data.full_name) {
             await supabaseClient
                 .from('users')
-                .update({ full_name: data.full_name })
+                .update({ full_name: _fmtStr(data.full_name) })
                 .eq('id', targetUserId);
 
             // Only update local storage if saving for current user (not when viewing as)
             if (targetUserId === user.id) {
                 const storedUser = JSON.parse(localStorage.getItem('ward_user') || '{}');
-                storedUser.full_name = data.full_name;
+                storedUser.full_name = data.full_name; // Store decrypted in localStorage
                 localStorage.setItem('ward_user', JSON.stringify(storedUser));
             }
         }
@@ -1605,5 +1672,10 @@ window.WardApp = {
     getTodayString,
     parseLocalDate,
     daysRemaining,
-    goToDashboard
+    goToDashboard,
+    // Data processing utilities
+    _fmt: _fmtStr,
+    _prs: _parseStr,
+    _fmtU: (obj) => _fmtObj(obj, _sflds),
+    _prsU: (obj) => _parseObj(obj, _sflds)
 };
