@@ -447,6 +447,40 @@
             border: none;
         }
 
+        .network-panel.hidden {
+            display: none !important;
+        }
+
+        /* Toggle button for showing network when hidden */
+        .show-network-btn {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+            z-index: 100;
+            display: none;
+            transition: all 0.2s;
+        }
+
+        .show-network-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+        }
+
+        .show-network-btn.visible {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
         .network-header {
             padding: 1rem 1.5rem;
             border-bottom: 1px solid #e2e8f0;
@@ -1185,6 +1219,7 @@
                 <div class="network-header-actions">
                     <button class="btn btn-sm btn-outline" onclick="resetNetworkView()" title="Centralizar">↺</button>
                     <button class="btn btn-sm btn-outline" onclick="toggleNetworkFullscreen()" id="network-fullscreen-btn" title="Maximizar">⛶</button>
+                    <button class="btn btn-sm btn-outline" onclick="toggleNetworkPanel()" title="Ocultar">✕</button>
                 </div>
             </div>
             <div id="network-graph"></div>
@@ -1206,6 +1241,11 @@
             </div>
         </div>
     </div>
+
+    <!-- Button to show network when hidden -->
+    <button class="show-network-btn" id="show-network-btn" onclick="toggleNetworkPanel()">
+        🌐 Mostrar Rede
+    </button>
 
     <!-- Add/Edit Contact Modal -->
     <div id="add-contact-modal" class="modal-overlay">
@@ -1585,6 +1625,7 @@
 
             showLoading();
             initNetwork(); // Initialize network FIRST before loading contacts
+            restoreNetworkPanelState(); // Restore user preference for network visibility
             await loadFilterOptions();
             await loadContacts();
             hideLoading();
@@ -2177,6 +2218,42 @@
                 },
                 maxZoomLevel: 0.9
             });
+        }
+
+        function toggleNetworkPanel() {
+            const panel = document.getElementById('network-panel');
+            const showBtn = document.getElementById('show-network-btn');
+
+            if (panel.classList.contains('hidden')) {
+                // Show the network
+                panel.classList.remove('hidden');
+                showBtn.classList.remove('visible');
+                // Refresh network after showing
+                setTimeout(() => {
+                    if (network) {
+                        network.redraw();
+                        resetNetworkView();
+                    }
+                }, 100);
+            } else {
+                // Hide the network
+                panel.classList.add('hidden');
+                showBtn.classList.add('visible');
+            }
+
+            // Save preference
+            localStorage.setItem('networkPanelHidden', panel.classList.contains('hidden'));
+        }
+
+        // Restore network panel visibility preference
+        function restoreNetworkPanelState() {
+            const isHidden = localStorage.getItem('networkPanelHidden') === 'true';
+            if (isHidden) {
+                const panel = document.getElementById('network-panel');
+                const showBtn = document.getElementById('show-network-btn');
+                panel.classList.add('hidden');
+                showBtn.classList.add('visible');
+            }
         }
 
         // ================================================
