@@ -210,7 +210,7 @@ function _parseObj(obj, fields) {
 }
 
 // Fields for data processing
-const _sflds = ['full_name', 'email', 'cpf', 'phone'];
+const _sflds = ['full_name', 'email', 'cpf'];
 
 // ===== AUTHENTICATION =====
 
