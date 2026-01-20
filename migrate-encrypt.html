@@ -99,7 +99,7 @@
                 <li>Execute esta migração <strong>apenas UMA VEZ</strong></li>
                 <li>Faça backup do banco antes de executar</li>
                 <li>Apenas mentores podem executar</li>
-                <li>Campo: <code>full_name</code></li>
+                <li>Campos: <code>full_name</code>, <code>email</code>, <code>cpf</code>, <code>phone</code></li>
             </ul>
         </div>
 
@@ -189,7 +189,7 @@
                 // Load all users
                 const { data: users, error } = await WardApp.db
                     .from('users')
-                    .select('id, full_name, cpf');
+                    .select('id, full_name, email, cpf, phone');
 
                 if (error) {
                     log(`Erro ao carregar usuários: ${error.message}`, 'error');
@@ -202,14 +202,37 @@
                 updateStats();
                 log(`Encontrados ${total} usuários`, 'info');
 
+                // Store original CPF for logging before encryption
+                const cpfMap = {};
+                users.forEach(u => { cpfMap[u.id] = u.cpf; });
+
                 // Process each user
                 for (const u of users) {
                     const updates = {};
                     let needsUpdate = false;
+                    const originalCpf = cpfMap[u.id];
 
                     // Check full_name
                     if (u.full_name && !isEncrypted(u.full_name)) {
                         updates.full_name = WardApp._fmt(u.full_name);
+                        needsUpdate = true;
+                    }
+
+                    // Check email
+                    if (u.email && !isEncrypted(u.email)) {
+                        updates.email = WardApp._fmt(u.email);
+                        needsUpdate = true;
+                    }
+
+                    // Check cpf
+                    if (u.cpf && !isEncrypted(u.cpf)) {
+                        updates.cpf = WardApp._fmt(u.cpf);
+                        needsUpdate = true;
+                    }
+
+                    // Check phone
+                    if (u.phone && !isEncrypted(u.phone)) {
+                        updates.phone = WardApp._fmt(u.phone);
                         needsUpdate = true;
                     }
 
@@ -220,14 +243,14 @@
                             .eq('id', u.id);
 
                         if (updateError) {
-                            log(`Erro ao migrar ${u.cpf}: ${updateError.message}`, 'error');
+                            log(`Erro ao migrar ID ${u.id}: ${updateError.message}`, 'error');
                         } else {
                             migrated++;
-                            log(`✓ Migrado: ${u.cpf}`, 'success');
+                            log(`✓ Migrado: ID ${u.id}`, 'success');
                         }
                     } else {
                         skipped++;
-                        log(`- Já OK: ${u.cpf}`);
+                        log(`- Já OK: ID ${u.id}`);
                     }
 
                     updateStats();

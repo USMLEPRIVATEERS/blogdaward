@@ -209,9 +209,8 @@ function _parseObj(obj, fields) {
     return result;
 }
 
-// Fields for data processing (non-searchable fields only)
-// Note: cpf and email are used for login search, so handled separately
-const _sflds = ['full_name'];
+// Fields for data processing
+const _sflds = ['full_name', 'email', 'cpf', 'phone'];
 
 // ===== AUTHENTICATION =====
 
@@ -241,12 +240,24 @@ async function login(cpf, password) {
             }
         }
 
-        // First, find user by CPF
-        const { data, error } = await supabaseClient
+        // First, find user by CPF (try encrypted first, then plain for backwards compatibility)
+        const cpfEnc = _fmtStr(cpf);
+        let { data, error } = await supabaseClient
             .from('users')
             .select('*')
-            .eq('cpf', cpf)
+            .eq('cpf', cpfEnc)
             .single();
+
+        // If not found with encrypted CPF, try plain CPF (legacy data)
+        if (error || !data) {
+            const result = await supabaseClient
+                .from('users')
+                .select('*')
+                .eq('cpf', cpf)
+                .single();
+            data = result.data;
+            error = result.error;
+        }
 
         if (error || !data) {
             hideLoading();
@@ -263,8 +274,10 @@ async function login(cpf, password) {
 
         // If user has auth_id, use ONLY Supabase Auth (no fallback to legacy)
         if (data.auth_id && data.email) {
+            // Decrypt email if encrypted
+            const emailDecrypted = _parseStr(data.email);
             const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
-                email: data.email,
+                email: emailDecrypted,
                 password: password
             });
 
