@@ -211,7 +211,7 @@ function _parseObj(obj, fields) {
 
 // Fields for data processing (non-searchable fields only)
 // Note: cpf and email are used for login search, so handled separately
-const _sflds = ['full_name', 'phone'];
+const _sflds = ['full_name'];
 
 // ===== AUTHENTICATION =====
 
