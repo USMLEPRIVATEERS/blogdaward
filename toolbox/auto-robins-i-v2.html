@@ -574,6 +574,32 @@ Baseline BMI"></textarea>
                         </div>
                     </div>
 
+                    <!-- AI Section for Preliminary -->
+                    <div class="card">
+                        <h3>AI-Assisted Preliminary Assessment</h3>
+
+                        <div class="tabs">
+                            <button class="tab-btn active" onclick="switchPreliminaryTab('copy')">Copy Prompt</button>
+                            <button class="tab-btn" onclick="switchPreliminaryTab('paste')">Paste AI Response</button>
+                        </div>
+
+                        <div id="preliminary-tab-copy" class="tab-content active">
+                            <p style="margin-bottom: 15px;">Copy the prompt to ask AI to extract preliminary information from the study.</p>
+                            <div class="btn-group" style="margin-top:0">
+                                <button class="btn btn-secondary" onclick="copyPreliminaryPrompt()">Copy Preliminary Prompt</button>
+                            </div>
+                            <textarea id="preliminaryPromptOutput" readonly style="margin-top: 15px; height: 150px;" placeholder="Prompt will appear here..."></textarea>
+                        </div>
+
+                        <div id="preliminary-tab-paste" class="tab-content">
+                            <p style="margin-bottom: 10px;">Paste the AI's JSON response:</p>
+                            <pre style="background: var(--bg-input); padding: 10px; border-radius: 6px; font-size: 11px; margin-bottom: 15px; overflow-x: auto; white-space: pre-wrap;">{"A1": "RR = 1.52 (95% CI 0.83 to 2.77)", "A2": "Table 3", "A3": "Mortality", "B1": "Y", "B2": "", "B3": "N", "C1": "Adults with...", "C2": "Drug X", "C3": "Placebo", "C4": "No", "infoSources": ["journal", "protocol"]}</pre>
+                            <textarea id="preliminaryAIInput" style="height: 120px;" placeholder="Paste JSON here..."></textarea>
+                            <button class="btn btn-primary" style="margin-top: 15px;" onclick="processPreliminaryAIResponse()">Process Response</button>
+                            <div id="preliminaryAIAlert"></div>
+                        </div>
+                    </div>
+
                     <div class="nav-bar">
                         <div></div>
                         <button class="btn btn-primary" onclick="goToStep('confounding')" id="btnNextConfounding">Next: Confounding Evaluation</button>
@@ -1512,6 +1538,115 @@ Baseline BMI"></textarea>
             document.querySelectorAll('#step-confounding .tab-content').forEach(c => c.classList.remove('active'));
             event.target.classList.add('active');
             document.getElementById(`confounding-tab-${tab}`).classList.add('active');
+        }
+
+        function switchPreliminaryTab(tab) {
+            document.querySelectorAll('#step-preliminary .tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('#step-preliminary .tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(`preliminary-tab-${tab}`).classList.add('active');
+        }
+
+        function copyPreliminaryPrompt() {
+            let text = `ROBINS-I V2 - Preliminary Considerations\nStudy: ${currentStudyId}\n\n`;
+            text += `══════════════════════════════════════════════════════════════════\n`;
+            text += `Extract the following information from the study to complete the\n`;
+            text += `preliminary considerations for ROBINS-I V2 assessment.\n`;
+            text += `══════════════════════════════════════════════════════════════════\n\n`;
+
+            text += `SECTION A - SPECIFY THE RESULT BEING ASSESSED:\n`;
+            text += `A1: What is the numerical result being assessed? (e.g., RR, OR, HR with CI)\n`;
+            text += `A2: Further details about where this result is found (e.g., Table 3, adjusted model)\n`;
+            text += `A3: What is the outcome being measured? (e.g., All-cause mortality at 1 year)\n\n`;
+
+            text += `SECTION B - DECIDE WHETHER TO PROCEED:\n`;
+            text += `B1: Did the authors make any attempt to control for confounding? (Y/PY/PN/N)\n`;
+            text += `B2: (Only if B1=N/PN) Is there sufficient potential for confounding that this result\n`;
+            text += `    should not be considered further? (Y/PY/PN/N)\n`;
+            text += `    ⚠️ If B2 = Y or PY → CRITICAL risk of bias (stop assessment)\n`;
+            text += `B3: Was the method of measuring the outcome inappropriate? (Y/PY/PN/N)\n`;
+            text += `    ⚠️ If B3 = Y or PY → CRITICAL risk of bias (stop assessment)\n\n`;
+
+            text += `SECTION C - SPECIFY THE TARGET TRIAL:\n`;
+            text += `C1: Who are the participants? What are the eligibility criteria?\n`;
+            text += `C2: What is the intervention strategy? (e.g., Start Drug X and continue for 2 years)\n`;
+            text += `C3: What is the comparator strategy? (e.g., Placebo or standard care)\n`;
+            text += `C4: Did the analysis account for switches during follow-up or other protocol deviations?\n`;
+            text += `    Answer "No" for ITT effect → will use Domain 1 Variant A\n`;
+            text += `    Answer "Yes" for Per-protocol effect → will use Domain 1 Variant B\n\n`;
+
+            text += `SECTION D - INFORMATION SOURCES:\n`;
+            text += `Select which sources were used (array of codes):\n`;
+            text += `- "journal" = Journal article(s)\n`;
+            text += `- "protocol" = Study protocol\n`;
+            text += `- "sap" = Statistical analysis plan\n`;
+            text += `- "registry" = Registry record (e.g., ClinicalTrials.gov)\n`;
+            text += `- "grey" = Grey literature\n`;
+            text += `- "abstract" = Conference abstract(s)\n`;
+            text += `- "regulatory" = Regulatory document\n`;
+            text += `- "ipd" = Individual participant data\n`;
+            text += `- "communication" = Personal communication with authors\n\n`;
+
+            text += `══════════════════════════════════════════════════════════════════\n`;
+            text += `JSON RESPONSE FORMAT\n`;
+            text += `══════════════════════════════════════════════════════════════════\n\n`;
+            text += `{\n`;
+            text += `  "A1": "RR = 1.52 (95% CI 0.83 to 2.77)",\n`;
+            text += `  "A2": "Table 3, multivariable adjusted model",\n`;
+            text += `  "A3": "All-cause mortality at 1 year",\n`;
+            text += `  "B1": "Y",\n`;
+            text += `  "B2": "",\n`;
+            text += `  "B3": "N",\n`;
+            text += `  "C1": "Adults aged 18+ with type 2 diabetes, excluded if eGFR < 30",\n`;
+            text += `  "C2": "Start metformin 500mg twice daily, continue for 2 years",\n`;
+            text += `  "C3": "No metformin (diet and exercise only)",\n`;
+            text += `  "C4": "No",\n`;
+            text += `  "infoSources": ["journal", "protocol"]\n`;
+            text += `}\n\n`;
+
+            text += `NOTES:\n`;
+            text += `- Leave B2 empty ("") if B1 = Y or PY (B2 only applies when B1 = N/PN)\n`;
+            text += `- For C4: "No" = ITT analysis, "Yes" = Per-protocol analysis\n`;
+            text += `- Response codes for B questions: Y, PY, PN, N\n`;
+
+            document.getElementById('preliminaryPromptOutput').value = text;
+            navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'));
+        }
+
+        function processPreliminaryAIResponse() {
+            const input = document.getElementById('preliminaryAIInput').value.trim();
+            const alertEl = document.getElementById('preliminaryAIAlert');
+
+            try {
+                const r = JSON.parse(input);
+
+                // Set form values
+                document.getElementById('inputA1').value = r.A1 || '';
+                document.getElementById('inputA2').value = r.A2 || '';
+                document.getElementById('inputA3').value = r.A3 || '';
+                document.getElementById('inputB1').value = (r.B1 || '').toUpperCase();
+                document.getElementById('inputB2').value = (r.B2 || '').toUpperCase();
+                document.getElementById('inputB3').value = (r.B3 || '').toUpperCase();
+                document.getElementById('inputC1').value = r.C1 || '';
+                document.getElementById('inputC2').value = r.C2 || '';
+                document.getElementById('inputC3').value = r.C3 || '';
+                document.getElementById('inputC4').value = r.C4 || '';
+
+                // Set info sources checkboxes
+                const sources = r.infoSources || [];
+                document.querySelectorAll('#infoSources input').forEach(cb => {
+                    cb.checked = sources.includes(cb.value);
+                });
+
+                // Trigger screening check and save
+                checkScreeningB();
+                savePreliminary();
+
+                alertEl.innerHTML = `<div class="alert alert-success" style="margin-top: 15px;">Preliminary data loaded successfully!</div>`;
+                document.getElementById('preliminaryAIInput').value = '';
+            } catch (err) {
+                alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 15px;">Error: ${err.message}</div>`;
+            }
         }
 
         function copyConfoundingPrompt() {
