@@ -1452,6 +1452,12 @@
         let mentorsMap = {};
         let imageActionMode = 'copy'; // 'copy' or 'download'
 
+        // Helper to decrypt user data if encrypted
+        function _dn(val) {
+            if (!val) return val;
+            return WardApp._prs ? WardApp._prs(val) : val;
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
@@ -1462,7 +1468,7 @@
                 return;
             }
 
-            document.getElementById('user-name').textContent = userData.full_name || userData.email;
+            document.getElementById('user-name').textContent = _dn(userData.full_name) || userData.email;
 
             await loadMentors();
             await loadStudents();
@@ -1483,7 +1489,7 @@
                 mentorsMap[m.id] = m;
                 const option = document.createElement('option');
                 option.value = m.id;
-                option.textContent = m.full_name || m.email;
+                option.textContent = _dn(m.full_name) || m.email;
                 select.appendChild(option);
             });
         }
@@ -1536,15 +1542,15 @@
             const searchTerm = document.getElementById('student-search').value.toLowerCase();
 
             const filtered = allStudents.filter(s =>
-                (s.full_name || '').toLowerCase().includes(searchTerm) ||
+                (_dn(s.full_name) || '').toLowerCase().includes(searchTerm) ||
                 (s.email || '').toLowerCase().includes(searchTerm)
             );
 
             container.innerHTML = filtered.map(s => `
                 <div class="student-item ${selectedStudent?.id === s.id ? 'active' : ''}" onclick="selectStudent(${s.id})">
-                    <div class="student-avatar">${getInitials(s.full_name)}</div>
+                    <div class="student-avatar">${getInitials(_dn(s.full_name))}</div>
                     <div class="student-info">
-                        <div class="student-name">${s.full_name || 'Sem nome'}</div>
+                        <div class="student-name">${_dn(s.full_name) || 'Sem nome'}</div>
                         <div class="student-email">${s.email}</div>
                         <div class="reports-count" id="report-count-${s.id}">Carregando...</div>
                     </div>
@@ -1565,9 +1571,9 @@
             document.getElementById('no-student-selected').style.display = 'none';
             document.getElementById('student-reports-area').style.display = 'block';
 
-            document.getElementById('selected-student-name').textContent = selectedStudent.full_name || 'Sem nome';
+            document.getElementById('selected-student-name').textContent = _dn(selectedStudent.full_name) || 'Sem nome';
             document.getElementById('selected-student-email').textContent = selectedStudent.email;
-            document.getElementById('selected-avatar').textContent = getInitials(selectedStudent.full_name);
+            document.getElementById('selected-avatar').textContent = getInitials(_dn(selectedStudent.full_name));
 
             renderStudentsList();
             renderReports();
@@ -1604,7 +1610,7 @@
 
             if (currentMentorFilter !== 'all') {
                 studentReports = studentReports.filter(r => {
-                    const mentorName = (r.mentor?.full_name || '').toLowerCase();
+                    const mentorName = (_dn(r.mentor?.full_name) || '').toLowerCase();
                     return mentorName.includes(currentMentorFilter);
                 });
             }
@@ -1631,7 +1637,7 @@
 
             container.innerHTML = studentReports.map(r => {
                 const formattedDate = formatDateBR(r.call_date);
-                const mentorName = r.mentor?.full_name || 'Mentor';
+                const mentorName = _dn(r.mentor?.full_name) || 'Mentor';
                 const preview = stripHtml(r.report_text).substring(0, 150);
 
                 return `
@@ -1680,7 +1686,7 @@
 
             const date = new Date(report.call_date + 'T12:00:00');
             document.getElementById('view-report-date').textContent = date.toLocaleDateString('pt-BR');
-            document.getElementById('view-report-mentor').textContent = report.mentor?.full_name || 'Mentor';
+            document.getElementById('view-report-mentor').textContent = _dn(report.mentor?.full_name) || 'Mentor';
 
             const contentEl = document.getElementById('view-report-content');
             contentEl.innerHTML = report.report_text;
@@ -1898,8 +1904,8 @@
 
             const date = new Date(report.call_date + 'T12:00:00');
             const formattedDate = date.toLocaleDateString('pt-BR');
-            const mentorName = report.mentor?.full_name || 'Mentor';
-            const studentName = selectedStudent?.full_name || 'Aluno';
+            const mentorName = _dn(report.mentor?.full_name) || 'Mentor';
+            const studentName = _dn(selectedStudent?.full_name) || 'Aluno';
 
             container.innerHTML = `
                 <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 30px; border-radius: 16px 16px 0 0; margin: -40px -40px 0 -40px;">

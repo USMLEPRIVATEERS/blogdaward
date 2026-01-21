@@ -343,6 +343,12 @@
             return cpf;
         }
 
+        // Helper to decrypt user data if encrypted
+        function _dn(val) {
+            if (!val) return val;
+            return WardApp._prs ? WardApp._prs(val) : val;
+        }
+
         async function loadMembers() {
             const { data: members, error } = await WardApp.db
                 .from('users')
@@ -426,9 +432,9 @@
 
             if (search) {
                 filtered = filtered.filter(m =>
-                    m.full_name?.toLowerCase().includes(search) ||
+                    (_dn(m.full_name) || '').toLowerCase().includes(search) ||
                     m.email?.toLowerCase().includes(search) ||
-                    m.cpf?.includes(search.replace(/\D/g, ''))
+                    (_dn(m.cpf) || '').includes(search.replace(/\D/g, ''))
                 );
             }
 
@@ -506,10 +512,10 @@
                     <td>
                         <div class="member-name-cell">
                             <span class="member-avatar">👤</span>
-                            <strong>${member.full_name || 'Sem nome'}</strong>
+                            <strong>${_dn(member.full_name) || 'Sem nome'}</strong>
                         </div>
                     </td>
-                    <td>${formatCPF(member.cpf)}</td>
+                    <td>${formatCPF(_dn(member.cpf))}</td>
                     <td>${member.email || '-'}</td>
                     <td>${roleLabels[member.role] || member.role}</td>
                     <td>
@@ -581,8 +587,8 @@
             if (!member) return;
 
             document.getElementById('edit-member-id').value = memberId;
-            document.getElementById('edit-name').value = member.full_name || '';
-            document.getElementById('edit-cpf').value = formatCPF(member.cpf);
+            document.getElementById('edit-name').value = _dn(member.full_name) || '';
+            document.getElementById('edit-cpf').value = formatCPF(_dn(member.cpf));
             document.getElementById('edit-email').value = member.email || '';
             document.getElementById('edit-role').value = member.role || 'aluno';
             document.getElementById('edit-status').value = member.status || 'active';
@@ -683,7 +689,7 @@
             const confirmText = `⚠️ ATENÇÃO: Esta acao é PERMANENTE e IRREVERSÍVEL!
 
 Você está prestes a excluir permanentemente:
-• Nome: ${member.full_name || 'Sem nome'}
+• Nome: ${_dn(member.full_name) || 'Sem nome'}
 • Email: ${member.email || 'Sem email'}
 
 Todos os dados relacionados serão DELETADOS do banco de dados:
@@ -740,7 +746,7 @@ Digite "EXCLUIR" para confirmar:`;
                     <div class="profile-header">
                         <div class="profile-avatar">👤</div>
                         <div class="profile-info">
-                            <h2>${member.full_name || 'Sem nome'}</h2>
+                            <h2>${_dn(member.full_name) || 'Sem nome'}</h2>
                             <p class="text-muted">${member.email}</p>
                             <span class="badge ${(member.status || 'active') === 'active' ? 'badge-success' : 'badge-secondary'}">
                                 ${roleLabels[member.role] || member.role}

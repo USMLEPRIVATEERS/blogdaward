@@ -612,6 +612,12 @@
         let viewingAsStudent = null;
         let targetUserId = null; // The user ID to load data for (student's ID when viewing as student)
 
+        // Helper to decrypt user data if encrypted
+        function _dn(val) {
+            if (!val) return val;
+            return WardApp._prs ? WardApp._prs(val) : val;
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
@@ -652,14 +658,14 @@
 
                         // Ensure localStorage has the data (for persistence across navigation)
                         if (!viewAsData || (viewAsData.id != viewAsId && viewAsData.studentId != viewAsId)) {
-                            viewAsData = { id: student.id, name: student.full_name, mentorRole: userData.role };
+                            viewAsData = { id: student.id, name: _dn(student.full_name), mentorRole: userData.role };
                             localStorage.setItem('view_as_student', JSON.stringify(viewAsData));
                         }
 
                         // Show viewing banner
                         showViewingAsBanner({
                             id: student.id,
-                            name: student.full_name || student.email,
+                            name: _dn(student.full_name) || student.email,
                             mentorRole: viewAsData?.mentorRole || userData.role
                         });
                     }
@@ -676,7 +682,7 @@
             }
 
             // Update user name
-            const displayName = viewingAsStudent ? viewingAsStudent.full_name || viewingAsStudent.email.split('@')[0] : (userData.name || userData.email.split('@')[0]);
+            const displayName = viewingAsStudent ? _dn(viewingAsStudent.full_name) || viewingAsStudent.email.split('@')[0] : (_dn(userData.name) || userData.email.split('@')[0]);
             document.getElementById('user-name').textContent = displayName;
             document.querySelector('.user-name').textContent = displayName || 'Perfil';
 
@@ -779,7 +785,7 @@
             container.innerHTML = messages.map(msg => `
                 <div class="message-item" data-id="${msg.id}">
                     <div class="message-header">
-                        <span class="message-author">📌 ${msg.mentor?.full_name || 'Mentor'}</span>
+                        <span class="message-author">📌 ${_dn(msg.mentor?.full_name) || 'Mentor'}</span>
                         <span class="message-date">${WardApp.formatDate(msg.created_at)}</span>
                     </div>
                     <p class="message-content">${msg.content}</p>
@@ -881,7 +887,7 @@
                     const callDate = new Date(scheduledCall.scheduled_date + 'T' + scheduledCall.scheduled_time);
                     const dateStr = callDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
                     const timeStr = callDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                    const mentorName = scheduledCall.mentor?.full_name || scheduledCall.mentor?.name || 'Mentor';
+                    const mentorName = _dn(scheduledCall.mentor?.full_name) || _dn(scheduledCall.mentor?.name) || 'Mentor';
                     scheduledInfo = `📹 ${dateStr} às ${timeStr} - ${mentorName}`;
                 }
 
@@ -1283,7 +1289,7 @@
                                         ${call.landmark?.title || 'Chamada com mentor'}
                                     </div>
                                     <div style="color: #6b7280; font-size: 0.875rem;">
-                                        👤 ${call.mentor?.full_name || 'Mentor'}<br>
+                                        👤 ${_dn(call.mentor?.full_name) || 'Mentor'}<br>
                                         📅 ${datetime}<br>
                                         ${call.notes ? '📝 ' + (call.notes.length > 60 ? call.notes.substring(0, 60) + '...' : call.notes) : ''}
                                     </div>
@@ -1334,7 +1340,7 @@
 
                 document.getElementById('modal-call-id').value = call.id;
                 document.getElementById('modal-landmark-id').value = call.landmark_id || '';
-                document.getElementById('modal-mentor-name').textContent = call.mentor?.full_name || 'Mentor';
+                document.getElementById('modal-mentor-name').textContent = _dn(call.mentor?.full_name) || 'Mentor';
                 document.getElementById('modal-call-title').textContent = call.landmark?.title || 'Chamada com mentor';
                 document.getElementById('modal-call-datetime').textContent = datetime;
                 document.getElementById('modal-call-status').textContent = statusLabels[call.status] || call.status;
@@ -1400,7 +1406,7 @@
                 const currentNotes = Array.isArray(landmark?.notes) ? landmark.notes : [];
                 const newNote = {
                     text: noteText,
-                    author: userData.full_name || userData.email,
+                    author: _dn(userData.full_name) || userData.email,
                     date: new Date().toISOString()
                 };
                 currentNotes.push(newNote);

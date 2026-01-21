@@ -328,6 +328,12 @@
         // Track the last created post ID to show it at top temporarily
         let lastCreatedPostId = null;
 
+        // Helper to decrypt user data if encrypted
+        function _dn(val) {
+            if (!val) return val;
+            return WardApp._prs ? WardApp._prs(val) : val;
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
@@ -377,7 +383,7 @@
             document.getElementById('char-limit').textContent = charLimit;
 
             // Update greeting
-            const name = userData.name || userData.full_name || 'Usuario';
+            const name = _dn(userData.name) || _dn(userData.full_name) || 'Usuario';
             document.getElementById('user-greeting').textContent = `Oi ${name.split(' ')[0]}, o que esta acontecendo?`;
 
             // Setup rich text editor
@@ -569,7 +575,7 @@
                 // Buscar nos posts
                 posts.forEach(p => {
                     const contentMatch = p.content.toLowerCase().includes(query);
-                    const authorMatch = (p.author?.full_name || p.author?.name || '').toLowerCase().includes(query);
+                    const authorMatch = (_dn(p.author?.full_name) || _dn(p.author?.name) || '').toLowerCase().includes(query);
 
                     if (contentMatch || authorMatch) {
                         matchingPostIds.add(p.id);
@@ -724,7 +730,7 @@
         };
 
         function renderPostCard(post, isPinned) {
-            const authorName = post.author?.full_name || post.author?.name || 'Usuario';
+            const authorName = _dn(post.author?.full_name) || _dn(post.author?.name) || 'Usuario';
             const isAuthorMentor = post.author?.role?.startsWith('mentor_');
             const authorBadge = isAuthorMentor ? '<span class="mentor-badge">Mentor</span>' : '';
             const isOwnPost = post.user_id === userData.id;
@@ -792,7 +798,7 @@
 
             document.getElementById('current-post-id').value = postId;
 
-            const authorName = post.author?.full_name || post.author?.name || 'Usuario';
+            const authorName = _dn(post.author?.full_name) || _dn(post.author?.name) || 'Usuario';
             const isAuthorMentor = post.author?.role?.startsWith('mentor_');
             const authorBadge = isAuthorMentor ? '<span class="mentor-badge">Mentor</span>' : '';
             const isOwnPost = post.user_id === userData.id;
@@ -972,7 +978,7 @@
 
             commentsList.innerHTML = comments.map(comment => {
                 const author = usersMap[comment.user_id] || { name: 'Usuario', role: 'aluno' };
-                const authorName = author.full_name || author.name || 'Usuario';
+                const authorName = _dn(author.full_name) || _dn(author.name) || 'Usuario';
                 const isMentorComment = author.role?.startsWith('mentor_');
                 const badge = isMentorComment ? '<span class="mentor-badge-sm">M</span>' : '';
                 const isOwnComment = comment.user_id === userData.id;
@@ -2011,7 +2017,7 @@
 
             if (student) {
                 document.getElementById('viewing-as-banner').style.display = 'flex';
-                document.getElementById('viewing-student-name').textContent = student.full_name;
+                document.getElementById('viewing-student-name').textContent = _dn(student.full_name);
                 document.body.style.paddingTop = '50px';
 
                 // Preserve mentorRole from existing localStorage if available
@@ -2021,7 +2027,7 @@
                 // Store in localStorage for other pages
                 localStorage.setItem('view_as_student', JSON.stringify({
                     id: studentId,
-                    name: student.full_name,
+                    name: _dn(student.full_name),
                     mentorRole: mentorRole
                 }));
 
