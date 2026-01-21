@@ -111,6 +111,29 @@
             </div>
         </div>
 
+        <!-- Stage Filter -->
+        <div class="card mb-4" id="stage-filter-card">
+            <div class="card-body" style="padding: 1rem 1.5rem;">
+                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    <span style="font-weight: 600; color: #374151; white-space: nowrap;">🔍 Filtrar por Estágio:</span>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
+                        <select id="stage-comparison" class="form-input" style="width: auto; min-width: 60px; padding: 0.5rem 0.75rem;">
+                            <option value="=">=</option>
+                            <option value="<">&lt;</option>
+                            <option value=">">&gt;</option>
+                        </select>
+                        <select id="stage-filter" class="form-input" style="flex: 1; min-width: 200px; max-width: 400px; padding: 0.5rem 0.75rem;">
+                            <option value="">Todos os estágios</option>
+                        </select>
+                        <button class="btn btn-secondary btn-sm" onclick="clearStageFilter()" style="white-space: nowrap;">✕ Limpar</button>
+                    </div>
+                </div>
+                <div id="filter-hint" style="margin-top: 0.5rem; font-size: 0.8rem; color: #6b7280; display: none;">
+                    <span id="filter-hint-text"></span>
+                </div>
+            </div>
+        </div>
+
         <!-- Projects List -->
         <div id="projects-container">
             <!-- Filled by JS -->
@@ -695,6 +718,107 @@
             tarefa_concluida: 'Tarefa concluida'
         };
 
+        // Stage order for filtering (excluding tarefa_concluida from order)
+        const stageOrder = Object.keys(stageLabels).filter(s => s !== 'tarefa_concluida');
+
+        // Filter state
+        let selectedStage = '';
+        let selectedComparison = '=';
+
+        // Get active stages for a project (stages with incomplete tasks)
+        function getActiveStages(project) {
+            const tasks = project.tasks || [];
+            const activeStages = new Set();
+            tasks.forEach(task => {
+                if (task.stage && task.stage !== 'tarefa_concluida') {
+                    activeStages.add(task.stage);
+                }
+            });
+            return activeStages;
+        }
+
+        // Check if project matches filter
+        function projectMatchesFilter(project) {
+            if (!selectedStage) return true;
+
+            const activeStages = getActiveStages(project);
+            const selectedIndex = stageOrder.indexOf(selectedStage);
+
+            if (selectedIndex === -1) return true;
+
+            if (selectedComparison === '=') {
+                // Project has incomplete tasks in this specific stage
+                return activeStages.has(selectedStage);
+            } else if (selectedComparison === '<') {
+                // Project has incomplete tasks in this stage OR any previous stages
+                const relevantStages = stageOrder.slice(0, selectedIndex + 1);
+                return relevantStages.some(stage => activeStages.has(stage));
+            } else if (selectedComparison === '>') {
+                // Project has incomplete tasks in this stage OR any subsequent stages
+                const relevantStages = stageOrder.slice(selectedIndex);
+                return relevantStages.some(stage => activeStages.has(stage));
+            }
+            return true;
+        }
+
+        // Populate stage filter dropdown
+        function populateStageFilter() {
+            const select = document.getElementById('stage-filter');
+            if (!select) return;
+
+            select.innerHTML = '<option value="">Todos os estágios</option>';
+            stageOrder.forEach(stage => {
+                const option = document.createElement('option');
+                option.value = stage;
+                option.textContent = stageLabels[stage];
+                select.appendChild(option);
+            });
+        }
+
+        // Apply filter and re-render
+        function applyStageFilter() {
+            selectedStage = document.getElementById('stage-filter').value;
+            selectedComparison = document.getElementById('stage-comparison').value;
+
+            // Update hint
+            updateFilterHint();
+
+            // Re-render projects
+            renderProjects();
+        }
+
+        // Update filter hint text
+        function updateFilterHint() {
+            const hint = document.getElementById('filter-hint');
+            const hintText = document.getElementById('filter-hint-text');
+
+            if (!selectedStage) {
+                hint.style.display = 'none';
+                return;
+            }
+
+            hint.style.display = 'block';
+            const stageName = stageLabels[selectedStage];
+
+            if (selectedComparison === '=') {
+                hintText.textContent = `Mostrando projetos com tarefas pendentes em "${stageName}"`;
+            } else if (selectedComparison === '<') {
+                hintText.textContent = `Mostrando projetos com tarefas pendentes em "${stageName}" ou estágios anteriores`;
+            } else if (selectedComparison === '>') {
+                hintText.textContent = `Mostrando projetos com tarefas pendentes em "${stageName}" ou estágios posteriores`;
+            }
+        }
+
+        // Clear filter
+        function clearStageFilter() {
+            document.getElementById('stage-filter').value = '';
+            document.getElementById('stage-comparison').value = '=';
+            selectedStage = '';
+            selectedComparison = '=';
+            document.getElementById('filter-hint').style.display = 'none';
+            renderProjects();
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
@@ -747,6 +871,11 @@
             }
 
             await loadProjects();
+
+            // Initialize stage filter
+            populateStageFilter();
+            document.getElementById('stage-filter').addEventListener('change', applyStageFilter);
+            document.getElementById('stage-comparison').addEventListener('change', applyStageFilter);
 
             // Show pending projects section for mentors
             if (isMentor && !viewingAsStudentId) {
@@ -914,12 +1043,19 @@
             const noProjects = document.getElementById('no-projects');
 
             // Filter out pending_approval projects for the main list (they show in pending section)
-            const approvedProjects = allProjects.filter(p => p.status !== 'pending_approval');
+            let approvedProjects = allProjects.filter(p => p.status !== 'pending_approval');
             const myPendingProjects = allProjects.filter(p => p.status === 'pending_approval' && p.created_by === userData.id);
 
+            // Apply stage filter to approved projects
+            if (selectedStage) {
+                approvedProjects = approvedProjects.filter(projectMatchesFilter);
+            }
+
             if (approvedProjects.length === 0 && myPendingProjects.length === 0) {
-                container.innerHTML = '';
-                noProjects.style.display = 'block';
+                container.innerHTML = selectedStage
+                    ? `<div class="card"><div class="card-body text-center p-4"><div class="empty-state"><div class="empty-state-icon">🔍</div><h3 class="empty-state-title">Nenhum projeto encontrado</h3><p class="text-muted">Nenhum projeto possui tarefas pendentes no estágio filtrado.</p></div></div></div>`
+                    : '';
+                noProjects.style.display = selectedStage ? 'none' : 'block';
                 return;
             }
 
@@ -928,7 +1064,7 @@
             // Render my pending projects first (if student)
             let html = '';
 
-            if (myPendingProjects.length > 0) {
+            if (myPendingProjects.length > 0 && !selectedStage) {
                 html += `
                     <div class="mb-4">
                         <h3 style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: #92400e;">
@@ -942,8 +1078,11 @@
             }
 
             if (approvedProjects.length > 0) {
-                if (myPendingProjects.length > 0) {
+                if (myPendingProjects.length > 0 && !selectedStage) {
                     html += `<h3 style="margin-bottom: 1rem; color: #374151;">Projetos Aprovados</h3>`;
+                }
+                if (selectedStage) {
+                    html += `<p style="margin-bottom: 1rem; color: #6b7280; font-size: 0.9rem;">Encontrados ${approvedProjects.length} projeto${approvedProjects.length !== 1 ? 's' : ''}</p>`;
                 }
                 html += approvedProjects.map(project => renderProjectCard(project, false)).join('');
             }
@@ -955,6 +1094,49 @@
             const tasks = project.tasks || [];
             const completedTasks = tasks.filter(t => t.stage === 'tarefa_concluida').length;
             const progress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+
+            // Get active stages (with incomplete tasks)
+            const activeStages = getActiveStages(project);
+            const activeStagesArray = Array.from(activeStages);
+
+            // Sort by stage order
+            activeStagesArray.sort((a, b) => stageOrder.indexOf(a) - stageOrder.indexOf(b));
+
+            // Generate stage badges HTML (show max 3, then +X more)
+            let stageBadgesHtml = '';
+            if (activeStagesArray.length > 0 && !isPending) {
+                const maxShow = 3;
+                const toShow = activeStagesArray.slice(0, maxShow);
+                const remaining = activeStagesArray.length - maxShow;
+
+                stageBadgesHtml = `
+                    <div class="project-stages" style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.75rem;">
+                        ${toShow.map(stage => `
+                            <span class="stage-badge" style="
+                                display: inline-block;
+                                padding: 0.2rem 0.5rem;
+                                font-size: 0.7rem;
+                                background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+                                color: #4338ca;
+                                border-radius: 4px;
+                                font-weight: 500;
+                                white-space: nowrap;
+                            ">${stageLabels[stage] || stage}</span>
+                        `).join('')}
+                        ${remaining > 0 ? `
+                            <span class="stage-badge-more" style="
+                                display: inline-block;
+                                padding: 0.2rem 0.5rem;
+                                font-size: 0.7rem;
+                                background: #f3f4f6;
+                                color: #6b7280;
+                                border-radius: 4px;
+                                font-weight: 500;
+                            ">+${remaining}</span>
+                        ` : ''}
+                    </div>
+                `;
+            }
 
             let statusClass = 'status-active';
             let statusText = '🔄 Em andamento';
@@ -983,6 +1165,7 @@
                             </div>
                             <span class="progress-text">${progress}%</span>
                         </div>
+                        ${stageBadgesHtml}
                     ` : `
                         <div style="padding: 0.75rem; background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 8px; margin: 0.5rem 0;">
                             <small style="color: #92400e;">
