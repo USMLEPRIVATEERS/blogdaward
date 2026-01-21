@@ -604,6 +604,32 @@ Baseline BMI"></textarea>
                         <button class="btn btn-sm btn-secondary" onclick="addConfoundingRow()" style="margin-top: 15px;">+ Add Row</button>
                     </div>
 
+                    <!-- AI Section for Confounding -->
+                    <div class="card">
+                        <h3>AI-Assisted Confounding Evaluation</h3>
+
+                        <div class="tabs">
+                            <button class="tab-btn active" onclick="switchConfoundingTab('copy')">Copy Prompt</button>
+                            <button class="tab-btn" onclick="switchConfoundingTab('paste')">Paste AI Response</button>
+                        </div>
+
+                        <div id="confounding-tab-copy" class="tab-content active">
+                            <p style="margin-bottom: 15px;">Copy the prompt to ask AI to evaluate confounding factors for this study.</p>
+                            <div class="btn-group" style="margin-top:0">
+                                <button class="btn btn-secondary" onclick="copyConfoundingPrompt()">Copy Confounding Prompt</button>
+                            </div>
+                            <textarea id="confoundingPromptOutput" readonly style="margin-top: 15px; height: 150px;" placeholder="Prompt will appear here..."></textarea>
+                        </div>
+
+                        <div id="confounding-tab-paste" class="tab-content">
+                            <p style="margin-bottom: 10px;">Paste the AI's JSON response:</p>
+                            <pre style="background: var(--bg-input); padding: 10px; border-radius: 6px; font-size: 12px; margin-bottom: 15px; overflow-x: auto;">[{"factor": "Age", "variable": "Age at baseline", "controlled": "Y", "valid": "Y", "unnecessary": "N", "direction": "Upward"}, ...]</pre>
+                            <textarea id="confoundingAIInput" style="height: 120px;" placeholder="Paste JSON here..."></textarea>
+                            <button class="btn btn-primary" style="margin-top: 15px;" onclick="processConfoundingAIResponse()">Process Response</button>
+                            <div id="confoundingAIAlert"></div>
+                        </div>
+                    </div>
+
                     <div class="nav-bar">
                         <button class="btn btn-secondary" onclick="goToStep('preliminary')">Back</button>
                         <button class="btn btn-primary" onclick="goToStep('domains')">Next: Domains</button>
@@ -1475,11 +1501,231 @@ Baseline BMI"></textarea>
 
         // ========== AI ==========
         function switchTab(tab) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('#step-domains .tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('#step-domains .tab-content').forEach(c => c.classList.remove('active'));
             event.target.classList.add('active');
             document.getElementById(`tab-${tab}`).classList.add('active');
         }
+
+        function switchConfoundingTab(tab) {
+            document.querySelectorAll('#step-confounding .tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('#step-confounding .tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(`confounding-tab-${tab}`).classList.add('active');
+        }
+
+        function copyConfoundingPrompt() {
+            const data = getStudyData();
+            const factors = currentProject.confoundingFactors || [];
+
+            let text = `ROBINS-I V2 - Confounding Factors Evaluation\nStudy: ${currentStudyId}\n\n`;
+            text += `For each confounding factor below, evaluate:\n`;
+            text += `- variable: What variable(s) was used to measure this factor?\n`;
+            text += `- controlled: Was this factor controlled for? (Y/N)\n`;
+            text += `- valid: Was the measurement valid and reliable? (Y/PY/PN/N/NI/NA)\n`;
+            text += `- unnecessary: Was control unnecessary for this factor? (Y/PY/PN/N/NA)\n`;
+            text += `- direction: Expected direction of bias if uncontrolled (Upward/Downward/Unpredictable)\n\n`;
+
+            text += `CONFOUNDING FACTORS TO EVALUATE:\n`;
+            factors.forEach((f, i) => {
+                text += `${i + 1}. ${f}\n`;
+            });
+
+            text += `\n--- IMPORTANT INSTRUCTIONS ---\n`;
+            text += `Respond in JSON format as an array of objects.\n`;
+            text += `If the study does NOT mention or control for a factor, set controlled="N" and valid="NA".\n`;
+            text += `If control was unnecessary (e.g., factor not relevant to this outcome), set unnecessary="Y".\n\n`;
+
+            text += `Expected JSON format:\n`;
+            text += `[\n`;
+            text += `  {"factor": "${factors[0] || 'Factor name'}", "variable": "variable used", "controlled": "Y", "valid": "Y", "unnecessary": "N", "direction": "Upward"},\n`;
+            text += `  {"factor": "${factors[1] || 'Factor 2'}", "variable": "not measured", "controlled": "N", "valid": "NA", "unnecessary": "N", "direction": "Downward"},\n`;
+            text += `  ...\n`;
+            text += `]\n`;
+
+            document.getElementById('confoundingPromptOutput').value = text;
+            navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'));
+        }
+
+        function processConfoundingAIResponse() {
+            const input = document.getElementById('confoundingAIInput').value.trim();
+            const alertEl = document.getElementById('confoundingAIAlert');
+
+            try {
+                const responses = JSON.parse(input);
+                if (!Array.isArray(responses)) throw new Error('Response must be an array');
+
+                const data = getStudyData();
+                data.confounding = responses.map(r => ({
+                    factor: r.factor || '',
+                    variable: r.variable || '',
+                    controlled: (r.controlled || '').toUpperCase(),
+                    valid: (r.valid || '').toUpperCase(),
+                    unnecessary: (r.unnecessary || '').toUpperCase(),
+                    direction: r.direction || ''
+                }));
+
+                saveProjects();
+                loadConfoundingData();
+
+                alertEl.innerHTML = `<div class="alert alert-success" style="margin-top: 15px;">Processed ${responses.length} confounding factor(s) successfully!</div>`;
+                document.getElementById('confoundingAIInput').value = '';
+            } catch (err) {
+                alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 15px;">Error: ${err.message}</div>`;
+            }
+        }
+
+        // Decision path rules for each domain (based on ROBINS-I V2 algorithm)
+        const DECISION_PATHS = {
+            "1A": {
+                description: "ITT effect - baseline confounding only",
+                rules: [
+                    "Start with 1.1. Based on the answer, proceed as follows:",
+                    "• If 1.1 = Y or PY → Answer 1.3, then 1.2, then 1.4",
+                    "• If 1.1 = WN → Answer 1.3, then 1.2, then 1.4",
+                    "• If 1.1 = SN or NI → Skip to 1.4 directly (likely Serious/Critical)",
+                    "",
+                    "For 1.3 (post-intervention control):",
+                    "• If 1.3 = N/PN/NI → Continue to 1.2",
+                    "• If 1.3 = Y/PY → Go to 1.4 (risk of bias)",
+                    "",
+                    "For 1.2 (validity of measurement):",
+                    "• If 1.2 = SN/NI → Serious risk, still answer 1.4",
+                    "",
+                    "Always answer 1.4 as final question."
+                ]
+            },
+            "1B": {
+                description: "Per-protocol effect - baseline + time-varying confounding",
+                rules: [
+                    "Start with 1.1 (appropriate analysis method).",
+                    "• If 1.1 = Y or PY → Answer 1.2, then 1.3, then 1.5",
+                    "• If 1.1 = N/PN/NI → Answer 1.4, then 1.5 (likely Critical if 1.4=Y/PY)",
+                    "",
+                    "For 1.2 (controlled for confounders):",
+                    "• If 1.2 = Y/PY → Continue to 1.3",
+                    "• If 1.2 = WN → Continue to 1.3",
+                    "• If 1.2 = SN/NI → Skip to 1.5 (Serious risk)",
+                    "",
+                    "For 1.3 (validity of measurement):",
+                    "• If 1.3 = SN/NI → Serious risk",
+                    "",
+                    "Always answer 1.5 as final question."
+                ]
+            },
+            "2": {
+                description: "Classification of interventions",
+                rules: [
+                    "Start with 2.1 (strategies distinguishable at start).",
+                    "• If 2.1 = Y or PY → Skip 2.2 and 2.3, go directly to 2.4",
+                    "• If 2.1 = N/PN/NI → Answer 2.2",
+                    "",
+                    "For 2.2 (almost all events after distinguishable):",
+                    "• If 2.2 = Y or PY → Skip 2.3, go to 2.4",
+                    "• If 2.2 = N/PN/NI → Answer 2.3",
+                    "",
+                    "For 2.3 (appropriate analysis):",
+                    "• If 2.3 = SY → Go to 2.4",
+                    "• If 2.3 = WY/NI → Go to 2.4 (Moderate path)",
+                    "• If 2.3 = N/PN → Go to 2.4 (Serious path)",
+                    "",
+                    "For 2.4 (influenced by outcome):",
+                    "• If 2.4 = SY → Critical risk, 2.5 not needed",
+                    "• Otherwise → Answer 2.5",
+                    "",
+                    "2.5 is the final question unless 2.4=SY."
+                ]
+            },
+            "3": {
+                description: "Selection of participants",
+                rules: [
+                    "This domain has TWO PARTS (A and B).",
+                    "",
+                    "PART A - Start with 3.1 (followed from start):",
+                    "• If 3.1 = Y or PY → Answer 3.2",
+                    "• If 3.1 = WN/NI → Part A = Moderate",
+                    "• If 3.1 = SN → Part A = Serious",
+                    "",
+                    "For 3.2 (early events excluded):",
+                    "• If 3.2 = N/PN/NI → Part A = Low",
+                    "• If 3.2 = Y/PY → Part A = Moderate",
+                    "",
+                    "PART B - Answer 3.3 (selection based on post-start):",
+                    "• If 3.3 = N/PN → Part B = Low",
+                    "• If 3.3 = Y/PY → Answer 3.4",
+                    "• If 3.3 = NI → Part B = Moderate",
+                    "",
+                    "For 3.4 (associated with intervention):",
+                    "• If 3.4 = N/PN → Part B = Low",
+                    "• If 3.4 = Y/PY → Answer 3.5",
+                    "",
+                    "For 3.5 (influenced by outcome):",
+                    "• If 3.5 = N/PN/NI → Part B = Moderate",
+                    "• If 3.5 = Y/PY → Part B = Serious",
+                    "",
+                    "If BOTH parts = Serious, answer 3.6, 3.7, 3.8 to determine if correctable."
+                ]
+            },
+            "4": {
+                description: "Missing data",
+                rules: [
+                    "Start with 4.1, 4.2, 4.3 (complete data on intervention, outcome, confounders).",
+                    "• If ALL = Y or PY → Low risk, skip remaining questions",
+                    "• If ANY = N/PN/NI → Answer 4.4",
+                    "",
+                    "For 4.4 (complete case analysis):",
+                    "• If 4.4 = Y/PY/NI → Answer 4.5",
+                    "• If 4.4 = N/PN → Answer 4.7 (imputation path)",
+                    "",
+                    "For 4.5 (exclusion related to outcome):",
+                    "• If 4.5 = N/PN → Low risk",
+                    "• If 4.5 = Y/PY/NI → Answer 4.6",
+                    "",
+                    "For 4.6 (relationship explained by model):",
+                    "• If 4.6 = Y/PY → Answer 4.11",
+                    "• If 4.6 = WN/NI → Answer 4.11 (Moderate path)",
+                    "• If 4.6 = SN → Answer 4.11 (Serious path)",
+                    "",
+                    "For 4.7 (imputation used):",
+                    "• If 4.7 = Y/PY → Answer 4.8, then 4.9",
+                    "• If 4.7 = N/PN/NI → Answer 4.10",
+                    "",
+                    "4.11 is the final question determining Low/Moderate/Serious/Critical."
+                ]
+            },
+            "5": {
+                description: "Measurement of outcome",
+                rules: [
+                    "Start with 5.1 (measurement differs by group).",
+                    "• If 5.1 = Y or PY → SERIOUS risk immediately, skip 5.2 and 5.3",
+                    "• If 5.1 = N or PN → Answer 5.2",
+                    "• If 5.1 = NI → Answer 5.2 (Moderate path)",
+                    "",
+                    "For 5.2 (assessors aware of intervention):",
+                    "• If 5.2 = N or PN → LOW risk, skip 5.3",
+                    "• If 5.2 = Y/PY/NI → Answer 5.3",
+                    "",
+                    "For 5.3 (assessment influenced by knowledge):",
+                    "• If 5.3 = N or PN → Low risk",
+                    "• If 5.3 = WY or NI → Moderate risk",
+                    "• If 5.3 = SY → Serious risk"
+                ]
+            },
+            "6": {
+                description: "Selection of reported result",
+                rules: [
+                    "Start with 6.1 (result per pre-determined plan).",
+                    "• If 6.1 = Y or PY → LOW risk, skip 6.2-6.4",
+                    "• If 6.1 = N/PN/NI → Answer 6.2, 6.3, and 6.4",
+                    "",
+                    "For 6.2, 6.3, 6.4 (selected from multiple outcomes/analyses/subgroups):",
+                    "• If ALL = N or PN → Low risk",
+                    "• If at least one = NI, none Y/PY → Moderate risk",
+                    "• If ONE = Y or PY → Serious risk",
+                    "• If TWO or more = Y or PY → Critical risk"
+                ]
+            }
+        };
 
         function copyAllQuestions() {
             const data = getStudyData();
@@ -1487,17 +1733,46 @@ Baseline BMI"></textarea>
             const domainIds = [variant, '2', '3', '4', '5', '6'];
 
             let text = `ROBINS-I V2 Assessment - Study: ${currentStudyId}\n\n`;
-            text += `Provide answers in JSON format. Response codes: Y, PY, N, PN, NI, WN, SN, WY, SY, NA\n\n`;
+            text += `══════════════════════════════════════════════════════════════════\n`;
+            text += `IMPORTANT: Follow the decision paths below. Not all questions need to be answered.\n`;
+            text += `Based on your answer to one question, you may SKIP subsequent questions.\n`;
+            text += `══════════════════════════════════════════════════════════════════\n\n`;
+            text += `Response codes: Y (Yes), PY (Probably Yes), N (No), PN (Probably No),\n`;
+            text += `NI (No Information), WN (Weak No), SN (Strong No), WY (Weak Yes), SY (Strong Yes), NA (Not Applicable)\n\n`;
 
             domainIds.forEach(id => {
                 const d = DOMAINS[id];
-                text += `=== ${d.name} ===\n`;
-                d.questions.forEach(q => {
-                    text += `${q.id}. ${q.text}\n   Options: ${q.options.join(', ')}\n\n`;
+                const paths = DECISION_PATHS[id];
+                text += `════════════════════════════════════════════════════════════════\n`;
+                text += `${d.name}\n`;
+                text += `════════════════════════════════════════════════════════════════\n\n`;
+
+                text += `📋 DECISION PATH RULES:\n`;
+                paths.rules.forEach(rule => {
+                    text += `${rule}\n`;
                 });
+                text += `\n`;
+
+                text += `📝 QUESTIONS:\n`;
+                d.questions.forEach(q => {
+                    text += `${q.id}. ${q.text}\n`;
+                    text += `    Options: ${q.options.join(', ')}\n\n`;
+                });
+                text += `\n`;
             });
 
-            text += `\nExpected format:\n[{"domain": "${variant}", "answers": {"1.1": "Y", ...}}, {"domain": "2", "answers": {...}}, ...]\n`;
+            text += `════════════════════════════════════════════════════════════════\n`;
+            text += `JSON RESPONSE FORMAT\n`;
+            text += `════════════════════════════════════════════════════════════════\n\n`;
+            text += `Respond with a JSON array. For each domain, include ONLY the questions you answered.\n`;
+            text += `Use "SKIP" for questions that were skipped based on the decision path.\n\n`;
+            text += `Example:\n`;
+            text += `[\n`;
+            text += `  {"domain": "${variant}", "answers": {"1.1": "Y", "1.3": "N", "1.2": "Y", "1.4": "N"}, "path": "1.1=Y → 1.3=N → 1.2=Y → 1.4=N → Low"},\n`;
+            text += `  {"domain": "2", "answers": {"2.1": "Y", "2.4": "N", "2.5": "N"}, "path": "2.1=Y → skip 2.2,2.3 → 2.4=N → 2.5=N → Low"},\n`;
+            text += `  {"domain": "5", "answers": {"5.1": "Y"}, "path": "5.1=Y → Serious (skip 5.2, 5.3)"},\n`;
+            text += `  ...\n`;
+            text += `]\n`;
 
             document.getElementById('questionsOutput').value = text;
             navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'));
