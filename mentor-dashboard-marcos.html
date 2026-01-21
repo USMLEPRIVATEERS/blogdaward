@@ -889,10 +889,10 @@ Cardiovascular	Physiology	62	FALSE
                 const questionnairePercent = Math.round((questionnaireStep / 11) * 100);
 
                 return `
-                    <div style="background: ${statusColor}; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem;">
+                    <div style="background: ${statusColor}; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; overflow: hidden;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
-                            <div style="flex: 1;">
-                                <div style="font-weight: 600; margin-bottom: 0.25rem;">${student.full_name || student.email}</div>
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-weight: 600; margin-bottom: 0.25rem; word-wrap: break-word; overflow-wrap: break-word;">${_dn(student.full_name) || student.email}</div>
                                 <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.5rem;">${passLabel} <span style="color: #9ca3af; font-size: 0.65rem;">| Quest. ${questionnairePercent}%</span></div>
                                 ${statusBadge}
                             </div>
@@ -962,7 +962,7 @@ Cardiovascular	Physiology	62	FALSE
                             <div class="call-icon">📞</div>
                             <div class="call-info">
                                 <div class="call-title">${landmark?.title || 'Call'}${notesIndicator}</div>
-                                <div class="call-student">${student?.full_name || student?.email || 'Aluno'}</div>
+                                <div class="call-student">${_dn(student?.full_name) || student?.email || 'Aluno'}</div>
                                 <div class="call-time">🕐 ${formatDateTime(item.scheduled_date + 'T' + item.scheduled_time)}</div>
                             </div>
                             <div style="display: flex; gap: 0.5rem;">
@@ -1058,7 +1058,7 @@ Cardiovascular	Physiology	62	FALSE
                             <div class="call-icon">${statusIcon}</div>
                             <div class="call-info">
                                 <div class="call-title">${landmark.title}</div>
-                                <div class="call-student">${user.full_name || user.email || 'Aluno'}</div>
+                                <div class="call-student">${_dn(user.full_name) || user.email || 'Aluno'}</div>
                                 <div class="call-group">${groupNames[landmark.group_name] || landmark.group_name}</div>
                             </div>
                             <button class="btn btn-sm btn-primary" onclick="markCallComplete(${landmark.id})">✓</button>
@@ -1186,8 +1186,8 @@ Cardiovascular	Physiology	62	FALSE
                     <div style="background: var(--gray-100); padding: 1rem; border-radius: 8px;">
                         <h4 style="margin: 0 0 0.5rem; color: var(--primary);">${landmark?.title || 'Chamada'}</h4>
                         <div style="display: grid; gap: 0.5rem; font-size: 0.9rem;">
-                            <div><strong>👤 Aluno:</strong> ${student?.full_name || student?.email || 'N/A'}</div>
-                            <div><strong>👨‍💼 Mentor:</strong> ${mentor?.full_name || 'N/A'}</div>
+                            <div><strong>👤 Aluno:</strong> ${_dn(student?.full_name) || student?.email || 'N/A'}</div>
+                            <div><strong>👨‍💼 Mentor:</strong> ${_dn(mentor?.full_name) || 'N/A'}</div>
                             <div><strong>📅 Data/Hora:</strong> ${dateFormatted}</div>
                             <div><strong>⏱️ Duração:</strong> ${call.duration_minutes || 30} minutos</div>
                             <div><strong>📊 Status:</strong> <span style="color: ${call.status === 'scheduled' ? '#f59e0b' : '#10b981'};">${call.status === 'scheduled' ? 'Agendada' : call.status}</span></div>
@@ -1898,8 +1898,8 @@ Cardiovascular	Physiology	62	FALSE
 
                 switch (column) {
                     case 'name':
-                        aVal = (a.full_name || '').toLowerCase();
-                        bVal = (b.full_name || '').toLowerCase();
+                        aVal = (_dn(a.full_name) || '').toLowerCase();
+                        bVal = (_dn(b.full_name) || '').toLowerCase();
                         break;
                     case 'email':
                         aVal = (a.email || '').toLowerCase();
@@ -2000,9 +2000,10 @@ Cardiovascular	Physiology	62	FALSE
                     ? ' <span style="cursor: help; background: #fef3c7; padding: 0.1rem 0.3rem; border-radius: 4px;" title="Preencheu questionário mas falta cronograma">📋</span>'
                     : '';
 
+                const decryptedName = _dn(student.full_name) || 'Sem nome';
                 return `
                     <tr>
-                        <td><strong>${student.full_name || 'Sem nome'}</strong>${questionnaireIndicator}</td>
+                        <td><strong>${decryptedName}</strong>${questionnaireIndicator}</td>
                         <td>${student.email}</td>
                         <td>
                             <div class="mini-progress">
@@ -2024,8 +2025,8 @@ Cardiovascular	Physiology	62	FALSE
                         </td>
                         <td>
                             <button class="btn btn-xs btn-outline" onclick="viewStudent(${student.id})">Ver</button>
-                            <button class="btn btn-xs btn-outline" onclick="viewCheckIns(${student.id}, '${student.full_name}')">📊 Check-ins</button>
-                            <button class="btn btn-xs btn-outline" onclick="sendMessageTo(${student.id}, '${student.full_name}')">💬</button>
+                            <button class="btn btn-xs btn-outline" onclick="viewCheckIns(${student.id}, '${decryptedName.replace(/'/g, "\\'")}')">📊 Check-ins</button>
+                            <button class="btn btn-xs btn-outline" onclick="sendMessageTo(${student.id}, '${decryptedName.replace(/'/g, "\\'")}')">💬</button>
                             <button class="btn btn-xs btn-secondary" onclick="viewAsStudent(${student.id})" title="Ver como Aluno">👁️</button>
                         </td>
                     </tr>
@@ -2114,7 +2115,7 @@ Cardiovascular	Physiology	62	FALSE
                 const userId = item.user_id;
                 if (!byStudent[userId]) {
                     byStudent[userId] = {
-                        name: item.users.full_name || item.users.email,
+                        name: _dn(item.users.full_name) || item.users.email,
                         items: []
                     };
                 }
@@ -2192,9 +2193,9 @@ Cardiovascular	Physiology	62	FALSE
             // Render requests list
             const requestsList = document.getElementById('networking-requests-list');
             requestsList.innerHTML = requests.map(req => {
-                const requesterName = req.requester?.full_name || req.requester?.email || 'Aluno';
+                const requesterName = _dn(req.requester?.full_name) || req.requester?.email || 'Aluno';
                 const contactName = req.contact?.name || 'Contato';
-                const ownerName = req.owner?.full_name || req.owner?.email || 'Membro';
+                const ownerName = _dn(req.owner?.full_name) || req.owner?.email || 'Membro';
                 const institution = req.contact?.institution || '';
                 const requestDate = new Date(req.created_at).toLocaleDateString('pt-BR');
 
@@ -2271,7 +2272,7 @@ Cardiovascular	Physiology	62	FALSE
             const student = allStudents.find(s => s.id === studentId);
             if (!student) return;
 
-            document.getElementById('modal-student-name').textContent = student.full_name || student.email;
+            document.getElementById('modal-student-name').textContent = _dn(student.full_name) || student.email;
             await loadQuestionnaireResponses(studentId);
             openModal('questionnaire-modal');
         }
@@ -2757,7 +2758,7 @@ Cardiovascular	Physiology	62	FALSE
 
             const viewAsData = {
                 studentId: studentId,
-                studentName: student.full_name || student.email,
+                studentName: _dn(student.full_name) || student.email,
                 mentorId: userData.id,
                 mentorRole: userData.role
             };
@@ -2927,7 +2928,7 @@ Cardiovascular	Physiology	62	FALSE
 
         function exportStudents() {
             const csv = 'Nome\tEmail\tQuestionario\tRole\n' +
-                allStudents.map(s => `${s.full_name || ''}\t${s.email}\t${s.questionnaire_completed ? 'Completo' : 'Pendente'}\t${s.role}`).join('\n');
+                allStudents.map(s => `${_dn(s.full_name) || ''}\t${s.email}\t${s.questionnaire_completed ? 'Completo' : 'Pendente'}\t${s.role}`).join('\n');
 
             const blob = new Blob([csv], { type: 'text/tab-separated-values' });
             const url = URL.createObjectURL(blob);
@@ -2946,7 +2947,7 @@ Cardiovascular	Physiology	62	FALSE
         function populateStudentSelect() {
             const select = document.getElementById('schedule-student');
             select.innerHTML = allStudents.map(s =>
-                `<option value="${s.id}">${s.full_name || s.email}</option>`
+                `<option value="${s.id}">${_dn(s.full_name) || s.email}</option>`
             ).join('');
         }
 
@@ -4149,7 +4150,7 @@ Cardiovascular	Physiology	62	FALSE
 
                         await WardApp.db.from('landmarks').insert(landmarks);
                         addedCount++;
-                        console.log(`Added research landmarks for student ${student.full_name || student.email}`);
+                        console.log(`Added research landmarks for student ${_dn(student.full_name) || student.email}`);
                     }
                 }
             }
@@ -4366,6 +4367,7 @@ Cardiovascular	Physiology	62	FALSE
         .admin-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
         }
 
         .admin-table th,
@@ -4373,6 +4375,20 @@ Cardiovascular	Physiology	62	FALSE
             padding: 0.75rem;
             text-align: left;
             border-bottom: 1px solid var(--gray-200);
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .admin-table th:first-child,
+        .admin-table td:first-child {
+            width: 20%;
+            max-width: 180px;
+        }
+
+        .admin-table th:nth-child(2),
+        .admin-table td:nth-child(2) {
+            width: 22%;
+            max-width: 200px;
         }
 
         .admin-table th {
