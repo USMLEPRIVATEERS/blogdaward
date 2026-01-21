@@ -1635,6 +1635,146 @@ function goToDashboard() {
     }
 }
 
+// ===== PIXEL AVATAR GENERATOR =====
+// Generates unique pixel art avatars based on user name
+
+function generatePixelAvatar(name, size = 40) {
+    if (!name) name = 'User';
+
+    // Create a hash from the name
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        const char = name.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    hash = Math.abs(hash);
+
+    // Seeded random function
+    const seededRandom = (seed) => {
+        const x = Math.sin(seed) * 10000;
+        return x - Math.floor(x);
+    };
+
+    // Generate colors based on hash
+    const hue1 = hash % 360;
+    const hue2 = (hash * 7) % 360;
+    const saturation = 60 + (hash % 30);
+    const lightness = 45 + (hash % 20);
+
+    const bgColor = `hsl(${hue1}, ${saturation - 20}%, ${lightness + 35}%)`;
+    const primaryColor = `hsl(${hue1}, ${saturation}%, ${lightness}%)`;
+    const secondaryColor = `hsl(${hue2}, ${saturation - 10}%, ${lightness + 10}%)`;
+    const accentColor = `hsl(${(hue1 + 180) % 360}, ${saturation}%, ${lightness - 10}%)`;
+
+    // Grid size (5x5 with symmetry = 3 columns to generate)
+    const gridSize = 5;
+    const pixelSize = Math.floor(size / gridSize);
+    const actualSize = pixelSize * gridSize;
+
+    // Generate pattern (only left half + center, mirror for right)
+    const pattern = [];
+    const colsToGenerate = Math.ceil(gridSize / 2);
+
+    for (let y = 0; y < gridSize; y++) {
+        const row = [];
+        for (let x = 0; x < colsToGenerate; x++) {
+            const seed = hash + y * 10 + x;
+            const rand = seededRandom(seed);
+
+            // Different probabilities for different areas
+            let fillProb = 0.5;
+
+            // Center column more likely to be filled (body)
+            if (x === colsToGenerate - 1 && gridSize % 2 === 1) {
+                fillProb = 0.7;
+            }
+
+            // Top area (head) - moderate fill
+            if (y === 0) fillProb = 0.4;
+
+            // Middle area (face features) - high fill
+            if (y === 1 || y === 2) fillProb = 0.6;
+
+            // Bottom area (body) - high fill
+            if (y >= 3) fillProb = 0.65;
+
+            // Determine cell type: 0 = empty, 1 = primary, 2 = secondary, 3 = accent
+            let cellType = 0;
+            if (rand < fillProb) {
+                const colorRand = seededRandom(seed * 3);
+                if (colorRand < 0.6) cellType = 1;
+                else if (colorRand < 0.85) cellType = 2;
+                else cellType = 3;
+            }
+
+            row.push(cellType);
+        }
+        pattern.push(row);
+    }
+
+    // Create canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = actualSize;
+    canvas.height = actualSize;
+    const ctx = canvas.getContext('2d');
+
+    // Draw background
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, actualSize, actualSize);
+
+    // Color map
+    const colors = {
+        0: null,
+        1: primaryColor,
+        2: secondaryColor,
+        3: accentColor
+    };
+
+    // Draw pixels with symmetry
+    for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            // Get the pattern index (mirrored for right side)
+            let patternX = x;
+            if (x >= colsToGenerate) {
+                patternX = gridSize - 1 - x;
+            }
+
+            const cellType = pattern[y][patternX];
+            if (cellType > 0) {
+                ctx.fillStyle = colors[cellType];
+                ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+            }
+        }
+    }
+
+    // Add subtle border/shadow effect
+    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, actualSize - 1, actualSize - 1);
+
+    return canvas.toDataURL('image/png');
+}
+
+// Generate avatar HTML element
+function createPixelAvatarElement(name, size = 40, className = '') {
+    const dataUrl = generatePixelAvatar(name, size);
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    img.alt = 'Avatar';
+    img.width = size;
+    img.height = size;
+    img.style.borderRadius = '8px';
+    if (className) img.className = className;
+    return img;
+}
+
+// Generate avatar as inline HTML string
+function getPixelAvatarHTML(name, size = 40, className = '') {
+    const dataUrl = generatePixelAvatar(name, size);
+    return `<img src="${dataUrl}" alt="Avatar" width="${size}" height="${size}" style="border-radius: 8px; vertical-align: middle;" class="${className}">`;
+}
+
 // Export functions for use in HTML
 window.WardApp = {
     // Supabase client accessor - use WardApp.db.from('table')
@@ -1690,5 +1830,9 @@ window.WardApp = {
     _fmt: _fmtStr,
     _prs: _parseStr,
     _fmtU: (obj) => _fmtObj(obj, _sflds),
-    _prsU: (obj) => _parseObj(obj, _sflds)
+    _prsU: (obj) => _parseObj(obj, _sflds),
+    // Pixel avatar generator
+    generatePixelAvatar,
+    createPixelAvatarElement,
+    getPixelAvatarHTML
 };
