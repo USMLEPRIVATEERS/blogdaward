@@ -117,6 +117,10 @@
                 <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
                     <span style="font-weight: 600; color: #374151; white-space: nowrap;">🔍 Filtrar por Estágio:</span>
                     <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
+                        <select id="task-status-filter" class="form-input" style="width: auto; min-width: 160px; padding: 0.5rem 0.75rem;">
+                            <option value="pending">Apenas pendentes</option>
+                            <option value="all">Pendentes + Concluídas</option>
+                        </select>
                         <select id="stage-comparison" class="form-input" style="width: auto; min-width: 60px; padding: 0.5rem 0.75rem;">
                             <option value="=">=</option>
                             <option value="<">&lt;</option>
@@ -724,14 +728,23 @@
         // Filter state
         let selectedStage = '';
         let selectedComparison = '=';
+        let includeCompleted = false;
 
-        // Get active stages for a project (stages with incomplete tasks)
+        // Get active stages for a project (stages with tasks based on filter)
         function getActiveStages(project) {
             const tasks = project.tasks || [];
             const activeStages = new Set();
             tasks.forEach(task => {
-                if (task.stage && task.stage !== 'tarefa_concluida') {
-                    activeStages.add(task.stage);
+                if (task.stage) {
+                    if (includeCompleted) {
+                        // Include all stages (pending and completed)
+                        activeStages.add(task.stage);
+                    } else {
+                        // Only include pending stages (not tarefa_concluida)
+                        if (task.stage !== 'tarefa_concluida') {
+                            activeStages.add(task.stage);
+                        }
+                    }
                 }
             });
             return activeStages;
@@ -766,19 +779,47 @@
             const select = document.getElementById('stage-filter');
             if (!select) return;
 
+            const currentValue = select.value;
             select.innerHTML = '<option value="">Todos os estágios</option>';
+
+            // Add all stages from stageOrder
             stageOrder.forEach(stage => {
                 const option = document.createElement('option');
                 option.value = stage;
                 option.textContent = stageLabels[stage];
                 select.appendChild(option);
             });
+
+            // Add "Tarefa concluída" when includeCompleted is true
+            if (includeCompleted) {
+                const option = document.createElement('option');
+                option.value = 'tarefa_concluida';
+                option.textContent = stageLabels['tarefa_concluida'];
+                select.appendChild(option);
+            }
+
+            // Restore previous value if still valid
+            if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
+                select.value = currentValue;
+            } else if (currentValue === 'tarefa_concluida' && !includeCompleted) {
+                select.value = '';
+                selectedStage = '';
+            }
         }
 
         // Apply filter and re-render
         function applyStageFilter() {
+            const newIncludeCompleted = document.getElementById('task-status-filter').value === 'all';
+
+            // If includeCompleted changed, repopulate the stage dropdown
+            if (newIncludeCompleted !== includeCompleted) {
+                includeCompleted = newIncludeCompleted;
+                populateStageFilter();
+            }
+
             selectedStage = document.getElementById('stage-filter').value;
             selectedComparison = document.getElementById('stage-comparison').value;
+            includeCompleted = newIncludeCompleted;
 
             // Update hint
             updateFilterHint();
@@ -799,13 +840,14 @@
 
             hint.style.display = 'block';
             const stageName = stageLabels[selectedStage];
+            const taskType = includeCompleted ? 'tarefas (pendentes + concluídas)' : 'tarefas pendentes';
 
             if (selectedComparison === '=') {
-                hintText.textContent = `Mostrando projetos com tarefas pendentes em "${stageName}"`;
+                hintText.textContent = `Mostrando projetos com ${taskType} em "${stageName}"`;
             } else if (selectedComparison === '<') {
-                hintText.textContent = `Mostrando projetos com tarefas pendentes em "${stageName}" ou estágios anteriores`;
+                hintText.textContent = `Mostrando projetos com ${taskType} em "${stageName}" ou estágios anteriores`;
             } else if (selectedComparison === '>') {
-                hintText.textContent = `Mostrando projetos com tarefas pendentes em "${stageName}" ou estágios posteriores`;
+                hintText.textContent = `Mostrando projetos com ${taskType} em "${stageName}" ou estágios posteriores`;
             }
         }
 
@@ -813,8 +855,10 @@
         function clearStageFilter() {
             document.getElementById('stage-filter').value = '';
             document.getElementById('stage-comparison').value = '=';
+            document.getElementById('task-status-filter').value = 'pending';
             selectedStage = '';
             selectedComparison = '=';
+            includeCompleted = false;
             document.getElementById('filter-hint').style.display = 'none';
             renderProjects();
         }
@@ -876,6 +920,7 @@
             populateStageFilter();
             document.getElementById('stage-filter').addEventListener('change', applyStageFilter);
             document.getElementById('stage-comparison').addEventListener('change', applyStageFilter);
+            document.getElementById('task-status-filter').addEventListener('change', applyStageFilter);
 
             // Show pending projects section for mentors
             if (isMentor && !viewingAsStudentId) {
