@@ -2107,21 +2107,21 @@ Baseline BMI"></textarea>
 
         // ========== PLOTS ==========
         const BIAS_COLORS = {
-            'Low': '#22c55e',
-            'Moderate': '#eab308',
-            'Serious': '#ef4444',
-            'Critical': '#7f1d1d',
+            'Low': '#4ade80',
+            'Moderate': '#fbbf24',
+            'Serious': '#f87171',
+            'Critical': '#991b1b',
             'NI': '#9ca3af',
-            '': '#e5e7eb'
+            '': '#d1d5db'
         };
 
-        const BIAS_SYMBOLS = {
-            'Low': '+',
-            'Moderate': '-',
-            'Serious': '!',
-            'Critical': 'X',
-            'NI': '?',
-            '': ''
+        const BIAS_COLORS_LIGHT = {
+            'Low': '#bbf7d0',
+            'Moderate': '#fef08a',
+            'Serious': '#fecaca',
+            'Critical': '#fca5a5',
+            'NI': '#e5e7eb',
+            '': '#f3f4f6'
         };
 
         function getStudyResults() {
@@ -2154,6 +2154,20 @@ Baseline BMI"></textarea>
             return results;
         }
 
+        function roundRect(ctx, x, y, width, height, radius) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+        }
+
         function generateTrafficLightPlot() {
             const canvas = document.getElementById('trafficLightCanvas');
             const ctx = canvas.getContext('2d');
@@ -2164,141 +2178,251 @@ Baseline BMI"></textarea>
                 return;
             }
 
-            // Calculate dimensions
             const domains = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'Overall'];
-            const domainLabels = [
-                'D1: Confounding',
-                'D2: Classification',
-                'D3: Selection',
-                'D4: Missing Data',
-                'D5: Measurement',
-                'D6: Reporting',
-                'Overall'
+            const domainLabels = ['Confounding', 'Classification', 'Selection', 'Missing Data', 'Measurement', 'Reporting', 'Overall'];
+            const domainFullLabels = [
+                'D1: Bias due to confounding',
+                'D2: Bias in classification of interventions',
+                'D3: Bias in selection of participants',
+                'D4: Bias due to missing data',
+                'D5: Bias in measurement of outcomes',
+                'D6: Bias in selection of reported result',
+                'Overall risk of bias'
             ];
 
-            // Measure text to calculate column widths
-            ctx.font = 'bold 13px Arial';
-            const studyColWidth = Math.max(150, ...results.map(r => ctx.measureText(r.studyId).width + 20));
+            // Measure study names
+            ctx.font = '600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            const maxStudyWidth = Math.max(180, ...results.map(r => ctx.measureText(r.studyId).width + 30));
 
-            const cellSize = 35;
-            const headerHeight = 100;
-            const rowHeight = cellSize + 10;
-            const padding = 20;
+            // Dimensions
+            const cellWidth = 90;
+            const cellHeight = 36;
+            const headerHeight = 70;
+            const rowHeight = cellHeight + 4;
+            const paddingX = 25;
+            const paddingY = 20;
+            const titleHeight = 45;
+            const legendHeight = 70;
 
-            const width = padding + studyColWidth + (domains.length * (cellSize + 10)) + padding;
-            const height = padding + headerHeight + (results.length * rowHeight) + 80; // Extra for legend
+            const tableWidth = maxStudyWidth + (domains.length * cellWidth);
+            const width = paddingX * 2 + tableWidth;
+            const height = paddingY + titleHeight + headerHeight + (results.length * rowHeight) + legendHeight + paddingY;
 
-            // Set canvas size
             canvas.width = width;
             canvas.height = height;
 
-            // Background
-            ctx.fillStyle = '#ffffff';
+            // Background with subtle gradient
+            const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
+            bgGradient.addColorStop(0, '#ffffff');
+            bgGradient.addColorStop(1, '#f8fafc');
+            ctx.fillStyle = bgGradient;
             ctx.fillRect(0, 0, width, height);
 
             // Title
-            ctx.fillStyle = '#1f2937';
-            ctx.font = 'bold 16px Arial';
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('Traffic Light Plot - Risk of Bias Assessment', width / 2, padding + 15);
+            ctx.fillText('Risk of Bias Assessment - Traffic Light Plot', width / 2, paddingY + 28);
 
-            // Draw header (domain names rotated)
-            ctx.font = 'bold 12px Arial';
+            ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.fillStyle = '#64748b';
+            ctx.fillText('ROBINS-I Version 2', width / 2, paddingY + 45);
+
+            const tableStartY = paddingY + titleHeight;
+            const tableStartX = paddingX;
+
+            // Header background
+            ctx.fillStyle = '#1e293b';
+            roundRect(ctx, tableStartX, tableStartY, tableWidth, headerHeight, 8);
+            ctx.fill();
+
+            // "Study" header
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'left';
-            const headerY = padding + 40;
+            ctx.fillText('Study', tableStartX + 15, tableStartY + headerHeight / 2 + 5);
 
+            // Domain headers
+            ctx.textAlign = 'center';
             domains.forEach((d, i) => {
-                const x = padding + studyColWidth + i * (cellSize + 10) + cellSize / 2;
-                ctx.save();
-                ctx.translate(x, headerY + 50);
-                ctx.rotate(-Math.PI / 4);
-                ctx.fillStyle = '#374151';
-                ctx.fillText(domainLabels[i], 0, 0);
-                ctx.restore();
+                const x = tableStartX + maxStudyWidth + i * cellWidth + cellWidth / 2;
+
+                // Short label
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.fillText(d === 'Overall' ? 'Overall' : d, x, tableStartY + 25);
+
+                // Full label (wrapped)
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                const label = domainLabels[i];
+                ctx.fillText(label, x, tableStartY + 42);
             });
 
             // Draw rows
-            const startY = padding + headerHeight;
+            const dataStartY = tableStartY + headerHeight;
             results.forEach((row, rowIndex) => {
-                const y = startY + rowIndex * rowHeight;
+                const y = dataStartY + rowIndex * rowHeight;
+                const isEven = rowIndex % 2 === 0;
+
+                // Row background
+                ctx.fillStyle = isEven ? '#ffffff' : '#f8fafc';
+                if (rowIndex === results.length - 1) {
+                    roundRect(ctx, tableStartX, y, tableWidth, rowHeight, 8);
+                    ctx.fill();
+                    // Cover top corners
+                    ctx.fillRect(tableStartX, y, tableWidth, 8);
+                } else {
+                    ctx.fillRect(tableStartX, y, tableWidth, rowHeight);
+                }
 
                 // Study name
-                ctx.fillStyle = '#1f2937';
-                ctx.font = '13px Arial';
+                ctx.fillStyle = '#1e293b';
+                ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 ctx.textAlign = 'left';
-                ctx.fillText(row.studyId, padding, y + cellSize / 2 + 4);
+                ctx.fillText(row.studyId, tableStartX + 15, y + rowHeight / 2 + 4);
 
                 // Domain cells
                 domains.forEach((d, colIndex) => {
-                    const x = padding + studyColWidth + colIndex * (cellSize + 10);
+                    const cellX = tableStartX + maxStudyWidth + colIndex * cellWidth;
                     const value = row[d];
                     const color = BIAS_COLORS[value] || BIAS_COLORS[''];
+                    const lightColor = BIAS_COLORS_LIGHT[value] || BIAS_COLORS_LIGHT[''];
 
-                    // Draw circle
+                    const circleX = cellX + cellWidth / 2;
+                    const circleY = y + rowHeight / 2;
+                    const radius = 14;
+
+                    // Shadow
                     ctx.beginPath();
-                    ctx.arc(x + cellSize / 2, y + cellSize / 2, cellSize / 2 - 2, 0, Math.PI * 2);
-                    ctx.fillStyle = color;
+                    ctx.arc(circleX + 1, circleY + 2, radius, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(0,0,0,0.1)';
                     ctx.fill();
-                    ctx.strokeStyle = '#374151';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
 
-                    // Draw symbol
-                    const symbol = BIAS_SYMBOLS[value] || '';
-                    if (symbol) {
-                        ctx.fillStyle = value === 'Low' || value === 'Moderate' ? '#000' : '#fff';
-                        ctx.font = 'bold 16px Arial';
+                    // Outer glow
+                    ctx.beginPath();
+                    ctx.arc(circleX, circleY, radius + 2, 0, Math.PI * 2);
+                    ctx.fillStyle = lightColor;
+                    ctx.fill();
+
+                    // Main circle with gradient
+                    const gradient = ctx.createRadialGradient(circleX - 4, circleY - 4, 0, circleX, circleY, radius);
+                    gradient.addColorStop(0, lightenColor(color, 30));
+                    gradient.addColorStop(1, color);
+
+                    ctx.beginPath();
+                    ctx.arc(circleX, circleY, radius, 0, Math.PI * 2);
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+
+                    // Inner highlight
+                    ctx.beginPath();
+                    ctx.arc(circleX - 3, circleY - 3, radius * 0.4, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                    ctx.fill();
+
+                    // Symbol/Text
+                    if (value) {
+                        ctx.fillStyle = (value === 'Critical' || value === 'Serious') ? '#ffffff' : '#1e293b';
+                        ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'middle';
-                        ctx.fillText(symbol, x + cellSize / 2, y + cellSize / 2);
+
+                        let symbol = '';
+                        if (value === 'Low') symbol = '+';
+                        else if (value === 'Moderate') symbol = '–';
+                        else if (value === 'Serious') symbol = '–';
+                        else if (value === 'Critical') symbol = '✕';
+
+                        ctx.fillText(symbol, circleX, circleY + 1);
                     }
                 });
             });
 
-            // Draw legend
-            const legendY = startY + results.length * rowHeight + 20;
+            // Table border
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+            roundRect(ctx, tableStartX, tableStartY, tableWidth, headerHeight + results.length * rowHeight, 8);
+            ctx.stroke();
+
+            // Column separators
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([]);
+
+            // Separator after study column
+            ctx.beginPath();
+            ctx.moveTo(tableStartX + maxStudyWidth, tableStartY + headerHeight);
+            ctx.lineTo(tableStartX + maxStudyWidth, tableStartY + headerHeight + results.length * rowHeight);
+            ctx.stroke();
+
+            // Overall column separator
+            ctx.beginPath();
+            ctx.moveTo(tableStartX + maxStudyWidth + 6 * cellWidth, tableStartY);
+            ctx.lineTo(tableStartX + maxStudyWidth + 6 * cellWidth, tableStartY + headerHeight + results.length * rowHeight);
+            ctx.stroke();
+
+            // Legend
+            const legendY = dataStartY + results.length * rowHeight + 25;
             const legendItems = [
-                { label: 'Low', color: BIAS_COLORS['Low'], symbol: '+' },
-                { label: 'Moderate', color: BIAS_COLORS['Moderate'], symbol: '-' },
-                { label: 'Serious', color: BIAS_COLORS['Serious'], symbol: '!' },
-                { label: 'Critical', color: BIAS_COLORS['Critical'], symbol: 'X' },
-                { label: 'Not assessed', color: BIAS_COLORS[''], symbol: '' }
+                { label: 'Low risk', color: BIAS_COLORS['Low'], symbol: '+' },
+                { label: 'Moderate', color: BIAS_COLORS['Moderate'], symbol: '–' },
+                { label: 'Serious', color: BIAS_COLORS['Serious'], symbol: '–' },
+                { label: 'Critical', color: BIAS_COLORS['Critical'], symbol: '✕' },
+                { label: 'No info', color: BIAS_COLORS[''], symbol: '' }
             ];
 
-            ctx.font = 'bold 12px Arial';
-            ctx.textAlign = 'left';
-            ctx.fillStyle = '#374151';
-            ctx.fillText('Legend:', padding, legendY);
+            // Legend background
+            const legendWidth = 500;
+            const legendBoxHeight = 40;
+            const legendStartX = (width - legendWidth) / 2;
 
-            let legendX = padding + 60;
-            legendItems.forEach(item => {
+            ctx.fillStyle = '#f1f5f9';
+            roundRect(ctx, legendStartX, legendY, legendWidth, legendBoxHeight, 6);
+            ctx.fill();
+
+            // Legend items
+            let legendX = legendStartX + 20;
+            ctx.textBaseline = 'middle';
+
+            legendItems.forEach((item, i) => {
+                const circleY = legendY + legendBoxHeight / 2;
+
                 // Circle
+                const gradient = ctx.createRadialGradient(legendX + 8 - 2, circleY - 2, 0, legendX + 8, circleY, 10);
+                gradient.addColorStop(0, lightenColor(item.color, 30));
+                gradient.addColorStop(1, item.color);
+
                 ctx.beginPath();
-                ctx.arc(legendX + 10, legendY - 4, 10, 0, Math.PI * 2);
-                ctx.fillStyle = item.color;
+                ctx.arc(legendX + 8, circleY, 10, 0, Math.PI * 2);
+                ctx.fillStyle = gradient;
                 ctx.fill();
-                ctx.strokeStyle = '#374151';
-                ctx.lineWidth = 1;
-                ctx.stroke();
 
                 // Symbol
                 if (item.symbol) {
-                    ctx.fillStyle = item.label === 'Low' || item.label === 'Moderate' ? '#000' : '#fff';
-                    ctx.font = 'bold 12px Arial';
+                    ctx.fillStyle = (item.label === 'Critical' || item.label === 'Serious') ? '#fff' : '#1e293b';
+                    ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                     ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(item.symbol, legendX + 10, legendY - 4);
+                    ctx.fillText(item.symbol, legendX + 8, circleY + 1);
                 }
 
                 // Label
-                ctx.fillStyle = '#374151';
-                ctx.font = '11px Arial';
+                ctx.fillStyle = '#475569';
+                ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 ctx.textAlign = 'left';
-                ctx.textBaseline = 'alphabetic';
-                ctx.fillText(item.label, legendX + 25, legendY);
+                ctx.fillText(item.label, legendX + 24, circleY);
 
-                legendX += ctx.measureText(item.label).width + 50;
+                legendX += 95;
             });
+        }
+
+        function lightenColor(color, percent) {
+            const num = parseInt(color.replace('#', ''), 16);
+            const amt = Math.round(2.55 * percent);
+            const R = Math.min(255, (num >> 16) + amt);
+            const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+            const B = Math.min(255, (num & 0x0000FF) + amt);
+            return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
         }
 
         function generateSummaryPlot() {
@@ -2312,11 +2436,11 @@ Baseline BMI"></textarea>
             }
 
             const domains = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'Overall'];
-            const domainLabels = [
+            const domainFullLabels = [
                 'D1: Confounding',
                 'D2: Classification',
                 'D3: Selection',
-                'D4: Missing Data',
+                'D4: Missing data',
                 'D5: Measurement',
                 'D6: Reporting',
                 'Overall'
@@ -2332,127 +2456,196 @@ Baseline BMI"></textarea>
                 });
             });
 
-            // Calculate dimensions
-            const padding = 40;
-            const barHeight = 40;
-            const barSpacing = 15;
-            const labelWidth = 150;
-            const barMaxWidth = 400;
-            const legendHeight = 50;
+            // Dimensions
+            const paddingX = 30;
+            const paddingY = 25;
+            const titleHeight = 55;
+            const labelWidth = 160;
+            const barMaxWidth = 450;
+            const barHeight = 32;
+            const barSpacing = 12;
+            const legendHeight = 60;
+            const scaleHeight = 35;
 
-            const width = padding + labelWidth + barMaxWidth + padding + 50;
-            const height = padding + 50 + (domains.length * (barHeight + barSpacing)) + legendHeight + padding;
+            const width = paddingX * 2 + labelWidth + barMaxWidth + 30;
+            const height = paddingY + titleHeight + (domains.length * (barHeight + barSpacing)) + scaleHeight + legendHeight + paddingY;
 
             canvas.width = width;
             canvas.height = height;
 
             // Background
-            ctx.fillStyle = '#ffffff';
+            const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
+            bgGradient.addColorStop(0, '#ffffff');
+            bgGradient.addColorStop(1, '#f8fafc');
+            ctx.fillStyle = bgGradient;
             ctx.fillRect(0, 0, width, height);
 
             // Title
-            ctx.fillStyle = '#1f2937';
-            ctx.font = 'bold 16px Arial';
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('Summary Plot - Risk of Bias Distribution', width / 2, padding + 15);
+            ctx.fillText('Risk of Bias Summary', width / 2, paddingY + 25);
+
+            ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.fillStyle = '#64748b';
+            ctx.fillText(`${results.length} studies assessed with ROBINS-I Version 2`, width / 2, paddingY + 45);
 
             const total = results.length;
-            const startY = padding + 50;
-            const barStartX = padding + labelWidth;
+            const startY = paddingY + titleHeight;
+            const barStartX = paddingX + labelWidth;
 
             // Draw bars for each domain
             domains.forEach((d, i) => {
                 const y = startY + i * (barHeight + barSpacing);
+                const isOverall = d === 'Overall';
 
                 // Domain label
-                ctx.fillStyle = '#374151';
-                ctx.font = 'bold 12px Arial';
+                ctx.fillStyle = isOverall ? '#0f172a' : '#475569';
+                ctx.font = isOverall
+                    ? 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                    : '13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(domainLabels[i], barStartX - 10, y + barHeight / 2);
+                ctx.fillText(domainFullLabels[i], barStartX - 15, y + barHeight / 2);
 
-                // Draw stacked bar
+                // Bar background with shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.05)';
+                roundRect(ctx, barStartX + 2, y + 2, barMaxWidth, barHeight, 6);
+                ctx.fill();
+
+                // Draw stacked bar segments
                 let x = barStartX;
                 const biasOrder = ['Low', 'Moderate', 'Serious', 'Critical', ''];
+                const segments = [];
 
                 biasOrder.forEach(bias => {
                     const count = counts[d][bias];
                     if (count > 0) {
                         const segmentWidth = (count / total) * barMaxWidth;
-                        ctx.fillStyle = BIAS_COLORS[bias];
-                        ctx.fillRect(x, y, segmentWidth, barHeight);
+                        segments.push({ bias, count, width: segmentWidth, x });
                         x += segmentWidth;
                     }
                 });
 
-                // Border
-                ctx.strokeStyle = '#374151';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(barStartX, y, barMaxWidth, barHeight);
+                // Draw segments with rounded ends
+                segments.forEach((seg, segIndex) => {
+                    const isFirst = segIndex === 0;
+                    const isLast = segIndex === segments.length - 1;
 
-                // Percentage labels on bar
+                    ctx.fillStyle = BIAS_COLORS[seg.bias];
+
+                    if (isFirst && isLast) {
+                        roundRect(ctx, seg.x, y, seg.width, barHeight, 6);
+                    } else if (isFirst) {
+                        roundRect(ctx, seg.x, y, seg.width + 6, barHeight, 6);
+                        ctx.fill();
+                        ctx.fillRect(seg.x + seg.width - 1, y, 7, barHeight);
+                        return;
+                    } else if (isLast) {
+                        ctx.fillRect(seg.x, y, 6, barHeight);
+                        roundRect(ctx, seg.x - 1, y, seg.width + 1, barHeight, 6);
+                    } else {
+                        ctx.fillRect(seg.x, y, seg.width, barHeight);
+                        return;
+                    }
+                    ctx.fill();
+                });
+
+                // Re-draw for proper overlap
                 x = barStartX;
-                biasOrder.forEach(bias => {
-                    const count = counts[d][bias];
-                    if (count > 0) {
-                        const segmentWidth = (count / total) * barMaxWidth;
-                        const pct = Math.round((count / total) * 100);
-                        if (segmentWidth > 30) {
-                            ctx.fillStyle = bias === 'Low' || bias === 'Moderate' || bias === '' ? '#000' : '#fff';
-                            ctx.font = 'bold 11px Arial';
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText(`${pct}%`, x + segmentWidth / 2, y + barHeight / 2);
-                        }
-                        x += segmentWidth;
+                segments.forEach((seg) => {
+                    ctx.fillStyle = BIAS_COLORS[seg.bias];
+                    ctx.fillRect(seg.x + 3, y, seg.width - 3, barHeight);
+                    x += seg.width;
+                });
+
+                // Outer border
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = 1;
+                roundRect(ctx, barStartX, y, barMaxWidth, barHeight, 6);
+                ctx.stroke();
+
+                // Percentage labels
+                segments.forEach(seg => {
+                    const pct = Math.round((seg.count / total) * 100);
+                    if (seg.width > 35) {
+                        ctx.fillStyle = (seg.bias === 'Critical' || seg.bias === 'Serious') ? '#ffffff' : '#1e293b';
+                        ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(`${pct}%`, seg.x + seg.width / 2, y + barHeight / 2);
                     }
                 });
             });
 
-            // Draw percentage scale
-            ctx.strokeStyle = '#9ca3af';
-            ctx.lineWidth = 1;
+            // Scale
             const scaleY = startY + domains.length * (barHeight + barSpacing) + 5;
+
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(barStartX, scaleY);
             ctx.lineTo(barStartX + barMaxWidth, scaleY);
             ctx.stroke();
 
-            // Scale labels
-            ctx.fillStyle = '#6b7280';
-            ctx.font = '10px Arial';
-            ctx.textAlign = 'center';
+            // Scale ticks and labels
             [0, 25, 50, 75, 100].forEach(pct => {
                 const x = barStartX + (pct / 100) * barMaxWidth;
-                ctx.fillText(`${pct}%`, x, scaleY + 15);
+
+                ctx.beginPath();
+                ctx.moveTo(x, scaleY);
+                ctx.lineTo(x, scaleY + 5);
+                ctx.stroke();
+
+                ctx.fillStyle = '#64748b';
+                ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${pct}%`, x, scaleY + 18);
             });
 
             // Legend
-            const legendY = scaleY + 40;
+            const legendY = scaleY + 35;
             const legendItems = [
-                { label: 'Low', color: BIAS_COLORS['Low'] },
+                { label: 'Low risk', color: BIAS_COLORS['Low'] },
                 { label: 'Moderate', color: BIAS_COLORS['Moderate'] },
                 { label: 'Serious', color: BIAS_COLORS['Serious'] },
                 { label: 'Critical', color: BIAS_COLORS['Critical'] },
-                { label: 'Not assessed', color: BIAS_COLORS[''] }
+                { label: 'No information', color: BIAS_COLORS[''] }
             ];
 
-            let legendX = barStartX;
+            // Legend background
+            const legendWidth = 480;
+            const legendBoxHeight = 35;
+            const legendStartX = (width - legendWidth) / 2;
+
+            ctx.fillStyle = '#f1f5f9';
+            roundRect(ctx, legendStartX, legendY, legendWidth, legendBoxHeight, 6);
+            ctx.fill();
+
+            // Legend items
+            let legendX = legendStartX + 15;
+            ctx.textBaseline = 'middle';
+
             legendItems.forEach(item => {
-                // Box
+                const boxY = legendY + (legendBoxHeight - 16) / 2;
+
+                // Color box with rounded corners
                 ctx.fillStyle = item.color;
-                ctx.fillRect(legendX, legendY - 10, 18, 18);
-                ctx.strokeStyle = '#374151';
-                ctx.strokeRect(legendX, legendY - 10, 18, 18);
+                roundRect(ctx, legendX, boxY, 22, 16, 3);
+                ctx.fill();
+
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = 0.5;
+                roundRect(ctx, legendX, boxY, 22, 16, 3);
+                ctx.stroke();
 
                 // Label
-                ctx.fillStyle = '#374151';
-                ctx.font = '11px Arial';
+                ctx.fillStyle = '#475569';
+                ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 ctx.textAlign = 'left';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(item.label, legendX + 22, legendY);
+                ctx.fillText(item.label, legendX + 28, legendY + legendBoxHeight / 2);
 
-                legendX += ctx.measureText(item.label).width + 45;
+                legendX += ctx.measureText(item.label).width + 50;
             });
         }
 
@@ -2468,6 +2661,16 @@ Baseline BMI"></textarea>
             link.href = canvas.toDataURL('image/png');
             link.click();
         }
+
+        // Generate plots automatically when showing results
+        const originalShowResults = showResults;
+        showResults = function() {
+            originalShowResults();
+            setTimeout(() => {
+                generateTrafficLightPlot();
+                generateSummaryPlot();
+            }, 100);
+        };
 
         // ========== INIT ==========
         document.addEventListener('DOMContentLoaded', init);
