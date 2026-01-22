@@ -1523,21 +1523,44 @@
 
             container.innerHTML = tasks.map(task => {
                 const isCompleted = task.stage === 'tarefa_concluida';
-                const isOverdue = task.deadline && new Date(task.deadline) < new Date() && !isCompleted;
 
-                // Get assignee info
-                const assignee = task.assigned_to ? allUsers.find(u => u.id === task.assigned_to) : null;
-                const assigneeName = assignee ? (_dn(assignee.full_name) || assignee.email.split('@')[0]) : null;
-                const assigneeInitials = assigneeName ? assigneeName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '';
-
-                // Calculate days until deadline or days overdue
+                // Calculate if overdue - consider end of day (23:59:59) in Brazil timezone (UTC-3)
+                let isOverdue = false;
                 let deadlineInfo = '';
+
                 if (task.deadline && !isCompleted) {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    const deadline = new Date(task.deadline);
-                    deadline.setHours(0, 0, 0, 0);
-                    const diffDays = Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
+                    // Get current time in Brazil (UTC-3)
+                    const now = new Date();
+                    const brazilOffset = -3 * 60; // UTC-3 in minutes
+                    const localOffset = now.getTimezoneOffset();
+                    const brazilTime = new Date(now.getTime() + (localOffset + brazilOffset) * 60000);
+
+                    // Parse deadline and set to end of day in Brazil timezone
+                    const deadlineParts = task.deadline.split('-');
+                    const deadlineEndOfDay = new Date(
+                        parseInt(deadlineParts[0]),
+                        parseInt(deadlineParts[1]) - 1,
+                        parseInt(deadlineParts[2]),
+                        23, 59, 59, 999
+                    );
+
+                    // For comparison, use start of today in Brazil
+                    const todayStart = new Date(brazilTime);
+                    todayStart.setHours(0, 0, 0, 0);
+
+                    // Deadline date at start of day for diff calculation
+                    const deadlineStart = new Date(
+                        parseInt(deadlineParts[0]),
+                        parseInt(deadlineParts[1]) - 1,
+                        parseInt(deadlineParts[2]),
+                        0, 0, 0, 0
+                    );
+
+                    // Task is overdue only if current Brazil time is past the end of the deadline day
+                    isOverdue = brazilTime > deadlineEndOfDay;
+
+                    // Calculate days difference
+                    const diffDays = Math.ceil((deadlineStart - todayStart) / (1000 * 60 * 60 * 24));
 
                     if (diffDays < 0) {
                         deadlineInfo = `${Math.abs(diffDays)} dia${Math.abs(diffDays) > 1 ? 's' : ''} atrasado`;
