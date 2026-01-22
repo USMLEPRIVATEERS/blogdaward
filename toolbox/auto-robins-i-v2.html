@@ -776,6 +776,32 @@ Baseline BMI"></textarea>
                         <button class="btn btn-secondary" onclick="showScreen('screen-assessment')">Back</button>
                     </div>
                 </div>
+
+                <!-- Traffic Light Plot -->
+                <div class="card">
+                    <h3>Traffic Light Plot</h3>
+                    <p>Individual risk of bias assessment for each study and domain.</p>
+                    <div class="btn-group" style="margin-bottom: 15px;">
+                        <button class="btn btn-primary" onclick="generateTrafficLightPlot()">Generate Plot</button>
+                        <button class="btn btn-secondary" onclick="downloadPlot('trafficLightCanvas', 'traffic_light_plot')">Download PNG</button>
+                    </div>
+                    <div id="trafficLightContainer" style="overflow-x: auto; background: white; border-radius: 8px; padding: 10px;">
+                        <canvas id="trafficLightCanvas"></canvas>
+                    </div>
+                </div>
+
+                <!-- Summary Plot -->
+                <div class="card">
+                    <h3>Summary Plot</h3>
+                    <p>Distribution of risk of bias judgements across all studies for each domain.</p>
+                    <div class="btn-group" style="margin-bottom: 15px;">
+                        <button class="btn btn-primary" onclick="generateSummaryPlot()">Generate Plot</button>
+                        <button class="btn btn-secondary" onclick="downloadPlot('summaryCanvas', 'summary_plot')">Download PNG</button>
+                    </div>
+                    <div id="summaryContainer" style="overflow-x: auto; background: white; border-radius: 8px; padding: 10px;">
+                        <canvas id="summaryCanvas"></canvas>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -2077,6 +2103,370 @@ Baseline BMI"></textarea>
             });
 
             navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'));
+        }
+
+        // ========== PLOTS ==========
+        const BIAS_COLORS = {
+            'Low': '#22c55e',
+            'Moderate': '#eab308',
+            'Serious': '#ef4444',
+            'Critical': '#7f1d1d',
+            'NI': '#9ca3af',
+            '': '#e5e7eb'
+        };
+
+        const BIAS_SYMBOLS = {
+            'Low': '+',
+            'Moderate': '-',
+            'Serious': '!',
+            'Critical': 'X',
+            'NI': '?',
+            '': ''
+        };
+
+        function getStudyResults() {
+            const results = [];
+            currentProject.studies.forEach(studyId => {
+                const sd = currentProject.assessments[studyId] || {};
+                let row = { studyId };
+
+                if (sd.preliminary?.criticalScreening) {
+                    row.D1 = 'Critical';
+                    row.D2 = 'Critical';
+                    row.D3 = 'Critical';
+                    row.D4 = 'Critical';
+                    row.D5 = 'Critical';
+                    row.D6 = 'Critical';
+                    row.Overall = 'Critical';
+                } else {
+                    const variant = sd.preliminary?.C4 === 'Yes' ? '1B' : '1A';
+                    row.D1 = sd.domains?.[variant]?.result || '';
+                    row.D2 = sd.domains?.['2']?.result || '';
+                    row.D3 = sd.domains?.['3']?.result || '';
+                    row.D4 = sd.domains?.['4']?.result || '';
+                    row.D5 = sd.domains?.['5']?.result || '';
+                    row.D6 = sd.domains?.['6']?.result || '';
+                    row.Overall = (row.D1 && row.D2 && row.D3 && row.D4 && row.D5 && row.D6)
+                        ? calculateOverall(sd, variant) : '';
+                }
+                results.push(row);
+            });
+            return results;
+        }
+
+        function generateTrafficLightPlot() {
+            const canvas = document.getElementById('trafficLightCanvas');
+            const ctx = canvas.getContext('2d');
+            const results = getStudyResults();
+
+            if (results.length === 0) {
+                alert('No studies to display');
+                return;
+            }
+
+            // Calculate dimensions
+            const domains = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'Overall'];
+            const domainLabels = [
+                'D1: Confounding',
+                'D2: Classification',
+                'D3: Selection',
+                'D4: Missing Data',
+                'D5: Measurement',
+                'D6: Reporting',
+                'Overall'
+            ];
+
+            // Measure text to calculate column widths
+            ctx.font = 'bold 13px Arial';
+            const studyColWidth = Math.max(150, ...results.map(r => ctx.measureText(r.studyId).width + 20));
+
+            const cellSize = 35;
+            const headerHeight = 100;
+            const rowHeight = cellSize + 10;
+            const padding = 20;
+
+            const width = padding + studyColWidth + (domains.length * (cellSize + 10)) + padding;
+            const height = padding + headerHeight + (results.length * rowHeight) + 80; // Extra for legend
+
+            // Set canvas size
+            canvas.width = width;
+            canvas.height = height;
+
+            // Background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+
+            // Title
+            ctx.fillStyle = '#1f2937';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Traffic Light Plot - Risk of Bias Assessment', width / 2, padding + 15);
+
+            // Draw header (domain names rotated)
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'left';
+            const headerY = padding + 40;
+
+            domains.forEach((d, i) => {
+                const x = padding + studyColWidth + i * (cellSize + 10) + cellSize / 2;
+                ctx.save();
+                ctx.translate(x, headerY + 50);
+                ctx.rotate(-Math.PI / 4);
+                ctx.fillStyle = '#374151';
+                ctx.fillText(domainLabels[i], 0, 0);
+                ctx.restore();
+            });
+
+            // Draw rows
+            const startY = padding + headerHeight;
+            results.forEach((row, rowIndex) => {
+                const y = startY + rowIndex * rowHeight;
+
+                // Study name
+                ctx.fillStyle = '#1f2937';
+                ctx.font = '13px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText(row.studyId, padding, y + cellSize / 2 + 4);
+
+                // Domain cells
+                domains.forEach((d, colIndex) => {
+                    const x = padding + studyColWidth + colIndex * (cellSize + 10);
+                    const value = row[d];
+                    const color = BIAS_COLORS[value] || BIAS_COLORS[''];
+
+                    // Draw circle
+                    ctx.beginPath();
+                    ctx.arc(x + cellSize / 2, y + cellSize / 2, cellSize / 2 - 2, 0, Math.PI * 2);
+                    ctx.fillStyle = color;
+                    ctx.fill();
+                    ctx.strokeStyle = '#374151';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    // Draw symbol
+                    const symbol = BIAS_SYMBOLS[value] || '';
+                    if (symbol) {
+                        ctx.fillStyle = value === 'Low' || value === 'Moderate' ? '#000' : '#fff';
+                        ctx.font = 'bold 16px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(symbol, x + cellSize / 2, y + cellSize / 2);
+                    }
+                });
+            });
+
+            // Draw legend
+            const legendY = startY + results.length * rowHeight + 20;
+            const legendItems = [
+                { label: 'Low', color: BIAS_COLORS['Low'], symbol: '+' },
+                { label: 'Moderate', color: BIAS_COLORS['Moderate'], symbol: '-' },
+                { label: 'Serious', color: BIAS_COLORS['Serious'], symbol: '!' },
+                { label: 'Critical', color: BIAS_COLORS['Critical'], symbol: 'X' },
+                { label: 'Not assessed', color: BIAS_COLORS[''], symbol: '' }
+            ];
+
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#374151';
+            ctx.fillText('Legend:', padding, legendY);
+
+            let legendX = padding + 60;
+            legendItems.forEach(item => {
+                // Circle
+                ctx.beginPath();
+                ctx.arc(legendX + 10, legendY - 4, 10, 0, Math.PI * 2);
+                ctx.fillStyle = item.color;
+                ctx.fill();
+                ctx.strokeStyle = '#374151';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                // Symbol
+                if (item.symbol) {
+                    ctx.fillStyle = item.label === 'Low' || item.label === 'Moderate' ? '#000' : '#fff';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(item.symbol, legendX + 10, legendY - 4);
+                }
+
+                // Label
+                ctx.fillStyle = '#374151';
+                ctx.font = '11px Arial';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'alphabetic';
+                ctx.fillText(item.label, legendX + 25, legendY);
+
+                legendX += ctx.measureText(item.label).width + 50;
+            });
+        }
+
+        function generateSummaryPlot() {
+            const canvas = document.getElementById('summaryCanvas');
+            const ctx = canvas.getContext('2d');
+            const results = getStudyResults();
+
+            if (results.length === 0) {
+                alert('No studies to display');
+                return;
+            }
+
+            const domains = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'Overall'];
+            const domainLabels = [
+                'D1: Confounding',
+                'D2: Classification',
+                'D3: Selection',
+                'D4: Missing Data',
+                'D5: Measurement',
+                'D6: Reporting',
+                'Overall'
+            ];
+
+            // Count bias levels for each domain
+            const counts = {};
+            domains.forEach(d => {
+                counts[d] = { Low: 0, Moderate: 0, Serious: 0, Critical: 0, '': 0 };
+                results.forEach(r => {
+                    const val = r[d] || '';
+                    if (counts[d][val] !== undefined) counts[d][val]++;
+                });
+            });
+
+            // Calculate dimensions
+            const padding = 40;
+            const barHeight = 40;
+            const barSpacing = 15;
+            const labelWidth = 150;
+            const barMaxWidth = 400;
+            const legendHeight = 50;
+
+            const width = padding + labelWidth + barMaxWidth + padding + 50;
+            const height = padding + 50 + (domains.length * (barHeight + barSpacing)) + legendHeight + padding;
+
+            canvas.width = width;
+            canvas.height = height;
+
+            // Background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+
+            // Title
+            ctx.fillStyle = '#1f2937';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Summary Plot - Risk of Bias Distribution', width / 2, padding + 15);
+
+            const total = results.length;
+            const startY = padding + 50;
+            const barStartX = padding + labelWidth;
+
+            // Draw bars for each domain
+            domains.forEach((d, i) => {
+                const y = startY + i * (barHeight + barSpacing);
+
+                // Domain label
+                ctx.fillStyle = '#374151';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(domainLabels[i], barStartX - 10, y + barHeight / 2);
+
+                // Draw stacked bar
+                let x = barStartX;
+                const biasOrder = ['Low', 'Moderate', 'Serious', 'Critical', ''];
+
+                biasOrder.forEach(bias => {
+                    const count = counts[d][bias];
+                    if (count > 0) {
+                        const segmentWidth = (count / total) * barMaxWidth;
+                        ctx.fillStyle = BIAS_COLORS[bias];
+                        ctx.fillRect(x, y, segmentWidth, barHeight);
+                        x += segmentWidth;
+                    }
+                });
+
+                // Border
+                ctx.strokeStyle = '#374151';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(barStartX, y, barMaxWidth, barHeight);
+
+                // Percentage labels on bar
+                x = barStartX;
+                biasOrder.forEach(bias => {
+                    const count = counts[d][bias];
+                    if (count > 0) {
+                        const segmentWidth = (count / total) * barMaxWidth;
+                        const pct = Math.round((count / total) * 100);
+                        if (segmentWidth > 30) {
+                            ctx.fillStyle = bias === 'Low' || bias === 'Moderate' || bias === '' ? '#000' : '#fff';
+                            ctx.font = 'bold 11px Arial';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(`${pct}%`, x + segmentWidth / 2, y + barHeight / 2);
+                        }
+                        x += segmentWidth;
+                    }
+                });
+            });
+
+            // Draw percentage scale
+            ctx.strokeStyle = '#9ca3af';
+            ctx.lineWidth = 1;
+            const scaleY = startY + domains.length * (barHeight + barSpacing) + 5;
+            ctx.beginPath();
+            ctx.moveTo(barStartX, scaleY);
+            ctx.lineTo(barStartX + barMaxWidth, scaleY);
+            ctx.stroke();
+
+            // Scale labels
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            [0, 25, 50, 75, 100].forEach(pct => {
+                const x = barStartX + (pct / 100) * barMaxWidth;
+                ctx.fillText(`${pct}%`, x, scaleY + 15);
+            });
+
+            // Legend
+            const legendY = scaleY + 40;
+            const legendItems = [
+                { label: 'Low', color: BIAS_COLORS['Low'] },
+                { label: 'Moderate', color: BIAS_COLORS['Moderate'] },
+                { label: 'Serious', color: BIAS_COLORS['Serious'] },
+                { label: 'Critical', color: BIAS_COLORS['Critical'] },
+                { label: 'Not assessed', color: BIAS_COLORS[''] }
+            ];
+
+            let legendX = barStartX;
+            legendItems.forEach(item => {
+                // Box
+                ctx.fillStyle = item.color;
+                ctx.fillRect(legendX, legendY - 10, 18, 18);
+                ctx.strokeStyle = '#374151';
+                ctx.strokeRect(legendX, legendY - 10, 18, 18);
+
+                // Label
+                ctx.fillStyle = '#374151';
+                ctx.font = '11px Arial';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(item.label, legendX + 22, legendY);
+
+                legendX += ctx.measureText(item.label).width + 45;
+            });
+        }
+
+        function downloadPlot(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas.width || canvas.width < 10) {
+                alert('Please generate the plot first');
+                return;
+            }
+
+            const link = document.createElement('a');
+            link.download = `${currentProject.name.replace(/[^a-z0-9]/gi, '_')}_${filename}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
         }
 
         // ========== INIT ==========
