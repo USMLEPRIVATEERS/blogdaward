@@ -166,8 +166,28 @@ function redirectAfterLogin(user) {
             10: 'questionnaire/step11-background.html',
             11: 'questionnaire/step11-background.html'
         };
+        // Clear intended URL since user needs to complete questionnaire
+        localStorage.removeItem('ward_intended_url');
         window.location.href = stepUrls[step] || stepUrls[0];
         return;
+    }
+
+    // Check if there's a saved intended URL from before login
+    const intendedUrl = localStorage.getItem('ward_intended_url');
+    if (intendedUrl) {
+        // Clear the intended URL so it's not used again
+        localStorage.removeItem('ward_intended_url');
+        // Make sure the intended URL is from the same origin (security check)
+        try {
+            const url = new URL(intendedUrl);
+            if (url.origin === window.location.origin) {
+                window.location.href = intendedUrl;
+                return;
+            }
+        } catch (e) {
+            // Invalid URL, ignore and redirect to dashboard
+            console.warn('Invalid intended URL:', intendedUrl);
+        }
     }
 
     // Redirecionar baseado na role
@@ -420,6 +440,8 @@ async function secureListUsers() {
  */
 function secureLogout() {
     WardSecurity.clearUserData();
+    // Also clear intended URL on logout
+    localStorage.removeItem('ward_intended_url');
     window.location.href = 'index.html';
 }
 
@@ -430,6 +452,9 @@ function checkSecureAuth() {
     const user = WardSecurity.getStoredUser();
     if (!user) {
         if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/') {
+            // Save the intended URL before redirecting to login
+            const intendedUrl = window.location.href;
+            localStorage.setItem('ward_intended_url', intendedUrl);
             window.location.href = 'index.html';
         }
         return null;

@@ -219,6 +219,9 @@ async function checkAuth() {
     const user = JSON.parse(localStorage.getItem('ward_user'));
     if (!user) {
         if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/') {
+            // Save the intended URL before redirecting to login
+            const intendedUrl = window.location.href;
+            localStorage.setItem('ward_intended_url', intendedUrl);
             window.location.href = 'index.html';
         }
         return null;
@@ -367,6 +370,8 @@ async function login(cpf, password) {
 // Logout function
 function logout() {
     localStorage.removeItem('ward_user');
+    localStorage.removeItem('ward_intended_url');
+    localStorage.removeItem('view_as_student');
     window.location.href = 'index.html';
 }
 
