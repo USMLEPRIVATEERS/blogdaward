@@ -6657,6 +6657,102 @@ Extract ALL data from the article(s) I provide and return BOTH baselineVariables
           });
         };
 
+        // Handle "Copy Non-Standardized Data Prompt" button click
+        const handleCopyNonStandardizedPrompt = () => {
+          const prompt = `# CONVERT NON-STANDARDIZED DATA TO MEAN ± SD
+
+You are a statistical assistant helping to convert non-standardized data formats to Mean ± SD format for meta-analysis.
+
+## YOUR TASK:
+Convert the provided data to Mean ± SD format using the appropriate formulas below.
+
+## CONVERSION FORMULAS:
+
+### Scenario 1: When you have MINIMUM, MEDIAN, MAXIMUM, and SAMPLE SIZE (n)
+Use when data is reported as: median (min-max), median [min, max], or similar
+
+**Mean formula:**
+Mean = (min + 2×median + max) / 4
+
+**SD formula:**
+SD = (max - min) / (2 × Φ⁻¹((n - 0.375) / (n + 0.25)))
+
+Where Φ⁻¹ is the inverse of the standard normal cumulative distribution function (normInv/NORM.S.INV in Excel).
+
+---
+
+### Scenario 2: When you have MINIMUM, Q1, MEDIAN, Q3, MAXIMUM, and SAMPLE SIZE (n)
+Use when data is reported with full 5-number summary or boxplot data
+
+**Mean formula:**
+Mean = (min + 2×Q1 + 2×median + 2×Q3 + max) / 8
+
+**SD formula:**
+SD = (max - min) / (4 × Φ⁻¹((n - 0.375) / (n + 0.25))) + (Q3 - Q1) / (4 × Φ⁻¹((0.75×n - 0.125) / (n + 0.25)))
+
+---
+
+### Scenario 3: When you have Q1, MEDIAN, Q3, and SAMPLE SIZE (n)
+Use when data is reported as: median (IQR), median [Q1-Q3], or similar
+
+**Mean formula:**
+Mean = (Q1 + median + Q3) / 3
+
+**SD formula:**
+SD = (Q3 - Q1) / (2 × Φ⁻¹((0.75×n - 0.125) / (n + 0.25)))
+
+---
+
+## OTHER COMMON CONVERSIONS:
+
+### 95% Confidence Interval to SD:
+SD = √n × (upper - lower) / 3.92
+
+### Standard Error (SE) to SD:
+SD = SE × √n
+
+### Interquartile Range (IQR) to SD (approximation):
+SD ≈ IQR / 1.35
+
+### Range to SD (rough approximation for n > 15):
+SD ≈ Range / 4
+
+---
+
+## IMPORTANT INSTRUCTIONS:
+
+1. **ALWAYS identify which formula you used** for each conversion
+2. If the data format doesn't match any scenario exactly, explain which formula is most appropriate and why
+3. If you need to use a different formula not listed above, **clearly state the formula used and its reference**
+4. Report all values with 4 decimal places for precision
+5. If sample size (n) is not provided, ask for it or estimate from context
+6. Flag any data that cannot be reliably converted
+
+## OUTPUT FORMAT:
+
+For each data point converted, provide:
+- Original data: [as reported]
+- Formula used: [Scenario X / Other - specify]
+- Calculated Mean: [value]
+- Calculated SD: [value]
+- Sample size used: [n]
+- Notes: [any assumptions or concerns]
+
+---
+
+## DATA TO CONVERT:
+
+[Paste your non-standardized data below this line]
+
+`;
+          navigator.clipboard.writeText(prompt).then(() => {
+            alert('Non-standardized data conversion prompt copied to clipboard!\\n\\nPaste it to Claude along with your data that needs to be converted to Mean ± SD format.');
+          }).catch(err => {
+            console.error('Failed to copy:', err);
+            alert('Failed to copy to clipboard. Please try again.');
+          });
+        };
+
         // Handle "Validate & Add Data" button click
         const handleValidateCodeView = () => {
           console.log('[DEBUG] handleValidateCodeView called');
@@ -8738,20 +8834,32 @@ Extract ALL data from the article(s) I provide and return BOTH baselineVariables
 
                       {/* Step 1: View Examples and Copy Prompt */}
                       <div className="mb-6">
-                        <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                           <h4 className="font-semibold text-cyan-200 flex items-center gap-2">
                             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-cyan-600 text-white text-sm">1</span>
                             Data Format & Examples
                           </h4>
-                          <button
-                            onClick={handleCopyPromptToClaude}
-                            className="py-2 px-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-lg transition duration-300 flex items-center gap-2 shadow-lg"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                            Copy Prompt for Claude
-                          </button>
+                          <div className="flex gap-2 flex-wrap">
+                            <button
+                              onClick={handleCopyPromptToClaude}
+                              className="py-2 px-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-lg transition duration-300 flex items-center gap-2 shadow-lg"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                              Copy Prompt for Claude
+                            </button>
+                            <button
+                              onClick={handleCopyNonStandardizedPrompt}
+                              className="py-2 px-4 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-semibold rounded-lg transition duration-300 flex items-center gap-2 shadow-lg"
+                              title="Copy prompt with formulas to convert median/IQR/range data to Mean ± SD"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              </svg>
+                              Convert Non-Standardized
+                            </button>
+                          </div>
                         </div>
                         <div className="bg-gray-900/60 p-4 rounded-lg border border-gray-700 max-h-64 overflow-y-auto">
                           <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
@@ -8761,7 +8869,9 @@ Extract ALL data from the article(s) I provide and return BOTH baselineVariables
                           </pre>
                         </div>
                         <p className="text-xs text-gray-400 mt-2">
-                          💡 Click "Copy Prompt for Claude" to get a complete prompt with instructions. Then paste it to Claude along with your article/PDF data.
+                          💡 <strong>Copy Prompt for Claude:</strong> Get a complete prompt with instructions for standard data extraction.
+                          <br/>
+                          🧮 <strong>Convert Non-Standardized:</strong> Get formulas to convert median/IQR/range data to Mean ± SD format.
                         </p>
                       </div>
 
