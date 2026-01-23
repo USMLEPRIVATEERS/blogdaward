@@ -1388,7 +1388,8 @@
                 // Mentors get full edit access
                 document.getElementById('add-task-btn').style.display = 'block';
                 document.getElementById('edit-project-btn').style.display = 'inline-block';
-                document.getElementById('delete-project-btn').style.display = 'inline-block';
+                // Only mentor_marcos can delete projects
+                document.getElementById('delete-project-btn').style.display = userData.role === 'mentor_marcos' ? 'inline-block' : 'none';
                 document.getElementById('manage-participants-btn').style.display = 'inline-block';
             } else if (isParticipant) {
                 // Students who are participants can edit description only
@@ -2076,7 +2077,21 @@
         async function deleteProject() {
             if (!currentProject) return;
 
-            if (!confirm(`Tem certeza que deseja excluir o projeto "${currentProject.title}"? Esta ação não pode ser desfeita.`)) {
+            // Only mentor_marcos can delete projects
+            if (userData.role !== 'mentor_marcos') {
+                WardApp.showToast('Apenas mentor_marcos pode excluir projetos', 'error');
+                return;
+            }
+
+            // Require typing "excluir" to confirm
+            const confirmation = prompt(`Para excluir o projeto "${currentProject.title}", digite "excluir" abaixo:\n\n⚠️ Esta ação não pode ser desfeita!`);
+
+            if (confirmation === null) {
+                return; // User cancelled
+            }
+
+            if (confirmation.toLowerCase().trim() !== 'excluir') {
+                WardApp.showToast('Confirmação incorreta. O projeto NÃO foi excluído.', 'warning');
                 return;
             }
 
@@ -2436,13 +2451,17 @@ function renderFolderItem(folder, allFolders, allFiles, level) {
     const hasSubfolders = subfolders.length > 0;
     const hasFiles = folderFiles.length > 0;
 
+    // Add drag and drop attributes only for mentors
+    const dropZoneAttrs = isMentor ? `ondragover="handleFolderDragOver(event, ${folder.id})" ondragleave="handleFolderDragLeave(event, ${folder.id})" ondrop="handleFolderDrop(event, ${folder.id})" data-folder-id="${folder.id}"` : '';
+
     let html = `
-        <div class="folder-item level-${level}">
+        <div class="folder-item level-${level}" ${dropZoneAttrs}>
             <div class="folder-header" onclick="toggleFolder(this)">
                 <span class="folder-toggle">▶</span>
                 <span class="folder-icon">📁</span>
                 <span class="folder-name">${folder.folder_name}</span>
                 <span class="folder-count">(${folderFiles.length} arquivo${folderFiles.length !== 1 ? 's' : ''})</span>
+                ${isMentor ? '<span class="drop-hint" style="display: none; color: #667eea; font-size: 0.75rem; margin-left: 0.5rem;">📥 Solte aqui</span>' : ''}
                 <a href="${folder.folder_url}" target="_blank" class="folder-link" onclick="event.stopPropagation()">
                     Abrir no Drive ↗
                 </a>
@@ -2552,6 +2571,93 @@ function toggleFolder(header) {
             } finally {
                 WardApp.hideLoading();
                 event.target.value = ''; // Reset file input
+            }
+        }
+
+        // Drag and drop handlers for folder upload
+        function handleFolderDragOver(event, folderId) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const folderItem = event.currentTarget;
+            folderItem.classList.add('drag-over');
+
+            // Show drop hint
+            const dropHint = folderItem.querySelector('.drop-hint');
+            if (dropHint) dropHint.style.display = 'inline';
+
+            // Visual feedback
+            event.dataTransfer.dropEffect = 'copy';
+        }
+
+        function handleFolderDragLeave(event, folderId) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const folderItem = event.currentTarget;
+
+            // Only remove styles if we're actually leaving the folder (not entering a child)
+            const relatedTarget = event.relatedTarget;
+            if (relatedTarget && folderItem.contains(relatedTarget)) {
+                return;
+            }
+
+            folderItem.classList.remove('drag-over');
+
+            // Hide drop hint
+            const dropHint = folderItem.querySelector('.drop-hint');
+            if (dropHint) dropHint.style.display = 'none';
+        }
+
+        async function handleFolderDrop(event, folderId) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const folderItem = event.currentTarget;
+            folderItem.classList.remove('drag-over');
+
+            // Hide drop hint
+            const dropHint = folderItem.querySelector('.drop-hint');
+            if (dropHint) dropHint.style.display = 'none';
+
+            // Get dropped files
+            const files = event.dataTransfer.files;
+            if (!files || files.length === 0) {
+                return;
+            }
+
+            WardApp.showLoading();
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            try {
+                for (const file of files) {
+                    if (file.size > MAX_FILE_SIZE) {
+                        WardApp.showToast(`Arquivo "${file.name}" muito grande (máximo 100MB)`, 'error');
+                        errorCount++;
+                        continue;
+                    }
+
+                    try {
+                        await handleProjectFileUpload(file, folderId);
+                        successCount++;
+                    } catch (error) {
+                        console.error('Upload error for file:', file.name, error);
+                        errorCount++;
+                    }
+                }
+
+                if (successCount > 0) {
+                    WardApp.showToast(`${successCount} arquivo(s) enviado(s) com sucesso!`);
+                    await loadProjectDriveFolders(currentProject.id);
+                }
+
+                if (errorCount > 0) {
+                    WardApp.showToast(`${errorCount} arquivo(s) falharam no upload`, 'error');
+                }
+            } finally {
+                WardApp.hideLoading();
             }
         }
 
@@ -3566,6 +3672,26 @@ function toggleFolder(header) {
 
 .folder-item.open > .folder-content {
     display: block;
+}
+
+/* Drag and drop styles for folder upload */
+.folder-item.drag-over {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1)) !important;
+    border: 2px dashed #667eea !important;
+    border-radius: var(--radius-md);
+}
+
+.folder-item.drag-over > .folder-header {
+    background: rgba(102, 126, 234, 0.15) !important;
+}
+
+.folder-item.drag-over > .folder-header .folder-icon {
+    animation: bounce 0.5s ease infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
 }
 
 .subfolders-container {
