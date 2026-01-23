@@ -233,6 +233,13 @@ function createProjectFolderStructure(projectTitle) {
       url: figures.getUrl()
     };
 
+    const supplementary = submission.createFolder('SUPPLEMENTARY');
+    supplementary.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+    subfolders['SUBMISSION'].subfolders['SUPPLEMENTARY'] = {
+      id: supplementary.getId(),
+      url: supplementary.getUrl()
+    };
+
     return {
       success: true,
       folderStructure: {
