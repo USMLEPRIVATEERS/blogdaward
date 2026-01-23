@@ -1,0 +1,1526 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto RoB 2 Assessment Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-dark: #0f0f23;
+            --bg-card: #1a1a2e;
+            --bg-input: #16213e;
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --text: #e0e0e0;
+            --text-muted: #888;
+            --border: #333;
+            --success: #22c55e;
+            --warning: #eab308;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: var(--text);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: var(--bg-dark);
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            padding: 25px 30px;
+            text-align: center;
+            border-bottom: 3px solid var(--accent);
+        }
+
+        .header h1 { font-size: 2em; font-weight: 600; margin-bottom: 5px; }
+        .header p { font-size: 0.95em; opacity: 0.9; }
+
+        .main-content { padding: 25px; }
+
+        .screen { display: none; }
+        .screen.active { display: block; }
+
+        /* Cards & Sections */
+        .card {
+            background: var(--bg-card);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .card h2, .card h3 { color: var(--accent); margin-bottom: 15px; }
+        .card p { color: var(--text-muted); margin-bottom: 10px; line-height: 1.5; }
+
+        /* Form Elements */
+        input[type="text"], textarea, select {
+            width: 100%;
+            background: var(--bg-input);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 15px;
+            font-size: 14px;
+            color: var(--text);
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus, textarea:focus, select:focus {
+            border-color: var(--accent);
+            outline: none;
+        }
+
+        textarea { resize: vertical; min-height: 120px; font-family: monospace; }
+
+        label { display: block; margin-bottom: 8px; font-weight: 500; color: var(--text); }
+
+        .form-group { margin-bottom: 20px; }
+
+        /* Buttons */
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent) 0%, #1e40af 100%);
+            color: white;
+        }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(59, 130, 246, 0.4); }
+
+        .btn-secondary { background: var(--border); color: var(--text); }
+        .btn-secondary:hover:not(:disabled) { background: #444; }
+
+        .btn-success { background: var(--success); color: white; }
+        .btn-warning { background: var(--warning); color: #000; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-sm { padding: 8px 16px; font-size: 13px; }
+
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px; }
+
+        /* Project List */
+        .project-list { display: grid; gap: 15px; margin-top: 20px; }
+
+        .project-item {
+            background: var(--bg-input);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .project-item:hover { border-color: var(--accent); transform: translateX(5px); }
+        .project-item h4 { color: var(--text); margin-bottom: 8px; }
+        .project-item p { color: var(--text-muted); font-size: 13px; margin: 0; }
+        .project-item .meta { display: flex; gap: 15px; margin-top: 10px; font-size: 12px; color: var(--text-muted); }
+
+        /* Study Selector Bar */
+        .study-bar {
+            background: var(--bg-card);
+            padding: 15px 20px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .study-bar label { margin: 0; color: var(--accent); font-weight: 600; }
+        .study-bar select { width: auto; min-width: 200px; }
+        .study-bar .progress { margin-left: auto; font-size: 13px; color: var(--text-muted); }
+
+        /* Step Indicator */
+        .steps {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .step {
+            padding: 10px 20px;
+            background: var(--bg-input);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .step.active { border-color: var(--accent); color: var(--accent); background: rgba(59, 130, 246, 0.1); }
+        .step.completed { border-color: var(--success); color: var(--success); }
+
+        /* Domain Grid */
+        .domain-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+        }
+
+        .domain-card {
+            background: var(--bg-input);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .domain-card:hover { border-color: var(--accent); transform: translateY(-3px); }
+        .domain-card.completed { border-color: var(--success); }
+        .domain-card.locked { opacity: 0.5; cursor: not-allowed; }
+        .domain-card.has-issues { border-color: var(--warning); background: rgba(234, 179, 8, 0.05); }
+        .validation-icon { font-size: 14px; margin-left: 5px; }
+        .domain-card h4 { color: var(--accent); margin-bottom: 8px; font-size: 1em; }
+        .domain-card p { color: var(--text-muted); font-size: 12px; line-height: 1.4; }
+
+        .bias-badge {
+            margin-top: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .bias-low { background: rgba(34, 197, 94, 0.2); color: var(--success); border: 1px solid var(--success); }
+        .bias-some { background: rgba(234, 179, 8, 0.2); color: var(--warning); border: 1px solid var(--warning); }
+        .bias-high { background: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+
+        /* Question Container */
+        .question-box {
+            background: var(--bg-card);
+            border-radius: 10px;
+            padding: 25px;
+            border: 1px solid var(--border);
+        }
+
+        .question-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border); }
+        .question-header h3 { color: var(--accent); }
+        .question-id { color: var(--text-muted); font-size: 14px; }
+
+        .question-text { font-size: 1.1em; line-height: 1.6; margin-bottom: 25px; color: var(--text); }
+
+        .answer-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+
+        .answer-btn {
+            padding: 12px 20px;
+            background: var(--bg-input);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .answer-btn:hover { border-color: var(--accent); }
+        .answer-btn.selected { border-color: var(--accent); background: rgba(59, 130, 246, 0.2); color: var(--accent); }
+
+        .answer-path {
+            margin-top: 20px;
+            padding: 15px;
+            background: var(--bg-input);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* Results Table */
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 13px;
+        }
+
+        .results-table th {
+            background: #1e40af;
+            color: white;
+            padding: 12px 8px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .results-table td {
+            padding: 10px 8px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .results-table tr:nth-child(even) { background: var(--bg-input); }
+        .results-table tr:hover { background: var(--bg-card); }
+
+        /* Overall Card */
+        .overall-card {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            border-radius: 10px;
+            padding: 25px;
+            text-align: center;
+            border: 2px solid var(--accent);
+            margin-top: 20px;
+        }
+
+        .overall-card h3 { color: #fff; margin-bottom: 15px; }
+        .overall-card .result { font-size: 1.5em; font-weight: 700; }
+
+        /* Alert */
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-info { background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #3b82f6; }
+        .alert-warning { background: rgba(234, 179, 8, 0.2); border: 1px solid var(--warning); color: var(--warning); }
+        .alert-danger { background: rgba(239, 68, 68, 0.2); border: 1px solid var(--danger); color: var(--danger); }
+        .alert-success { background: rgba(34, 197, 94, 0.2); border: 1px solid var(--success); color: var(--success); }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 2px solid var(--border); }
+        .tab-btn {
+            padding: 12px 20px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s;
+        }
+        .tab-btn:hover { color: var(--text); }
+        .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Navigation */
+        .nav-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        /* File Upload */
+        .file-upload {
+            border: 2px dashed var(--border);
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .file-upload:hover { border-color: var(--accent); background: rgba(59, 130, 246, 0.05); }
+        .file-upload input { display: none; }
+
+        /* Variant Selection */
+        .variant-selection {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .variant-card {
+            flex: 1;
+            background: var(--bg-input);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .variant-card:hover { border-color: var(--accent); }
+        .variant-card.selected { border-color: var(--accent); background: rgba(59, 130, 246, 0.1); }
+        .variant-card h4 { color: var(--accent); margin-bottom: 8px; }
+        .variant-card p { color: var(--text-muted); font-size: 13px; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .study-bar { flex-direction: column; align-items: flex-start; }
+            .study-bar .progress { margin-left: 0; margin-top: 10px; }
+            .domain-grid { grid-template-columns: 1fr; }
+            .steps { flex-direction: column; }
+            .nav-bar { flex-direction: column; gap: 10px; }
+            .variant-selection { flex-direction: column; }
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Auto RoB 2 Assessment Tool</h1>
+            <p>Risk of Bias 2 Tool for Randomized Trials - Cochrane Collaboration</p>
+        </div>
+
+        <div class="main-content">
+            <!-- SCREEN: Project Selection -->
+            <div id="screen-projects" class="screen active">
+                <div class="card">
+                    <h2>Projects</h2>
+                    <p>Create a new project or load an existing one to start your RoB 2 assessments for randomized trials.</p>
+
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="showNewProject()">+ New Project</button>
+                        <label class="btn btn-secondary">
+                            Upload Project
+                            <input type="file" accept=".json" onchange="uploadProject(event)" style="display:none">
+                        </label>
+                    </div>
+
+                    <div class="project-list" id="projectList"></div>
+                </div>
+            </div>
+
+            <!-- SCREEN: New/Edit Project -->
+            <div id="screen-new-project" class="screen">
+                <div class="card">
+                    <h2 id="projectFormTitle">New Project</h2>
+
+                    <div class="form-group">
+                        <label>Project Name *</label>
+                        <input type="text" id="projectName" placeholder="e.g., Systematic Review - Drug X RCTs">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Study IDs (one per line) *</label>
+                        <textarea id="studyIds" placeholder="Study 1
+Study 2
+Author 2024
+Smith et al. 2023"></textarea>
+                    </div>
+
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="saveProject()">Save Project</button>
+                        <button class="btn btn-secondary" onclick="showScreen('screen-projects')">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SCREEN: Study Assessment -->
+            <div id="screen-assessment" class="screen">
+                <div class="study-bar">
+                    <label>Project:</label>
+                    <span id="currentProjectName" style="color: var(--text);">-</span>
+                    <label style="margin-left: 20px;">Study:</label>
+                    <select id="studySelect" onchange="changeStudy()"></select>
+                    <span class="progress" id="studyProgress"></span>
+                    <button class="btn btn-sm btn-secondary" onclick="showScreen('screen-projects')">Projects</button>
+                    <button class="btn btn-sm btn-success" onclick="showResults()" id="btnResults">Results</button>
+                </div>
+
+                <!-- Steps -->
+                <div class="steps" id="assessmentSteps">
+                    <div class="step" data-step="info" onclick="goToStep('info')">Study Info</div>
+                    <div class="step" data-step="variant" onclick="goToStep('variant')">D2 Variant</div>
+                    <div class="step" data-step="domains" onclick="goToStep('domains')">Domains (1-5)</div>
+                </div>
+
+                <!-- Step Content: Study Info -->
+                <div id="step-info" class="step-content">
+                    <div class="card">
+                        <h3>Study Information</h3>
+                        <p>Specify the result being assessed from this randomized trial.</p>
+
+                        <div class="form-group">
+                            <label>Outcome being assessed</label>
+                            <input type="text" id="inputOutcome" placeholder="e.g., All-cause mortality at 1 year" onchange="saveStudyInfo()">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Numerical result being assessed</label>
+                            <input type="text" id="inputResult" placeholder="e.g., RR = 0.85 (95% CI 0.72 to 0.99)" onchange="saveStudyInfo()">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Further details (optional)</label>
+                            <input type="text" id="inputDetails" placeholder="e.g., Table 2, ITT analysis" onchange="saveStudyInfo()">
+                        </div>
+
+                        <div class="nav-bar">
+                            <div></div>
+                            <button class="btn btn-primary" onclick="goToStep('variant')">Next: Domain 2 Variant</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step Content: Domain 2 Variant Selection -->
+                <div id="step-variant" class="step-content">
+                    <div class="card">
+                        <h3>Domain 2: Select Effect of Interest</h3>
+                        <p>Choose whether you are assessing the effect of <strong>assignment to intervention</strong> (intention-to-treat) or the effect of <strong>adhering to intervention</strong> (per-protocol).</p>
+
+                        <div class="variant-selection">
+                            <div class="variant-card" id="variant-assignment" onclick="selectVariant('assignment')">
+                                <h4>Effect of Assignment</h4>
+                                <p>Intention-to-treat (ITT) effect. Assesses what happens when participants are assigned to intervention, regardless of whether they adhered to it.</p>
+                            </div>
+                            <div class="variant-card" id="variant-adhering" onclick="selectVariant('adhering')">
+                                <h4>Effect of Adhering</h4>
+                                <p>Per-protocol effect. Assesses what happens when participants actually adhere to the intervention as intended.</p>
+                            </div>
+                        </div>
+
+                        <div class="nav-bar">
+                            <button class="btn btn-secondary" onclick="goToStep('info')">Back</button>
+                            <button class="btn btn-primary" onclick="goToStep('domains')">Next: Domains</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step Content: Domains -->
+                <div id="step-domains" class="step-content">
+                    <div class="card">
+                        <h3>Risk of Bias Domains</h3>
+                        <p>Assess each domain by clicking on it. Complete all domains to calculate the overall risk of bias.</p>
+
+                        <div class="domain-grid" id="domainGrid"></div>
+
+                        <div class="overall-card" id="overallCard" style="display: none;">
+                            <h3>Overall Risk of Bias</h3>
+                            <div class="result" id="overallResult">-</div>
+                        </div>
+
+                        <div class="nav-bar">
+                            <button class="btn btn-secondary" onclick="goToStep('variant')">Back</button>
+                            <button class="btn btn-success" onclick="showResults()">View All Results</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step Content: Domain Questions -->
+                <div id="step-questions" class="step-content">
+                    <div class="question-box">
+                        <div class="question-header">
+                            <h3 id="domainTitle">Domain</h3>
+                            <span class="question-id" id="questionId">Question X of Y</span>
+                        </div>
+
+                        <div class="question-text" id="questionText">Question text here</div>
+
+                        <div class="answer-grid" id="answerGrid"></div>
+
+                        <div class="answer-path" id="answerPath">
+                            <strong>Current path:</strong> <span id="pathDisplay">-</span>
+                        </div>
+
+                        <div class="nav-bar">
+                            <button class="btn btn-secondary" id="btnPrevQuestion" onclick="prevQuestion()">Previous</button>
+                            <div>
+                                <button class="btn btn-secondary" onclick="exitDomain()">Exit Domain</button>
+                                <button class="btn btn-primary" id="btnNextQuestion" onclick="nextQuestion()">Next</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SCREEN: Results -->
+            <div id="screen-results" class="screen">
+                <div class="card">
+                    <h2>Assessment Results</h2>
+                    <p id="resultsProjectName">Project: -</p>
+
+                    <div style="overflow-x: auto;">
+                        <table class="results-table" id="resultsTable">
+                            <thead>
+                                <tr>
+                                    <th>Study</th>
+                                    <th>D1</th>
+                                    <th>D2</th>
+                                    <th>D3</th>
+                                    <th>D4</th>
+                                    <th>D5</th>
+                                    <th>Overall</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="btn-group">
+                        <button class="btn btn-success" onclick="downloadExcel()">Download Excel</button>
+                        <button class="btn btn-secondary" onclick="downloadCSV()">Download CSV</button>
+                        <button class="btn btn-secondary" onclick="copyResults()">Copy to Clipboard</button>
+                        <button class="btn btn-secondary" onclick="downloadProject()">Download Project (.json)</button>
+                        <button class="btn btn-secondary" onclick="showScreen('screen-assessment')">Back</button>
+                    </div>
+                </div>
+
+                <!-- Traffic Light Plot -->
+                <div class="card">
+                    <h3>Traffic Light Plot</h3>
+                    <p>Individual risk of bias assessment for each study and domain.</p>
+                    <div class="btn-group" style="margin-bottom: 15px;">
+                        <button class="btn btn-primary" onclick="generateTrafficLightPlot()">Generate Plot</button>
+                        <button class="btn btn-secondary" onclick="downloadPlot('trafficLightCanvas', 'traffic_light_plot')">Download PNG</button>
+                    </div>
+                    <div id="trafficLightContainer" style="overflow-x: auto; background: white; border-radius: 8px; padding: 10px;">
+                        <canvas id="trafficLightCanvas"></canvas>
+                    </div>
+                </div>
+
+                <!-- Summary Plot -->
+                <div class="card">
+                    <h3>Summary Plot</h3>
+                    <p>Distribution of risk of bias judgements across all studies for each domain.</p>
+                    <div class="btn-group" style="margin-bottom: 15px;">
+                        <button class="btn btn-primary" onclick="generateSummaryPlot()">Generate Plot</button>
+                        <button class="btn btn-secondary" onclick="downloadPlot('summaryCanvas', 'summary_plot')">Download PNG</button>
+                    </div>
+                    <div id="summaryContainer" style="overflow-x: auto; background: white; border-radius: 8px; padding: 10px;">
+                        <canvas id="summaryCanvas"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== DATA ==========
+        const DOMAINS = {
+            "1": {
+                name: "Domain 1: Bias arising from the randomization process",
+                shortName: "D1",
+                desc: "Bias due to issues with randomization sequence generation and allocation concealment",
+                questions: [
+                    { id: "1.1", text: "Was the allocation sequence random?", options: ["Y", "PY", "PN", "N", "NI"] },
+                    { id: "1.2", text: "Was the allocation sequence concealed until participants were enrolled and assigned to interventions?", options: ["Y", "PY", "PN", "N", "NI"] },
+                    { id: "1.3", text: "Did baseline differences between intervention groups suggest a problem with the randomization process?", options: ["Y", "PY", "PN", "N", "NI"] }
+                ],
+                algorithm: (a) => {
+                    const q1 = a["1.1"], q2 = a["1.2"], q3 = a["1.3"];
+                    // High risk paths
+                    if ((q1 === "N" || q1 === "PN") && (q2 === "N" || q2 === "PN")) return "High";
+                    if (q2 === "NI" && (q3 === "Y" || q3 === "PY")) return "High";
+                    // Low risk path
+                    if ((q1 === "Y" || q1 === "PY" || q1 === "NI") && (q2 === "Y" || q2 === "PY") && (q3 === "N" || q3 === "PN" || q3 === "NI")) return "Low";
+                    // Some concerns paths
+                    if ((q1 === "Y" || q1 === "PY") && (q2 === "Y" || q2 === "PY") && (q3 === "Y" || q3 === "PY")) return "Some concerns";
+                    if ((q1 === "N" || q1 === "PN" || q1 === "NI") && (q2 === "Y" || q2 === "PY")) return "Some concerns";
+                    if (q2 === "NI" && (q3 === "N" || q3 === "PN" || q3 === "NI")) return "Some concerns";
+                    return "Some concerns";
+                }
+            },
+            "2A": {
+                name: "Domain 2: Bias due to deviations from intended interventions (effect of assignment)",
+                shortName: "D2",
+                desc: "For intention-to-treat effect analysis",
+                questions: [
+                    { id: "2.1", text: "Were participants aware of their assigned intervention during the trial?", options: ["Y", "PY", "PN", "N", "NI"] },
+                    { id: "2.2", text: "Were carers and people delivering the interventions aware of participants' assigned intervention during the trial?", options: ["Y", "PY", "PN", "N", "NI"] },
+                    { id: "2.3", text: "If Y/PY/NI to 2.1 or 2.2: Were there deviations from the intended intervention that arose because of the trial context?", options: ["Y", "PY", "PN", "N", "NI", "NA"] },
+                    { id: "2.4", text: "If Y/PY to 2.3: Were these deviations likely to have affected the outcome?", options: ["Y", "PY", "PN", "N", "NI", "NA"] },
+                    { id: "2.5", text: "If Y/PY/NI to 2.4: Were these deviations from intended intervention balanced between groups?", options: ["Y", "PY", "PN", "N", "NI", "NA"] },
+                    { id: "2.6", text: "Was an appropriate analysis used to estimate the effect of assignment to intervention?", options: ["Y", "PY", "PN", "N", "NI"] },
+                    { id: "2.7", text: "If N/PN/NI to 2.6: Was there potential for a substantial impact (on the result) of the failure to analyse participants in the group to which they were randomized?", options: ["Y", "PY", "PN", "N", "NI", "NA"] }
+                ],
+                algorithm: (a) => {
+                    const q1 = a["2.1"], q2 = a["2.2"], q3 = a["2.3"], q4 = a["2.4"], q5 = a["2.5"], q6 = a["2.6"], q7 = a["2.7"];
+
+                    // Part 1: Deviations assessment
+                    let part1 = "Low";
+                    if ((q1 === "N" || q1 === "PN") && (q2 === "N" || q2 === "PN")) {
+                        part1 = "Low";
+                    } else if (q3 === "N" || q3 === "PN") {
+                        part1 = "Low";
+                    } else if (q3 === "NI") {
+                        part1 = "Some concerns";
+                    } else if ((q3 === "Y" || q3 === "PY") && (q4 === "N" || q4 === "PN")) {
+                        part1 = "Some concerns";
+                    } else if ((q3 === "Y" || q3 === "PY") && (q4 === "Y" || q4 === "PY" || q4 === "NI") && (q5 === "Y" || q5 === "PY")) {
+                        part1 = "Some concerns";
+                    } else if ((q3 === "Y" || q3 === "PY") && (q4 === "Y" || q4 === "PY" || q4 === "NI") && (q5 === "N" || q5 === "PN" || q5 === "NI")) {
+                        part1 = "High";
+                    }
+
+                    // Part 2: Analysis assessment
+                    let part2 = "Low";
+                    if (q6 === "Y" || q6 === "PY") {
+                        part2 = "Low";
+                    } else if ((q6 === "N" || q6 === "PN" || q6 === "NI") && (q7 === "N" || q7 === "PN")) {
+                        part2 = "Some concerns";
+                    } else if ((q6 === "N" || q6 === "PN" || q6 === "NI") && (q7 === "Y" || q7 === "PY" || q7 === "NI")) {
+                        part2 = "High";
+                    }
+
+                    // Combine parts
+                    if (part1 === "High" || part2 === "High") return "High";
+                    if (part1 === "Some concerns" || part2 === "Some concerns") return "Some concerns";
+                    return "Low";
+                }
+            },
+            "2B": {
+                name: "Domain 2: Bias due to deviations from intended interventions (effect of adhering)",
+                shortName: "D2",
+                desc: "For per-protocol effect analysis",
+                questions: [
+                    { id: "2.1", text: "Were participants aware of their assigned intervention during the trial?", options: ["Y", "PY", "PN", "N", "NI"] },
+                    { id: "2.2", text: "Were carers and people delivering the interventions aware of participants' assigned intervention during the trial?", options: ["Y", "PY", "PN", "N", "NI"] },
+                    { id: "2.3", text: "If Y/PY/NI to 2.1 or 2.2: Were important non-protocol interventions balanced across intervention groups?", options: ["Y", "PY", "PN", "N", "NI", "NA"] },
+                    { id: "2.4", text: "Were there failures in implementing the intervention that could have affected the outcome?", options: ["Y", "PY", "PN", "N", "NI", "NA"] },
+                    { id: "2.5", text: "Was there non-adherence to the assigned intervention regimen that could have affected participants' outcomes?", options: ["Y", "PY", "PN", "N", "NI", "NA"] },
+                    { id: "2.6", text: "If N/PN/NI to 2.3, or Y/PY/NI to 2.4 or 2.5: Was an appropriate analysis used to estimate the effect of adhering to intervention?", options: ["Y", "PY", "PN", "N", "NI", "NA"] }
+                ],
+                algorithm: (a) => {
+                    const q1 = a["2.1"], q2 = a["2.2"], q3 = a["2.3"], q4 = a["2.4"], q5 = a["2.5"], q6 = a["2.6"];
+
+                    // Check if blinding is adequate
+                    const blinded = (q1 === "N" || q1 === "PN") && (q2 === "N" || q2 === "PN");
+
+                    // Check if there are issues requiring appropriate analysis
+                    const needsAnalysis = (q3 === "N" || q3 === "PN" || q3 === "NI") ||
+                                         (q4 === "Y" || q4 === "PY" || q4 === "NI") ||
+                                         (q5 === "Y" || q5 === "PY" || q5 === "NI");
+
+                    // Low risk paths
+                    if (blinded && (q4 === "N" || q4 === "PN" || q4 === "NA") && (q5 === "N" || q5 === "PN" || q5 === "NA")) {
+                        return "Low";
+                    }
+                    if (!blinded && (q3 === "Y" || q3 === "PY" || q3 === "NA") && (q4 === "N" || q4 === "PN" || q4 === "NA") && (q5 === "N" || q5 === "PN" || q5 === "NA")) {
+                        return "Low";
+                    }
+
+                    // If needs analysis, check 2.6
+                    if (needsAnalysis) {
+                        if (q6 === "Y" || q6 === "PY") return "Some concerns";
+                        if (q6 === "N" || q6 === "PN" || q6 === "NI") return "High";
+                    }
+
+                    return "Some concerns";
+                }
+            },
+            "3": {
+                name: "Domain 3: Bias due to missing outcome data",
+                shortName: "D3",
+                desc: "Bias due to incomplete outcome data",
+                questions: [
+                    { id: "3.1", text: "Were data for this outcome available for all, or nearly all, participants randomized?", options: ["Y", "PY", "PN", "N", "NI"] },
+                    { id: "3.2", text: "If N/PN/NI to 3.1: Is there evidence that the result was not biased by missing outcome data?", options: ["Y", "PY", "PN", "N", "NI", "NA"] },
+                    { id: "3.3", text: "If N/PN to 3.2: Could missingness in the outcome depend on its true value?", options: ["Y", "PY", "PN", "N", "NI", "NA"] },
+                    { id: "3.4", text: "If Y/PY/NI to 3.3: Is it likely that missingness in the outcome depended on its true value?", options: ["Y", "PY", "PN", "N", "NI", "NA"] }
+                ],
+                algorithm: (a) => {
+                    const q1 = a["3.1"], q2 = a["3.2"], q3 = a["3.3"], q4 = a["3.4"];
+
+                    // Low risk paths
+                    if (q1 === "Y" || q1 === "PY") return "Low";
+                    if ((q1 === "N" || q1 === "PN" || q1 === "NI") && (q2 === "Y" || q2 === "PY")) return "Low";
+                    if ((q1 === "N" || q1 === "PN" || q1 === "NI") && (q2 === "N" || q2 === "PN") && (q3 === "N" || q3 === "PN")) return "Low";
+
+                    // Some concerns path
+                    if ((q1 === "N" || q1 === "PN" || q1 === "NI") && (q2 === "N" || q2 === "PN") && (q3 === "Y" || q3 === "PY" || q3 === "NI") && (q4 === "N" || q4 === "PN")) return "Some concerns";
+
+                    // High risk path
+                    if ((q1 === "N" || q1 === "PN" || q1 === "NI") && (q2 === "N" || q2 === "PN") && (q3 === "Y" || q3 === "PY" || q3 === "NI") && (q4 === "Y" || q4 === "PY" || q4 === "NI")) return "High";
+
+                    return "Some concerns";
+                }
+            },
+            "4": {
+                name: "Domain 4: Bias in measurement of the outcome",
+                shortName: "D4",
+                desc: "Bias due to outcome measurement or assessment",
+                questions: [
+                    { id: "4.1", text: "Was the method of measuring the outcome inappropriate?", options: ["Y", "PY", "PN", "N", "NI"] },
+                    { id: "4.2", text: "Could measurement or ascertainment of the outcome have differed between intervention groups?", options: ["Y", "PY", "PN", "N", "NI"] },
+                    { id: "4.3", text: "If N/PN/NI to 4.1 and 4.2: Were outcome assessors aware of the intervention received by study participants?", options: ["Y", "PY", "PN", "N", "NI"] },
+                    { id: "4.4", text: "If Y/PY/NI to 4.3: Could assessment of the outcome have been influenced by knowledge of intervention received?", options: ["Y", "PY", "PN", "N", "NI", "NA"] },
+                    { id: "4.5", text: "If Y/PY/NI to 4.4: Is it likely that assessment of the outcome was influenced by knowledge of intervention received?", options: ["Y", "PY", "PN", "N", "NI", "NA"] }
+                ],
+                algorithm: (a) => {
+                    const q1 = a["4.1"], q2 = a["4.2"], q3 = a["4.3"], q4 = a["4.4"], q5 = a["4.5"];
+
+                    // High risk paths
+                    if (q1 === "Y" || q1 === "PY") return "High";
+                    if (q2 === "Y" || q2 === "PY") return "High";
+
+                    // Low risk paths
+                    if ((q1 === "N" || q1 === "PN" || q1 === "NI") && (q2 === "N" || q2 === "PN") && (q3 === "N" || q3 === "PN")) return "Low";
+                    if ((q1 === "N" || q1 === "PN" || q1 === "NI") && (q2 === "N" || q2 === "PN") && (q3 === "Y" || q3 === "PY" || q3 === "NI") && (q4 === "N" || q4 === "PN")) return "Low";
+
+                    // Some concerns paths
+                    if ((q1 === "N" || q1 === "PN" || q1 === "NI") && (q2 === "N" || q2 === "PN") && (q3 === "Y" || q3 === "PY" || q3 === "NI") && (q4 === "Y" || q4 === "PY" || q4 === "NI") && (q5 === "N" || q5 === "PN")) return "Some concerns";
+                    if ((q1 === "N" || q1 === "PN" || q1 === "NI") && q2 === "NI" && (q3 === "N" || q3 === "PN")) return "Some concerns";
+                    if ((q1 === "N" || q1 === "PN" || q1 === "NI") && q2 === "NI" && (q3 === "Y" || q3 === "PY" || q3 === "NI") && (q4 === "N" || q4 === "PN")) return "Some concerns";
+                    if ((q1 === "N" || q1 === "PN" || q1 === "NI") && q2 === "NI" && (q3 === "Y" || q3 === "PY" || q3 === "NI") && (q4 === "Y" || q4 === "PY" || q4 === "NI") && (q5 === "N" || q5 === "PN")) return "Some concerns";
+
+                    // High risk for likely influenced
+                    if ((q4 === "Y" || q4 === "PY" || q4 === "NI") && (q5 === "Y" || q5 === "PY" || q5 === "NI")) return "High";
+
+                    return "Some concerns";
+                }
+            },
+            "5": {
+                name: "Domain 5: Bias in selection of the reported result",
+                shortName: "D5",
+                desc: "Bias from selective reporting of results",
+                questions: [
+                    { id: "5.1", text: "Were the data that produced this result analysed in accordance with a pre-specified analysis plan that was finalized before unblinded outcome data were available for analysis?", options: ["Y", "PY", "PN", "N", "NI"] },
+                    { id: "5.2", text: "Is the numerical result being assessed likely to have been selected, on the basis of the results, from multiple eligible outcome measurements (e.g. scales, definitions, time points) within the outcome domain?", options: ["Y", "PY", "PN", "N", "NI"] },
+                    { id: "5.3", text: "Is the numerical result being assessed likely to have been selected, on the basis of the results, from multiple eligible analyses of the data?", options: ["Y", "PY", "PN", "N", "NI"] }
+                ],
+                algorithm: (a) => {
+                    const q1 = a["5.1"], q2 = a["5.2"], q3 = a["5.3"];
+
+                    // High risk: selected from multiple
+                    if (q2 === "Y" || q2 === "PY") return "High";
+                    if (q3 === "Y" || q3 === "PY") return "High";
+
+                    // Low risk: pre-specified plan and not selected
+                    if ((q1 === "Y" || q1 === "PY") && (q2 === "N" || q2 === "PN") && (q3 === "N" || q3 === "PN")) return "Low";
+
+                    // Some concerns
+                    if ((q1 === "N" || q1 === "PN" || q1 === "NI") && (q2 === "N" || q2 === "PN") && (q3 === "N" || q3 === "PN")) return "Some concerns";
+                    if ((q2 === "NI" && q3 !== "Y" && q3 !== "PY") || (q3 === "NI" && q2 !== "Y" && q2 !== "PY")) return "Some concerns";
+
+                    return "Some concerns";
+                }
+            }
+        };
+
+        const RESPONSE_LABELS = {
+            "Y": "Yes", "PY": "Probably Yes", "N": "No", "PN": "Probably No",
+            "NI": "No Information", "NA": "Not Applicable"
+        };
+
+        const BIAS_COLORS = {
+            "Low": "#22c55e",
+            "Some concerns": "#eab308",
+            "High": "#ef4444"
+        };
+
+        // ========== STATE ==========
+        let projects = [];
+        let currentProject = null;
+        let currentStudyIndex = 0;
+        let currentDomain = null;
+        let currentQuestionIndex = 0;
+
+        // ========== INITIALIZATION ==========
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProjects();
+            renderProjectList();
+        });
+
+        // ========== STORAGE ==========
+        function loadProjects() {
+            const saved = localStorage.getItem('rob2_projects');
+            projects = saved ? JSON.parse(saved) : [];
+        }
+
+        function saveProjects() {
+            localStorage.setItem('rob2_projects', JSON.stringify(projects));
+        }
+
+        // ========== SCREENS ==========
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function showNewProject() {
+            document.getElementById('projectFormTitle').textContent = 'New Project';
+            document.getElementById('projectName').value = '';
+            document.getElementById('studyIds').value = '';
+            currentProject = null;
+            showScreen('screen-new-project');
+        }
+
+        // ========== PROJECTS ==========
+        function renderProjectList() {
+            const container = document.getElementById('projectList');
+            if (projects.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 30px;">No projects yet. Create your first project to start assessing RCTs.</p>';
+                return;
+            }
+
+            container.innerHTML = projects.map((p, i) => {
+                const completed = p.studies.filter(s => s.overall).length;
+                return `
+                    <div class="project-item" onclick="openProject(${i})">
+                        <h4>${p.name}</h4>
+                        <p>${p.studies.length} studies</p>
+                        <div class="meta">
+                            <span>Progress: ${completed}/${p.studies.length} completed</span>
+                            <span>Created: ${new Date(p.created).toLocaleDateString()}</span>
+                        </div>
+                        <div class="btn-group" style="margin-top: 10px;">
+                            <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); editProject(${i})">Edit</button>
+                            <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteProject(${i})">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function saveProject() {
+            const name = document.getElementById('projectName').value.trim();
+            const studyIds = document.getElementById('studyIds').value.trim().split('\n').filter(s => s.trim());
+
+            if (!name || studyIds.length === 0) {
+                alert('Please fill in project name and at least one study ID.');
+                return;
+            }
+
+            if (currentProject !== null) {
+                // Editing existing project
+                const existing = projects[currentProject];
+                existing.name = name;
+
+                // Preserve existing study data, add new studies
+                const existingIds = existing.studies.map(s => s.id);
+                studyIds.forEach(id => {
+                    if (!existingIds.includes(id)) {
+                        existing.studies.push(createStudy(id));
+                    }
+                });
+                // Remove studies that are no longer in the list
+                existing.studies = existing.studies.filter(s => studyIds.includes(s.id));
+            } else {
+                // New project
+                projects.push({
+                    name,
+                    created: new Date().toISOString(),
+                    studies: studyIds.map(id => createStudy(id))
+                });
+                currentProject = projects.length - 1;
+            }
+
+            saveProjects();
+            renderProjectList();
+            openProject(currentProject !== null ? currentProject : projects.length - 1);
+        }
+
+        function createStudy(id) {
+            return {
+                id,
+                info: { outcome: '', result: '', details: '' },
+                variant: 'assignment', // default to ITT
+                domains: {},
+                overall: null
+            };
+        }
+
+        function openProject(index) {
+            currentProject = index;
+            currentStudyIndex = 0;
+            showScreen('screen-assessment');
+            updateAssessmentUI();
+        }
+
+        function editProject(index) {
+            currentProject = index;
+            const p = projects[index];
+            document.getElementById('projectFormTitle').textContent = 'Edit Project';
+            document.getElementById('projectName').value = p.name;
+            document.getElementById('studyIds').value = p.studies.map(s => s.id).join('\n');
+            showScreen('screen-new-project');
+        }
+
+        function deleteProject(index) {
+            if (confirm('Delete this project? This action cannot be undone.')) {
+                projects.splice(index, 1);
+                saveProjects();
+                renderProjectList();
+            }
+        }
+
+        function uploadProject(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.name && data.studies) {
+                        projects.push(data);
+                        saveProjects();
+                        renderProjectList();
+                        alert('Project imported successfully!');
+                    } else {
+                        alert('Invalid project file format.');
+                    }
+                } catch (err) {
+                    alert('Error reading file: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function downloadProject() {
+            const p = projects[currentProject];
+            const blob = new Blob([JSON.stringify(p, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${p.name.replace(/[^a-z0-9]/gi, '_')}_rob2.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // ========== ASSESSMENT UI ==========
+        function updateAssessmentUI() {
+            const p = projects[currentProject];
+            document.getElementById('currentProjectName').textContent = p.name;
+
+            // Populate study selector
+            const select = document.getElementById('studySelect');
+            select.innerHTML = p.studies.map((s, i) => `<option value="${i}">${s.id}</option>`).join('');
+            select.value = currentStudyIndex;
+
+            // Update progress
+            const completed = p.studies.filter(s => s.overall).length;
+            document.getElementById('studyProgress').textContent = `${completed}/${p.studies.length} completed`;
+
+            goToStep('info');
+        }
+
+        function changeStudy() {
+            currentStudyIndex = parseInt(document.getElementById('studySelect').value);
+            goToStep('info');
+        }
+
+        function goToStep(step) {
+            // Hide all step contents
+            document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.step-content').forEach(el => el.style.display = 'none');
+
+            // Update step indicators
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+            const stepEl = document.querySelector(`.step[data-step="${step}"]`);
+            if (stepEl) stepEl.classList.add('active');
+
+            // Show the selected step content
+            const contentEl = document.getElementById(`step-${step}`);
+            if (contentEl) {
+                contentEl.style.display = 'block';
+                contentEl.classList.add('active');
+            }
+
+            // Load step-specific data
+            const study = projects[currentProject].studies[currentStudyIndex];
+
+            if (step === 'info') {
+                document.getElementById('inputOutcome').value = study.info.outcome || '';
+                document.getElementById('inputResult').value = study.info.result || '';
+                document.getElementById('inputDetails').value = study.info.details || '';
+            } else if (step === 'variant') {
+                updateVariantSelection(study.variant || 'assignment');
+            } else if (step === 'domains') {
+                renderDomainGrid();
+            }
+        }
+
+        function saveStudyInfo() {
+            const study = projects[currentProject].studies[currentStudyIndex];
+            study.info.outcome = document.getElementById('inputOutcome').value;
+            study.info.result = document.getElementById('inputResult').value;
+            study.info.details = document.getElementById('inputDetails').value;
+            saveProjects();
+        }
+
+        // ========== VARIANT SELECTION ==========
+        function selectVariant(variant) {
+            const study = projects[currentProject].studies[currentStudyIndex];
+            study.variant = variant;
+
+            // Clear domain 2 answers if variant changed
+            if (study.domains['2A']) delete study.domains['2A'];
+            if (study.domains['2B']) delete study.domains['2B'];
+
+            saveProjects();
+            updateVariantSelection(variant);
+        }
+
+        function updateVariantSelection(variant) {
+            document.querySelectorAll('.variant-card').forEach(el => el.classList.remove('selected'));
+            document.getElementById(`variant-${variant}`).classList.add('selected');
+        }
+
+        // ========== DOMAIN GRID ==========
+        function renderDomainGrid() {
+            const study = projects[currentProject].studies[currentStudyIndex];
+            const variant = study.variant || 'assignment';
+            const container = document.getElementById('domainGrid');
+
+            // Get the correct domain 2 based on variant
+            const domain2Key = variant === 'assignment' ? '2A' : '2B';
+            const domainKeys = ['1', domain2Key, '3', '4', '5'];
+
+            container.innerHTML = domainKeys.map(key => {
+                const domain = DOMAINS[key];
+                const answers = study.domains[key] || {};
+                const result = Object.keys(answers).length === domain.questions.length ? domain.algorithm(answers) : null;
+
+                const biasClass = result ? `bias-${result.toLowerCase().replace(' ', '-')}` : '';
+                const completedClass = result ? 'completed' : '';
+
+                return `
+                    <div class="domain-card ${completedClass}" onclick="openDomain('${key}')">
+                        <h4>${domain.shortName}: ${domain.name.split(':')[1] || domain.name}</h4>
+                        <p>${domain.desc}</p>
+                        ${result ? `<div class="bias-badge ${biasClass}">${result}</div>` : '<div class="bias-badge" style="background: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border);">Not assessed</div>'}
+                    </div>
+                `;
+            }).join('');
+
+            // Calculate overall
+            calculateOverall();
+        }
+
+        function calculateOverall() {
+            const study = projects[currentProject].studies[currentStudyIndex];
+            const variant = study.variant || 'assignment';
+            const domain2Key = variant === 'assignment' ? '2A' : '2B';
+            const domainKeys = ['1', domain2Key, '3', '4', '5'];
+
+            const results = domainKeys.map(key => {
+                const domain = DOMAINS[key];
+                const answers = study.domains[key] || {};
+                if (Object.keys(answers).length !== domain.questions.length) return null;
+                return domain.algorithm(answers);
+            });
+
+            // Check if all domains are complete
+            if (results.includes(null)) {
+                document.getElementById('overallCard').style.display = 'none';
+                study.overall = null;
+                saveProjects();
+                return;
+            }
+
+            // Calculate overall according to RoB 2 rules
+            let overall;
+            if (results.includes('High')) {
+                overall = 'High';
+            } else if (results.filter(r => r === 'Some concerns').length >= 2) {
+                // Multiple "some concerns" substantially lowers confidence
+                overall = 'High';
+            } else if (results.includes('Some concerns')) {
+                overall = 'Some concerns';
+            } else {
+                overall = 'Low';
+            }
+
+            study.overall = overall;
+            saveProjects();
+
+            // Display overall
+            const overallCard = document.getElementById('overallCard');
+            overallCard.style.display = 'block';
+            const resultEl = document.getElementById('overallResult');
+            resultEl.textContent = overall;
+            resultEl.style.color = BIAS_COLORS[overall];
+        }
+
+        // ========== DOMAIN QUESTIONS ==========
+        function openDomain(domainKey) {
+            currentDomain = domainKey;
+            currentQuestionIndex = 0;
+
+            document.querySelectorAll('.step-content').forEach(el => el.style.display = 'none');
+            document.getElementById('step-questions').style.display = 'block';
+
+            renderQuestion();
+        }
+
+        function renderQuestion() {
+            const domain = DOMAINS[currentDomain];
+            const study = projects[currentProject].studies[currentStudyIndex];
+            const answers = study.domains[currentDomain] || {};
+            const question = domain.questions[currentQuestionIndex];
+
+            document.getElementById('domainTitle').textContent = domain.name;
+            document.getElementById('questionId').textContent = `Question ${currentQuestionIndex + 1} of ${domain.questions.length}`;
+            document.getElementById('questionText').textContent = `${question.id}. ${question.text}`;
+
+            // Render answer buttons
+            const grid = document.getElementById('answerGrid');
+            grid.innerHTML = question.options.map(opt => {
+                const selected = answers[question.id] === opt ? 'selected' : '';
+                return `<button class="answer-btn ${selected}" onclick="selectAnswer('${opt}')">${opt} - ${RESPONSE_LABELS[opt]}</button>`;
+            }).join('');
+
+            // Update path display
+            const pathParts = domain.questions.slice(0, currentQuestionIndex + 1).map(q => {
+                const ans = answers[q.id];
+                return ans ? `${q.id}=${ans}` : `${q.id}=?`;
+            });
+            document.getElementById('pathDisplay').textContent = pathParts.join(' -> ');
+
+            // Update navigation buttons
+            document.getElementById('btnPrevQuestion').disabled = currentQuestionIndex === 0;
+            document.getElementById('btnNextQuestion').textContent = currentQuestionIndex === domain.questions.length - 1 ? 'Finish' : 'Next';
+        }
+
+        function selectAnswer(answer) {
+            const domain = DOMAINS[currentDomain];
+            const study = projects[currentProject].studies[currentStudyIndex];
+            if (!study.domains[currentDomain]) study.domains[currentDomain] = {};
+
+            const question = domain.questions[currentQuestionIndex];
+            study.domains[currentDomain][question.id] = answer;
+            saveProjects();
+
+            renderQuestion();
+        }
+
+        function prevQuestion() {
+            if (currentQuestionIndex > 0) {
+                currentQuestionIndex--;
+                renderQuestion();
+            }
+        }
+
+        function nextQuestion() {
+            const domain = DOMAINS[currentDomain];
+            const study = projects[currentProject].studies[currentStudyIndex];
+            const answers = study.domains[currentDomain] || {};
+            const question = domain.questions[currentQuestionIndex];
+
+            if (!answers[question.id]) {
+                alert('Please select an answer before continuing.');
+                return;
+            }
+
+            if (currentQuestionIndex < domain.questions.length - 1) {
+                currentQuestionIndex++;
+                renderQuestion();
+            } else {
+                exitDomain();
+            }
+        }
+
+        function exitDomain() {
+            currentDomain = null;
+            goToStep('domains');
+        }
+
+        // ========== RESULTS ==========
+        function showResults() {
+            showScreen('screen-results');
+            renderResults();
+        }
+
+        function renderResults() {
+            const p = projects[currentProject];
+            document.getElementById('resultsProjectName').textContent = `Project: ${p.name}`;
+
+            const tbody = document.getElementById('resultsBody');
+            tbody.innerHTML = p.studies.map(study => {
+                const variant = study.variant || 'assignment';
+                const domain2Key = variant === 'assignment' ? '2A' : '2B';
+                const domainKeys = ['1', domain2Key, '3', '4', '5'];
+
+                const results = domainKeys.map(key => {
+                    const domain = DOMAINS[key];
+                    const answers = study.domains[key] || {};
+                    if (Object.keys(answers).length !== domain.questions.length) return '-';
+                    return domain.algorithm(answers);
+                });
+
+                return `
+                    <tr>
+                        <td style="text-align: left; font-weight: 500;">${study.id}</td>
+                        ${results.map(r => `<td style="background: ${r !== '-' ? BIAS_COLORS[r] + '33' : 'transparent'}; color: ${r !== '-' ? BIAS_COLORS[r] : 'var(--text-muted)'}; font-weight: 600;">${r}</td>`).join('')}
+                        <td style="background: ${study.overall ? BIAS_COLORS[study.overall] + '33' : 'transparent'}; color: ${study.overall ? BIAS_COLORS[study.overall] : 'var(--text-muted)'}; font-weight: 700;">${study.overall || '-'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // ========== EXPORT ==========
+        function downloadExcel() {
+            const p = projects[currentProject];
+            const data = [['Study', 'D1', 'D2', 'D3', 'D4', 'D5', 'Overall']];
+
+            p.studies.forEach(study => {
+                const variant = study.variant || 'assignment';
+                const domain2Key = variant === 'assignment' ? '2A' : '2B';
+                const domainKeys = ['1', domain2Key, '3', '4', '5'];
+
+                const results = domainKeys.map(key => {
+                    const domain = DOMAINS[key];
+                    const answers = study.domains[key] || {};
+                    if (Object.keys(answers).length !== domain.questions.length) return '-';
+                    return domain.algorithm(answers);
+                });
+
+                data.push([study.id, ...results, study.overall || '-']);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'RoB 2 Results');
+            XLSX.writeFile(wb, `${p.name.replace(/[^a-z0-9]/gi, '_')}_rob2.xlsx`);
+        }
+
+        function downloadCSV() {
+            const p = projects[currentProject];
+            let csv = 'Study,D1,D2,D3,D4,D5,Overall\n';
+
+            p.studies.forEach(study => {
+                const variant = study.variant || 'assignment';
+                const domain2Key = variant === 'assignment' ? '2A' : '2B';
+                const domainKeys = ['1', domain2Key, '3', '4', '5'];
+
+                const results = domainKeys.map(key => {
+                    const domain = DOMAINS[key];
+                    const answers = study.domains[key] || {};
+                    if (Object.keys(answers).length !== domain.questions.length) return '-';
+                    return domain.algorithm(answers);
+                });
+
+                csv += `"${study.id}",${results.join(',')},${study.overall || '-'}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${p.name.replace(/[^a-z0-9]/gi, '_')}_rob2.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function copyResults() {
+            const p = projects[currentProject];
+            let text = 'Study\tD1\tD2\tD3\tD4\tD5\tOverall\n';
+
+            p.studies.forEach(study => {
+                const variant = study.variant || 'assignment';
+                const domain2Key = variant === 'assignment' ? '2A' : '2B';
+                const domainKeys = ['1', domain2Key, '3', '4', '5'];
+
+                const results = domainKeys.map(key => {
+                    const domain = DOMAINS[key];
+                    const answers = study.domains[key] || {};
+                    if (Object.keys(answers).length !== domain.questions.length) return '-';
+                    return domain.algorithm(answers);
+                });
+
+                text += `${study.id}\t${results.join('\t')}\t${study.overall || '-'}\n`;
+            });
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Results copied to clipboard!');
+            });
+        }
+
+        // ========== PLOTS ==========
+        function generateTrafficLightPlot() {
+            const p = projects[currentProject];
+            const canvas = document.getElementById('trafficLightCanvas');
+            const ctx = canvas.getContext('2d');
+
+            const cellWidth = 80;
+            const cellHeight = 30;
+            const leftMargin = 200;
+            const topMargin = 60;
+            const domainLabels = ['D1', 'D2', 'D3', 'D4', 'D5', 'Overall'];
+
+            canvas.width = leftMargin + cellWidth * domainLabels.length + 20;
+            canvas.height = topMargin + cellHeight * p.studies.length + 20;
+
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw headers
+            ctx.fillStyle = '#1e40af';
+            ctx.font = 'bold 12px Arial';
+            domainLabels.forEach((label, i) => {
+                ctx.fillText(label, leftMargin + i * cellWidth + cellWidth / 2 - 10, 35);
+            });
+
+            // Draw rows
+            p.studies.forEach((study, rowIndex) => {
+                const y = topMargin + rowIndex * cellHeight;
+
+                // Study name
+                ctx.fillStyle = '#333';
+                ctx.font = '11px Arial';
+                ctx.fillText(study.id.substring(0, 25), 10, y + 20);
+
+                // Domain results
+                const variant = study.variant || 'assignment';
+                const domain2Key = variant === 'assignment' ? '2A' : '2B';
+                const domainKeys = ['1', domain2Key, '3', '4', '5'];
+
+                domainKeys.forEach((key, colIndex) => {
+                    const domain = DOMAINS[key];
+                    const answers = study.domains[key] || {};
+                    const result = Object.keys(answers).length === domain.questions.length ? domain.algorithm(answers) : null;
+
+                    const x = leftMargin + colIndex * cellWidth;
+                    ctx.fillStyle = result ? BIAS_COLORS[result] : '#e5e7eb';
+                    ctx.beginPath();
+                    ctx.arc(x + cellWidth / 2, y + cellHeight / 2, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                // Overall
+                const overallX = leftMargin + 5 * cellWidth;
+                ctx.fillStyle = study.overall ? BIAS_COLORS[study.overall] : '#e5e7eb';
+                ctx.beginPath();
+                ctx.arc(overallX + cellWidth / 2, y + cellHeight / 2, 10, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Legend
+            const legendY = canvas.height - 15;
+            const legendItems = [
+                { label: 'Low risk', color: BIAS_COLORS['Low'] },
+                { label: 'Some concerns', color: BIAS_COLORS['Some concerns'] },
+                { label: 'High risk', color: BIAS_COLORS['High'] }
+            ];
+
+            let legendX = 10;
+            ctx.font = '10px Arial';
+            legendItems.forEach(item => {
+                ctx.fillStyle = item.color;
+                ctx.beginPath();
+                ctx.arc(legendX + 6, legendY - 4, 6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#333';
+                ctx.fillText(item.label, legendX + 16, legendY);
+                legendX += ctx.measureText(item.label).width + 35;
+            });
+        }
+
+        function generateSummaryPlot() {
+            const p = projects[currentProject];
+            const canvas = document.getElementById('summaryCanvas');
+            const ctx = canvas.getContext('2d');
+
+            const domainLabels = ['D1', 'D2', 'D3', 'D4', 'D5', 'Overall'];
+            const barHeight = 30;
+            const leftMargin = 80;
+            const topMargin = 50;
+            const barWidth = 400;
+
+            canvas.width = leftMargin + barWidth + 150;
+            canvas.height = topMargin + barHeight * domainLabels.length + 60;
+
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Title
+            ctx.fillStyle = '#1e40af';
+            ctx.font = 'bold 14px Arial';
+            ctx.fillText('Risk of Bias Summary', leftMargin + barWidth / 2 - 60, 25);
+
+            // Calculate counts for each domain
+            domainLabels.forEach((label, rowIndex) => {
+                const y = topMargin + rowIndex * barHeight;
+                let counts = { Low: 0, 'Some concerns': 0, High: 0 };
+
+                p.studies.forEach(study => {
+                    let result;
+                    if (label === 'Overall') {
+                        result = study.overall;
+                    } else {
+                        const variant = study.variant || 'assignment';
+                        const domain2Key = variant === 'assignment' ? '2A' : '2B';
+                        const keyMap = { D1: '1', D2: domain2Key, D3: '3', D4: '4', D5: '5' };
+                        const key = keyMap[label];
+                        const domain = DOMAINS[key];
+                        const answers = study.domains[key] || {};
+                        result = Object.keys(answers).length === domain.questions.length ? domain.algorithm(answers) : null;
+                    }
+
+                    if (result) counts[result]++;
+                });
+
+                const total = counts.Low + counts['Some concerns'] + counts.High;
+
+                // Draw label
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.fillText(label, 10, y + 20);
+
+                if (total > 0) {
+                    // Draw stacked bar
+                    let x = leftMargin;
+                    ['Low', 'Some concerns', 'High'].forEach(level => {
+                        const width = (counts[level] / total) * barWidth;
+                        ctx.fillStyle = BIAS_COLORS[level];
+                        ctx.fillRect(x, y + 5, width, barHeight - 10);
+                        x += width;
+                    });
+
+                    // Percentages
+                    ctx.fillStyle = '#666';
+                    ctx.font = '10px Arial';
+                    ctx.fillText(`${Math.round(counts.Low / total * 100)}% | ${Math.round(counts['Some concerns'] / total * 100)}% | ${Math.round(counts.High / total * 100)}%`, leftMargin + barWidth + 10, y + 20);
+                }
+            });
+
+            // Legend
+            const legendY = canvas.height - 20;
+            const legendItems = [
+                { label: 'Low risk', color: BIAS_COLORS['Low'] },
+                { label: 'Some concerns', color: BIAS_COLORS['Some concerns'] },
+                { label: 'High risk', color: BIAS_COLORS['High'] }
+            ];
+
+            let legendX = leftMargin;
+            ctx.font = '10px Arial';
+            legendItems.forEach(item => {
+                ctx.fillStyle = item.color;
+                ctx.fillRect(legendX, legendY - 10, 15, 10);
+                ctx.fillStyle = '#333';
+                ctx.fillText(item.label, legendX + 20, legendY);
+                legendX += ctx.measureText(item.label).width + 45;
+            });
+        }
+
+        function downloadPlot(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.createElement('a');
+            link.download = `${filename}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+    </script>
+</body>
+</html>
