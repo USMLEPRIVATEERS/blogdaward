@@ -1471,6 +1471,7 @@
             const participantIds = currentProject.participants || [];
             if (participantIds.length === 0) {
                 document.getElementById('participants-list').innerHTML = '<p class="text-muted">Nenhum participante</p>';
+                window.participantsCache = [];
                 return;
             }
 
@@ -1478,6 +1479,9 @@
                 .from('users')
                 .select('id, full_name, email, role')
                 .in('id', participantIds);
+
+            // Cache participants for task assignee display
+            window.participantsCache = participants || [];
 
             document.getElementById('participants-list').innerHTML = (participants || []).map(p => {
                 const isMentorParticipant = p.role && p.role.startsWith('mentor_');
@@ -1523,6 +1527,17 @@
 
             container.innerHTML = tasks.map(task => {
                 const isCompleted = task.stage === 'tarefa_concluida';
+
+                // Get assignee info from cached participants
+                let assigneeName = '';
+                let assigneeInitials = '';
+                if (task.assigned_to && window.participantsCache) {
+                    const assignee = window.participantsCache.find(p => p.id === task.assigned_to || p.id === parseInt(task.assigned_to));
+                    if (assignee) {
+                        assigneeName = _dn(assignee.full_name) || assignee.email || '';
+                        assigneeInitials = assigneeName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+                    }
+                }
 
                 // Calculate if overdue - consider end of day (23:59:59) in Brazil timezone (UTC-3)
                 let isOverdue = false;
