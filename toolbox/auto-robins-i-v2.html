@@ -199,6 +199,8 @@
         .domain-card:hover { border-color: var(--accent); transform: translateY(-3px); }
         .domain-card.completed { border-color: var(--success); }
         .domain-card.locked { opacity: 0.5; cursor: not-allowed; }
+        .domain-card.has-issues { border-color: var(--warning); background: rgba(234, 179, 8, 0.05); }
+        .validation-icon { font-size: 14px; margin-left: 5px; }
         .domain-card h4 { color: var(--accent); margin-bottom: 8px; font-size: 1em; }
         .domain-card p { color: var(--text-muted); font-size: 12px; line-height: 1.4; }
 
@@ -980,6 +982,375 @@ Baseline BMI"></textarea>
             "WY": "Weak Yes", "SY": "Strong Yes", "NA": "Not Applicable"
         };
 
+        // Complete ROBINS-I V2 Algorithm Paths (from robins-i-v2-algorithms.json)
+        const ALGORITHM_PATHS = {
+            "1A": {
+                name: "Domain 1A: Confounding (ITT effect)",
+                description: "For analyses estimating the intention-to-treat effect where only baseline confounding needs to be addressed",
+                nodes: {
+                    "1.1": "Controlled for all the important confounding factors?",
+                    "1.2": "Confounding factors measured validly and reliably?",
+                    "1.3": "Control for any post-intervention variables?",
+                    "1.4": "Negative controls etc suggest serious uncontrolled confounding?"
+                },
+                paths: [
+                    { from: "START", answer: "", to: "1.1", description: "Begin assessment" },
+                    { from: "1.1", answer: "Y/PY", to: "1.3", description: "Good control -> check post-intervention" },
+                    { from: "1.1", answer: "WN", to: "1.3", description: "Weak no -> still check post-intervention" },
+                    { from: "1.1", answer: "SN/NI", to: "1.4", description: "Strong no or no info -> go to negative controls" },
+                    { from: "1.3", answer: "N/PN/NI", to: "1.2", description: "No post-intervention control -> check validity" },
+                    { from: "1.3", answer: "Y/PY", to: "1.4", description: "Post-intervention control present -> risk path" },
+                    { from: "1.2", answer: "Y/PY", to: "1.4", description: "Valid measurement -> final check" },
+                    { from: "1.2", answer: "WN", to: "1.4", description: "Weak validity -> moderate path" },
+                    { from: "1.2", answer: "SN/NI", to: "SERIOUS", description: "Invalid measurement -> Serious risk" },
+                    { from: "1.4", answer: "N/PN", to: "LOW/MODERATE", description: "No uncontrolled confounding -> Low or Moderate based on path" },
+                    { from: "1.4", answer: "Y/PY", to: "SERIOUS/CRITICAL", description: "Uncontrolled confounding -> Serious or Critical based on path" }
+                ],
+                outcomes: {
+                    "LOW": "1.1=Y/PY -> 1.3=N/PN/NI -> 1.2=Y/PY -> 1.4=N/PN",
+                    "MODERATE": ["1.1=Y/PY -> 1.3=N/PN/NI -> 1.2=WN -> 1.4=N/PN", "1.1=WN -> 1.3=N/PN/NI -> 1.2=Y/PY/WN -> 1.4=N/PN"],
+                    "SERIOUS": ["1.1=Y/PY -> 1.3=N/PN/NI -> 1.2=SN/NI -> 1.4", "1.1=SN/NI -> 1.4=N/PN", "1.4=Y/PY (from most paths)"],
+                    "CRITICAL": ["1.1=SN/NI -> 1.4=Y/PY", "1.3=Y/PY -> 1.4=Y/PY", "1.2=SN/NI -> 1.4=Y/PY"]
+                }
+            },
+            "1B": {
+                name: "Domain 1B: Confounding (Per-protocol effect)",
+                description: "For analyses estimating the per-protocol effect where both baseline and time-varying confounding need to be addressed",
+                nodes: {
+                    "1.1": "Appropriate analysis method for time-varying confounding?",
+                    "1.2": "Controlled for all important baseline and time-varying confounding factors?",
+                    "1.3": "Confounding factors measured validly and reliably?",
+                    "1.4": "Controlled for variables measured after start of intervention?",
+                    "1.5": "Negative controls suggest serious uncontrolled confounding?"
+                },
+                paths: [
+                    { from: "START", answer: "", to: "1.1", description: "Begin assessment" },
+                    { from: "1.1", answer: "Y/PY", to: "1.2", description: "Appropriate method -> check confounders" },
+                    { from: "1.1", answer: "N/PN/NI", to: "1.4", description: "Inappropriate method -> check post-start control" },
+                    { from: "1.2", answer: "Y/PY", to: "1.3", description: "Good control -> check validity" },
+                    { from: "1.2", answer: "WN", to: "1.3", description: "Weak control -> still check validity" },
+                    { from: "1.2", answer: "SN/NI", to: "1.5", description: "Poor control -> go to negative controls" },
+                    { from: "1.3", answer: "Y/PY", to: "1.5", description: "Valid measurement -> final check" },
+                    { from: "1.3", answer: "WN", to: "1.5", description: "Weak validity -> moderate path" },
+                    { from: "1.3", answer: "SN/NI", to: "SERIOUS", description: "Invalid measurement -> Serious risk" },
+                    { from: "1.4", answer: "N/PN/NI", to: "1.5", description: "No post-start control -> final check" },
+                    { from: "1.4", answer: "Y/PY", to: "CRITICAL", description: "Post-start control -> Critical risk" },
+                    { from: "1.5", answer: "N/PN", to: "LOW/MODERATE", description: "No uncontrolled confounding" },
+                    { from: "1.5", answer: "Y/PY", to: "SERIOUS/CRITICAL", description: "Uncontrolled confounding" }
+                ],
+                outcomes: {
+                    "LOW": "1.1=Y/PY -> 1.2=Y/PY -> 1.3=Y/PY -> 1.5=N/PN",
+                    "MODERATE": ["1.1=Y/PY -> 1.2=Y/PY -> 1.3=WN -> 1.5=N/PN", "1.1=Y/PY -> 1.2=WN -> 1.3=any -> 1.5=N/PN"],
+                    "SERIOUS": ["1.1=Y/PY -> 1.3=SN/NI", "1.1=N/PN/NI -> 1.4=N/PN/NI -> 1.5=N/PN", "1.5=Y/PY (from 1.1=Y/PY path)"],
+                    "CRITICAL": ["1.1=N/PN/NI -> 1.4=Y/PY", "1.1=N/PN/NI -> 1.5=Y/PY"]
+                }
+            },
+            "2": {
+                name: "Domain 2: Classification of Interventions",
+                description: "Addresses bias arising from misclassification of intervention strategies, including immortal time bias",
+                nodes: {
+                    "2.1": "Intervention strategies distinguishable at start of follow-up?",
+                    "2.2": "Almost all outcome events after strategies distinguishable?",
+                    "2.3": "Appropriate analysis to avoid immortal time problems?",
+                    "2.4": "Classification influenced by outcome?",
+                    "2.5": "Further classification errors likely?"
+                },
+                paths: [
+                    { from: "START", answer: "", to: "2.1", description: "Begin assessment" },
+                    { from: "2.1", answer: "Y/PY", to: "2.4", description: "Distinguishable -> SKIP 2.2, 2.3, go to 2.4" },
+                    { from: "2.1", answer: "N/PN/NI", to: "2.2", description: "Not distinguishable -> check events timing" },
+                    { from: "2.2", answer: "Y/PY", to: "2.4", description: "Events after distinguishable -> SKIP 2.3, go to 2.4" },
+                    { from: "2.2", answer: "N/PN/NI", to: "2.3", description: "Events before distinguishable -> check analysis" },
+                    { from: "2.3", answer: "SY", to: "2.4", description: "Strong analysis -> go to 2.4" },
+                    { from: "2.3", answer: "WY/NI", to: "2.4", description: "Weak analysis -> moderate path to 2.4" },
+                    { from: "2.3", answer: "N/PN", to: "2.4", description: "No appropriate analysis -> serious path to 2.4" },
+                    { from: "2.4", answer: "N/PN", to: "2.5", description: "Not influenced -> check further errors" },
+                    { from: "2.4", answer: "WY/NI", to: "2.5", description: "Possibly influenced -> check further errors" },
+                    { from: "2.4", answer: "SY", to: "CRITICAL", description: "Strongly influenced -> Critical (SKIP 2.5)" },
+                    { from: "2.5", answer: "N/PN", to: "LOW/MODERATE", description: "No further errors" },
+                    { from: "2.5", answer: "Y/PY/NI", to: "MODERATE/SERIOUS", description: "Further errors likely" }
+                ],
+                outcomes: {
+                    "LOW": ["2.1=Y/PY -> 2.4=N/PN -> 2.5=N/PN", "2.1=N/PN/NI -> 2.2=Y/PY -> 2.4=N/PN -> 2.5=N/PN", "2.3=SY -> 2.4=N/PN -> 2.5=N/PN"],
+                    "MODERATE": ["2.4=N/PN -> 2.5=Y/PY/NI", "2.4=WY/NI -> 2.5=N/PN", "2.3=WY/NI -> 2.4=N/PN -> 2.5=N/PN"],
+                    "SERIOUS": ["2.4=WY/NI -> 2.5=Y/PY/NI", "2.3=N/PN -> 2.4=N/PN -> 2.5=N/PN", "2.3=N/PN -> 2.4=N/PN -> 2.5=Y/PY/NI"],
+                    "CRITICAL": ["2.4=SY (from any path)", "2.3=N/PN -> 2.4=SY/WY/NI", "2.5=Y/PY/NI on serious path"]
+                }
+            },
+            "3": {
+                name: "Domain 3: Selection of Participants",
+                description: "Addresses selection biases from prevalent user bias, immortal time, and conditioning on post-intervention variables",
+                nodes: {
+                    "3.1": "Participants followed from start of intervention?",
+                    "3.2": "Early outcome events excluded?",
+                    "3.3": "Selection based on characteristics after start?",
+                    "3.4": "Selection variables associated with intervention?",
+                    "3.5": "Selection variables influenced by outcome?",
+                    "3.6": "Analysis corrected for selection biases?",
+                    "3.7": "Sensitivity analyses demonstrate minimal impact?",
+                    "3.8": "Selection biases severe?"
+                },
+                paths: [
+                    { from: "START", answer: "", to: "3.1 (Part A)", description: "Begin Part A assessment" },
+                    { from: "3.1", answer: "Y/PY", to: "3.2", description: "Followed from start -> check early events" },
+                    { from: "3.1", answer: "WN/NI", to: "PART_A_MODERATE", description: "Not fully followed -> Part A Moderate" },
+                    { from: "3.1", answer: "SN", to: "PART_A_SERIOUS", description: "Definitely not followed -> Part A Serious" },
+                    { from: "3.2", answer: "N/PN/NI", to: "PART_A_LOW", description: "No early events excluded -> Part A Low" },
+                    { from: "3.2", answer: "Y/PY", to: "PART_A_MODERATE", description: "Early events excluded -> Part A Moderate" },
+                    { from: "START", answer: "", to: "3.3 (Part B)", description: "Begin Part B assessment" },
+                    { from: "3.3", answer: "N/PN", to: "PART_B_LOW", description: "No post-start selection -> Part B Low" },
+                    { from: "3.3", answer: "Y/PY", to: "3.4", description: "Post-start selection -> check association" },
+                    { from: "3.3", answer: "NI", to: "PART_B_MODERATE", description: "No information -> Part B Moderate" },
+                    { from: "3.4", answer: "N/PN", to: "PART_B_LOW", description: "Not associated -> Part B Low" },
+                    { from: "3.4", answer: "Y/PY", to: "3.5", description: "Associated -> check outcome influence" },
+                    { from: "3.4", answer: "NI", to: "PART_B_MODERATE", description: "No information -> Part B Moderate" },
+                    { from: "3.5", answer: "N/PN/NI", to: "PART_B_MODERATE", description: "Not influenced -> Part B Moderate" },
+                    { from: "3.5", answer: "Y/PY", to: "PART_B_SERIOUS", description: "Influenced by outcome -> Part B Serious" },
+                    { from: "COMBINE", answer: "Both LOW", to: "LOW", description: "Combine: Both Low -> Low" },
+                    { from: "COMBINE", answer: "At worst MODERATE", to: "MODERATE", description: "Combine: At worst Moderate -> Moderate" },
+                    { from: "COMBINE", answer: "At least one SERIOUS", to: "3.6", description: "Combine: Serious -> check correction" },
+                    { from: "3.6", answer: "Y/PY", to: "MODERATE", description: "Corrected -> Moderate" },
+                    { from: "3.6", answer: "N/PN/NI", to: "3.7", description: "Not corrected -> check sensitivity" },
+                    { from: "3.7", answer: "Y/PY", to: "MODERATE", description: "Minimal impact -> Moderate" },
+                    { from: "3.7", answer: "N/PN/NI", to: "3.8", description: "Impact not minimal -> check severity" },
+                    { from: "3.8", answer: "N/PN/NI", to: "SERIOUS", description: "Not severe -> Serious" },
+                    { from: "3.8", answer: "Y/PY", to: "CRITICAL", description: "Severe biases -> Critical" }
+                ],
+                outcomes: {
+                    "LOW": "Part A = Low AND Part B = Low",
+                    "MODERATE": ["Part A or B = Moderate (other Low)", "Serious but corrected (3.6=Y/PY or 3.7=Y/PY)"],
+                    "SERIOUS": "At least one Serious, not corrected, not severe (3.8=N/PN/NI)",
+                    "CRITICAL": "Serious with severe biases (3.8=Y/PY)"
+                }
+            },
+            "4": {
+                name: "Domain 4: Missing Data",
+                description: "Addresses biases from missing data in intervention status, outcomes, and confounding variables",
+                nodes: {
+                    "4.1-4.3": "Complete data on intervention, outcome, and confounders for all participants?",
+                    "4.4": "Complete case analysis?",
+                    "4.5": "Exclusion related to true value of outcome?",
+                    "4.6": "Relationship explained by model?",
+                    "4.7": "Analysis based on imputing missing values?",
+                    "4.8": "MAR/MCAR reasonable?",
+                    "4.9": "Appropriate imputation?",
+                    "4.10": "Alternative appropriate method?",
+                    "4.11": "Evidence result not biased?"
+                },
+                paths: [
+                    { from: "START", answer: "", to: "4.1-4.3", description: "Begin assessment" },
+                    { from: "4.1-4.3", answer: "All Y/PY", to: "LOW", description: "Complete data -> Low risk" },
+                    { from: "4.1-4.3", answer: "Any N/PN/NI", to: "4.4", description: "Missing data -> check analysis type" },
+                    { from: "4.4", answer: "Y/PY/NI", to: "4.5", description: "Complete case analysis -> check exclusion bias" },
+                    { from: "4.4", answer: "N/PN", to: "4.7", description: "Not complete case -> check imputation" },
+                    { from: "4.5", answer: "N/PN", to: "LOW", description: "Exclusion not related -> Low risk" },
+                    { from: "4.5", answer: "Y/PY/NI", to: "4.6", description: "Possibly related -> check model" },
+                    { from: "4.6", answer: "Y/PY", to: "4.11", description: "Explained by model -> check evidence" },
+                    { from: "4.6", answer: "WN/NI", to: "4.11", description: "Weakly explained -> moderate path to 4.11" },
+                    { from: "4.6", answer: "SN", to: "4.11", description: "Not explained -> serious path to 4.11" },
+                    { from: "4.7", answer: "Y/PY", to: "4.8", description: "Imputation used -> check assumptions" },
+                    { from: "4.7", answer: "N/PN/NI", to: "4.10", description: "No imputation -> check alternative methods" },
+                    { from: "4.8", answer: "Y/PY", to: "4.9", description: "MAR/MCAR reasonable -> check appropriateness" },
+                    { from: "4.8", answer: "N/PN/NI", to: "SERIOUS", description: "MAR/MCAR not reasonable -> Serious risk" },
+                    { from: "4.9", answer: "Y/PY", to: "LOW", description: "Appropriate imputation -> Low risk" },
+                    { from: "4.9", answer: "WN/NI", to: "4.11", description: "Weakly appropriate -> moderate path to 4.11" },
+                    { from: "4.9", answer: "SN", to: "4.11", description: "Inappropriate -> serious path to 4.11" },
+                    { from: "4.10", answer: "Y/PY", to: "LOW", description: "Appropriate alternative -> Low risk" },
+                    { from: "4.10", answer: "WN/NI", to: "4.11", description: "Weak alternative -> moderate path to 4.11" },
+                    { from: "4.10", answer: "SN", to: "4.11", description: "No alternative -> serious path to 4.11" },
+                    { from: "4.11", answer: "Y/PY", to: "LOW/MODERATE", description: "Evidence of no bias -> Low or Moderate" },
+                    { from: "4.11", answer: "N/PN", to: "MODERATE/SERIOUS/CRITICAL", description: "No evidence -> depends on path" }
+                ],
+                outcomes: {
+                    "LOW": ["4.1-4.3=All Y/PY", "4.5=N/PN", "4.9=Y/PY", "4.10=Y/PY", "4.11=Y/PY on low path"],
+                    "MODERATE": ["4.6=Y/PY -> 4.11=N/PN", "4.6=WN/NI -> 4.11=Y/PY", "4.9/4.10=WN/NI -> 4.11=Y/PY"],
+                    "SERIOUS": ["4.8=N/PN/NI", "4.6=WN/NI -> 4.11=N/PN", "4.9/4.10=SN -> 4.11=Y/PY"],
+                    "CRITICAL": ["4.9=SN -> 4.11=N/PN", "4.10=SN -> 4.11=N/PN"]
+                }
+            },
+            "5": {
+                name: "Domain 5: Measurement of Outcome",
+                description: "Addresses bias from differential and non-differential measurement error of outcomes",
+                nodes: {
+                    "5.1": "Measurement of outcome differs by intervention group?",
+                    "5.2": "Outcome assessors aware of intervention received?",
+                    "5.3": "Assessment could be influenced by knowledge of intervention?"
+                },
+                paths: [
+                    { from: "START", answer: "", to: "5.1", description: "Begin assessment" },
+                    { from: "5.1", answer: "N/PN", to: "5.2", description: "No differential measurement -> check awareness" },
+                    { from: "5.1", answer: "NI", to: "5.2", description: "Unknown -> moderate path, check awareness" },
+                    { from: "5.1", answer: "Y/PY", to: "SERIOUS", description: "Differential measurement -> SERIOUS (SKIP 5.2, 5.3)" },
+                    { from: "5.2", answer: "N/PN", to: "LOW", description: "Not aware -> LOW (SKIP 5.3)" },
+                    { from: "5.2", answer: "Y/PY/NI", to: "5.3", description: "Aware or unknown -> check influence" },
+                    { from: "5.3", answer: "N/PN", to: "LOW", description: "Not influenced -> Low" },
+                    { from: "5.3", answer: "WY/NI", to: "MODERATE", description: "Possibly influenced -> Moderate" },
+                    { from: "5.3", answer: "SY", to: "SERIOUS", description: "Strongly influenced -> Serious" }
+                ],
+                outcomes: {
+                    "LOW": ["5.1=N/PN -> 5.2=N/PN", "5.1=N/PN -> 5.2=Y/PY/NI -> 5.3=N/PN"],
+                    "MODERATE": ["5.1=N/PN -> 5.2=Y/PY/NI -> 5.3=WY/NI", "5.1=NI -> 5.2=N/PN", "5.1=NI -> 5.2=Y/PY/NI -> 5.3=N/PN/WY/NI"],
+                    "SERIOUS": ["5.1=Y/PY (skip 5.2, 5.3)", "5.3=SY (from any path)"]
+                }
+            },
+            "6": {
+                name: "Domain 6: Selection of Reported Result",
+                description: "Addresses selective outcome reporting, selective analysis reporting, and selection of subgroups",
+                nodes: {
+                    "6.1": "Result reported according to pre-determined analysis plan?",
+                    "6.2": "Result selected from multiple outcome measurements?",
+                    "6.3": "Result selected from multiple analyses of the data?",
+                    "6.4": "Result selected from multiple subgroups?"
+                },
+                paths: [
+                    { from: "START", answer: "", to: "6.1", description: "Begin assessment" },
+                    { from: "6.1", answer: "Y/PY", to: "LOW", description: "Pre-determined plan -> LOW (SKIP 6.2-6.4)" },
+                    { from: "6.1", answer: "N/PN/NI", to: "6.2-6.4", description: "No plan -> answer 6.2, 6.3, AND 6.4" },
+                    { from: "6.2-6.4", answer: "All N/PN", to: "LOW", description: "No selection from any -> Low" },
+                    { from: "6.2-6.4", answer: "At least one NI, none Y/PY", to: "MODERATE", description: "Some uncertainty -> Moderate" },
+                    { from: "6.2-6.4", answer: "One Y/PY", to: "SERIOUS", description: "One selection -> Serious" },
+                    { from: "6.2-6.4", answer: "Two or more Y/PY", to: "CRITICAL", description: "Multiple selections -> Critical" }
+                ],
+                outcomes: {
+                    "LOW": ["6.1=Y/PY", "6.1=N/PN/NI AND 6.2,6.3,6.4=All N/PN"],
+                    "MODERATE": "6.1=N/PN/NI AND at least one 6.2/6.3/6.4=NI, none Y/PY",
+                    "SERIOUS": "6.1=N/PN/NI AND exactly one 6.2/6.3/6.4=Y/PY",
+                    "CRITICAL": "6.1=N/PN/NI AND two or more 6.2/6.3/6.4=Y/PY"
+                }
+            }
+        };
+
+        // Function to validate if a path follows the algorithm
+        function validatePath(domainId, answers, reportedPath) {
+            const algorithm = ALGORITHM_PATHS[domainId];
+            if (!algorithm) return { valid: true, message: "Algorithm not found for validation" };
+
+            const errors = [];
+            const warnings = [];
+            const answeredQuestions = Object.keys(answers).filter(k => answers[k] && answers[k] !== 'SKIP');
+
+            // Check if the path makes logical sense based on algorithm
+            if (domainId === '1A' || domainId === '1B') {
+                // Domain 1 validation
+                const q1 = answers['1.1'];
+                if (domainId === '1A') {
+                    if ((q1 === 'Y' || q1 === 'PY' || q1 === 'WN') && !answers['1.3']) {
+                        errors.push("1.1=" + q1 + " requires answering 1.3 next");
+                    }
+                    if ((q1 === 'SN' || q1 === 'NI') && answers['1.3'] && answers['1.3'] !== 'SKIP') {
+                        warnings.push("1.1=" + q1 + " should skip to 1.4, but 1.3 was answered");
+                    }
+                    if (!answers['1.4']) {
+                        errors.push("1.4 must always be answered as the final question");
+                    }
+                } else {
+                    // 1B
+                    if ((q1 === 'Y' || q1 === 'PY') && !answers['1.2']) {
+                        errors.push("1.1=" + q1 + " requires answering 1.2 next");
+                    }
+                    if ((q1 === 'N' || q1 === 'PN' || q1 === 'NI') && !answers['1.4']) {
+                        errors.push("1.1=" + q1 + " requires answering 1.4");
+                    }
+                    if (!answers['1.5']) {
+                        errors.push("1.5 must always be answered as the final question");
+                    }
+                }
+            } else if (domainId === '2') {
+                // Domain 2 validation
+                const q1 = answers['2.1'];
+                const q2 = answers['2.2'];
+                const q3 = answers['2.3'];
+                const q4 = answers['2.4'];
+
+                if ((q1 === 'Y' || q1 === 'PY') && (q2 && q2 !== 'SKIP' && q2 !== 'NA')) {
+                    warnings.push("2.1=" + q1 + " should skip 2.2, but it was answered");
+                }
+                if ((q1 === 'Y' || q1 === 'PY') && (q3 && q3 !== 'SKIP' && q3 !== 'NA')) {
+                    warnings.push("2.1=" + q1 + " should skip 2.3, but it was answered");
+                }
+                if (!answers['2.4']) {
+                    errors.push("2.4 must be answered");
+                }
+                if (q4 === 'SY' && answers['2.5'] && answers['2.5'] !== 'SKIP') {
+                    warnings.push("2.4=SY leads to Critical, 2.5 should be skipped");
+                }
+                if (q4 !== 'SY' && !answers['2.5']) {
+                    errors.push("2.4=" + q4 + " requires answering 2.5");
+                }
+            } else if (domainId === '5') {
+                // Domain 5 validation
+                const q1 = answers['5.1'];
+                const q2 = answers['5.2'];
+
+                if ((q1 === 'Y' || q1 === 'PY') && answers['5.2'] && answers['5.2'] !== 'SKIP') {
+                    warnings.push("5.1=" + q1 + " leads to Serious, 5.2 and 5.3 should be skipped");
+                }
+                if ((q1 === 'N' || q1 === 'PN' || q1 === 'NI') && !answers['5.2']) {
+                    errors.push("5.1=" + q1 + " requires answering 5.2");
+                }
+                if ((q2 === 'N' || q2 === 'PN') && answers['5.3'] && answers['5.3'] !== 'SKIP') {
+                    warnings.push("5.2=" + q2 + " leads to Low, 5.3 should be skipped");
+                }
+                if ((q2 === 'Y' || q2 === 'PY' || q2 === 'NI') && !answers['5.3']) {
+                    errors.push("5.2=" + q2 + " requires answering 5.3");
+                }
+            } else if (domainId === '6') {
+                // Domain 6 validation
+                const q1 = answers['6.1'];
+
+                if ((q1 === 'Y' || q1 === 'PY') && (answers['6.2'] && answers['6.2'] !== 'SKIP')) {
+                    warnings.push("6.1=" + q1 + " leads to Low, 6.2-6.4 should be skipped");
+                }
+                if ((q1 === 'N' || q1 === 'PN' || q1 === 'NI') && (!answers['6.2'] || !answers['6.3'] || !answers['6.4'])) {
+                    errors.push("6.1=" + q1 + " requires answering all of 6.2, 6.3, and 6.4");
+                }
+            }
+
+            return {
+                valid: errors.length === 0,
+                errors: errors,
+                warnings: warnings,
+                message: errors.length > 0 ?
+                    "Path validation failed: " + errors.join("; ") :
+                    (warnings.length > 0 ? "Path has warnings: " + warnings.join("; ") : "Path is valid")
+            };
+        }
+
+        // Generate complete algorithm path text for AI prompt
+        function generateAlgorithmPathsText(domainId) {
+            const alg = ALGORITHM_PATHS[domainId];
+            if (!alg) return "";
+
+            let text = `\n=== COMPLETE ALGORITHM PATHS for ${alg.name} ===\n`;
+            text += `${alg.description}\n\n`;
+
+            text += `QUESTIONS:\n`;
+            Object.entries(alg.nodes).forEach(([id, label]) => {
+                text += `  ${id}: ${label}\n`;
+            });
+
+            text += `\nVALID TRANSITIONS (must follow these paths):\n`;
+            alg.paths.forEach(p => {
+                if (p.answer) {
+                    text += `  ${p.from} [${p.answer}] -> ${p.to}: ${p.description}\n`;
+                } else {
+                    text += `  ${p.from} -> ${p.to}: ${p.description}\n`;
+                }
+            });
+
+            text += `\nOUTCOME PATHS:\n`;
+            Object.entries(alg.outcomes).forEach(([outcome, paths]) => {
+                if (Array.isArray(paths)) {
+                    text += `  ${outcome}:\n`;
+                    paths.forEach(p => text += `    - ${p}\n`);
+                } else {
+                    text += `  ${outcome}: ${paths}\n`;
+                }
+            });
+
+            return text;
+        }
+
         // ========== STATE ==========
         let projects = [];
         let currentProject = null;
@@ -1425,15 +1796,29 @@ Baseline BMI"></textarea>
 
             grid.innerHTML = domainIds.map(id => {
                 const domain = DOMAINS[id];
-                const result = data.domains?.[id]?.result;
+                const domainData = data.domains?.[id];
+                const result = domainData?.result;
                 const isLocked = !c4 && (id === '1A' || id === '1B');
+                const acceptedWithIssues = domainData?.acceptedWithIssues;
+                const validated = domainData?.validated;
+
+                let validationStatus = '';
+                if (result) {
+                    if (validated) {
+                        validationStatus = '<span style="color: var(--success); font-size: 11px; display: block; margin-top: 5px;">Path validated</span>';
+                    } else if (acceptedWithIssues) {
+                        validationStatus = '<span style="color: var(--warning); font-size: 11px; display: block; margin-top: 5px;">Accepted with issues</span>';
+                    }
+                }
 
                 return `
-                    <div class="domain-card ${result ? 'completed' : ''} ${isLocked ? 'locked' : ''}"
-                         onclick="${isLocked ? '' : `openDomain('${id}')`}">
+                    <div class="domain-card ${result ? 'completed' : ''} ${isLocked ? 'locked' : ''} ${acceptedWithIssues ? 'has-issues' : ''}"
+                         onclick="${isLocked ? '' : `openDomain('${id}')`}"
+                         style="${acceptedWithIssues ? 'border-color: var(--warning);' : ''}">
                         <h4>${domain.name}</h4>
                         <p>${domain.desc}</p>
                         ${result ? `<div class="bias-badge bias-${result.toLowerCase()}">${result}</div>` : ''}
+                        ${validationStatus}
                         ${isLocked ? '<p style="color: var(--warning); margin-top: 10px;">Complete C4 first</p>' : ''}
                     </div>
                 `;
@@ -1895,26 +2280,60 @@ Baseline BMI"></textarea>
 
             let text = `ROBINS-I V2 Assessment - Study: ${currentStudyId}\n\n`;
             text += `══════════════════════════════════════════════════════════════════\n`;
-            text += `IMPORTANT: Follow the decision paths below. Not all questions need to be answered.\n`;
-            text += `Based on your answer to one question, you may SKIP subsequent questions.\n`;
+            text += `CRITICAL INSTRUCTIONS:\n`;
+            text += `1. Follow the decision paths EXACTLY as specified below\n`;
+            text += `2. Not all questions need to be answered - some are SKIPPED based on previous answers\n`;
+            text += `3. You MUST validate your path against the algorithm before responding\n`;
+            text += `4. Include the complete path you took in your response\n`;
+            text += `5. If your path doesn't match a valid algorithm path, explain why\n`;
             text += `══════════════════════════════════════════════════════════════════\n\n`;
-            text += `Response codes: Y (Yes), PY (Probably Yes), N (No), PN (Probably No),\n`;
-            text += `NI (No Information), WN (Weak No), SN (Strong No), WY (Weak Yes), SY (Strong Yes), NA (Not Applicable)\n\n`;
+            text += `Response codes:\n`;
+            text += `  Y = Yes, PY = Probably Yes, N = No, PN = Probably No\n`;
+            text += `  NI = No Information, WN = Weak No, SN = Strong No\n`;
+            text += `  WY = Weak Yes, SY = Strong Yes, NA = Not Applicable\n\n`;
 
             domainIds.forEach(id => {
                 const d = DOMAINS[id];
                 const paths = DECISION_PATHS[id];
+                const algPaths = ALGORITHM_PATHS[id];
+
                 text += `════════════════════════════════════════════════════════════════\n`;
                 text += `${d.name}\n`;
                 text += `════════════════════════════════════════════════════════════════\n\n`;
 
-                text += `📋 DECISION PATH RULES:\n`;
+                // Add complete algorithm paths from JSON
+                if (algPaths) {
+                    text += `📊 ALGORITHM DESCRIPTION:\n`;
+                    text += `${algPaths.description}\n\n`;
+
+                    text += `🔀 VALID TRANSITIONS (MUST FOLLOW):\n`;
+                    algPaths.paths.forEach(p => {
+                        if (p.answer) {
+                            text += `   ${p.from} [${p.answer}] → ${p.to}\n`;
+                            text += `      (${p.description})\n`;
+                        }
+                    });
+                    text += `\n`;
+
+                    text += `🎯 OUTCOME PATHS:\n`;
+                    Object.entries(algPaths.outcomes).forEach(([outcome, pathList]) => {
+                        if (Array.isArray(pathList)) {
+                            text += `   ${outcome}:\n`;
+                            pathList.forEach(p => text += `      - ${p}\n`);
+                        } else {
+                            text += `   ${outcome}: ${pathList}\n`;
+                        }
+                    });
+                    text += `\n`;
+                }
+
+                text += `📋 DECISION PATH SUMMARY:\n`;
                 paths.rules.forEach(rule => {
                     text += `${rule}\n`;
                 });
                 text += `\n`;
 
-                text += `📝 QUESTIONS:\n`;
+                text += `📝 QUESTIONS (answer only those required by your path):\n`;
                 d.questions.forEach(q => {
                     text += `${q.id}. ${q.text}\n`;
                     text += `    Options: ${q.options.join(', ')}\n\n`;
@@ -1923,25 +2342,55 @@ Baseline BMI"></textarea>
             });
 
             text += `════════════════════════════════════════════════════════════════\n`;
-            text += `JSON RESPONSE FORMAT\n`;
+            text += `JSON RESPONSE FORMAT (REQUIRED)\n`;
             text += `════════════════════════════════════════════════════════════════\n\n`;
-            text += `Respond with a JSON array. For each domain, include ONLY the questions you answered.\n`;
-            text += `Use "SKIP" for questions that were skipped based on the decision path.\n\n`;
+            text += `Respond with a JSON array. For each domain:\n`;
+            text += `1. Include ONLY the questions you answered based on the algorithm path\n`;
+            text += `2. Use "SKIP" for questions that were skipped based on the decision path\n`;
+            text += `3. Include "path" field showing the exact path taken with arrows\n`;
+            text += `4. Include "pathValid" field (true/false) to confirm path follows algorithm\n`;
+            text += `5. If pathValid=false, include "pathIssue" explaining the deviation\n\n`;
             text += `Example:\n`;
             text += `[\n`;
-            text += `  {"domain": "${variant}", "answers": {"1.1": "Y", "1.3": "N", "1.2": "Y", "1.4": "N"}, "path": "1.1=Y → 1.3=N → 1.2=Y → 1.4=N → Low"},\n`;
-            text += `  {"domain": "2", "answers": {"2.1": "Y", "2.4": "N", "2.5": "N"}, "path": "2.1=Y → skip 2.2,2.3 → 2.4=N → 2.5=N → Low"},\n`;
-            text += `  {"domain": "5", "answers": {"5.1": "Y"}, "path": "5.1=Y → Serious (skip 5.2, 5.3)"},\n`;
-            text += `  ...\n`;
-            text += `]\n`;
+            text += `  {\n`;
+            text += `    "domain": "${variant}",\n`;
+            text += `    "answers": {"1.1": "Y", "1.3": "N", "1.2": "Y", "1.4": "N"},\n`;
+            text += `    "path": "START → 1.1=Y → 1.3=N → 1.2=Y → 1.4=N → Low",\n`;
+            text += `    "pathValid": true,\n`;
+            text += `    "result": "Low"\n`;
+            text += `  },\n`;
+            text += `  {\n`;
+            text += `    "domain": "2",\n`;
+            text += `    "answers": {"2.1": "Y", "2.2": "SKIP", "2.3": "SKIP", "2.4": "N", "2.5": "N"},\n`;
+            text += `    "path": "START → 2.1=Y → SKIP 2.2,2.3 → 2.4=N → 2.5=N → Low",\n`;
+            text += `    "pathValid": true,\n`;
+            text += `    "result": "Low"\n`;
+            text += `  },\n`;
+            text += `  {\n`;
+            text += `    "domain": "5",\n`;
+            text += `    "answers": {"5.1": "Y", "5.2": "SKIP", "5.3": "SKIP"},\n`;
+            text += `    "path": "START → 5.1=Y → Serious (SKIP 5.2, 5.3)",\n`;
+            text += `    "pathValid": true,\n`;
+            text += `    "result": "Serious"\n`;
+            text += `  }\n`;
+            text += `]\n\n`;
+            text += `VALIDATION CHECKLIST:\n`;
+            text += `- Did you follow the exact transitions specified in VALID TRANSITIONS?\n`;
+            text += `- Did you skip questions that should be skipped based on previous answers?\n`;
+            text += `- Does your final result match one of the OUTCOME PATHS?\n`;
+            text += `- If any answer doesn't lead to a valid outcome path, flag it in pathIssue\n`;
 
             document.getElementById('questionsOutput').value = text;
             navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'));
         }
 
+        // Store pending validations for redo/continue decisions
+        let pendingValidations = [];
+
         function processAIResponse() {
             const input = document.getElementById('aiResponseInput').value.trim();
             const alertEl = document.getElementById('aiAlert');
+            pendingValidations = [];
 
             try {
                 let responses = JSON.parse(input);
@@ -1949,6 +2398,7 @@ Baseline BMI"></textarea>
 
                 const data = getStudyData();
                 let processed = 0;
+                let validationResults = [];
 
                 responses.forEach(r => {
                     const domain = DOMAINS[r.domain];
@@ -1959,19 +2409,155 @@ Baseline BMI"></textarea>
                         answers[qid] = ans.toUpperCase();
                     });
 
-                    const result = domain.algorithm(answers);
-                    data.domains[r.domain] = { answers, result };
-                    processed++;
+                    // Validate the path against the algorithm
+                    const validation = validatePath(r.domain, answers, r.path || '');
+
+                    // Check if AI reported path validity
+                    const aiReportedValid = r.pathValid !== false;
+                    const aiPathIssue = r.pathIssue || null;
+
+                    // Calculate the result using the algorithm
+                    const calculatedResult = domain.algorithm(answers);
+
+                    // Check if AI's result matches calculated result
+                    const aiResult = r.result ? r.result.charAt(0).toUpperCase() + r.result.slice(1).toLowerCase() : null;
+                    const resultMatch = !aiResult || aiResult === calculatedResult;
+
+                    validationResults.push({
+                        domain: r.domain,
+                        answers: answers,
+                        calculatedResult: calculatedResult,
+                        aiResult: aiResult,
+                        resultMatch: resultMatch,
+                        validation: validation,
+                        aiReportedValid: aiReportedValid,
+                        aiPathIssue: aiPathIssue,
+                        path: r.path || 'Not provided'
+                    });
                 });
 
-                saveProjects();
-                loadDomainsData();
+                // Check for any validation issues
+                const hasErrors = validationResults.some(v => !v.validation.valid || !v.resultMatch);
+                const hasWarnings = validationResults.some(v => v.validation.warnings.length > 0 || !v.aiReportedValid);
 
-                alertEl.innerHTML = `<div class="alert alert-success" style="margin-top: 15px;">Processed ${processed} domain(s) successfully!</div>`;
-                document.getElementById('aiResponseInput').value = '';
+                if (hasErrors || hasWarnings) {
+                    // Show validation report with options
+                    let html = `<div class="card" style="margin-top: 15px; border-color: ${hasErrors ? 'var(--danger)' : 'var(--warning)'};">`;
+                    html += `<h3 style="color: ${hasErrors ? 'var(--danger)' : 'var(--warning)'};">Path Validation Report</h3>`;
+
+                    validationResults.forEach((v, idx) => {
+                        const domainName = DOMAINS[v.domain]?.name || v.domain;
+                        const hasIssue = !v.validation.valid || v.validation.warnings.length > 0 || !v.resultMatch || !v.aiReportedValid;
+
+                        html += `<div style="margin-bottom: 15px; padding: 15px; background: var(--bg-input); border-radius: 8px; border-left: 4px solid ${!v.validation.valid || !v.resultMatch ? 'var(--danger)' : (v.validation.warnings.length > 0 ? 'var(--warning)' : 'var(--success)')};">`;
+                        html += `<h4 style="margin-bottom: 10px;">${domainName}</h4>`;
+                        html += `<p><strong>Path taken:</strong> ${v.path}</p>`;
+                        html += `<p><strong>Calculated result:</strong> ${v.calculatedResult}</p>`;
+
+                        if (v.aiResult && !v.resultMatch) {
+                            html += `<p style="color: var(--danger);"><strong>AI reported:</strong> ${v.aiResult} (MISMATCH!)</p>`;
+                        }
+
+                        if (!v.aiReportedValid && v.aiPathIssue) {
+                            html += `<p style="color: var(--warning);"><strong>AI flagged issue:</strong> ${v.aiPathIssue}</p>`;
+                        }
+
+                        if (v.validation.errors.length > 0) {
+                            html += `<p style="color: var(--danger);"><strong>Path Errors:</strong></p><ul style="margin-left: 20px;">`;
+                            v.validation.errors.forEach(e => html += `<li style="color: var(--danger);">${e}</li>`);
+                            html += `</ul>`;
+                        }
+
+                        if (v.validation.warnings.length > 0) {
+                            html += `<p style="color: var(--warning);"><strong>Warnings:</strong></p><ul style="margin-left: 20px;">`;
+                            v.validation.warnings.forEach(w => html += `<li style="color: var(--warning);">${w}</li>`);
+                            html += `</ul>`;
+                        }
+
+                        if (!hasIssue) {
+                            html += `<p style="color: var(--success);">Path validated successfully</p>`;
+                        }
+
+                        html += `</div>`;
+                    });
+
+                    // Store pending validations for potential save
+                    pendingValidations = validationResults;
+
+                    html += `<div class="btn-group" style="margin-top: 15px;">`;
+                    html += `<button class="btn btn-warning" onclick="redoAIAssessment()">Redo Assessment</button>`;
+                    html += `<button class="btn btn-success" onclick="acceptAIAssessment()">Accept Anyway</button>`;
+                    html += `</div>`;
+                    html += `</div>`;
+
+                    alertEl.innerHTML = html;
+                } else {
+                    // All validations passed - save directly
+                    validationResults.forEach(v => {
+                        data.domains[v.domain] = {
+                            answers: v.answers,
+                            result: v.calculatedResult,
+                            path: v.path,
+                            validated: true
+                        };
+                        processed++;
+                    });
+
+                    saveProjects();
+                    loadDomainsData();
+
+                    alertEl.innerHTML = `<div class="alert alert-success" style="margin-top: 15px;">
+                        <strong>All paths validated successfully!</strong><br>
+                        Processed ${processed} domain(s).
+                    </div>`;
+                    document.getElementById('aiResponseInput').value = '';
+                }
             } catch (err) {
                 alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 15px;">Error: ${err.message}</div>`;
             }
+        }
+
+        function redoAIAssessment() {
+            const alertEl = document.getElementById('aiAlert');
+            pendingValidations = [];
+            alertEl.innerHTML = `<div class="alert alert-info" style="margin-top: 15px;">
+                Please redo the AI assessment. The previous response was not saved.<br>
+                Check the algorithm paths and try again.
+            </div>`;
+        }
+
+        function acceptAIAssessment() {
+            if (pendingValidations.length === 0) {
+                alert('No pending validations to accept');
+                return;
+            }
+
+            const data = getStudyData();
+            let processed = 0;
+
+            pendingValidations.forEach(v => {
+                data.domains[v.domain] = {
+                    answers: v.answers,
+                    result: v.calculatedResult,
+                    path: v.path,
+                    validated: false,
+                    validationWarnings: v.validation.warnings,
+                    validationErrors: v.validation.errors,
+                    acceptedWithIssues: true
+                };
+                processed++;
+            });
+
+            saveProjects();
+            loadDomainsData();
+            pendingValidations = [];
+
+            const alertEl = document.getElementById('aiAlert');
+            alertEl.innerHTML = `<div class="alert alert-warning" style="margin-top: 15px;">
+                <strong>Accepted with validation issues</strong><br>
+                Processed ${processed} domain(s). Note: Some paths had validation warnings/errors that were overridden.
+            </div>`;
+            document.getElementById('aiResponseInput').value = '';
         }
 
         // ========== RESULTS ==========
