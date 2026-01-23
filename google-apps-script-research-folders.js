@@ -240,6 +240,20 @@ function createProjectFolderStructure(projectTitle) {
       url: supplementary.getUrl()
     };
 
+    const manuscript = submission.createFolder('MANUSCRIPT');
+    manuscript.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+    subfolders['SUBMISSION'].subfolders['MANUSCRIPT'] = {
+      id: manuscript.getId(),
+      url: manuscript.getUrl()
+    };
+
+    const coverLetter = submission.createFolder('COVER LETTER');
+    coverLetter.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+    subfolders['SUBMISSION'].subfolders['COVER LETTER'] = {
+      id: coverLetter.getId(),
+      url: coverLetter.getUrl()
+    };
+
     return {
       success: true,
       folderStructure: {
