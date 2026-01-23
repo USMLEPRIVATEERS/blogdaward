@@ -517,8 +517,36 @@ Smith et al. 2023"></textarea>
                             <h3>Overall Risk of Bias</h3>
                             <div class="result" id="overallResult">-</div>
                         </div>
+                    </div>
 
-                        <div class="nav-bar">
+                    <!-- AI-Assisted Assessment Section -->
+                    <div class="card">
+                        <h3>AI-Assisted Assessment</h3>
+
+                        <div class="tabs">
+                            <button class="tab-btn active" onclick="switchAITab('copy')">Copy Questions</button>
+                            <button class="tab-btn" onclick="switchAITab('paste')">Paste AI Response</button>
+                        </div>
+
+                        <div id="ai-tab-copy" class="tab-content active">
+                            <p style="margin-bottom: 15px;">Copy all domain questions to use with an AI assistant (e.g., ChatGPT, Claude). The AI will return a JSON response that you can paste back.</p>
+                            <div class="btn-group" style="margin-top:0">
+                                <button class="btn btn-primary" onclick="copyAllQuestions()">Copy All Questions</button>
+                            </div>
+                            <textarea id="questionsOutput" readonly style="margin-top: 15px; height: 200px;" placeholder="Questions will appear here after clicking the button..."></textarea>
+                        </div>
+
+                        <div id="ai-tab-paste" class="tab-content" style="display: none;">
+                            <p style="margin-bottom: 10px;">Paste the AI's JSON response below:</p>
+                            <pre style="background: var(--bg-input); padding: 10px; border-radius: 6px; font-size: 11px; margin-bottom: 15px; overflow-x: auto; white-space: pre-wrap;">[{"domain": "1", "answers": {"1.1": "Y", "1.2": "Y", "1.3": "N"}, "result": "Low"}, ...]</pre>
+                            <textarea id="aiResponseInput" style="height: 150px;" placeholder="Paste JSON here..."></textarea>
+                            <button class="btn btn-primary" style="margin-top: 15px;" onclick="processAIResponse()">Process Response</button>
+                            <div id="aiAlert"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="nav-bar" style="margin-top: 0; padding-top: 0; border-top: none;">
                             <button class="btn btn-secondary" onclick="goToStep('variant')">Back</button>
                             <button class="btn btn-success" onclick="showResults()">View All Results</button>
                         </div>
@@ -1520,6 +1548,349 @@ Smith et al. 2023"></textarea>
             link.download = `${filename}.png`;
             link.href = canvas.toDataURL('image/png');
             link.click();
+        }
+
+        // ========== AI-ASSISTED ASSESSMENT ==========
+
+        // Decision paths for each domain based on RoB 2 algorithm
+        const DECISION_PATHS = {
+            "1": {
+                description: "Bias arising from the randomization process",
+                rules: [
+                    "Start with 1.1 (Was the allocation sequence random?)",
+                    "• If 1.1 = Y/PY/NI → Go to 1.2 (allocation concealed)",
+                    "• If 1.1 = N/PN → Go to 1.2 (allocation concealed)",
+                    "",
+                    "For 1.2 (Was the allocation sequence concealed?):",
+                    "• If 1.2 = Y/PY → Go to 1.3",
+                    "• If 1.2 = NI → Go to 1.3 (Some concerns or High risk path)",
+                    "• If 1.2 = N/PN → HIGH RISK (stop, no need for 1.3)",
+                    "",
+                    "For 1.3 (Did baseline differences suggest a problem?):",
+                    "• If 1.3 = N/PN/NI (with 1.1=Y/PY and 1.2=Y/PY) → LOW RISK",
+                    "• If 1.3 = Y/PY (with 1.1=Y/PY and 1.2=Y/PY) → SOME CONCERNS",
+                    "• If 1.3 = Y/PY (with 1.2=NI) → HIGH RISK",
+                    "• If 1.3 = N/PN/NI (with 1.2=NI) → SOME CONCERNS"
+                ]
+            },
+            "2A": {
+                description: "Bias due to deviations from intended interventions (effect of assignment to intervention)",
+                rules: [
+                    "This domain has TWO PARTS that are combined.",
+                    "",
+                    "PART 1 - Deviations (Questions 2.1 to 2.5):",
+                    "Start with 2.1 and 2.2 (Were participants/carers aware?):",
+                    "• If BOTH 2.1 AND 2.2 = N/PN → Part 1 = LOW RISK (skip 2.3-2.5)",
+                    "• If EITHER 2.1 OR 2.2 = Y/PY/NI → Go to 2.3",
+                    "",
+                    "For 2.3 (Were there deviations because of trial context?):",
+                    "• If 2.3 = N/PN → Part 1 = LOW RISK",
+                    "• If 2.3 = NI → Part 1 = SOME CONCERNS",
+                    "• If 2.3 = Y/PY → Go to 2.4",
+                    "",
+                    "For 2.4 (Were deviations likely to affect outcome?):",
+                    "• If 2.4 = N/PN → Part 1 = SOME CONCERNS",
+                    "• If 2.4 = Y/PY/NI → Go to 2.5",
+                    "",
+                    "For 2.5 (Were deviations balanced between groups?):",
+                    "• If 2.5 = Y/PY → Part 1 = SOME CONCERNS",
+                    "• If 2.5 = N/PN/NI → Part 1 = HIGH RISK",
+                    "",
+                    "PART 2 - Analysis (Questions 2.6 and 2.7):",
+                    "Start with 2.6 (Was appropriate analysis used?):",
+                    "• If 2.6 = Y/PY → Part 2 = LOW RISK",
+                    "• If 2.6 = N/PN/NI → Go to 2.7",
+                    "",
+                    "For 2.7 (Potential for substantial impact?):",
+                    "• If 2.7 = N/PN → Part 2 = SOME CONCERNS",
+                    "• If 2.7 = Y/PY/NI → Part 2 = HIGH RISK",
+                    "",
+                    "DOMAIN RESULT = worst of Part 1 and Part 2"
+                ]
+            },
+            "2B": {
+                description: "Bias due to deviations from intended interventions (effect of adhering to intervention)",
+                rules: [
+                    "Start with 2.1 and 2.2 (Were participants/carers aware?):",
+                    "• If BOTH 2.1 AND 2.2 = N/PN → Go to 2.4 and 2.5 directly",
+                    "• If EITHER 2.1 OR 2.2 = Y/PY/NI → Go to 2.3",
+                    "",
+                    "For 2.3 (Were important non-protocol interventions balanced?):",
+                    "• If 2.3 = Y/PY/NA → Go to 2.4, 2.5",
+                    "• If 2.3 = N/PN/NI → Go to 2.6 (needs appropriate analysis)",
+                    "",
+                    "For 2.4 and 2.5 (Failures in implementation / Non-adherence?):",
+                    "• If BOTH 2.4 AND 2.5 = N/PN/NA → LOW RISK",
+                    "• If EITHER 2.4 OR 2.5 = Y/PY/NI → Go to 2.6",
+                    "",
+                    "For 2.6 (Was appropriate analysis used?):",
+                    "• If 2.6 = Y/PY → SOME CONCERNS",
+                    "• If 2.6 = N/PN/NI → HIGH RISK"
+                ]
+            },
+            "3": {
+                description: "Bias due to missing outcome data",
+                rules: [
+                    "Start with 3.1 (Were data available for all/nearly all participants?):",
+                    "• If 3.1 = Y/PY → LOW RISK (stop)",
+                    "• If 3.1 = N/PN/NI → Go to 3.2",
+                    "",
+                    "For 3.2 (Is there evidence result was not biased?):",
+                    "• If 3.2 = Y/PY → LOW RISK",
+                    "• If 3.2 = N/PN → Go to 3.3",
+                    "",
+                    "For 3.3 (Could missingness depend on its true value?):",
+                    "• If 3.3 = N/PN → LOW RISK",
+                    "• If 3.3 = Y/PY/NI → Go to 3.4",
+                    "",
+                    "For 3.4 (Is it likely that missingness depended on true value?):",
+                    "• If 3.4 = N/PN → SOME CONCERNS",
+                    "• If 3.4 = Y/PY/NI → HIGH RISK"
+                ]
+            },
+            "4": {
+                description: "Bias in measurement of the outcome",
+                rules: [
+                    "Start with 4.1 (Was the method of measuring inappropriate?):",
+                    "• If 4.1 = Y/PY → HIGH RISK (stop)",
+                    "• If 4.1 = N/PN/NI → Go to 4.2",
+                    "",
+                    "For 4.2 (Could measurement differ between groups?):",
+                    "• If 4.2 = Y/PY → HIGH RISK (stop)",
+                    "• If 4.2 = N/PN → Go to 4.3 (Low risk path)",
+                    "• If 4.2 = NI → Go to 4.3 (Some concerns path)",
+                    "",
+                    "For 4.3 (Were outcome assessors aware of intervention?):",
+                    "• If 4.3 = N/PN → LOW RISK (or SOME CONCERNS if 4.2=NI)",
+                    "• If 4.3 = Y/PY/NI → Go to 4.4",
+                    "",
+                    "For 4.4 (Could assessment be influenced by knowledge?):",
+                    "• If 4.4 = N/PN → LOW RISK (or SOME CONCERNS if 4.2=NI)",
+                    "• If 4.4 = Y/PY/NI → Go to 4.5",
+                    "",
+                    "For 4.5 (Is it likely assessment was influenced?):",
+                    "• If 4.5 = N/PN → SOME CONCERNS",
+                    "• If 4.5 = Y/PY/NI → HIGH RISK"
+                ]
+            },
+            "5": {
+                description: "Bias in selection of the reported result",
+                rules: [
+                    "Answer 5.1, 5.2, and 5.3 in any order.",
+                    "",
+                    "For 5.2 and 5.3 (Was result selected from multiple outcomes/analyses?):",
+                    "• If EITHER 5.2 OR 5.3 = Y/PY → HIGH RISK",
+                    "• If BOTH 5.2 AND 5.3 = N/PN → Check 5.1",
+                    "• If at least one is NI (but neither Y/PY) → SOME CONCERNS",
+                    "",
+                    "For 5.1 (Analysed according to pre-specified plan?):",
+                    "• If 5.1 = Y/PY (with 5.2=N/PN and 5.3=N/PN) → LOW RISK",
+                    "• If 5.1 = N/PN/NI (with 5.2=N/PN and 5.3=N/PN) → SOME CONCERNS"
+                ]
+            }
+        };
+
+        function switchAITab(tab) {
+            document.querySelectorAll('.card .tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.card .tab-content').forEach(content => content.style.display = 'none');
+
+            if (tab === 'copy') {
+                document.getElementById('ai-tab-copy').style.display = 'block';
+                document.querySelector('[onclick="switchAITab(\'copy\')"]').classList.add('active');
+            } else {
+                document.getElementById('ai-tab-paste').style.display = 'block';
+                document.querySelector('[onclick="switchAITab(\'paste\')"]').classList.add('active');
+            }
+        }
+
+        function copyAllQuestions() {
+            const study = projects[currentProject].studies[currentStudyIndex];
+            const variant = study.variant || 'assignment';
+            const domain2Key = variant === 'assignment' ? '2A' : '2B';
+            const domainIds = ['1', domain2Key, '3', '4', '5'];
+
+            let text = `RoB 2 Assessment - Risk of Bias Tool for Randomized Trials\n`;
+            text += `Study: ${study.id}\n`;
+            text += `Outcome: ${study.info.outcome || 'Not specified'}\n`;
+            text += `Domain 2 variant: ${variant === 'assignment' ? 'Effect of Assignment (ITT)' : 'Effect of Adhering (Per-Protocol)'}\n\n`;
+
+            text += `══════════════════════════════════════════════════════════════════\n`;
+            text += `CRITICAL INSTRUCTIONS:\n`;
+            text += `══════════════════════════════════════════════════════════════════\n`;
+            text += `1. Follow the decision paths EXACTLY as specified below\n`;
+            text += `2. Not all questions need to be answered - some are SKIPPED based on previous answers\n`;
+            text += `3. Use "NA" for questions that should be skipped based on the path\n`;
+            text += `4. Include the path you took in your response\n\n`;
+
+            text += `Response codes:\n`;
+            text += `  Y = Yes, PY = Probably Yes, N = No, PN = Probably No\n`;
+            text += `  NI = No Information, NA = Not Applicable (for skipped questions)\n\n`;
+
+            text += `Risk levels: Low risk | Some concerns | High risk\n\n`;
+
+            domainIds.forEach(id => {
+                const d = DOMAINS[id];
+                const paths = DECISION_PATHS[id];
+
+                text += `════════════════════════════════════════════════════════════════\n`;
+                text += `DOMAIN ${id.replace('A', ' (Assignment)').replace('B', ' (Adhering)')}: ${d.name}\n`;
+                text += `════════════════════════════════════════════════════════════════\n\n`;
+
+                text += `📊 ALGORITHM DESCRIPTION:\n`;
+                text += `${paths.description}\n\n`;
+
+                text += `📋 DECISION PATH RULES:\n`;
+                paths.rules.forEach(rule => {
+                    text += `${rule}\n`;
+                });
+                text += `\n`;
+
+                text += `📝 SIGNALLING QUESTIONS:\n`;
+                d.questions.forEach(q => {
+                    text += `${q.id}. ${q.text}\n`;
+                    text += `    Options: ${q.options.join(', ')}\n\n`;
+                });
+                text += `\n`;
+            });
+
+            text += `════════════════════════════════════════════════════════════════\n`;
+            text += `JSON RESPONSE FORMAT (REQUIRED)\n`;
+            text += `════════════════════════════════════════════════════════════════\n\n`;
+            text += `Respond with a JSON array. For each domain:\n`;
+            text += `1. Include answers for all questions (use "NA" for skipped questions)\n`;
+            text += `2. Include "path" field showing the decision path taken\n`;
+            text += `3. Include "result" field with the risk level\n\n`;
+
+            text += `Example:\n`;
+            text += `[\n`;
+            text += `  {\n`;
+            text += `    "domain": "1",\n`;
+            text += `    "answers": {"1.1": "Y", "1.2": "Y", "1.3": "N"},\n`;
+            text += `    "path": "1.1=Y → 1.2=Y → 1.3=N → Low",\n`;
+            text += `    "result": "Low"\n`;
+            text += `  },\n`;
+            text += `  {\n`;
+            text += `    "domain": "${domain2Key}",\n`;
+            text += `    "answers": {"2.1": "N", "2.2": "N", "2.3": "NA", "2.4": "NA", "2.5": "NA", "2.6": "Y", "2.7": "NA"},\n`;
+            text += `    "path": "2.1=N, 2.2=N (both blinded) → Part 1 Low; 2.6=Y → Part 2 Low → Low",\n`;
+            text += `    "result": "Low"\n`;
+            text += `  },\n`;
+            text += `  {\n`;
+            text += `    "domain": "3",\n`;
+            text += `    "answers": {"3.1": "Y", "3.2": "NA", "3.3": "NA", "3.4": "NA"},\n`;
+            text += `    "path": "3.1=Y → Low (complete data)",\n`;
+            text += `    "result": "Low"\n`;
+            text += `  },\n`;
+            text += `  {\n`;
+            text += `    "domain": "4",\n`;
+            text += `    "answers": {"4.1": "N", "4.2": "N", "4.3": "N", "4.4": "NA", "4.5": "NA"},\n`;
+            text += `    "path": "4.1=N → 4.2=N → 4.3=N → Low (blinded assessors)",\n`;
+            text += `    "result": "Low"\n`;
+            text += `  },\n`;
+            text += `  {\n`;
+            text += `    "domain": "5",\n`;
+            text += `    "answers": {"5.1": "Y", "5.2": "N", "5.3": "N"},\n`;
+            text += `    "path": "5.2=N, 5.3=N, 5.1=Y → Low",\n`;
+            text += `    "result": "Low"\n`;
+            text += `  }\n`;
+            text += `]\n`;
+
+            document.getElementById('questionsOutput').value = text;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Prompt copied to clipboard! Paste it in your AI assistant.');
+            }).catch(() => {
+                alert('Could not copy to clipboard. Please select and copy the text manually.');
+            });
+        }
+
+        function processAIResponse() {
+            const input = document.getElementById('aiResponseInput').value.trim();
+            const alertEl = document.getElementById('aiAlert');
+
+            if (!input) {
+                alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 15px;">Please paste the AI's JSON response first.</div>`;
+                return;
+            }
+
+            try {
+                let responses = JSON.parse(input);
+                if (!Array.isArray(responses)) responses = [responses];
+
+                const study = projects[currentProject].studies[currentStudyIndex];
+                const variant = study.variant || 'assignment';
+                let processed = 0;
+                let errors = [];
+
+                responses.forEach(r => {
+                    // Map domain from response to our domain keys
+                    let domainKey = r.domain;
+                    if (domainKey === '2') {
+                        domainKey = variant === 'assignment' ? '2A' : '2B';
+                    }
+
+                    const domain = DOMAINS[domainKey];
+                    if (!domain) {
+                        errors.push(`Unknown domain: ${r.domain}`);
+                        return;
+                    }
+
+                    // Process answers
+                    const answers = {};
+                    if (r.answers) {
+                        Object.entries(r.answers).forEach(([qid, ans]) => {
+                            if (ans && ans.toUpperCase() !== 'NA') {
+                                answers[qid] = ans.toUpperCase();
+                            }
+                        });
+                    }
+
+                    // Save to study
+                    if (!study.domains[domainKey]) study.domains[domainKey] = {};
+                    study.domains[domainKey] = answers;
+
+                    // Calculate result using our algorithm
+                    const calculatedResult = domain.algorithm(answers);
+                    const aiResult = r.result ? r.result.charAt(0).toUpperCase() + r.result.slice(1).toLowerCase() : null;
+
+                    // Check if results match
+                    if (aiResult && aiResult !== calculatedResult) {
+                        errors.push(`Domain ${r.domain}: AI said "${aiResult}" but algorithm says "${calculatedResult}"`);
+                    }
+
+                    processed++;
+                });
+
+                saveProjects();
+                renderDomainGrid();
+
+                if (errors.length > 0) {
+                    alertEl.innerHTML = `
+                        <div class="alert alert-warning" style="margin-top: 15px;">
+                            <strong>Processed ${processed} domain(s) with warnings:</strong>
+                            <ul style="margin: 10px 0 0 20px;">
+                                ${errors.map(e => `<li>${e}</li>`).join('')}
+                            </ul>
+                            <p style="margin-top: 10px;">The algorithm's calculated results have been saved.</p>
+                        </div>
+                    `;
+                } else {
+                    alertEl.innerHTML = `
+                        <div class="alert alert-success" style="margin-top: 15px;">
+                            Successfully processed ${processed} domain(s)! All domains have been updated.
+                        </div>
+                    `;
+                }
+
+                document.getElementById('aiResponseInput').value = '';
+
+            } catch (err) {
+                alertEl.innerHTML = `
+                    <div class="alert alert-danger" style="margin-top: 15px;">
+                        <strong>Error parsing JSON:</strong> ${err.message}
+                        <p style="margin-top: 10px;">Make sure the AI's response is valid JSON format.</p>
+                    </div>
+                `;
+            }
         }
     </script>
 </body>
