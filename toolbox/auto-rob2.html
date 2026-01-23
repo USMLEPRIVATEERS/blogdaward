@@ -1803,9 +1803,208 @@ Smith et al. 2023"></textarea>
             });
         }
 
+        // ========== PATH VALIDATION ==========
+
+        // Valid paths for each domain based on RoB 2 algorithm
+        const VALID_PATHS = {
+            "1": {
+                description: "Domain 1: Bias arising from the randomization process",
+                rules: [
+                    { condition: "1.1=Y/PY/NI AND 1.2=Y/PY AND 1.3=N/PN/NI", result: "Low" },
+                    { condition: "1.1=Y/PY AND 1.2=Y/PY AND 1.3=Y/PY", result: "Some concerns" },
+                    { condition: "1.1=N/PN/NI AND 1.2=Y/PY", result: "Some concerns" },
+                    { condition: "Any AND 1.2=NI AND 1.3=N/PN/NI", result: "Some concerns" },
+                    { condition: "Any AND 1.2=NI AND 1.3=Y/PY", result: "High" },
+                    { condition: "Any AND 1.2=N/PN", result: "High" }
+                ],
+                requiredQuestions: ["1.1", "1.2", "1.3"]
+            },
+            "2A": {
+                description: "Domain 2 (Assignment): Bias due to deviations from intended interventions",
+                part1Rules: [
+                    { condition: "2.1=N/PN AND 2.2=N/PN", result: "Low", skip: ["2.3", "2.4", "2.5"] },
+                    { condition: "(2.1=Y/PY/NI OR 2.2=Y/PY/NI) AND 2.3=N/PN", result: "Low", skip: ["2.4", "2.5"] },
+                    { condition: "(2.1=Y/PY/NI OR 2.2=Y/PY/NI) AND 2.3=NI", result: "Some concerns", skip: ["2.4", "2.5"] },
+                    { condition: "(2.1=Y/PY/NI OR 2.2=Y/PY/NI) AND 2.3=Y/PY AND 2.4=N/PN", result: "Some concerns", skip: ["2.5"] },
+                    { condition: "(2.1=Y/PY/NI OR 2.2=Y/PY/NI) AND 2.3=Y/PY AND 2.4=Y/PY/NI AND 2.5=Y/PY", result: "Some concerns" },
+                    { condition: "(2.1=Y/PY/NI OR 2.2=Y/PY/NI) AND 2.3=Y/PY AND 2.4=Y/PY/NI AND 2.5=N/PN/NI", result: "High" }
+                ],
+                part2Rules: [
+                    { condition: "2.6=Y/PY", result: "Low", skip: ["2.7"] },
+                    { condition: "2.6=N/PN/NI AND 2.7=N/PN", result: "Some concerns" },
+                    { condition: "2.6=N/PN/NI AND 2.7=Y/PY/NI", result: "High" }
+                ]
+            },
+            "2B": {
+                description: "Domain 2 (Adhering): Bias due to deviations from intended interventions",
+                rules: [
+                    { condition: "2.1=N/PN AND 2.2=N/PN AND 2.4=N/PN/NA AND 2.5=N/PN/NA", result: "Low" },
+                    { condition: "(2.1=Y/PY/NI OR 2.2=Y/PY/NI) AND 2.3=Y/PY/NA AND 2.4=N/PN/NA AND 2.5=N/PN/NA", result: "Low" },
+                    { condition: "Needs 2.6 AND 2.6=Y/PY", result: "Some concerns" },
+                    { condition: "Needs 2.6 AND 2.6=N/PN/NI", result: "High" }
+                ]
+            },
+            "3": {
+                description: "Domain 3: Bias due to missing outcome data",
+                rules: [
+                    { condition: "3.1=Y/PY", result: "Low", skip: ["3.2", "3.3", "3.4"] },
+                    { condition: "3.1=N/PN/NI AND 3.2=Y/PY", result: "Low", skip: ["3.3", "3.4"] },
+                    { condition: "3.1=N/PN/NI AND 3.2=N/PN AND 3.3=N/PN", result: "Low", skip: ["3.4"] },
+                    { condition: "3.1=N/PN/NI AND 3.2=N/PN AND 3.3=Y/PY/NI AND 3.4=N/PN", result: "Some concerns" },
+                    { condition: "3.1=N/PN/NI AND 3.2=N/PN AND 3.3=Y/PY/NI AND 3.4=Y/PY/NI", result: "High" }
+                ]
+            },
+            "4": {
+                description: "Domain 4: Bias in measurement of the outcome",
+                rules: [
+                    { condition: "4.1=Y/PY", result: "High", skip: ["4.2", "4.3", "4.4", "4.5"] },
+                    { condition: "4.1=N/PN/NI AND 4.2=Y/PY", result: "High", skip: ["4.3", "4.4", "4.5"] },
+                    { condition: "4.1=N/PN/NI AND 4.2=N/PN AND 4.3=N/PN", result: "Low", skip: ["4.4", "4.5"] },
+                    { condition: "4.1=N/PN/NI AND 4.2=N/PN AND 4.3=Y/PY/NI AND 4.4=N/PN", result: "Low", skip: ["4.5"] },
+                    { condition: "4.1=N/PN/NI AND 4.2=N/PN AND 4.3=Y/PY/NI AND 4.4=Y/PY/NI AND 4.5=N/PN", result: "Some concerns" },
+                    { condition: "4.1=N/PN/NI AND 4.2=N/PN AND 4.3=Y/PY/NI AND 4.4=Y/PY/NI AND 4.5=Y/PY/NI", result: "High" },
+                    { condition: "4.1=N/PN/NI AND 4.2=NI AND 4.3=N/PN", result: "Some concerns", skip: ["4.4", "4.5"] },
+                    { condition: "4.1=N/PN/NI AND 4.2=NI AND 4.3=Y/PY/NI AND 4.4=N/PN", result: "Some concerns", skip: ["4.5"] },
+                    { condition: "4.1=N/PN/NI AND 4.2=NI AND 4.3=Y/PY/NI AND 4.4=Y/PY/NI AND 4.5=N/PN", result: "Some concerns" },
+                    { condition: "4.1=N/PN/NI AND 4.2=NI AND 4.3=Y/PY/NI AND 4.4=Y/PY/NI AND 4.5=Y/PY/NI", result: "High" }
+                ]
+            },
+            "5": {
+                description: "Domain 5: Bias in selection of the reported result",
+                rules: [
+                    { condition: "5.1=Y/PY AND 5.2=N/PN AND 5.3=N/PN", result: "Low" },
+                    { condition: "5.1=N/PN/NI AND 5.2=N/PN AND 5.3=N/PN", result: "Some concerns" },
+                    { condition: "5.2=NI OR 5.3=NI (but neither Y/PY)", result: "Some concerns" },
+                    { condition: "5.2=Y/PY OR 5.3=Y/PY", result: "High" }
+                ]
+            }
+        };
+
+        function validatePath(domainId, answers, reportedPath) {
+            const errors = [];
+            const warnings = [];
+
+            // Helper to check if answer matches expected values
+            const matchesAny = (answer, expected) => {
+                if (!answer) return false;
+                const expectedList = expected.split('/');
+                return expectedList.includes(answer);
+            };
+
+            if (domainId === '1') {
+                const q1 = answers['1.1'], q2 = answers['1.2'], q3 = answers['1.3'];
+
+                // All questions must be answered
+                if (!q1) errors.push("1.1 must be answered");
+                if (!q2) errors.push("1.2 must be answered");
+                if (!q3) errors.push("1.3 must be answered");
+
+                // Check valid paths
+                if (matchesAny(q2, 'N/PN') && q3 && q3 !== 'NA') {
+                    warnings.push("1.2=N/PN leads directly to High risk, 1.3 is optional but won't change result");
+                }
+            }
+            else if (domainId === '2A') {
+                const q1 = answers['2.1'], q2 = answers['2.2'], q3 = answers['2.3'];
+                const q4 = answers['2.4'], q5 = answers['2.5'], q6 = answers['2.6'], q7 = answers['2.7'];
+
+                // Part 1 validation
+                if (!q1 || !q2) {
+                    errors.push("2.1 and 2.2 must both be answered");
+                } else if (matchesAny(q1, 'N/PN') && matchesAny(q2, 'N/PN')) {
+                    // Both blinded - 2.3-2.5 should be skipped
+                    if (q3 && !matchesAny(q3, 'NA')) warnings.push("2.1=N/PN and 2.2=N/PN: 2.3-2.5 should be NA/skipped");
+                } else {
+                    // Not blinded - need 2.3
+                    if (!q3) errors.push("2.3 must be answered when 2.1 or 2.2 is Y/PY/NI");
+                    if (matchesAny(q3, 'Y/PY')) {
+                        if (!q4) errors.push("2.4 must be answered when 2.3=Y/PY");
+                        if (matchesAny(q4, 'Y/PY/NI') && !q5) {
+                            errors.push("2.5 must be answered when 2.4=Y/PY/NI");
+                        }
+                    }
+                }
+
+                // Part 2 validation
+                if (!q6) errors.push("2.6 must always be answered (Part 2)");
+                if (matchesAny(q6, 'Y/PY') && q7 && !matchesAny(q7, 'NA')) {
+                    warnings.push("2.6=Y/PY leads to Low (Part 2), 2.7 should be NA/skipped");
+                }
+                if (matchesAny(q6, 'N/PN/NI') && !q7) {
+                    errors.push("2.7 must be answered when 2.6=N/PN/NI");
+                }
+            }
+            else if (domainId === '2B') {
+                const q1 = answers['2.1'], q2 = answers['2.2'], q3 = answers['2.3'];
+                const q4 = answers['2.4'], q5 = answers['2.5'], q6 = answers['2.6'];
+
+                if (!q1 || !q2) errors.push("2.1 and 2.2 must both be answered");
+
+                const blinded = matchesAny(q1, 'N/PN') && matchesAny(q2, 'N/PN');
+                const needsAnalysis = !blinded && matchesAny(q3, 'N/PN/NI') ||
+                                      matchesAny(q4, 'Y/PY/NI') || matchesAny(q5, 'Y/PY/NI');
+
+                if (!blinded && !q3) errors.push("2.3 must be answered when not blinded");
+                if (!q4) warnings.push("2.4 should be answered");
+                if (!q5) warnings.push("2.5 should be answered");
+                if (needsAnalysis && !q6) errors.push("2.6 must be answered when issues exist");
+            }
+            else if (domainId === '3') {
+                const q1 = answers['3.1'], q2 = answers['3.2'], q3 = answers['3.3'], q4 = answers['3.4'];
+
+                if (!q1) errors.push("3.1 must be answered");
+                if (matchesAny(q1, 'Y/PY')) {
+                    if (q2 && !matchesAny(q2, 'NA')) warnings.push("3.1=Y/PY: 3.2-3.4 should be NA/skipped");
+                } else {
+                    if (!q2) errors.push("3.2 must be answered when 3.1=N/PN/NI");
+                    if (matchesAny(q2, 'N/PN') && !q3) errors.push("3.3 must be answered when 3.2=N/PN");
+                    if (matchesAny(q3, 'Y/PY/NI') && !q4) errors.push("3.4 must be answered when 3.3=Y/PY/NI");
+                }
+            }
+            else if (domainId === '4') {
+                const q1 = answers['4.1'], q2 = answers['4.2'], q3 = answers['4.3'];
+                const q4 = answers['4.4'], q5 = answers['4.5'];
+
+                if (!q1) errors.push("4.1 must be answered");
+                if (matchesAny(q1, 'Y/PY')) {
+                    if (q2) warnings.push("4.1=Y/PY leads to High risk, 4.2-4.5 not needed");
+                } else {
+                    if (!q2) errors.push("4.2 must be answered when 4.1=N/PN/NI");
+                    if (matchesAny(q2, 'Y/PY')) {
+                        if (q3) warnings.push("4.2=Y/PY leads to High risk, 4.3-4.5 not needed");
+                    } else {
+                        if (!q3) errors.push("4.3 must be answered when 4.2=N/PN/NI");
+                        if (matchesAny(q3, 'N/PN')) {
+                            if (q4) warnings.push("4.3=N/PN leads to Low, 4.4-4.5 not needed");
+                        } else {
+                            if (!q4) errors.push("4.4 must be answered when 4.3=Y/PY/NI");
+                            if (matchesAny(q4, 'Y/PY/NI') && !q5) errors.push("4.5 must be answered when 4.4=Y/PY/NI");
+                        }
+                    }
+                }
+            }
+            else if (domainId === '5') {
+                const q1 = answers['5.1'], q2 = answers['5.2'], q3 = answers['5.3'];
+
+                if (!q1) errors.push("5.1 must be answered");
+                if (!q2) errors.push("5.2 must be answered");
+                if (!q3) errors.push("5.3 must be answered");
+            }
+
+            return {
+                valid: errors.length === 0,
+                errors: errors,
+                warnings: warnings
+            };
+        }
+
+        // Store pending validations
+        let pendingValidations = [];
+
         function processAIResponse() {
             const input = document.getElementById('aiResponseInput').value.trim();
             const alertEl = document.getElementById('aiAlert');
+            pendingValidations = [];
 
             if (!input) {
                 alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 15px;">Please paste the AI's JSON response first.</div>`;
@@ -1818,11 +2017,9 @@ Smith et al. 2023"></textarea>
 
                 const study = projects[currentProject].studies[currentStudyIndex];
                 const variant = study.variant || 'assignment';
-                let processed = 0;
-                let errors = [];
+                let validationResults = [];
 
                 responses.forEach(r => {
-                    // Map domain from response to our domain keys
                     let domainKey = r.domain;
                     if (domainKey === '2') {
                         domainKey = variant === 'assignment' ? '2A' : '2B';
@@ -1830,7 +2027,10 @@ Smith et al. 2023"></textarea>
 
                     const domain = DOMAINS[domainKey];
                     if (!domain) {
-                        errors.push(`Unknown domain: ${r.domain}`);
+                        validationResults.push({
+                            domain: r.domain,
+                            error: `Unknown domain: ${r.domain}`
+                        });
                         return;
                     }
 
@@ -1844,44 +2044,106 @@ Smith et al. 2023"></textarea>
                         });
                     }
 
-                    // Save to study
-                    if (!study.domains[domainKey]) study.domains[domainKey] = {};
-                    study.domains[domainKey] = answers;
+                    // Validate the path
+                    const validation = validatePath(domainKey, answers, r.path || '');
 
                     // Calculate result using our algorithm
                     const calculatedResult = domain.algorithm(answers);
                     const aiResult = r.result ? r.result.charAt(0).toUpperCase() + r.result.slice(1).toLowerCase() : null;
+                    const resultMatch = !aiResult || aiResult === calculatedResult ||
+                                       (aiResult === 'Some concerns' && calculatedResult === 'Some concerns');
 
-                    // Check if results match
-                    if (aiResult && aiResult !== calculatedResult) {
-                        errors.push(`Domain ${r.domain}: AI said "${aiResult}" but algorithm says "${calculatedResult}"`);
-                    }
-
-                    processed++;
+                    validationResults.push({
+                        domain: r.domain,
+                        domainKey: domainKey,
+                        answers: answers,
+                        path: r.path || 'Not provided',
+                        aiResult: aiResult,
+                        calculatedResult: calculatedResult,
+                        resultMatch: resultMatch,
+                        validation: validation
+                    });
                 });
 
-                saveProjects();
-                renderDomainGrid();
+                // Check for issues
+                const hasErrors = validationResults.some(v => v.error || !v.validation?.valid || !v.resultMatch);
+                const hasWarnings = validationResults.some(v => v.validation?.warnings?.length > 0);
 
-                if (errors.length > 0) {
-                    alertEl.innerHTML = `
-                        <div class="alert alert-warning" style="margin-top: 15px;">
-                            <strong>Processed ${processed} domain(s) with warnings:</strong>
-                            <ul style="margin: 10px 0 0 20px;">
-                                ${errors.map(e => `<li>${e}</li>`).join('')}
-                            </ul>
-                            <p style="margin-top: 10px;">The algorithm's calculated results have been saved.</p>
-                        </div>
-                    `;
+                if (hasErrors || hasWarnings) {
+                    // Store for potential redo/accept
+                    pendingValidations = validationResults;
+
+                    let html = `<div class="card" style="margin-top: 15px; border-color: ${hasErrors ? 'var(--danger)' : 'var(--warning)'};">`;
+                    html += `<h3 style="color: ${hasErrors ? 'var(--danger)' : 'var(--warning)'};">Path Validation Report</h3>`;
+
+                    validationResults.forEach(v => {
+                        const domainName = DOMAINS[v.domainKey]?.name || v.domain;
+                        const hasIssue = v.error || !v.validation?.valid || !v.resultMatch || v.validation?.warnings?.length > 0;
+                        const color = v.error || !v.validation?.valid || !v.resultMatch ? 'var(--danger)' :
+                                     (v.validation?.warnings?.length > 0 ? 'var(--warning)' : 'var(--success)');
+
+                        html += `<div style="margin-bottom: 15px; padding: 15px; background: var(--bg-input); border-radius: 8px; border-left: 4px solid ${color};">`;
+                        html += `<h4 style="margin-bottom: 10px;">Domain ${v.domain}: ${domainName}</h4>`;
+
+                        if (v.error) {
+                            html += `<p style="color: var(--danger);"><strong>Error:</strong> ${v.error}</p>`;
+                        } else {
+                            html += `<p><strong>Path:</strong> ${v.path}</p>`;
+                            html += `<p><strong>AI Result:</strong> ${v.aiResult || 'Not specified'}</p>`;
+                            html += `<p><strong>Algorithm Result:</strong> ${v.calculatedResult}</p>`;
+
+                            if (!v.resultMatch) {
+                                html += `<p style="color: var(--danger);"><strong>MISMATCH!</strong> AI and algorithm disagree on the result.</p>`;
+                            }
+
+                            if (v.validation?.errors?.length > 0) {
+                                html += `<p style="color: var(--danger);"><strong>Path Errors:</strong></p>`;
+                                html += `<ul style="margin-left: 20px; color: var(--danger);">`;
+                                v.validation.errors.forEach(e => html += `<li>${e}</li>`);
+                                html += `</ul>`;
+                            }
+
+                            if (v.validation?.warnings?.length > 0) {
+                                html += `<p style="color: var(--warning);"><strong>Warnings:</strong></p>`;
+                                html += `<ul style="margin-left: 20px; color: var(--warning);">`;
+                                v.validation.warnings.forEach(w => html += `<li>${w}</li>`);
+                                html += `</ul>`;
+                            }
+
+                            if (!hasIssue) {
+                                html += `<p style="color: var(--success);">Path validated successfully</p>`;
+                            }
+                        }
+
+                        html += `</div>`;
+                    });
+
+                    html += `<div class="btn-group" style="margin-top: 15px;">`;
+                    html += `<button class="btn btn-warning" onclick="redoAIAssessment()">Redo Assessment (Copy Correction)</button>`;
+                    html += `<button class="btn btn-success" onclick="acceptAIAssessment()">Accept Anyway</button>`;
+                    html += `</div>`;
+                    html += `</div>`;
+
+                    alertEl.innerHTML = html;
+
                 } else {
+                    // All valid - save directly
+                    validationResults.forEach(v => {
+                        if (!v.error) {
+                            study.domains[v.domainKey] = v.answers;
+                        }
+                    });
+
+                    saveProjects();
+                    renderDomainGrid();
+
                     alertEl.innerHTML = `
                         <div class="alert alert-success" style="margin-top: 15px;">
-                            Successfully processed ${processed} domain(s)! All domains have been updated.
+                            Successfully processed ${validationResults.length} domain(s)! All paths validated correctly.
                         </div>
                     `;
+                    document.getElementById('aiResponseInput').value = '';
                 }
-
-                document.getElementById('aiResponseInput').value = '';
 
             } catch (err) {
                 alertEl.innerHTML = `
@@ -1891,6 +2153,113 @@ Smith et al. 2023"></textarea>
                     </div>
                 `;
             }
+        }
+
+        function redoAIAssessment() {
+            if (pendingValidations.length === 0) {
+                alert('No pending validations to redo');
+                return;
+            }
+
+            const study = projects[currentProject].studies[currentStudyIndex];
+            const variant = study.variant || 'assignment';
+
+            // Generate correction message for AI
+            let correctionText = `RoB 2 Assessment - CORRECTION NEEDED\n`;
+            correctionText += `Study: ${study.id}\n\n`;
+            correctionText += `══════════════════════════════════════════════════════════════════\n`;
+            correctionText += `THE PREVIOUS RESPONSE HAD ERRORS. PLEASE CORRECT:\n`;
+            correctionText += `══════════════════════════════════════════════════════════════════\n\n`;
+
+            pendingValidations.forEach(v => {
+                if (v.error || !v.validation?.valid || !v.resultMatch) {
+                    correctionText += `DOMAIN ${v.domain}:\n`;
+                    correctionText += `─────────────────────────────────────────\n`;
+
+                    if (v.error) {
+                        correctionText += `ERROR: ${v.error}\n\n`;
+                    } else {
+                        correctionText += `Your path: ${v.path}\n`;
+                        correctionText += `Your result: ${v.aiResult}\n`;
+                        correctionText += `Correct result (per algorithm): ${v.calculatedResult}\n\n`;
+
+                        if (!v.resultMatch) {
+                            correctionText += `PROBLEM: Your result does not match the algorithm.\n`;
+                        }
+
+                        if (v.validation?.errors?.length > 0) {
+                            correctionText += `PATH ERRORS:\n`;
+                            v.validation.errors.forEach(e => correctionText += `  - ${e}\n`);
+                        }
+
+                        if (v.validation?.warnings?.length > 0) {
+                            correctionText += `WARNINGS:\n`;
+                            v.validation.warnings.forEach(w => correctionText += `  - ${w}\n`);
+                        }
+
+                        correctionText += `\nYour answers: ${JSON.stringify(v.answers)}\n`;
+                    }
+
+                    // Add the correct path rules
+                    const paths = DECISION_PATHS[v.domainKey];
+                    if (paths) {
+                        correctionText += `\nCORRECT DECISION PATH RULES:\n`;
+                        paths.rules.forEach(rule => correctionText += `${rule}\n`);
+                    }
+
+                    correctionText += `\n`;
+                }
+            });
+
+            correctionText += `══════════════════════════════════════════════════════════════════\n`;
+            correctionText += `Please provide a corrected JSON response following the algorithm rules.\n`;
+            correctionText += `══════════════════════════════════════════════════════════════════\n`;
+
+            // Copy to clipboard and show in output
+            document.getElementById('questionsOutput').value = correctionText;
+            navigator.clipboard.writeText(correctionText).then(() => {
+                const alertEl = document.getElementById('aiAlert');
+                alertEl.innerHTML = `
+                    <div class="alert alert-info" style="margin-top: 15px;">
+                        <strong>Correction message copied to clipboard!</strong><br>
+                        Paste this to your AI assistant to get a corrected response.<br>
+                        The correction message is also shown in the "Copy Questions" tab.
+                    </div>
+                `;
+                switchAITab('copy');
+            });
+
+            pendingValidations = [];
+        }
+
+        function acceptAIAssessment() {
+            if (pendingValidations.length === 0) {
+                alert('No pending validations to accept');
+                return;
+            }
+
+            const study = projects[currentProject].studies[currentStudyIndex];
+            let processed = 0;
+
+            pendingValidations.forEach(v => {
+                if (!v.error && v.answers) {
+                    study.domains[v.domainKey] = v.answers;
+                    processed++;
+                }
+            });
+
+            saveProjects();
+            renderDomainGrid();
+            pendingValidations = [];
+
+            const alertEl = document.getElementById('aiAlert');
+            alertEl.innerHTML = `
+                <div class="alert alert-warning" style="margin-top: 15px;">
+                    <strong>Accepted with validation issues</strong><br>
+                    Processed ${processed} domain(s). The algorithm's calculated results have been used.
+                </div>
+            `;
+            document.getElementById('aiResponseInput').value = '';
         }
     </script>
 </body>
