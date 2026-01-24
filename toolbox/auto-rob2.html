@@ -2534,9 +2534,20 @@ Smith et al. 2023"></textarea>
                 });
 
                 // Check for issues - only ERRORS should block auto-save, not warnings
-                const hasErrors = validationResults.some(v => v.error || !v.validation?.valid);
+                const hasErrors = validationResults.some(v => v.error);
                 const hasMismatch = validationResults.some(v => !v.resultMatch);
-                const hasWarnings = validationResults.some(v => v.validation?.warnings?.length > 0);
+                const hasWarnings = validationResults.some(v => v.validation?.warnings?.length > 0 || !v.validation?.valid);
+
+                // ALWAYS save all valid domain answers first, regardless of warnings
+                let savedCount = 0;
+                validationResults.forEach(v => {
+                    if (!v.error && v.answers && Object.keys(v.answers).length > 0) {
+                        study.domains[v.domainKey] = v.answers;
+                        savedCount++;
+                    }
+                });
+                saveProjects();
+                renderDomainGrid();
 
                 if (hasErrors || hasMismatch) {
                     // Store for potential redo/accept
@@ -2596,18 +2607,6 @@ Smith et al. 2023"></textarea>
                     alertEl.innerHTML = html;
 
                 } else {
-                    // No blocking errors - save all domains
-                    let savedCount = 0;
-                    validationResults.forEach(v => {
-                        if (!v.error && v.answers && Object.keys(v.answers).length > 0) {
-                            study.domains[v.domainKey] = v.answers;
-                            savedCount++;
-                        }
-                    });
-
-                    saveProjects();
-                    renderDomainGrid();
-
                     // Show success message, with warning note if there were warnings
                     let successHtml = `<div class="alert alert-success" style="margin-top: 15px;">`;
                     successHtml += `<strong>Successfully processed ${savedCount} domain(s)!</strong>`;
