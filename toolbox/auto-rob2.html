@@ -439,8 +439,10 @@ Smith et al. 2023"></textarea>
                 <div class="study-bar">
                     <label>Project:</label>
                     <span id="currentProjectName" style="color: var(--text);">-</span>
-                    <label style="margin-left: 20px;">Study:</label>
-                    <select id="studySelect" onchange="changeStudy()"></select>
+                    <label style="margin-left: 20px;">Assessment:</label>
+                    <select id="studySelect" onchange="changeStudy()" style="min-width: 250px;"></select>
+                    <button class="btn btn-sm btn-primary" onclick="addOutcomeToStudy()" title="Add another outcome for this study">+ Outcome</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteCurrentAssessment()" title="Delete this assessment">🗑️</button>
                     <span class="progress" id="studyProgress"></span>
                     <button class="btn btn-sm btn-secondary" onclick="showScreen('screen-projects')">Projects</button>
                     <button class="btn btn-sm btn-success" onclick="showResults()" id="btnResults">Results</button>
@@ -999,14 +1001,101 @@ Smith et al. 2023"></textarea>
             openProject(currentProject !== null ? currentProject : projects.length - 1);
         }
 
-        function createStudy(id) {
+        function createStudy(id, outcomeNum = 1) {
             return {
                 id,
+                outcomeNum, // Tracks which outcome this is for the study
                 info: { outcome: '', result: '', details: '' },
                 variant: 'assignment', // default to ITT
                 domains: {},
                 overall: null
             };
+        }
+
+        // Get display name for an assessment (study + outcome)
+        function getAssessmentDisplayName(study) {
+            if (study.info.outcome) {
+                // Truncate long outcome names
+                const outcomeShort = study.info.outcome.length > 40
+                    ? study.info.outcome.substring(0, 40) + '...'
+                    : study.info.outcome;
+                return `${study.id} | ${outcomeShort}`;
+            } else if (study.outcomeNum && study.outcomeNum > 1) {
+                return `${study.id} | Outcome #${study.outcomeNum}`;
+            }
+            return study.id;
+        }
+
+        // Add a new outcome assessment for the current study
+        function addOutcomeToStudy() {
+            const p = projects[currentProject];
+            const currentStudy = p.studies[currentStudyIndex];
+
+            // Find how many outcomes this study already has
+            const studyId = currentStudy.id;
+            const existingOutcomes = p.studies.filter(s => s.id === studyId);
+            const newOutcomeNum = existingOutcomes.length + 1;
+
+            // Create new assessment for same study
+            const newAssessment = createStudy(studyId, newOutcomeNum);
+
+            // Insert after the last outcome of this study
+            const lastIndex = p.studies.findIndex(s => s.id === studyId && s.outcomeNum === existingOutcomes.length);
+            p.studies.splice(lastIndex + 1, 0, newAssessment);
+
+            // Update outcomeNum for all entries of this study
+            let num = 1;
+            p.studies.forEach(s => {
+                if (s.id === studyId) {
+                    s.outcomeNum = num++;
+                }
+            });
+
+            saveProjects();
+            currentStudyIndex = lastIndex + 1;
+            updateAssessmentUI();
+            loadStudyData();
+
+            alert(`Added Outcome #${newOutcomeNum} for ${studyId}. Fill in the outcome details.`);
+        }
+
+        // Delete the current assessment
+        function deleteCurrentAssessment() {
+            const p = projects[currentProject];
+
+            if (p.studies.length <= 1) {
+                alert('Cannot delete the last assessment. Delete the project instead.');
+                return;
+            }
+
+            const currentStudy = p.studies[currentStudyIndex];
+            const displayName = getAssessmentDisplayName(currentStudy);
+
+            if (!confirm(`Delete assessment "${displayName}"? This cannot be undone.`)) {
+                return;
+            }
+
+            // Remove the assessment
+            const studyId = currentStudy.id;
+            p.studies.splice(currentStudyIndex, 1);
+
+            // Renumber remaining outcomes for this study
+            let num = 1;
+            p.studies.forEach(s => {
+                if (s.id === studyId) {
+                    s.outcomeNum = num++;
+                }
+            });
+
+            saveProjects();
+
+            // Move to previous or first assessment
+            if (currentStudyIndex >= p.studies.length) {
+                currentStudyIndex = p.studies.length - 1;
+            }
+
+            updateAssessmentUI();
+            loadStudyData();
         }
 
         function openProject(index) {
@@ -1073,9 +1162,12 @@ Smith et al. 2023"></textarea>
             const p = projects[currentProject];
             document.getElementById('currentProjectName').textContent = p.name;
 
-            // Populate study selector
+            // Populate study selector with display names (study + outcome)
             const select = document.getElementById('studySelect');
-            select.innerHTML = p.studies.map((s, i) => `<option value="${i}">${s.id}</option>`).join('');
+            select.innerHTML = p.studies.map((s, i) => {
+                const displayName = getAssessmentDisplayName(s);
+                return `<option value="${i}">${displayName}</option>`;
+            }).join('');
             select.value = currentStudyIndex;
 
             // Update progress
@@ -1321,17 +1413,18 @@ Smith et al. 2023"></textarea>
                 const variant = study.variant || 'assignment';
                 const domain2Key = variant === 'assignment' ? '2A' : '2B';
                 const domainKeys = ['1', domain2Key, '3', '4', '5'];
+                const displayName = getAssessmentDisplayName(study);
 
                 const results = domainKeys.map(key => {
                     const domain = DOMAINS[key];
                     const answers = study.domains[key] || {};
-                    if (Object.keys(answers).length !== domain.questions.length) return '-';
+                    if (Object.keys(answers).length === 0) return '-';
                     return domain.algorithm(answers);
                 });
 
                 return `
                     <tr>
-                        <td style="text-align: left; font-weight: 500;">${study.id}</td>
+                        <td style="text-align: left; font-weight: 500;">${displayName}</td>
                         ${results.map(r => `<td style="background: ${r !== '-' ? BIAS_COLORS[r] + '33' : 'transparent'}; color: ${r !== '-' ? BIAS_COLORS[r] : 'var(--text-muted)'}; font-weight: 600;">${r}</td>`).join('')}
                         <td style="background: ${study.overall ? BIAS_COLORS[study.overall] + '33' : 'transparent'}; color: ${study.overall ? BIAS_COLORS[study.overall] : 'var(--text-muted)'}; font-weight: 700;">${study.overall || '-'}</td>
                     </tr>
@@ -1342,7 +1435,7 @@ Smith et al. 2023"></textarea>
         // ========== EXPORT ==========
         function downloadExcel() {
             const p = projects[currentProject];
-            const data = [['Study', 'D1', 'D2', 'D3', 'D4', 'D5', 'Overall']];
+            const data = [['Study', 'Outcome', 'D1', 'D2', 'D3', 'D4', 'D5', 'Overall']];
 
             p.studies.forEach(study => {
                 const variant = study.variant || 'assignment';
@@ -1352,11 +1445,11 @@ Smith et al. 2023"></textarea>
                 const results = domainKeys.map(key => {
                     const domain = DOMAINS[key];
                     const answers = study.domains[key] || {};
-                    if (Object.keys(answers).length !== domain.questions.length) return '-';
+                    if (Object.keys(answers).length === 0) return '-';
                     return domain.algorithm(answers);
                 });
 
-                data.push([study.id, ...results, study.overall || '-']);
+                data.push([study.id, study.info.outcome || '', ...results, study.overall || '-']);
             });
 
             const ws = XLSX.utils.aoa_to_sheet(data);
@@ -1367,7 +1460,7 @@ Smith et al. 2023"></textarea>
 
         function downloadCSV() {
             const p = projects[currentProject];
-            let csv = 'Study,D1,D2,D3,D4,D5,Overall\n';
+            let csv = 'Study,Outcome,D1,D2,D3,D4,D5,Overall\n';
 
             p.studies.forEach(study => {
                 const variant = study.variant || 'assignment';
@@ -1377,11 +1470,12 @@ Smith et al. 2023"></textarea>
                 const results = domainKeys.map(key => {
                     const domain = DOMAINS[key];
                     const answers = study.domains[key] || {};
-                    if (Object.keys(answers).length !== domain.questions.length) return '-';
+                    if (Object.keys(answers).length === 0) return '-';
                     return domain.algorithm(answers);
                 });
 
-                csv += `"${study.id}",${results.join(',')},${study.overall || '-'}\n`;
+                const outcomeClean = (study.info.outcome || '').replace(/"/g, '""');
+                csv += `"${study.id}","${outcomeClean}",${results.join(',')},${study.overall || '-'}\n`;
             });
 
             const blob = new Blob([csv], { type: 'text/csv' });
@@ -1395,7 +1489,7 @@ Smith et al. 2023"></textarea>
 
         function copyResults() {
             const p = projects[currentProject];
-            let text = 'Study\tD1\tD2\tD3\tD4\tD5\tOverall\n';
+            let text = 'Study\tOutcome\tD1\tD2\tD3\tD4\tD5\tOverall\n';
 
             p.studies.forEach(study => {
                 const variant = study.variant || 'assignment';
@@ -1405,11 +1499,11 @@ Smith et al. 2023"></textarea>
                 const results = domainKeys.map(key => {
                     const domain = DOMAINS[key];
                     const answers = study.domains[key] || {};
-                    if (Object.keys(answers).length !== domain.questions.length) return '-';
+                    if (Object.keys(answers).length === 0) return '-';
                     return domain.algorithm(answers);
                 });
 
-                text += `${study.id}\t${results.join('\t')}\t${study.overall || '-'}\n`;
+                text += `${study.id}\t${study.info.outcome || ''}\t${results.join('\t')}\t${study.overall || '-'}\n`;
             });
 
             navigator.clipboard.writeText(text).then(() => {
@@ -1446,10 +1540,11 @@ Smith et al. 2023"></textarea>
             p.studies.forEach((study, rowIndex) => {
                 const y = topMargin + rowIndex * cellHeight;
 
-                // Study name
+                // Study name with outcome
+                const displayName = getAssessmentDisplayName(study);
                 ctx.fillStyle = '#333';
                 ctx.font = '11px Arial';
-                ctx.fillText(study.id.substring(0, 25), 10, y + 20);
+                ctx.fillText(displayName.substring(0, 30), 10, y + 20);
 
                 // Domain results
                 const variant = study.variant || 'assignment';
