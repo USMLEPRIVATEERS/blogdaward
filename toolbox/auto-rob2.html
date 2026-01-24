@@ -531,6 +531,15 @@ Smith et al. 2023"></textarea>
                         <h3>Domain 2: Select Effect of Interest</h3>
                         <p>Choose whether you are assessing the effect of <strong>assignment to intervention</strong> (intention-to-treat) or the effect of <strong>adhering to intervention</strong> (per-protocol).</p>
 
+                        <!-- All Outcomes Variant Summary -->
+                        <div id="variantSummarySection" style="margin-bottom: 20px; padding: 15px; background: var(--bg-input); border-radius: 8px; border-left: 4px solid var(--accent);">
+                            <h4 style="color: var(--accent); margin-bottom: 10px;">📊 Variants for All Outcomes</h4>
+                            <div id="variantSummaryTable" style="max-height: 200px; overflow-y: auto;">
+                                <!-- Filled by JS -->
+                            </div>
+                            <p id="variantBatchInfo" style="margin-top: 10px; font-size: 11px; color: var(--text-muted);"></p>
+                        </div>
+
                         <div class="variant-selection">
                             <div class="variant-card" id="variant-assignment" onclick="selectVariant('assignment')">
                                 <h4>Effect of Assignment</h4>
@@ -550,15 +559,28 @@ Smith et al. 2023"></textarea>
                                 <button class="tab-btn" onclick="switchVariantTab('paste')">Paste AI Response</button>
                             </div>
                             <div id="variant-tab-copy" class="tab-content active">
-                                <p style="margin-bottom: 15px; font-size: 13px;">Copy the prompt to ask the AI which variant to use for this study.</p>
-                                <button class="btn btn-primary btn-sm" onclick="copyVariantPrompt()">Copy Prompt</button>
+                                <p style="margin-bottom: 15px; font-size: 13px;">Choose single outcome or batch mode for all outcomes.</p>
+                                <div class="btn-group" style="margin-top:0; flex-wrap: wrap; gap: 8px;">
+                                    <button class="btn btn-secondary btn-sm" onclick="copyVariantPrompt()">📋 Current Outcome</button>
+                                    <button class="btn btn-primary btn-sm" onclick="copyBatchVariantPrompt()">🚀 BATCH: All Outcomes</button>
+                                </div>
                                 <textarea id="variantPromptOutput" readonly style="margin-top: 10px; height: 100px; font-size: 12px;" placeholder="Prompt will appear here..."></textarea>
                             </div>
                             <div id="variant-tab-paste" class="tab-content" style="display: none;">
-                                <p style="margin-bottom: 10px; font-size: 13px;">Paste the AI's JSON response:</p>
-                                <pre style="background: var(--bg-input); padding: 8px; border-radius: 6px; font-size: 10px; margin-bottom: 10px;">{"variant": "assignment", "rationale": "..."}</pre>
+                                <p style="margin-bottom: 10px; font-size: 13px;">Paste the AI's JSON response (single or batch):</p>
+                                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                                    <div style="flex: 1; padding: 6px; background: var(--bg-card); border-radius: 4px; font-size: 9px;">
+                                        <strong>Single:</strong> <code>{"variant": "assignment"}</code>
+                                    </div>
+                                    <div style="flex: 1; padding: 6px; background: var(--bg-card); border-radius: 4px; font-size: 9px;">
+                                        <strong>Batch:</strong> <code>{"outcomes": [...]}</code>
+                                    </div>
+                                </div>
                                 <textarea id="variantAIInput" style="height: 80px;" placeholder="Paste JSON here..."></textarea>
-                                <button class="btn btn-primary btn-sm" style="margin-top: 10px;" onclick="processVariantAI()">Process Response</button>
+                                <div class="btn-group" style="margin-top: 10px;">
+                                    <button class="btn btn-secondary btn-sm" onclick="processVariantAI()">Process Single</button>
+                                    <button class="btn btn-primary btn-sm" onclick="processBatchVariantAI()">Process BATCH</button>
+                                </div>
                                 <div id="variantAlert"></div>
                             </div>
                         </div>
@@ -1244,6 +1266,7 @@ Smith et al. 2023"></textarea>
                 updateOutcomesList();
             } else if (step === 'variant') {
                 updateVariantSelection(study.variant || 'assignment');
+                updateVariantSummaryTable();
             } else if (step === 'domains') {
                 renderDomainGrid();
                 // Update batch info
@@ -1404,6 +1427,61 @@ Smith et al. 2023"></textarea>
                 variantAlert.innerHTML = `<div class="alert alert-success" style="margin-top: 10px; font-size: 12px;">
                     <strong>✓ Set via AI in Study Info:</strong> ${study.variantRationale}
                 </div>`;
+            }
+
+            // Update summary table
+            updateVariantSummaryTable();
+        }
+
+        function updateVariantSummaryTable() {
+            const p = projects[currentProject];
+            const currentStudy = p.studies[currentStudyIndex];
+            const studyId = currentStudy.id;
+            const studyOutcomes = p.studies.filter(s => s.id === studyId);
+
+            const tableEl = document.getElementById('variantSummaryTable');
+            const infoEl = document.getElementById('variantBatchInfo');
+
+            if (studyOutcomes.length <= 1) {
+                tableEl.innerHTML = `<p style="font-size: 12px; color: var(--text-muted);">Only 1 outcome for this study.</p>`;
+                infoEl.innerHTML = '';
+                return;
+            }
+
+            let html = `<table style="width: 100%; font-size: 11px; border-collapse: collapse;">`;
+            html += `<tr style="background: var(--bg-card);"><th style="padding: 6px; text-align: left;">#</th><th style="padding: 6px; text-align: left;">Outcome</th><th style="padding: 6px; text-align: center;">Variant</th><th style="padding: 6px; text-align: center;">Action</th></tr>`;
+
+            let allSet = true;
+            studyOutcomes.forEach((s, idx) => {
+                const variant = s.variant || 'assignment';
+                const variantLabel = variant === 'adhering' ? 'Per-Protocol' : 'ITT';
+                const outcomeShort = (s.info.outcome || 'Not specified').substring(0, 30) + ((s.info.outcome || '').length > 30 ? '...' : '');
+                const isCurrent = s.outcomeNum === currentStudy.outcomeNum;
+                const bgColor = isCurrent ? 'var(--accent-light, rgba(59, 130, 246, 0.1))' : 'transparent';
+
+                if (!s.variant) allSet = false;
+
+                html += `<tr style="background: ${bgColor}; border-bottom: 1px solid var(--border);">`;
+                html += `<td style="padding: 6px;">${idx + 1}</td>`;
+                html += `<td style="padding: 6px;">${outcomeShort}${isCurrent ? ' <small>(current)</small>' : ''}</td>`;
+                html += `<td style="padding: 6px; text-align: center;"><span style="padding: 2px 6px; border-radius: 4px; font-size: 10px; background: ${variant === 'adhering' ? 'var(--warning)' : 'var(--success)'}; color: white;">${variantLabel}</span></td>`;
+                html += `<td style="padding: 6px; text-align: center;">`;
+                if (!isCurrent) {
+                    const studyIdx = p.studies.findIndex(st => st.id === studyId && st.outcomeNum === s.outcomeNum);
+                    html += `<button class="btn btn-secondary" style="font-size: 9px; padding: 2px 6px;" onclick="currentStudyIndex=${studyIdx}; goToStep('variant');">Edit</button>`;
+                } else {
+                    html += `<span style="color: var(--text-muted);">👆 above</span>`;
+                }
+                html += `</td></tr>`;
+            });
+
+            html += `</table>`;
+            tableEl.innerHTML = html;
+
+            if (allSet) {
+                infoEl.innerHTML = `<span style="color: var(--success);">✓ All ${studyOutcomes.length} outcomes have variants set. You can proceed to Domains.</span>`;
+            } else {
+                infoEl.innerHTML = `<span style="color: var(--warning);">⚠ Some outcomes don't have variants explicitly set (defaulting to ITT). Use BATCH mode to set all at once.</span>`;
             }
         }
 
@@ -2268,6 +2346,128 @@ Smith et al. 2023"></textarea>
                 } else {
                     alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 10px; font-size: 12px;">Invalid variant. Must be "assignment" or "adhering".</div>`;
                 }
+
+            } catch (err) {
+                alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 10px; font-size: 12px;">Error parsing JSON: ${err.message}</div>`;
+            }
+        }
+
+        function copyBatchVariantPrompt() {
+            const p = projects[currentProject];
+            const currentStudy = p.studies[currentStudyIndex];
+            const studyId = currentStudy.id;
+            const studyOutcomes = p.studies.filter(s => s.id === studyId);
+
+            if (studyOutcomes.length === 0) {
+                alert('No outcomes found for this study.');
+                return;
+            }
+
+            let text = `RoB 2 BATCH Variant Selection - All Outcomes\n`;
+            text += `Study ID: ${studyId}\n`;
+            text += `Total Outcomes: ${studyOutcomes.length}\n\n`;
+
+            text += `══════════════════════════════════════════════════════════════════\n`;
+            text += `TASK: Determine D2 variant for ALL ${studyOutcomes.length} outcomes\n`;
+            text += `══════════════════════════════════════════════════════════════════\n\n`;
+
+            text += `For each outcome, choose the appropriate Domain 2 variant:\n\n`;
+            text += `• "assignment" = Effect of ASSIGNMENT (ITT)\n`;
+            text += `  - What happens when ASSIGNED to intervention, regardless of adherence\n`;
+            text += `  - Most common choice\n\n`;
+            text += `• "adhering" = Effect of ADHERING (Per-Protocol)\n`;
+            text += `  - What happens when actually ADHERING to intervention\n`;
+            text += `  - Requires adjustment for confounding\n\n`;
+
+            text += `════════════════════════════════════════════════════════════════\n`;
+            text += `OUTCOMES TO ASSESS:\n`;
+            text += `════════════════════════════════════════════════════════════════\n\n`;
+
+            studyOutcomes.forEach((s, idx) => {
+                text += `${idx + 1}. ${s.info.outcome || 'Not specified'}\n`;
+                if (s.info.result) text += `   Result: ${s.info.result}\n`;
+                text += `\n`;
+            });
+
+            text += `════════════════════════════════════════════════════════════════\n`;
+            text += `JSON RESPONSE FORMAT:\n`;
+            text += `════════════════════════════════════════════════════════════════\n\n`;
+
+            text += `{\n`;
+            text += `  "studyId": "${studyId}",\n`;
+            text += `  "outcomes": [\n`;
+            studyOutcomes.forEach((s, idx) => {
+                text += `    {"outcomeNum": ${idx + 1}, "variant": "assignment", "rationale": "..."}${idx < studyOutcomes.length - 1 ? ',' : ''}\n`;
+            });
+            text += `  ]\n`;
+            text += `}\n`;
+
+            document.getElementById('variantPromptOutput').value = text;
+            navigator.clipboard.writeText(text).then(() => {
+                alert(`Batch variant prompt copied! Includes ${studyOutcomes.length} outcomes.`);
+            }).catch(() => {
+                alert('Could not copy. Please select and copy manually.');
+            });
+        }
+
+        function processBatchVariantAI() {
+            const input = document.getElementById('variantAIInput').value.trim();
+            const alertEl = document.getElementById('variantAlert');
+
+            if (!input) {
+                alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 10px; font-size: 12px;">Please paste the AI's JSON response first.</div>`;
+                return;
+            }
+
+            try {
+                const data = JSON.parse(input);
+                const p = projects[currentProject];
+
+                if (!data.outcomes || !Array.isArray(data.outcomes)) {
+                    alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 10px; font-size: 12px;">Invalid format. Expected "outcomes" array.</div>`;
+                    return;
+                }
+
+                const studyId = data.studyId || p.studies[currentStudyIndex].id;
+                const studyOutcomes = p.studies.filter(s => s.id === studyId);
+                let updated = 0;
+
+                data.outcomes.forEach(o => {
+                    const targetStudy = studyOutcomes[o.outcomeNum - 1];
+                    if (targetStudy && (o.variant === 'assignment' || o.variant === 'adhering')) {
+                        targetStudy.variant = o.variant;
+                        targetStudy.variantRationale = o.rationale || '';
+                        // Clear domain 2 answers if variant changed
+                        if (targetStudy.domains['2A']) delete targetStudy.domains['2A'];
+                        if (targetStudy.domains['2B']) delete targetStudy.domains['2B'];
+                        updated++;
+                    }
+                });
+
+                saveProjects();
+                updateVariantSelection(p.studies[currentStudyIndex].variant || 'assignment');
+                updateVariantSummaryTable();
+
+                let html = `<div class="alert alert-success" style="margin-top: 10px; font-size: 12px;">`;
+                html += `<strong>✓ Batch update complete!</strong> Set variants for ${updated} outcome(s).`;
+                html += `</div>`;
+
+                // Show summary
+                html += `<div style="margin-top: 10px; padding: 10px; background: var(--bg-input); border-radius: 6px; font-size: 11px;">`;
+                html += `<table style="width: 100%;">`;
+                html += `<tr><th style="text-align: left;">#</th><th style="text-align: left;">Outcome</th><th style="text-align: center;">Variant</th></tr>`;
+                data.outcomes.forEach(o => {
+                    const variantLabel = o.variant === 'adhering' ? 'Per-Protocol' : 'ITT';
+                    const outcomeStudy = studyOutcomes[o.outcomeNum - 1];
+                    const outcomeName = outcomeStudy ? (outcomeStudy.info.outcome || '').substring(0, 25) : '?';
+                    html += `<tr><td>${o.outcomeNum}</td><td>${outcomeName}</td><td style="text-align: center;">${variantLabel}</td></tr>`;
+                });
+                html += `</table>`;
+                html += `<p style="margin-top: 10px; color: var(--success);"><strong>→ Ready to proceed to Domains!</strong></p>`;
+                html += `</div>`;
+
+                alertEl.innerHTML = html;
+                document.getElementById('variantAIInput').value = '';
 
             } catch (err) {
                 alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 10px; font-size: 12px;">Error parsing JSON: ${err.message}</div>`;
