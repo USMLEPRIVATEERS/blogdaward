@@ -458,12 +458,19 @@ Smith et al. 2023"></textarea>
                 <!-- Step Content: Study Info -->
                 <div id="step-info" class="step-content">
                     <div class="card">
-                        <h3>Study Information</h3>
-                        <p>Specify the result being assessed from this randomized trial.</p>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                            <div>
+                                <h3 style="margin-bottom: 5px;">Study Information</h3>
+                                <p style="margin: 0;">Specify the result being assessed from this randomized trial.</p>
+                            </div>
+                            <div id="outcomeCounter" style="background: var(--accent); color: white; padding: 8px 15px; border-radius: 8px; font-size: 13px; font-weight: 600;">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
 
                         <div class="form-group">
-                            <label>Outcome being assessed</label>
-                            <input type="text" id="inputOutcome" placeholder="e.g., All-cause mortality at 1 year" onchange="saveStudyInfo()">
+                            <label>Outcome being assessed *</label>
+                            <input type="text" id="inputOutcome" placeholder="e.g., All-cause mortality at 1 year, BODY-Q Score at 6 months" onchange="saveStudyInfo()">
                         </div>
 
                         <div class="form-group">
@@ -474,6 +481,20 @@ Smith et al. 2023"></textarea>
                         <div class="form-group">
                             <label>Further details (optional)</label>
                             <input type="text" id="inputDetails" placeholder="e.g., Table 2, ITT analysis" onchange="saveStudyInfo()">
+                        </div>
+
+                        <!-- Multiple Outcomes Section -->
+                        <div style="margin-top: 20px; padding: 15px; background: var(--bg-input); border-radius: 8px; border-left: 4px solid var(--accent);">
+                            <h4 style="color: var(--accent); margin-bottom: 10px;">📊 All Outcomes for This Study</h4>
+                            <p style="font-size: 12px; margin-bottom: 15px; color: var(--text-muted);">
+                                Each outcome needs a separate RoB 2 assessment (variant + 5 domains).
+                            </p>
+                            <div id="studyOutcomesList" style="margin-bottom: 15px; max-height: 200px; overflow-y: auto;">
+                                <!-- Filled by JS - list of all outcomes for current study -->
+                            </div>
+                            <button class="btn btn-primary btn-sm" onclick="addOutcomeToStudy()">
+                                + Add Another Outcome
+                            </button>
                         </div>
 
                         <!-- AI-Assisted Study Info -->
@@ -1206,6 +1227,7 @@ Smith et al. 2023"></textarea>
                 document.getElementById('inputOutcome').value = study.info.outcome || '';
                 document.getElementById('inputResult').value = study.info.result || '';
                 document.getElementById('inputDetails').value = study.info.details || '';
+                updateOutcomesList();
             } else if (step === 'variant') {
                 updateVariantSelection(study.variant || 'assignment');
             } else if (step === 'domains') {
@@ -1219,6 +1241,118 @@ Smith et al. 2023"></textarea>
             study.info.result = document.getElementById('inputResult').value;
             study.info.details = document.getElementById('inputDetails').value;
             saveProjects();
+            updateOutcomesList();
+            updateAssessmentUI(); // Update dropdown to show new outcome name
+        }
+
+        // Update the outcomes list and counter for the current study
+        function updateOutcomesList() {
+            const p = projects[currentProject];
+            const currentStudy = p.studies[currentStudyIndex];
+            const studyId = currentStudy.id;
+
+            // Get all outcomes for this study
+            const studyOutcomes = p.studies
+                .map((s, idx) => ({ ...s, index: idx }))
+                .filter(s => s.id === studyId);
+
+            // Update counter
+            const counterEl = document.getElementById('outcomeCounter');
+            counterEl.textContent = `Outcome ${currentStudy.outcomeNum || 1} of ${studyOutcomes.length}`;
+
+            // Build outcomes list
+            const listEl = document.getElementById('studyOutcomesList');
+            if (studyOutcomes.length <= 1) {
+                listEl.innerHTML = `<p style="font-size: 12px; color: var(--text-muted); font-style: italic;">No other outcomes yet. Click below to add more.</p>`;
+            } else {
+                listEl.innerHTML = studyOutcomes.map(s => {
+                    const isCurrent = s.index === currentStudyIndex;
+                    const outcomeName = s.info.outcome || `Outcome #${s.outcomeNum || 1}`;
+                    const status = getOutcomeStatus(s);
+
+                    return `
+                        <div style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; margin-bottom: 5px;
+                                    background: ${isCurrent ? 'var(--accent)' : 'var(--bg-card)'};
+                                    color: ${isCurrent ? 'white' : 'var(--text)'};
+                                    border-radius: 6px; cursor: ${isCurrent ? 'default' : 'pointer'};"
+                             onclick="${isCurrent ? '' : `switchToOutcome(${s.index})`}">
+                            <span style="flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                ${s.outcomeNum || 1}. ${outcomeName}
+                            </span>
+                            <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px;
+                                        background: ${status.color}; color: white;">
+                                ${status.text}
+                            </span>
+                            ${!isCurrent && studyOutcomes.length > 1 ? `
+                                <button onclick="deleteOutcomeByIndex(${s.index}); event.stopPropagation();"
+                                        style="background: transparent; border: none; color: ${isCurrent ? 'white' : 'var(--danger)'};
+                                               cursor: pointer; padding: 2px 5px; font-size: 14px;"
+                                        title="Delete this outcome">🗑️</button>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // Get status of an outcome assessment
+        function getOutcomeStatus(study) {
+            const variant = study.variant || 'assignment';
+            const domain2Key = variant === 'assignment' ? '2A' : '2B';
+            const domainKeys = ['1', domain2Key, '3', '4', '5'];
+
+            let completed = 0;
+            domainKeys.forEach(key => {
+                const answers = study.domains[key] || {};
+                if (Object.keys(answers).length > 0) completed++;
+            });
+
+            if (completed === 0) {
+                return { text: 'Not started', color: 'var(--text-muted)' };
+            } else if (completed < 5) {
+                return { text: `${completed}/5 domains`, color: 'var(--warning)' };
+            } else {
+                return { text: 'Complete', color: 'var(--success)' };
+            }
+        }
+
+        // Switch to a specific outcome
+        function switchToOutcome(index) {
+            currentStudyIndex = index;
+            document.getElementById('studySelect').value = index;
+            goToStep('info');
+        }
+
+        // Delete an outcome by index
+        function deleteOutcomeByIndex(index) {
+            const p = projects[currentProject];
+            const study = p.studies[index];
+            const displayName = getAssessmentDisplayName(study);
+
+            if (!confirm(`Delete "${displayName}"?`)) return;
+
+            const studyId = study.id;
+            p.studies.splice(index, 1);
+
+            // Renumber remaining outcomes for this study
+            let num = 1;
+            p.studies.forEach(s => {
+                if (s.id === studyId) {
+                    s.outcomeNum = num++;
+                }
+            });
+
+            saveProjects();
+
+            // Adjust currentStudyIndex if needed
+            if (currentStudyIndex >= p.studies.length) {
+                currentStudyIndex = p.studies.length - 1;
+            } else if (currentStudyIndex > index) {
+                currentStudyIndex--;
+            }
+
+            updateAssessmentUI();
+            goToStep('info');
         }
 
         // ========== VARIANT SELECTION ==========
