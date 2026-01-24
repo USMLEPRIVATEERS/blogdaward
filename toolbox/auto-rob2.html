@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Auto RoB 2 Assessment Tool</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -2390,8 +2391,8 @@ Smith et al. 2023"></textarea>
             });
         }
 
-        // Download all plots as a zip or individually
-        function downloadAllPlots(type) {
+        // Download all plots as a ZIP file
+        async function downloadAllPlots(type) {
             const container = document.getElementById(type === 'traffic' ? 'trafficLightContainer' : 'summaryContainer');
             const canvases = container.querySelectorAll('canvas');
 
@@ -2400,22 +2401,42 @@ Smith et al. 2023"></textarea>
                 return;
             }
 
-            if (canvases.length === 1) {
-                // Single canvas - download directly
+            // Get outcome names
+            const uniqueOutcomes = getUniqueOutcomes();
+            const outcomeNames = Object.keys(uniqueOutcomes);
+
+            // Create ZIP
+            const zip = new JSZip();
+            const projectName = projects[currentProject].name.replace(/[^a-z0-9]/gi, '_');
+            const folderName = `${projectName}_ROB2`;
+            const folder = zip.folder(folderName);
+
+            const plotTypeName = type === 'traffic' ? 'traffic_light' : 'summary';
+
+            canvases.forEach((canvas, idx) => {
+                if (canvas.width > 10) {
+                    const outcomeName = outcomeNames[idx]
+                        ? outcomeNames[idx].replace(/[^a-z0-9]/gi, '_').substring(0, 50)
+                        : `outcome_${idx + 1}`;
+                    const fileName = `${outcomeName}_${plotTypeName}.png`;
+
+                    // Get base64 data (remove the data URL prefix)
+                    const dataUrl = canvas.toDataURL('image/png');
+                    const base64Data = dataUrl.split(',')[1];
+                    folder.file(fileName, base64Data, { base64: true });
+                }
+            });
+
+            // Generate and download ZIP
+            try {
+                const content = await zip.generateAsync({ type: 'blob' });
                 const link = document.createElement('a');
-                link.download = `${type}_light_plot.png`;
-                link.href = canvases[0].toDataURL('image/png');
+                link.download = `${folderName}_${plotTypeName}_plots.zip`;
+                link.href = URL.createObjectURL(content);
                 link.click();
-            } else {
-                // Multiple canvases - download each with numbered names
-                canvases.forEach((canvas, idx) => {
-                    setTimeout(() => {
-                        const link = document.createElement('a');
-                        link.download = `${type}_plot_${idx + 1}.png`;
-                        link.href = canvas.toDataURL('image/png');
-                        link.click();
-                    }, idx * 300); // Stagger downloads
-                });
+                URL.revokeObjectURL(link.href);
+            } catch (e) {
+                alert('Error creating ZIP: ' + e.message);
             }
         }
 

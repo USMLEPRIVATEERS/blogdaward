@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Auto ROBINS-I V2 Assessment Tool</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -3051,7 +3052,7 @@ Baseline BMI"></textarea>
             return outcomes;
         }
 
-        function downloadAllPlots(type) {
+        async function downloadAllPlots(type) {
             const outcomes = getUniqueOutcomes();
             const outcomeNames = Object.keys(outcomes);
 
@@ -3060,7 +3061,14 @@ Baseline BMI"></textarea>
                 return;
             }
 
-            // Download each canvas
+            // Create ZIP
+            const zip = new JSZip();
+            const projectName = currentProject.name.replace(/[^a-z0-9]/gi, '_');
+            const folderName = `${projectName}_ROBINS-I_V2`;
+            const folder = zip.folder(folderName);
+
+            const plotTypeName = type === 'traffic' ? 'traffic_light' : 'summary';
+
             outcomeNames.forEach((outcomeName, i) => {
                 const canvasId = type === 'traffic'
                     ? `trafficCanvas_${i}`
@@ -3068,15 +3076,27 @@ Baseline BMI"></textarea>
                 const canvas = document.getElementById(canvasId);
 
                 if (canvas && canvas.width > 10) {
-                    setTimeout(() => {
-                        const link = document.createElement('a');
-                        const safeName = outcomeName.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-                        link.download = `${currentProject.name.replace(/[^a-z0-9]/gi, '_')}_${type}_${safeName}.png`;
-                        link.href = canvas.toDataURL('image/png');
-                        link.click();
-                    }, i * 300); // Stagger downloads
+                    const safeName = outcomeName.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+                    const fileName = `${safeName}_${plotTypeName}.png`;
+
+                    // Get base64 data (remove the data URL prefix)
+                    const dataUrl = canvas.toDataURL('image/png');
+                    const base64Data = dataUrl.split(',')[1];
+                    folder.file(fileName, base64Data, { base64: true });
                 }
             });
+
+            // Generate and download ZIP
+            try {
+                const content = await zip.generateAsync({ type: 'blob' });
+                const link = document.createElement('a');
+                link.download = `${folderName}_${plotTypeName}_plots.zip`;
+                link.href = URL.createObjectURL(content);
+                link.click();
+                URL.revokeObjectURL(link.href);
+            } catch (e) {
+                alert('Error creating ZIP: ' + e.message);
+            }
         }
 
         function roundRect(ctx, x, y, width, height, radius) {
