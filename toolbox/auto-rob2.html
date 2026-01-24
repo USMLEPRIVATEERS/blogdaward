@@ -474,6 +474,27 @@ Smith et al. 2023"></textarea>
                             <input type="text" id="inputDetails" placeholder="e.g., Table 2, ITT analysis" onchange="saveStudyInfo()">
                         </div>
 
+                        <!-- AI-Assisted Study Info -->
+                        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+                            <h4 style="color: var(--accent); margin-bottom: 15px;">AI-Assisted Study Info</h4>
+                            <div class="tabs">
+                                <button class="tab-btn active" onclick="switchStudyInfoTab('copy')">Copy Prompt</button>
+                                <button class="tab-btn" onclick="switchStudyInfoTab('paste')">Paste AI Response</button>
+                            </div>
+                            <div id="studyinfo-tab-copy" class="tab-content active">
+                                <p style="margin-bottom: 15px; font-size: 13px;">Copy the prompt below and paste it to your AI assistant along with the study article.</p>
+                                <button class="btn btn-primary btn-sm" onclick="copyStudyInfoPrompt()">Copy Prompt</button>
+                                <textarea id="studyInfoPromptOutput" readonly style="margin-top: 10px; height: 100px; font-size: 12px;" placeholder="Prompt will appear here..."></textarea>
+                            </div>
+                            <div id="studyinfo-tab-paste" class="tab-content" style="display: none;">
+                                <p style="margin-bottom: 10px; font-size: 13px;">Paste the AI's JSON response:</p>
+                                <pre style="background: var(--bg-input); padding: 8px; border-radius: 6px; font-size: 10px; margin-bottom: 10px;">{"outcome": "...", "result": "...", "details": "..."}</pre>
+                                <textarea id="studyInfoAIInput" style="height: 80px;" placeholder="Paste JSON here..."></textarea>
+                                <button class="btn btn-primary btn-sm" style="margin-top: 10px;" onclick="processStudyInfoAI()">Process Response</button>
+                                <div id="studyInfoAlert"></div>
+                            </div>
+                        </div>
+
                         <div class="nav-bar">
                             <div></div>
                             <button class="btn btn-primary" onclick="goToStep('variant')">Next: Domain 2 Variant</button>
@@ -495,6 +516,27 @@ Smith et al. 2023"></textarea>
                             <div class="variant-card" id="variant-adhering" onclick="selectVariant('adhering')">
                                 <h4>Effect of Adhering</h4>
                                 <p>Per-protocol effect. Assesses what happens when participants actually adhere to the intervention as intended.</p>
+                            </div>
+                        </div>
+
+                        <!-- AI-Assisted Variant Selection -->
+                        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+                            <h4 style="color: var(--accent); margin-bottom: 15px;">AI-Assisted Variant Selection</h4>
+                            <div class="tabs">
+                                <button class="tab-btn active" onclick="switchVariantTab('copy')">Copy Prompt</button>
+                                <button class="tab-btn" onclick="switchVariantTab('paste')">Paste AI Response</button>
+                            </div>
+                            <div id="variant-tab-copy" class="tab-content active">
+                                <p style="margin-bottom: 15px; font-size: 13px;">Copy the prompt to ask the AI which variant to use for this study.</p>
+                                <button class="btn btn-primary btn-sm" onclick="copyVariantPrompt()">Copy Prompt</button>
+                                <textarea id="variantPromptOutput" readonly style="margin-top: 10px; height: 100px; font-size: 12px;" placeholder="Prompt will appear here..."></textarea>
+                            </div>
+                            <div id="variant-tab-paste" class="tab-content" style="display: none;">
+                                <p style="margin-bottom: 10px; font-size: 13px;">Paste the AI's JSON response:</p>
+                                <pre style="background: var(--bg-input); padding: 8px; border-radius: 6px; font-size: 10px; margin-bottom: 10px;">{"variant": "assignment", "rationale": "..."}</pre>
+                                <textarea id="variantAIInput" style="height: 80px;" placeholder="Paste JSON here..."></textarea>
+                                <button class="btn btn-primary btn-sm" style="margin-top: 10px;" onclick="processVariantAI()">Process Response</button>
+                                <div id="variantAlert"></div>
                             </div>
                         </div>
 
@@ -1691,8 +1733,9 @@ Smith et al. 2023"></textarea>
         };
 
         function switchAITab(tab) {
-            document.querySelectorAll('.card .tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.card .tab-content').forEach(content => content.style.display = 'none');
+            document.querySelectorAll('#step-domains .tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('ai-tab-copy').style.display = 'none';
+            document.getElementById('ai-tab-paste').style.display = 'none';
 
             if (tab === 'copy') {
                 document.getElementById('ai-tab-copy').style.display = 'block';
@@ -1700,6 +1743,186 @@ Smith et al. 2023"></textarea>
             } else {
                 document.getElementById('ai-tab-paste').style.display = 'block';
                 document.querySelector('[onclick="switchAITab(\'paste\')"]').classList.add('active');
+            }
+        }
+
+        // ========== STUDY INFO AI FUNCTIONS ==========
+        function switchStudyInfoTab(tab) {
+            document.querySelectorAll('#step-info .tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('studyinfo-tab-copy').style.display = 'none';
+            document.getElementById('studyinfo-tab-paste').style.display = 'none';
+
+            if (tab === 'copy') {
+                document.getElementById('studyinfo-tab-copy').style.display = 'block';
+                document.querySelector('[onclick="switchStudyInfoTab(\'copy\')"]').classList.add('active');
+            } else {
+                document.getElementById('studyinfo-tab-paste').style.display = 'block';
+                document.querySelector('[onclick="switchStudyInfoTab(\'paste\')"]').classList.add('active');
+            }
+        }
+
+        function copyStudyInfoPrompt() {
+            const study = projects[currentProject].studies[currentStudyIndex];
+            let text = `RoB 2 Assessment - Study Information Extraction\n`;
+            text += `Study ID: ${study.id}\n\n`;
+            text += `══════════════════════════════════════════════════════════════════\n`;
+            text += `TASK: Identify the outcome(s) and results from this study\n`;
+            text += `══════════════════════════════════════════════════════════════════\n\n`;
+            text += `Please analyze the article and provide the following information:\n\n`;
+            text += `1. OUTCOME: The specific outcome being measured (e.g., "All-cause mortality at 1 year", "BODY-Q Satisfaction Score at 6 months")\n`;
+            text += `2. RESULT: The numerical result (e.g., "RR = 0.85 (95% CI 0.72-0.99)", "73.2 ± 13.2 vs 65.7 ± 10.7, p=0.007")\n`;
+            text += `3. DETAILS: Additional details like table reference, analysis type (e.g., "Table 2, ITT analysis")\n\n`;
+            text += `If the study has MULTIPLE outcomes, list the PRIMARY outcome first, then secondary outcomes.\n\n`;
+            text += `══════════════════════════════════════════════════════════════════\n`;
+            text += `RESPOND IN JSON FORMAT:\n`;
+            text += `══════════════════════════════════════════════════════════════════\n\n`;
+            text += `{\n`;
+            text += `  "outcome": "Primary outcome description with timepoint",\n`;
+            text += `  "result": "Statistical result with effect size, CI, and/or p-value",\n`;
+            text += `  "details": "Table/figure reference, analysis type",\n`;
+            text += `  "otherOutcomes": [\n`;
+            text += `    {"outcome": "Secondary outcome 1", "result": "..."},\n`;
+            text += `    {"outcome": "Secondary outcome 2", "result": "..."}\n`;
+            text += `  ]\n`;
+            text += `}\n`;
+
+            document.getElementById('studyInfoPromptOutput').value = text;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Prompt copied to clipboard! Paste it to your AI assistant with the study article.');
+            }).catch(() => {
+                alert('Could not copy to clipboard. Please copy the text manually.');
+            });
+        }
+
+        function processStudyInfoAI() {
+            const input = document.getElementById('studyInfoAIInput').value.trim();
+            const alertEl = document.getElementById('studyInfoAlert');
+
+            if (!input) {
+                alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 10px; font-size: 12px;">Please paste the AI's JSON response first.</div>`;
+                return;
+            }
+
+            try {
+                const data = JSON.parse(input);
+
+                if (data.outcome) {
+                    document.getElementById('inputOutcome').value = data.outcome;
+                }
+                if (data.result) {
+                    document.getElementById('inputResult').value = data.result;
+                }
+                if (data.details) {
+                    document.getElementById('inputDetails').value = data.details;
+                }
+
+                saveStudyInfo();
+
+                let html = `<div class="alert alert-success" style="margin-top: 10px; font-size: 12px;">Study info updated successfully!</div>`;
+
+                if (data.otherOutcomes && data.otherOutcomes.length > 0) {
+                    html += `<div style="margin-top: 10px; padding: 10px; background: var(--bg-input); border-radius: 6px; font-size: 12px;">`;
+                    html += `<strong>Other outcomes identified:</strong><ul style="margin: 5px 0 0 15px;">`;
+                    data.otherOutcomes.forEach(o => {
+                        html += `<li>${o.outcome}: ${o.result || 'No result specified'}</li>`;
+                    });
+                    html += `</ul></div>`;
+                }
+
+                alertEl.innerHTML = html;
+                document.getElementById('studyInfoAIInput').value = '';
+
+            } catch (err) {
+                alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 10px; font-size: 12px;">Error parsing JSON: ${err.message}</div>`;
+            }
+        }
+
+        // ========== VARIANT AI FUNCTIONS ==========
+        function switchVariantTab(tab) {
+            document.querySelectorAll('#step-variant .tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('variant-tab-copy').style.display = 'none';
+            document.getElementById('variant-tab-paste').style.display = 'none';
+
+            if (tab === 'copy') {
+                document.getElementById('variant-tab-copy').style.display = 'block';
+                document.querySelector('[onclick="switchVariantTab(\'copy\')"]').classList.add('active');
+            } else {
+                document.getElementById('variant-tab-paste').style.display = 'block';
+                document.querySelector('[onclick="switchVariantTab(\'paste\')"]').classList.add('active');
+            }
+        }
+
+        function copyVariantPrompt() {
+            const study = projects[currentProject].studies[currentStudyIndex];
+            let text = `RoB 2 Assessment - Domain 2 Variant Selection\n`;
+            text += `Study ID: ${study.id}\n`;
+            text += `Outcome: ${study.info.outcome || 'Not specified'}\n\n`;
+            text += `══════════════════════════════════════════════════════════════════\n`;
+            text += `TASK: Determine the appropriate Domain 2 variant\n`;
+            text += `══════════════════════════════════════════════════════════════════\n\n`;
+            text += `For RoB 2 Domain 2, you must choose between:\n\n`;
+            text += `1. EFFECT OF ASSIGNMENT (Intention-to-Treat / ITT):\n`;
+            text += `   - Assesses what happens when participants are ASSIGNED to intervention\n`;
+            text += `   - Regardless of whether they actually received or adhered to it\n`;
+            text += `   - Most common in pragmatic trials\n\n`;
+            text += `2. EFFECT OF ADHERING (Per-Protocol):\n`;
+            text += `   - Assesses what happens when participants actually ADHERE to the intervention\n`;
+            text += `   - Used when the question is about the treatment effect in compliers\n`;
+            text += `   - Requires adjustment for post-randomization confounding\n\n`;
+            text += `Consider:\n`;
+            text += `- How was the analysis conducted in the study?\n`;
+            text += `- Is this a surgical/single-session intervention (usually ITT)?\n`;
+            text += `- Were there significant dropouts or crossovers?\n`;
+            text += `- What is the systematic review's research question?\n\n`;
+            text += `══════════════════════════════════════════════════════════════════\n`;
+            text += `RESPOND IN JSON FORMAT:\n`;
+            text += `══════════════════════════════════════════════════════════════════\n\n`;
+            text += `{\n`;
+            text += `  "variant": "assignment" or "adhering",\n`;
+            text += `  "rationale": "Brief explanation of why this variant is appropriate"\n`;
+            text += `}\n`;
+
+            document.getElementById('variantPromptOutput').value = text;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Prompt copied to clipboard! Paste it to your AI assistant with the study article.');
+            }).catch(() => {
+                alert('Could not copy to clipboard. Please copy the text manually.');
+            });
+        }
+
+        function processVariantAI() {
+            const input = document.getElementById('variantAIInput').value.trim();
+            const alertEl = document.getElementById('variantAlert');
+
+            if (!input) {
+                alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 10px; font-size: 12px;">Please paste the AI's JSON response first.</div>`;
+                return;
+            }
+
+            try {
+                const data = JSON.parse(input);
+
+                if (data.variant === 'assignment' || data.variant === 'adhering') {
+                    selectVariant(data.variant);
+
+                    let html = `<div class="alert alert-success" style="margin-top: 10px; font-size: 12px;">`;
+                    html += `Variant set to: <strong>${data.variant === 'assignment' ? 'Effect of Assignment (ITT)' : 'Effect of Adhering (Per-Protocol)'}</strong>`;
+                    html += `</div>`;
+
+                    if (data.rationale) {
+                        html += `<div style="margin-top: 10px; padding: 10px; background: var(--bg-input); border-radius: 6px; font-size: 12px;">`;
+                        html += `<strong>Rationale:</strong> ${data.rationale}`;
+                        html += `</div>`;
+                    }
+
+                    alertEl.innerHTML = html;
+                    document.getElementById('variantAIInput').value = '';
+                } else {
+                    alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 10px; font-size: 12px;">Invalid variant. Must be "assignment" or "adhering".</div>`;
+                }
+
+            } catch (err) {
+                alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 10px; font-size: 12px;">Error parsing JSON: ${err.message}</div>`;
             }
         }
 
@@ -2021,8 +2244,11 @@ Smith et al. 2023"></textarea>
 
                 responses.forEach(r => {
                     let domainKey = r.domain;
+                    // Handle both "2" and "2A"/"2B" formats from AI
                     if (domainKey === '2') {
                         domainKey = variant === 'assignment' ? '2A' : '2B';
+                    } else if (domainKey === '2A' || domainKey === '2B') {
+                        // Keep as-is, AI already specified the variant
                     }
 
                     const domain = DOMAINS[domainKey];
@@ -2034,12 +2260,16 @@ Smith et al. 2023"></textarea>
                         return;
                     }
 
-                    // Process answers
+                    // Process answers - keep ALL answers including NA for proper tracking
                     const answers = {};
                     if (r.answers) {
                         Object.entries(r.answers).forEach(([qid, ans]) => {
-                            if (ans && ans.toUpperCase() !== 'NA') {
-                                answers[qid] = ans.toUpperCase();
+                            if (ans) {
+                                const upperAns = ans.toUpperCase();
+                                // Store non-NA answers for algorithm calculation
+                                if (upperAns !== 'NA') {
+                                    answers[qid] = upperAns;
+                                }
                             }
                         });
                     }
@@ -2050,8 +2280,16 @@ Smith et al. 2023"></textarea>
                     // Calculate result using our algorithm
                     const calculatedResult = domain.algorithm(answers);
                     const aiResult = r.result ? r.result.charAt(0).toUpperCase() + r.result.slice(1).toLowerCase() : null;
-                    const resultMatch = !aiResult || aiResult === calculatedResult ||
-                                       (aiResult === 'Some concerns' && calculatedResult === 'Some concerns');
+
+                    // More flexible result matching
+                    let resultMatch = true;
+                    if (aiResult && calculatedResult) {
+                        const aiNorm = aiResult.toLowerCase().replace(/\s+/g, '');
+                        const calcNorm = calculatedResult.toLowerCase().replace(/\s+/g, '');
+                        resultMatch = aiNorm === calcNorm ||
+                                     aiNorm.includes(calcNorm) ||
+                                     calcNorm.includes(aiNorm);
+                    }
 
                     validationResults.push({
                         domain: r.domain,
@@ -2061,15 +2299,17 @@ Smith et al. 2023"></textarea>
                         aiResult: aiResult,
                         calculatedResult: calculatedResult,
                         resultMatch: resultMatch,
-                        validation: validation
+                        validation: validation,
+                        rationale: r.rationale || null
                     });
                 });
 
-                // Check for issues
-                const hasErrors = validationResults.some(v => v.error || !v.validation?.valid || !v.resultMatch);
+                // Check for issues - only ERRORS should block auto-save, not warnings
+                const hasErrors = validationResults.some(v => v.error || !v.validation?.valid);
+                const hasMismatch = validationResults.some(v => !v.resultMatch);
                 const hasWarnings = validationResults.some(v => v.validation?.warnings?.length > 0);
 
-                if (hasErrors || hasWarnings) {
+                if (hasErrors || hasMismatch) {
                     // Store for potential redo/accept
                     pendingValidations = validationResults;
 
@@ -2127,21 +2367,41 @@ Smith et al. 2023"></textarea>
                     alertEl.innerHTML = html;
 
                 } else {
-                    // All valid - save directly
+                    // No blocking errors - save all domains
+                    let savedCount = 0;
                     validationResults.forEach(v => {
-                        if (!v.error) {
+                        if (!v.error && v.answers && Object.keys(v.answers).length > 0) {
                             study.domains[v.domainKey] = v.answers;
+                            savedCount++;
                         }
                     });
 
                     saveProjects();
                     renderDomainGrid();
 
-                    alertEl.innerHTML = `
-                        <div class="alert alert-success" style="margin-top: 15px;">
-                            Successfully processed ${validationResults.length} domain(s)! All paths validated correctly.
-                        </div>
-                    `;
+                    // Show success message, with warning note if there were warnings
+                    let successHtml = `<div class="alert alert-success" style="margin-top: 15px;">`;
+                    successHtml += `<strong>Successfully processed ${savedCount} domain(s)!</strong>`;
+
+                    if (hasWarnings) {
+                        successHtml += `<br><small style="color: var(--warning);">Note: Some minor warnings were ignored (e.g., skipped questions marked as NA).</small>`;
+                    }
+
+                    successHtml += `</div>`;
+
+                    // Show summary of results
+                    successHtml += `<div style="margin-top: 15px; padding: 15px; background: var(--bg-input); border-radius: 8px;">`;
+                    successHtml += `<h4 style="margin-bottom: 10px;">Results Summary:</h4>`;
+                    validationResults.forEach(v => {
+                        if (!v.error) {
+                            const color = v.calculatedResult === 'Low' ? 'var(--success)' :
+                                         v.calculatedResult === 'High' ? 'var(--danger)' : 'var(--warning)';
+                            successHtml += `<p><strong>Domain ${v.domain}:</strong> <span style="color: ${color};">${v.calculatedResult}</span></p>`;
+                        }
+                    });
+                    successHtml += `</div>`;
+
+                    alertEl.innerHTML = successHtml;
                     document.getElementById('aiResponseInput').value = '';
                 }
 
