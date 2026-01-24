@@ -1386,7 +1386,8 @@ Smith et al. 2023"></textarea>
             container.innerHTML = domainKeys.map(key => {
                 const domain = DOMAINS[key];
                 const answers = study.domains[key] || {};
-                const result = Object.keys(answers).length === domain.questions.length ? domain.algorithm(answers) : null;
+                // Calculate result if we have ANY answers (algorithm handles incomplete data)
+                const result = Object.keys(answers).length > 0 ? domain.algorithm(answers) : null;
 
                 const biasClass = result ? `bias-${result.toLowerCase().replace(' ', '-')}` : '';
                 const completedClass = result ? 'completed' : '';
@@ -1413,7 +1414,8 @@ Smith et al. 2023"></textarea>
             const results = domainKeys.map(key => {
                 const domain = DOMAINS[key];
                 const answers = study.domains[key] || {};
-                if (Object.keys(answers).length !== domain.questions.length) return null;
+                // Calculate result if we have ANY answers
+                if (Object.keys(answers).length === 0) return null;
                 return domain.algorithm(answers);
             });
 
@@ -1688,7 +1690,7 @@ Smith et al. 2023"></textarea>
                 domainKeys.forEach((key, colIndex) => {
                     const domain = DOMAINS[key];
                     const answers = study.domains[key] || {};
-                    const result = Object.keys(answers).length === domain.questions.length ? domain.algorithm(answers) : null;
+                    const result = Object.keys(answers).length > 0 ? domain.algorithm(answers) : null;
 
                     const x = leftMargin + colIndex * cellWidth;
                     ctx.fillStyle = result ? BIAS_COLORS[result] : '#e5e7eb';
@@ -1764,7 +1766,7 @@ Smith et al. 2023"></textarea>
                         const key = keyMap[label];
                         const domain = DOMAINS[key];
                         const answers = study.domains[key] || {};
-                        result = Object.keys(answers).length === domain.questions.length ? domain.algorithm(answers) : null;
+                        result = Object.keys(answers).length > 0 ? domain.algorithm(answers) : null;
                     }
 
                     if (result) counts[result]++;
@@ -2034,7 +2036,11 @@ Smith et al. 2023"></textarea>
 
             try {
                 const data = JSON.parse(input);
+                const p = projects[currentProject];
+                const currentStudy = p.studies[currentStudyIndex];
+                const studyId = currentStudy.id;
 
+                // Save first outcome to current study
                 if (data.outcome) {
                     document.getElementById('inputOutcome').value = data.outcome;
                 }
@@ -2047,15 +2053,57 @@ Smith et al. 2023"></textarea>
 
                 saveStudyInfo();
 
-                let html = `<div class="alert alert-success" style="margin-top: 10px; font-size: 12px;">Study info updated successfully!</div>`;
+                let outcomesAdded = 0;
 
+                // Automatically create assessments for other outcomes
                 if (data.otherOutcomes && data.otherOutcomes.length > 0) {
-                    html += `<div style="margin-top: 10px; padding: 10px; background: var(--bg-input); border-radius: 6px; font-size: 12px;">`;
-                    html += `<strong>Other outcomes identified:</strong><ul style="margin: 5px 0 0 15px;">`;
                     data.otherOutcomes.forEach(o => {
-                        html += `<li>${o.outcome}: ${o.result || 'No result specified'}</li>`;
+                        // Find how many outcomes this study already has
+                        const existingOutcomes = p.studies.filter(s => s.id === studyId);
+                        const newOutcomeNum = existingOutcomes.length + 1;
+
+                        // Create new assessment for same study
+                        const newAssessment = createStudy(studyId, newOutcomeNum);
+                        newAssessment.info = {
+                            outcome: o.outcome || '',
+                            result: o.result || '',
+                            details: o.details || ''
+                        };
+
+                        // Insert after the last outcome of this study
+                        const lastIndex = p.studies.findIndex(s => s.id === studyId && s.outcomeNum === existingOutcomes.length);
+                        p.studies.splice(lastIndex + 1, 0, newAssessment);
+
+                        // Update outcomeNum for all entries of this study
+                        let num = 1;
+                        p.studies.forEach(s => {
+                            if (s.id === studyId) {
+                                s.outcomeNum = num++;
+                            }
+                        });
+
+                        outcomesAdded++;
                     });
-                    html += `</ul></div>`;
+
+                    saveProjects();
+                    updateAssessmentUI();
+                }
+
+                let html = `<div class="alert alert-success" style="margin-top: 10px; font-size: 12px;">`;
+                html += `Study info updated successfully!`;
+                if (outcomesAdded > 0) {
+                    html += ` Created ${outcomesAdded} additional outcome assessment(s).`;
+                }
+                html += `</div>`;
+
+                if (outcomesAdded > 0) {
+                    html += `<div style="margin-top: 10px; padding: 10px; background: var(--bg-input); border-radius: 6px; font-size: 12px;">`;
+                    html += `<strong>Outcomes created for ${studyId}:</strong><ul style="margin: 5px 0 0 15px;">`;
+                    html += `<li><strong>Outcome 1:</strong> ${data.outcome}</li>`;
+                    data.otherOutcomes.forEach((o, i) => {
+                        html += `<li><strong>Outcome ${i + 2}:</strong> ${o.outcome}</li>`;
+                    });
+                    html += `</ul><small>Use the outcome navigation in the Studies panel to switch between outcomes.</small></div>`;
                 }
 
                 alertEl.innerHTML = html;
