@@ -720,23 +720,29 @@ Smith et al. 2023"></textarea>
 
                     <!-- Plot Mode Selector -->
                     <div style="margin-bottom: 15px; padding: 12px; background: var(--bg-input); border-radius: 8px;">
-                        <label style="font-weight: 600; margin-right: 15px;">Plot Mode:</label>
-                        <label style="margin-right: 20px; cursor: pointer;">
-                            <input type="radio" name="plotMode" value="byOutcome" checked onchange="updatePlotMode()">
-                            <strong>By Outcome</strong> <small style="color: var(--text-muted);">(Recommended - each outcome as separate row)</small>
-                        </label>
-                        <label style="cursor: pointer;">
-                            <input type="radio" name="plotMode" value="byStudy" onchange="updatePlotMode()">
-                            <strong>By Study</strong> <small style="color: var(--text-muted);">(Aggregated - worst bias per study)</small>
-                        </label>
+                        <label style="font-weight: 600; display: block; margin-bottom: 10px;">Plot Mode:</label>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <label style="cursor: pointer;">
+                                <input type="radio" name="plotMode" value="byOutcome" checked onchange="updatePlotMode()">
+                                <strong>All Outcomes (Single Plot)</strong> <small style="color: var(--text-muted);">- Each outcome as separate row in one plot</small>
+                            </label>
+                            <label style="cursor: pointer;">
+                                <input type="radio" name="plotMode" value="byStudy" onchange="updatePlotMode()">
+                                <strong>By Study (Aggregated)</strong> <small style="color: var(--text-muted);">- Worst bias per study in one plot</small>
+                            </label>
+                            <label style="cursor: pointer;">
+                                <input type="radio" name="plotMode" value="separateByOutcome" onchange="updatePlotMode()">
+                                <strong>Separate Plot per Outcome</strong> <small style="color: var(--accent);">- One plot for each unique outcome (Cochrane recommended)</small>
+                            </label>
+                        </div>
                     </div>
 
                     <div class="btn-group" style="margin-bottom: 15px;">
-                        <button class="btn btn-primary" onclick="generateTrafficLightPlot()">Generate Plot</button>
-                        <button class="btn btn-secondary" onclick="downloadPlot('trafficLightCanvas', 'traffic_light_plot')">Download PNG</button>
+                        <button class="btn btn-primary" onclick="generateTrafficLightPlot()">Generate Plot(s)</button>
+                        <button class="btn btn-secondary" onclick="downloadAllPlots('traffic')">Download All PNG</button>
                     </div>
                     <div id="trafficLightContainer" style="overflow-x: auto; background: white; border-radius: 8px; padding: 10px;">
-                        <canvas id="trafficLightCanvas"></canvas>
+                        <!-- Dynamic canvases will be inserted here -->
                     </div>
                 </div>
 
@@ -747,23 +753,29 @@ Smith et al. 2023"></textarea>
 
                     <!-- Plot Mode Selector -->
                     <div style="margin-bottom: 15px; padding: 12px; background: var(--bg-input); border-radius: 8px;">
-                        <label style="font-weight: 600; margin-right: 15px;">Summary Mode:</label>
-                        <label style="margin-right: 20px; cursor: pointer;">
-                            <input type="radio" name="summaryMode" value="byOutcome" checked onchange="updateSummaryMode()">
-                            <strong>By Outcome</strong>
-                        </label>
-                        <label style="cursor: pointer;">
-                            <input type="radio" name="summaryMode" value="byStudy" onchange="updateSummaryMode()">
-                            <strong>By Study</strong>
-                        </label>
+                        <label style="font-weight: 600; display: block; margin-bottom: 10px;">Summary Mode:</label>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <label style="cursor: pointer;">
+                                <input type="radio" name="summaryMode" value="byOutcome" checked onchange="updateSummaryMode()">
+                                <strong>All Outcomes</strong> <small style="color: var(--text-muted);">- Summary across all outcomes</small>
+                            </label>
+                            <label style="cursor: pointer;">
+                                <input type="radio" name="summaryMode" value="byStudy" onchange="updateSummaryMode()">
+                                <strong>By Study</strong> <small style="color: var(--text-muted);">- Summary per study (aggregated)</small>
+                            </label>
+                            <label style="cursor: pointer;">
+                                <input type="radio" name="summaryMode" value="separateByOutcome" onchange="updateSummaryMode()">
+                                <strong>Separate per Outcome</strong> <small style="color: var(--accent);">- One summary for each unique outcome</small>
+                            </label>
+                        </div>
                     </div>
 
                     <div class="btn-group" style="margin-bottom: 15px;">
-                        <button class="btn btn-primary" onclick="generateSummaryPlot()">Generate Plot</button>
-                        <button class="btn btn-secondary" onclick="downloadPlot('summaryCanvas', 'summary_plot')">Download PNG</button>
+                        <button class="btn btn-primary" onclick="generateSummaryPlot()">Generate Plot(s)</button>
+                        <button class="btn btn-secondary" onclick="downloadAllPlots('summary')">Download All PNG</button>
                     </div>
                     <div id="summaryContainer" style="overflow-x: auto; background: white; border-radius: 8px; padding: 10px;">
-                        <canvas id="summaryCanvas"></canvas>
+                        <!-- Dynamic canvases will be inserted here -->
                     </div>
                 </div>
             </div>
@@ -1886,8 +1898,51 @@ Smith et al. 2023"></textarea>
             return (order[a] || 0) >= (order[b] || 0) ? a : b;
         }
 
+        // Get unique outcomes from project
+        function getUniqueOutcomes() {
+            const p = projects[currentProject];
+            const outcomes = {};
+            p.studies.forEach(study => {
+                const outcomeName = study.info.outcome || 'Unspecified Outcome';
+                if (!outcomes[outcomeName]) {
+                    outcomes[outcomeName] = [];
+                }
+                outcomes[outcomeName].push(study);
+            });
+            return outcomes;
+        }
+
         function generateTrafficLightPlot() {
             const p = projects[currentProject];
+            const container = document.getElementById('trafficLightContainer');
+
+            if (currentPlotMode === 'separateByOutcome') {
+                // Generate separate plot for each unique outcome
+                const uniqueOutcomes = getUniqueOutcomes();
+                const outcomeNames = Object.keys(uniqueOutcomes);
+
+                if (outcomeNames.length === 0) {
+                    alert('No outcomes to display');
+                    return;
+                }
+
+                container.innerHTML = '';
+                outcomeNames.forEach((outcomeName, idx) => {
+                    const studies = uniqueOutcomes[outcomeName];
+                    const canvasId = `trafficCanvas_${idx}`;
+                    const wrapper = document.createElement('div');
+                    wrapper.style.marginBottom = '20px';
+                    wrapper.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+                    container.appendChild(wrapper);
+
+                    generateSingleTrafficLightPlot(canvasId, studies, outcomeName);
+                });
+
+                return;
+            }
+
+            // Single plot mode (byOutcome or byStudy)
+            container.innerHTML = '<canvas id="trafficLightCanvas"></canvas>';
             const canvas = document.getElementById('trafficLightCanvas');
             const ctx = canvas.getContext('2d');
 
@@ -2133,8 +2188,268 @@ Smith et al. 2023"></textarea>
             });
         }
 
+        // Generate a single traffic light plot for a specific outcome
+        function generateSingleTrafficLightPlot(canvasId, studies, outcomeName) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+
+            const domains = ['D1', 'D2', 'D3', 'D4', 'D5', 'Overall'];
+            const domainFullLabels = ['Randomization', 'Deviations', 'Missing data', 'Measurement', 'Selection', 'Overall'];
+
+            ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+
+            const maxLabelWidth = 300;
+            let maxMeasuredWidth = 150;
+            studies.forEach(item => {
+                const w = ctx.measureText(item.id).width + 20;
+                maxMeasuredWidth = Math.max(maxMeasuredWidth, Math.min(w, maxLabelWidth));
+            });
+
+            const studyColWidth = maxMeasuredWidth;
+            const cellWidth = 75;
+            const cellHeight = 40;
+            const headerHeight = 70;
+            const rowHeight = cellHeight + 4;
+            const paddingX = 25;
+            const paddingY = 20;
+            const titleHeight = 75;
+            const legendHeight = 60;
+
+            const tableWidth = studyColWidth + (domains.length * cellWidth);
+            const width = paddingX * 2 + tableWidth;
+            const height = paddingY + titleHeight + headerHeight + (studies.length * rowHeight) + legendHeight + paddingY;
+
+            canvas.width = width;
+            canvas.height = height;
+
+            // Background
+            const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
+            bgGradient.addColorStop(0, '#ffffff');
+            bgGradient.addColorStop(1, '#f8fafc');
+            ctx.fillStyle = bgGradient;
+            ctx.fillRect(0, 0, width, height);
+
+            // Title
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Traffic Light Plot - RoB 2', width / 2, paddingY + 22);
+
+            // Outcome name (wrapped if needed)
+            ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.fillStyle = '#1e40af';
+            const maxTitleWidth = width - 50;
+            let displayOutcome = outcomeName;
+            if (ctx.measureText(displayOutcome).width > maxTitleWidth) {
+                while (ctx.measureText(displayOutcome + '...').width > maxTitleWidth && displayOutcome.length > 0) {
+                    displayOutcome = displayOutcome.slice(0, -1);
+                }
+                displayOutcome += '...';
+            }
+            ctx.fillText(`Outcome: ${displayOutcome}`, width / 2, paddingY + 42);
+
+            ctx.fillStyle = '#64748b';
+            ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.fillText(`${studies.length} study/studies`, width / 2, paddingY + 58);
+
+            const tableStartY = paddingY + titleHeight;
+            const tableStartX = paddingX;
+
+            // Header
+            ctx.fillStyle = '#1e40af';
+            roundRect(ctx, tableStartX, tableStartY, tableWidth, headerHeight, 8);
+            ctx.fill();
+            ctx.fillRect(tableStartX, tableStartY + headerHeight - 8, tableWidth, 8);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('Study', tableStartX + 12, tableStartY + headerHeight / 2 + 5);
+
+            ctx.textAlign = 'center';
+            domains.forEach((d, i) => {
+                const x = tableStartX + studyColWidth + i * cellWidth + cellWidth / 2;
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.fillText(d, x, tableStartY + 28);
+                ctx.fillStyle = '#93c5fd';
+                ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.fillText(domainFullLabels[i], x, tableStartY + 45);
+            });
+
+            // Rows
+            const dataStartY = tableStartY + headerHeight;
+            studies.forEach((item, rowIndex) => {
+                const y = dataStartY + rowIndex * rowHeight;
+                const isEven = rowIndex % 2 === 0;
+                const isLast = rowIndex === studies.length - 1;
+
+                ctx.fillStyle = isEven ? '#ffffff' : '#f1f5f9';
+                if (isLast) {
+                    roundRect(ctx, tableStartX, y, tableWidth, rowHeight, 8);
+                    ctx.fill();
+                    ctx.fillRect(tableStartX, y, tableWidth, 8);
+                } else {
+                    ctx.fillRect(tableStartX, y, tableWidth, rowHeight);
+                }
+
+                ctx.fillStyle = '#1e293b';
+                ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.textAlign = 'left';
+
+                let label = item.id;
+                if (ctx.measureText(label).width > studyColWidth - 15) {
+                    while (ctx.measureText(label + '...').width > studyColWidth - 15 && label.length > 0) {
+                        label = label.slice(0, -1);
+                    }
+                    label += '...';
+                }
+                ctx.fillText(label, tableStartX + 12, y + rowHeight / 2 + 4);
+
+                domains.forEach((d, colIndex) => {
+                    const cellX = tableStartX + studyColWidth + colIndex * cellWidth;
+                    let value;
+
+                    if (d === 'Overall') {
+                        value = item.overall;
+                    } else {
+                        const variant = item.variant || 'assignment';
+                        const domain2Key = variant === 'assignment' ? '2A' : '2B';
+                        const keyMap = { D1: '1', D2: domain2Key, D3: '3', D4: '4', D5: '5' };
+                        const key = keyMap[d];
+                        const domain = DOMAINS[key];
+                        const answers = item.domains[key] || {};
+                        value = Object.keys(answers).length > 0 ? domain.algorithm(answers) : null;
+                    }
+
+                    const color = value ? BIAS_COLORS[value] : '#e5e7eb';
+                    const circleX = cellX + cellWidth / 2;
+                    const circleY = y + rowHeight / 2;
+                    const radius = 14;
+
+                    ctx.beginPath();
+                    ctx.arc(circleX, circleY, radius, 0, Math.PI * 2);
+                    ctx.fillStyle = color;
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    if (value) {
+                        ctx.fillStyle = value === 'High' ? '#ffffff' : '#1e293b';
+                        ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        let symbol = value === 'Low' ? '+' : value === 'Some concerns' ? '–' : '✕';
+                        ctx.fillText(symbol, circleX, circleY + 1);
+                        ctx.textBaseline = 'alphabetic';
+                    }
+                });
+            });
+
+            // Border
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 1;
+            roundRect(ctx, tableStartX, tableStartY, tableWidth, headerHeight + studies.length * rowHeight, 8);
+            ctx.stroke();
+
+            // Legend
+            const legendY = height - paddingY - 15;
+            const legendItems = [
+                { label: 'Low risk', color: BIAS_COLORS['Low'], symbol: '+' },
+                { label: 'Some concerns', color: BIAS_COLORS['Some concerns'], symbol: '–' },
+                { label: 'High risk', color: BIAS_COLORS['High'], symbol: '✕' }
+            ];
+
+            ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            const totalLegendWidth = legendItems.reduce((sum, item) => sum + ctx.measureText(item.label).width + 50, 0);
+            let legendX = (width - totalLegendWidth) / 2;
+
+            legendItems.forEach(item => {
+                ctx.beginPath();
+                ctx.arc(legendX + 10, legendY, 10, 0, Math.PI * 2);
+                ctx.fillStyle = item.color;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.fillStyle = item.label === 'High risk' ? '#ffffff' : '#1e293b';
+                ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(item.symbol, legendX + 10, legendY + 1);
+
+                ctx.textBaseline = 'alphabetic';
+                ctx.fillStyle = '#475569';
+                ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(item.label, legendX + 26, legendY + 4);
+
+                legendX += ctx.measureText(item.label).width + 50;
+            });
+        }
+
+        // Download all plots as a zip or individually
+        function downloadAllPlots(type) {
+            const container = document.getElementById(type === 'traffic' ? 'trafficLightContainer' : 'summaryContainer');
+            const canvases = container.querySelectorAll('canvas');
+
+            if (canvases.length === 0) {
+                alert('Please generate the plots first.');
+                return;
+            }
+
+            if (canvases.length === 1) {
+                // Single canvas - download directly
+                const link = document.createElement('a');
+                link.download = `${type}_light_plot.png`;
+                link.href = canvases[0].toDataURL('image/png');
+                link.click();
+            } else {
+                // Multiple canvases - download each with numbered names
+                canvases.forEach((canvas, idx) => {
+                    setTimeout(() => {
+                        const link = document.createElement('a');
+                        link.download = `${type}_plot_${idx + 1}.png`;
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                    }, idx * 300); // Stagger downloads
+                });
+            }
+        }
+
         function generateSummaryPlot() {
             const p = projects[currentProject];
+            const container = document.getElementById('summaryContainer');
+
+            if (currentSummaryMode === 'separateByOutcome') {
+                // Generate separate summary for each unique outcome
+                const uniqueOutcomes = getUniqueOutcomes();
+                const outcomeNames = Object.keys(uniqueOutcomes);
+
+                if (outcomeNames.length === 0) {
+                    alert('No outcomes to display');
+                    return;
+                }
+
+                container.innerHTML = '';
+                outcomeNames.forEach((outcomeName, idx) => {
+                    const studies = uniqueOutcomes[outcomeName];
+                    const canvasId = `summaryCanvas_${idx}`;
+                    const wrapper = document.createElement('div');
+                    wrapper.style.marginBottom = '20px';
+                    wrapper.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+                    container.appendChild(wrapper);
+
+                    generateSingleSummaryPlot(canvasId, studies, outcomeName);
+                });
+
+                return;
+            }
+
+            // Single plot mode
+            container.innerHTML = '<canvas id="summaryCanvas"></canvas>';
             const canvas = document.getElementById('summaryCanvas');
             const ctx = canvas.getContext('2d');
 
@@ -2265,6 +2580,171 @@ Smith et al. 2023"></textarea>
                     ctx.stroke();
 
                     // Percentages
+                    ctx.fillStyle = '#475569';
+                    ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                    const pctLow = Math.round(counts.Low / total * 100);
+                    const pctSC = Math.round(counts['Some concerns'] / total * 100);
+                    const pctHigh = Math.round(counts.High / total * 100);
+                    ctx.fillText(`${pctLow}% | ${pctSC}% | ${pctHigh}%`, paddingX + leftMargin + barWidth + 15, y + barHeight / 2 + 4);
+                }
+            });
+
+            // Legend
+            const legendY = height - paddingY - 20;
+            const legendItems = [
+                { label: 'Low risk', color: BIAS_COLORS['Low'] },
+                { label: 'Some concerns', color: BIAS_COLORS['Some concerns'] },
+                { label: 'High risk', color: BIAS_COLORS['High'] }
+            ];
+
+            ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            const totalLegendWidth = legendItems.reduce((sum, item) => sum + ctx.measureText(item.label).width + 45, 0);
+            let legendX = (width - totalLegendWidth) / 2;
+
+            legendItems.forEach(item => {
+                roundRect(ctx, legendX, legendY - 10, 18, 12, 2);
+                ctx.fillStyle = item.color;
+                ctx.fill();
+
+                ctx.fillStyle = '#475569';
+                ctx.textAlign = 'left';
+                ctx.fillText(item.label, legendX + 24, legendY);
+
+                legendX += ctx.measureText(item.label).width + 45;
+            });
+        }
+
+        // Generate a single summary plot for a specific outcome
+        function generateSingleSummaryPlot(canvasId, studies, outcomeName) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+
+            const domainLabels = ['D1', 'D2', 'D3', 'D4', 'D5', 'Overall'];
+            const domainFullLabels = ['Randomization', 'Deviations', 'Missing Data', 'Measurement', 'Selection', 'Overall'];
+            const barHeight = 45;
+            const leftMargin = 120;
+            const topMargin = 90;
+            const barWidth = 400;
+            const paddingX = 25;
+            const paddingY = 20;
+
+            const width = paddingX * 2 + leftMargin + barWidth + 180;
+            const height = paddingY + topMargin + barHeight * domainLabels.length + 80;
+
+            canvas.width = width;
+            canvas.height = height;
+
+            // Background
+            const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
+            bgGradient.addColorStop(0, '#ffffff');
+            bgGradient.addColorStop(1, '#f8fafc');
+            ctx.fillStyle = bgGradient;
+            ctx.fillRect(0, 0, width, height);
+
+            // Title
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Risk of Bias Summary - RoB 2', width / 2, paddingY + 22);
+
+            // Outcome name
+            ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.fillStyle = '#1e40af';
+            const maxTitleWidth = width - 50;
+            let displayOutcome = outcomeName;
+            if (ctx.measureText(displayOutcome).width > maxTitleWidth) {
+                while (ctx.measureText(displayOutcome + '...').width > maxTitleWidth && displayOutcome.length > 0) {
+                    displayOutcome = displayOutcome.slice(0, -1);
+                }
+                displayOutcome += '...';
+            }
+            ctx.fillText(`Outcome: ${displayOutcome}`, width / 2, paddingY + 42);
+
+            ctx.fillStyle = '#64748b';
+            ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.fillText(`${studies.length} study/studies`, width / 2, paddingY + 58);
+
+            // Calculate counts for each domain
+            domainLabels.forEach((label, rowIndex) => {
+                const y = topMargin + rowIndex * barHeight;
+                let counts = { Low: 0, 'Some concerns': 0, High: 0 };
+
+                studies.forEach(item => {
+                    let result;
+                    if (label === 'Overall') {
+                        result = item.overall;
+                    } else {
+                        const variant = item.variant || 'assignment';
+                        const domain2Key = variant === 'assignment' ? '2A' : '2B';
+                        const keyMap = { D1: '1', D2: domain2Key, D3: '3', D4: '4', D5: '5' };
+                        const key = keyMap[label];
+                        const domain = DOMAINS[key];
+                        const answers = item.domains[key] || {};
+                        result = Object.keys(answers).length > 0 ? domain.algorithm(answers) : null;
+                    }
+
+                    if (result) counts[result]++;
+                });
+
+                const total = counts.Low + counts['Some concerns'] + counts.High;
+
+                // Draw label
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#1e293b';
+                ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.fillText(label, paddingX + 35, y + barHeight / 2 + 2);
+
+                ctx.fillStyle = '#64748b';
+                ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.fillText(domainFullLabels[rowIndex], paddingX + leftMargin - 15, y + barHeight / 2 + 2);
+
+                ctx.textAlign = 'left';
+
+                if (total > 0) {
+                    let x = paddingX + leftMargin;
+                    const levels = ['Low', 'Some concerns', 'High'];
+                    const barY = y + 8;
+                    const barH = barHeight - 16;
+
+                    levels.forEach((level, levelIdx) => {
+                        const barW = (counts[level] / total) * barWidth;
+                        if (barW > 0) {
+                            ctx.fillStyle = BIAS_COLORS[level];
+                            if (levelIdx === 0 && barW === barWidth) {
+                                roundRect(ctx, x, barY, barW, barH, 4);
+                                ctx.fill();
+                            } else if (levelIdx === 0) {
+                                ctx.beginPath();
+                                ctx.moveTo(x + 4, barY);
+                                ctx.lineTo(x + barW, barY);
+                                ctx.lineTo(x + barW, barY + barH);
+                                ctx.lineTo(x + 4, barY + barH);
+                                ctx.quadraticCurveTo(x, barY + barH, x, barY + barH - 4);
+                                ctx.lineTo(x, barY + 4);
+                                ctx.quadraticCurveTo(x, barY, x + 4, barY);
+                                ctx.fill();
+                            } else if (levelIdx === levels.length - 1 || (counts[levels[levelIdx + 1]] === 0 && (levelIdx === levels.length - 2 || counts[levels[levelIdx + 2]] === 0))) {
+                                ctx.beginPath();
+                                ctx.moveTo(x, barY);
+                                ctx.lineTo(x + barW - 4, barY);
+                                ctx.quadraticCurveTo(x + barW, barY, x + barW, barY + 4);
+                                ctx.lineTo(x + barW, barY + barH - 4);
+                                ctx.quadraticCurveTo(x + barW, barY + barH, x + barW - 4, barY + barH);
+                                ctx.lineTo(x, barY + barH);
+                                ctx.closePath();
+                                ctx.fill();
+                            } else {
+                                ctx.fillRect(x, barY, barW, barH);
+                            }
+                            x += barW;
+                        }
+                    });
+
+                    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+                    ctx.lineWidth = 1;
+                    roundRect(ctx, paddingX + leftMargin, barY, barWidth, barH, 4);
+                    ctx.stroke();
+
                     ctx.fillStyle = '#475569';
                     ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                     const pctLow = Math.round(counts.Low / total * 100);
