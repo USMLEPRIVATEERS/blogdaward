@@ -594,18 +594,32 @@ Smith et al. 2023"></textarea>
                         </div>
 
                         <div id="ai-tab-copy" class="tab-content active">
-                            <p style="margin-bottom: 15px;">Copy all domain questions to use with an AI assistant (e.g., ChatGPT, Claude). The AI will return a JSON response that you can paste back.</p>
-                            <div class="btn-group" style="margin-top:0">
-                                <button class="btn btn-primary" onclick="copyAllQuestions()">Copy All Questions</button>
+                            <p style="margin-bottom: 15px;">Copy domain questions for AI assessment. Choose single outcome or batch mode for all outcomes at once.</p>
+                            <div class="btn-group" style="margin-top:0; flex-wrap: wrap; gap: 8px;">
+                                <button class="btn btn-secondary" onclick="copyAllQuestions()">📋 Current Outcome Only</button>
+                                <button class="btn btn-primary" onclick="copyBatchDomainPrompt()">🚀 BATCH: All Outcomes</button>
                             </div>
-                            <textarea id="questionsOutput" readonly style="margin-top: 15px; height: 200px;" placeholder="Questions will appear here after clicking the button..."></textarea>
+                            <p id="batchInfo" style="margin-top: 10px; font-size: 11px; color: var(--text-muted);"></p>
+                            <textarea id="questionsOutput" readonly style="margin-top: 10px; height: 200px;" placeholder="Questions will appear here after clicking a button..."></textarea>
                         </div>
 
                         <div id="ai-tab-paste" class="tab-content" style="display: none;">
                             <p style="margin-bottom: 10px;">Paste the AI's JSON response below:</p>
-                            <pre style="background: var(--bg-input); padding: 10px; border-radius: 6px; font-size: 11px; margin-bottom: 15px; overflow-x: auto; white-space: pre-wrap;">[{"domain": "1", "answers": {"1.1": "Y", "1.2": "Y", "1.3": "N"}, "result": "Low"}, ...]</pre>
-                            <textarea id="aiResponseInput" style="height: 150px;" placeholder="Paste JSON here..."></textarea>
-                            <button class="btn btn-primary" style="margin-top: 15px;" onclick="processAIResponse()">Process Response</button>
+                            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                                <div style="flex: 1; padding: 8px; background: var(--bg-input); border-radius: 6px; font-size: 10px;">
+                                    <strong>Single outcome format:</strong><br>
+                                    <code>[{"domain": "1", "answers": {...}}, ...]</code>
+                                </div>
+                                <div style="flex: 1; padding: 8px; background: var(--bg-input); border-radius: 6px; font-size: 10px;">
+                                    <strong>Batch format:</strong><br>
+                                    <code>{"studyId": "...", "outcomes": [...]}</code>
+                                </div>
+                            </div>
+                            <textarea id="aiResponseInput" style="height: 150px;" placeholder="Paste JSON here (single or batch format)..."></textarea>
+                            <div class="btn-group" style="margin-top: 15px;">
+                                <button class="btn btn-secondary" onclick="processAIResponse()">Process Single Outcome</button>
+                                <button class="btn btn-primary" onclick="processBatchDomainAI()">Process BATCH Response</button>
+                            </div>
                             <div id="aiAlert"></div>
                         </div>
                     </div>
@@ -1232,6 +1246,17 @@ Smith et al. 2023"></textarea>
                 updateVariantSelection(study.variant || 'assignment');
             } else if (step === 'domains') {
                 renderDomainGrid();
+                // Update batch info
+                const studyId = study.id;
+                const studyOutcomes = projects[currentProject].studies.filter(s => s.id === studyId);
+                const batchInfoEl = document.getElementById('batchInfo');
+                if (batchInfoEl) {
+                    if (studyOutcomes.length > 1) {
+                        batchInfoEl.innerHTML = `<span style="color: var(--accent);">💡 This study has <strong>${studyOutcomes.length} outcomes</strong>. Use BATCH mode to assess all at once!</span>`;
+                    } else {
+                        batchInfoEl.innerHTML = `This study has 1 outcome. Use "Current Outcome Only" or add more outcomes in Study Info.`;
+                    }
+                }
             }
         }
 
@@ -1371,6 +1396,15 @@ Smith et al. 2023"></textarea>
         function updateVariantSelection(variant) {
             document.querySelectorAll('.variant-card').forEach(el => el.classList.remove('selected'));
             document.getElementById(`variant-${variant}`).classList.add('selected');
+
+            // Show if variant was set via AI (has rationale)
+            const study = projects[currentProject].studies[currentStudyIndex];
+            const variantAlert = document.getElementById('variantAlert');
+            if (variantAlert && study.variantRationale) {
+                variantAlert.innerHTML = `<div class="alert alert-success" style="margin-top: 10px; font-size: 12px;">
+                    <strong>✓ Set via AI in Study Info:</strong> ${study.variantRationale}
+                </div>`;
+            }
         }
 
         // ========== DOMAIN GRID ==========
@@ -1994,16 +2028,23 @@ Smith et al. 2023"></textarea>
 
         function copyStudyInfoPrompt() {
             const study = projects[currentProject].studies[currentStudyIndex];
-            let text = `RoB 2 Assessment - Study Information Extraction\n`;
+            let text = `RoB 2 Assessment - Study Information & Variant Extraction\n`;
             text += `Study ID: ${study.id}\n\n`;
             text += `══════════════════════════════════════════════════════════════════\n`;
-            text += `TASK: Identify the outcome(s) and results from this study\n`;
+            text += `TASK: Extract ALL outcomes and determine D2 variant for each\n`;
             text += `══════════════════════════════════════════════════════════════════\n\n`;
-            text += `Please analyze the article and provide the following information:\n\n`;
-            text += `1. OUTCOME: The specific outcome being measured (e.g., "All-cause mortality at 1 year", "BODY-Q Satisfaction Score at 6 months")\n`;
-            text += `2. RESULT: The numerical result (e.g., "RR = 0.85 (95% CI 0.72-0.99)", "73.2 ± 13.2 vs 65.7 ± 10.7, p=0.007")\n`;
-            text += `3. DETAILS: Additional details like table reference, analysis type (e.g., "Table 2, ITT analysis")\n\n`;
-            text += `If the study has MULTIPLE outcomes, list the PRIMARY outcome first, then secondary outcomes.\n\n`;
+            text += `For EACH outcome in the study, provide:\n\n`;
+            text += `1. OUTCOME: The specific outcome being measured (e.g., "All-cause mortality at 1 year")\n`;
+            text += `2. RESULT: The numerical result (e.g., "RR = 0.85 (95% CI 0.72-0.99)")\n`;
+            text += `3. DETAILS: Table/figure reference, analysis type\n`;
+            text += `4. VARIANT: Domain 2 analysis type - choose ONE:\n`;
+            text += `   • "assignment" = Effect of ASSIGNMENT (Intention-to-Treat / ITT)\n`;
+            text += `     Use when: analyzing what happens when ASSIGNED to intervention,\n`;
+            text += `     regardless of whether they actually adhered. Most common.\n`;
+            text += `   • "adhering" = Effect of ADHERING (Per-Protocol)\n`;
+            text += `     Use when: analyzing effect in participants who ACTUALLY ADHERED\n`;
+            text += `     to the intervention as intended.\n\n`;
+            text += `List the PRIMARY outcome first, then all secondary outcomes.\n\n`;
             text += `══════════════════════════════════════════════════════════════════\n`;
             text += `RESPOND IN JSON FORMAT:\n`;
             text += `══════════════════════════════════════════════════════════════════\n\n`;
@@ -2011,9 +2052,16 @@ Smith et al. 2023"></textarea>
             text += `  "outcome": "Primary outcome description with timepoint",\n`;
             text += `  "result": "Statistical result with effect size, CI, and/or p-value",\n`;
             text += `  "details": "Table/figure reference, analysis type",\n`;
+            text += `  "variant": "assignment",\n`;
+            text += `  "variantRationale": "ITT analysis was used as stated in methods",\n`;
             text += `  "otherOutcomes": [\n`;
-            text += `    {"outcome": "Secondary outcome 1", "result": "..."},\n`;
-            text += `    {"outcome": "Secondary outcome 2", "result": "..."}\n`;
+            text += `    {\n`;
+            text += `      "outcome": "Secondary outcome 1",\n`;
+            text += `      "result": "...",\n`;
+            text += `      "details": "...",\n`;
+            text += `      "variant": "assignment",\n`;
+            text += `      "variantRationale": "..."\n`;
+            text += `    }\n`;
             text += `  ]\n`;
             text += `}\n`;
 
@@ -2051,9 +2099,16 @@ Smith et al. 2023"></textarea>
                     document.getElementById('inputDetails').value = data.details;
                 }
 
+                // Save variant for first outcome
+                if (data.variant && (data.variant === 'assignment' || data.variant === 'adhering')) {
+                    currentStudy.variant = data.variant;
+                    currentStudy.variantRationale = data.variantRationale || '';
+                }
+
                 saveStudyInfo();
 
                 let outcomesAdded = 0;
+                let allOutcomes = [{ outcome: data.outcome, variant: data.variant || 'assignment' }];
 
                 // Automatically create assessments for other outcomes
                 if (data.otherOutcomes && data.otherOutcomes.length > 0) {
@@ -2070,6 +2125,12 @@ Smith et al. 2023"></textarea>
                             details: o.details || ''
                         };
 
+                        // Set variant for this outcome
+                        if (o.variant && (o.variant === 'assignment' || o.variant === 'adhering')) {
+                            newAssessment.variant = o.variant;
+                            newAssessment.variantRationale = o.variantRationale || '';
+                        }
+
                         // Insert after the last outcome of this study
                         const lastIndex = p.studies.findIndex(s => s.id === studyId && s.outcomeNum === existingOutcomes.length);
                         p.studies.splice(lastIndex + 1, 0, newAssessment);
@@ -2082,6 +2143,7 @@ Smith et al. 2023"></textarea>
                             }
                         });
 
+                        allOutcomes.push({ outcome: o.outcome, variant: o.variant || 'assignment' });
                         outcomesAdded++;
                     });
 
@@ -2096,18 +2158,27 @@ Smith et al. 2023"></textarea>
                 }
                 html += `</div>`;
 
-                if (outcomesAdded > 0) {
-                    html += `<div style="margin-top: 10px; padding: 10px; background: var(--bg-input); border-radius: 6px; font-size: 12px;">`;
-                    html += `<strong>Outcomes created for ${studyId}:</strong><ul style="margin: 5px 0 0 15px;">`;
-                    html += `<li><strong>Outcome 1:</strong> ${data.outcome}</li>`;
-                    data.otherOutcomes.forEach((o, i) => {
-                        html += `<li><strong>Outcome ${i + 2}:</strong> ${o.outcome}</li>`;
-                    });
-                    html += `</ul><small>Use the outcome navigation in the Studies panel to switch between outcomes.</small></div>`;
-                }
+                // Show all outcomes with their variants
+                html += `<div style="margin-top: 10px; padding: 10px; background: var(--bg-input); border-radius: 6px; font-size: 12px;">`;
+                html += `<strong>✓ Outcomes configured for ${studyId}:</strong>`;
+                html += `<table style="width: 100%; margin-top: 8px; font-size: 11px;">`;
+                html += `<tr style="background: var(--bg-card);"><th style="padding: 4px; text-align: left;">#</th><th style="padding: 4px; text-align: left;">Outcome</th><th style="padding: 4px; text-align: left;">D2 Variant</th></tr>`;
+                allOutcomes.forEach((o, i) => {
+                    const variantLabel = o.variant === 'adhering' ? 'Per-Protocol' : 'ITT';
+                    html += `<tr><td style="padding: 4px;">${i + 1}</td><td style="padding: 4px;">${o.outcome}</td><td style="padding: 4px;">${variantLabel}</td></tr>`;
+                });
+                html += `</table>`;
+                html += `<p style="margin-top: 10px; color: var(--success);"><strong>→ You can now proceed directly to Domains!</strong></p>`;
+                html += `</div>`;
 
                 alertEl.innerHTML = html;
                 document.getElementById('studyInfoAIInput').value = '';
+
+                // Update variant UI if on that step
+                if (currentStudy.variant) {
+                    updateVariantSelection(currentStudy.variant);
+                }
+                updateOutcomesList();
 
             } catch (err) {
                 alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top: 10px; font-size: 12px;">Error parsing JSON: ${err.message}</div>`;
@@ -2301,6 +2372,275 @@ Smith et al. 2023"></textarea>
             }).catch(() => {
                 alert('Could not copy to clipboard. Please select and copy the text manually.');
             });
+        }
+
+        // ========== BATCH DOMAIN ASSESSMENT (ALL OUTCOMES AT ONCE) ==========
+
+        function copyBatchDomainPrompt() {
+            const p = projects[currentProject];
+            const currentStudy = p.studies[currentStudyIndex];
+            const studyId = currentStudy.id;
+
+            // Get all outcomes for this study
+            const studyOutcomes = p.studies.filter(s => s.id === studyId);
+
+            if (studyOutcomes.length === 0) {
+                alert('No outcomes found for this study.');
+                return;
+            }
+
+            let text = `RoB 2 BATCH Assessment - All Outcomes for Study\n`;
+            text += `Study ID: ${studyId}\n`;
+            text += `Total Outcomes: ${studyOutcomes.length}\n\n`;
+
+            text += `══════════════════════════════════════════════════════════════════\n`;
+            text += `TASK: Assess ALL ${studyOutcomes.length} outcomes in a SINGLE response\n`;
+            text += `══════════════════════════════════════════════════════════════════\n\n`;
+
+            text += `CRITICAL INSTRUCTIONS:\n`;
+            text += `1. Follow decision paths EXACTLY as specified\n`;
+            text += `2. Use "NA" for skipped questions based on the path\n`;
+            text += `3. Each outcome may have different D2 variant (ITT vs Per-Protocol)\n`;
+            text += `4. Respond with a JSON object containing ALL outcomes\n\n`;
+
+            text += `Response codes:\n`;
+            text += `  Y = Yes, PY = Probably Yes, N = No, PN = Probably No\n`;
+            text += `  NI = No Information, NA = Not Applicable (skipped)\n\n`;
+
+            text += `Risk levels: Low | Some concerns | High\n\n`;
+
+            // List all outcomes
+            text += `════════════════════════════════════════════════════════════════\n`;
+            text += `OUTCOMES TO ASSESS:\n`;
+            text += `════════════════════════════════════════════════════════════════\n\n`;
+
+            studyOutcomes.forEach((s, idx) => {
+                const variant = s.variant || 'assignment';
+                const variantLabel = variant === 'adhering' ? 'Per-Protocol (Adhering)' : 'ITT (Assignment)';
+                text += `OUTCOME ${idx + 1}: ${s.info.outcome || 'Not specified'}\n`;
+                text += `  Result: ${s.info.result || 'Not specified'}\n`;
+                text += `  D2 Variant: ${variantLabel} → Use Domain "${variant === 'adhering' ? '2B' : '2A'}"\n\n`;
+            });
+
+            // Domain definitions (condensed)
+            text += `════════════════════════════════════════════════════════════════\n`;
+            text += `DOMAIN DEFINITIONS (apply to each outcome):\n`;
+            text += `════════════════════════════════════════════════════════════════\n\n`;
+
+            // Domain 1
+            text += `DOMAIN 1: Bias from randomization\n`;
+            text += `  1.1: Was allocation sequence random? (Y/PY/PN/N/NI)\n`;
+            text += `  1.2: Was allocation concealed? (Y/PY/PN/N/NI)\n`;
+            text += `  1.3: Did baseline differences suggest randomization problem? (Y/PY/PN/N/NI)\n`;
+            text += `  Path: 1.2=N/PN → High | 1.2=NI+1.3=Y/PY → High | else assess all\n\n`;
+
+            // Domain 2A
+            text += `DOMAIN 2A (ITT/Assignment):\n`;
+            text += `  2.1: Were participants aware of assignment? (Y/PY/PN/N/NI)\n`;
+            text += `  2.2: Were carers aware? (Y/PY/PN/N/NI)\n`;
+            text += `  2.3: Deviations due to trial context? (Y/PY/PN/N/NI/NA) - if 2.1+2.2=N/PN, skip\n`;
+            text += `  2.4: Deviations likely affected outcome? (Y/PY/PN/N/NI/NA)\n`;
+            text += `  2.5: Deviations balanced? (Y/PY/PN/N/NI/NA)\n`;
+            text += `  2.6: Appropriate ITT analysis? (Y/PY/PN/N/NI)\n`;
+            text += `  2.7: Substantial impact from not analyzing as randomized? (Y/PY/PN/N/NI/NA)\n\n`;
+
+            // Domain 2B
+            text += `DOMAIN 2B (Per-Protocol/Adhering):\n`;
+            text += `  Same questions as 2A but evaluates adherence-adjusted effect\n\n`;
+
+            // Domain 3
+            text += `DOMAIN 3: Missing outcome data\n`;
+            text += `  3.1: Data available for all/nearly all? (Y/PY/PN/N/NI) - if Y/PY → Low, stop\n`;
+            text += `  3.2: Evidence result not biased by missing data? (Y/PY/PN/N/NI/NA)\n`;
+            text += `  3.3: Could missingness depend on true value? (Y/PY/PN/N/NI/NA)\n`;
+            text += `  3.4: Likely missingness depended on true value? (Y/PY/PN/N/NI/NA)\n\n`;
+
+            // Domain 4
+            text += `DOMAIN 4: Outcome measurement bias\n`;
+            text += `  4.1: Was measurement method inappropriate? (Y/PY/PN/N/NI) - if Y/PY → High\n`;
+            text += `  4.2: Could measurement differ between groups? (Y/PY/PN/N/NI) - if Y/PY → High\n`;
+            text += `  4.3: Were assessors aware of intervention? (Y/PY/PN/N/NI)\n`;
+            text += `  4.4: Could assessment be influenced by knowledge? (Y/PY/PN/N/NI/NA)\n`;
+            text += `  4.5: Likely assessment was influenced? (Y/PY/PN/N/NI/NA)\n\n`;
+
+            // Domain 5
+            text += `DOMAIN 5: Selection of reported result\n`;
+            text += `  5.1: Analyzed per pre-specified plan? (Y/PY/PN/N/NI)\n`;
+            text += `  5.2: Result selected from multiple outcome measurements? (Y/PY/PN/N/NI)\n`;
+            text += `  5.3: Result selected from multiple analyses? (Y/PY/PN/N/NI)\n`;
+            text += `  Path: 5.2=Y/PY OR 5.3=Y/PY → High\n\n`;
+
+            // JSON Format
+            text += `════════════════════════════════════════════════════════════════\n`;
+            text += `JSON RESPONSE FORMAT (REQUIRED)\n`;
+            text += `════════════════════════════════════════════════════════════════\n\n`;
+
+            text += `{\n`;
+            text += `  "studyId": "${studyId}",\n`;
+            text += `  "outcomes": [\n`;
+
+            studyOutcomes.forEach((s, idx) => {
+                const variant = s.variant || 'assignment';
+                const d2Key = variant === 'adhering' ? '2B' : '2A';
+                text += `    {\n`;
+                text += `      "outcomeNum": ${idx + 1},\n`;
+                text += `      "outcome": "${s.info.outcome || ''}",\n`;
+                text += `      "domains": [\n`;
+                text += `        {"domain": "1", "answers": {"1.1": "?", "1.2": "?", "1.3": "?"}, "result": "?"},\n`;
+                text += `        {"domain": "${d2Key}", "answers": {"2.1": "?", "2.2": "?", "2.3": "?", "2.4": "?", "2.5": "?", "2.6": "?", "2.7": "?"}, "result": "?"},\n`;
+                text += `        {"domain": "3", "answers": {"3.1": "?", "3.2": "?", "3.3": "?", "3.4": "?"}, "result": "?"},\n`;
+                text += `        {"domain": "4", "answers": {"4.1": "?", "4.2": "?", "4.3": "?", "4.4": "?", "4.5": "?"}, "result": "?"},\n`;
+                text += `        {"domain": "5", "answers": {"5.1": "?", "5.2": "?", "5.3": "?"}, "result": "?"}\n`;
+                text += `      ]\n`;
+                text += `    }${idx < studyOutcomes.length - 1 ? ',' : ''}\n`;
+            });
+
+            text += `  ]\n`;
+            text += `}\n`;
+
+            document.getElementById('questionsOutput').value = text;
+            navigator.clipboard.writeText(text).then(() => {
+                alert(`Batch prompt copied! Includes ${studyOutcomes.length} outcomes for ${studyId}.`);
+            }).catch(() => {
+                alert('Could not copy. Please select and copy manually.');
+            });
+        }
+
+        function processBatchDomainAI() {
+            const input = document.getElementById('aiResponseInput').value.trim();
+            const alertEl = document.getElementById('aiAlert');
+
+            if (!input) {
+                alertEl.innerHTML = `<div class="alert alert-danger">Please paste the AI's JSON response first.</div>`;
+                return;
+            }
+
+            try {
+                const data = JSON.parse(input);
+                const p = projects[currentProject];
+
+                if (!data.outcomes || !Array.isArray(data.outcomes)) {
+                    alertEl.innerHTML = `<div class="alert alert-danger">Invalid format. Expected "outcomes" array.</div>`;
+                    return;
+                }
+
+                let processed = 0;
+                let errors = [];
+
+                data.outcomes.forEach(outcomeData => {
+                    // Find the matching study/outcome
+                    const studyOutcomes = p.studies.filter(s => s.id === data.studyId);
+                    const targetStudy = studyOutcomes[outcomeData.outcomeNum - 1];
+
+                    if (!targetStudy) {
+                        errors.push(`Outcome ${outcomeData.outcomeNum} not found`);
+                        return;
+                    }
+
+                    // Process each domain for this outcome
+                    if (outcomeData.domains && Array.isArray(outcomeData.domains)) {
+                        outcomeData.domains.forEach(domainData => {
+                            let domainKey = domainData.domain;
+
+                            // Handle domain 2 variant
+                            if (domainKey === '2') {
+                                const variant = targetStudy.variant || 'assignment';
+                                domainKey = variant === 'adhering' ? '2B' : '2A';
+                            }
+
+                            if (domainData.answers && Object.keys(domainData.answers).length > 0) {
+                                // Filter out NA answers for storage
+                                const filteredAnswers = {};
+                                Object.entries(domainData.answers).forEach(([key, val]) => {
+                                    if (val && val !== 'NA') {
+                                        filteredAnswers[key] = val;
+                                    }
+                                });
+
+                                targetStudy.domains[domainKey] = filteredAnswers;
+                            }
+                        });
+                    }
+
+                    // Recalculate overall for this outcome
+                    const variant = targetStudy.variant || 'assignment';
+                    const domain2Key = variant === 'assignment' ? '2A' : '2B';
+                    const domainKeys = ['1', domain2Key, '3', '4', '5'];
+
+                    const results = domainKeys.map(key => {
+                        const domain = DOMAINS[key];
+                        const answers = targetStudy.domains[key] || {};
+                        if (Object.keys(answers).length === 0) return null;
+                        return domain.algorithm(answers);
+                    });
+
+                    if (!results.includes(null)) {
+                        if (results.includes('High')) {
+                            targetStudy.overall = 'High';
+                        } else if (results.filter(r => r === 'Some concerns').length >= 2) {
+                            targetStudy.overall = 'High';
+                        } else if (results.includes('Some concerns')) {
+                            targetStudy.overall = 'Some concerns';
+                        } else {
+                            targetStudy.overall = 'Low';
+                        }
+                    }
+
+                    processed++;
+                });
+
+                saveProjects();
+                renderDomainGrid();
+                updateOutcomesList();
+
+                let html = `<div class="alert alert-success">`;
+                html += `<strong>✓ Batch processing complete!</strong><br>`;
+                html += `Processed ${processed} outcome(s) for study "${data.studyId}"`;
+                if (errors.length > 0) {
+                    html += `<br><small style="color: var(--warning);">Warnings: ${errors.join(', ')}</small>`;
+                }
+                html += `</div>`;
+
+                // Show summary
+                html += `<div style="margin-top: 10px; padding: 10px; background: var(--bg-input); border-radius: 6px; font-size: 12px;">`;
+                html += `<strong>Results Summary:</strong>`;
+                html += `<table style="width: 100%; margin-top: 8px; font-size: 11px;">`;
+                html += `<tr style="background: var(--bg-card);"><th style="padding: 4px;">#</th><th style="padding: 4px;">Outcome</th><th style="padding: 4px;">D1</th><th style="padding: 4px;">D2</th><th style="padding: 4px;">D3</th><th style="padding: 4px;">D4</th><th style="padding: 4px;">D5</th><th style="padding: 4px;">Overall</th></tr>`;
+
+                const studyOutcomes = p.studies.filter(s => s.id === data.studyId);
+                studyOutcomes.forEach((s, idx) => {
+                    const variant = s.variant || 'assignment';
+                    const d2Key = variant === 'adhering' ? '2B' : '2A';
+                    const domainKeys = ['1', d2Key, '3', '4', '5'];
+
+                    const results = domainKeys.map(key => {
+                        const domain = DOMAINS[key];
+                        const answers = s.domains[key] || {};
+                        if (Object.keys(answers).length === 0) return '-';
+                        return domain.algorithm(answers);
+                    });
+
+                    const getColor = r => r === 'Low' ? 'var(--success)' : r === 'Some concerns' ? 'var(--warning)' : r === 'High' ? 'var(--danger)' : 'var(--text-muted)';
+                    const outcomeShort = (s.info.outcome || '').substring(0, 25) + ((s.info.outcome || '').length > 25 ? '...' : '');
+
+                    html += `<tr>`;
+                    html += `<td style="padding: 4px;">${idx + 1}</td>`;
+                    html += `<td style="padding: 4px;">${outcomeShort}</td>`;
+                    results.forEach(r => {
+                        html += `<td style="padding: 4px; color: ${getColor(r)}; font-weight: 600;">${r === 'Some concerns' ? 'SC' : r}</td>`;
+                    });
+                    html += `<td style="padding: 4px; color: ${getColor(s.overall)}; font-weight: 700;">${s.overall === 'Some concerns' ? 'SC' : s.overall || '-'}</td>`;
+                    html += `</tr>`;
+                });
+
+                html += `</table></div>`;
+
+                alertEl.innerHTML = html;
+                document.getElementById('aiResponseInput').value = '';
+
+            } catch (err) {
+                alertEl.innerHTML = `<div class="alert alert-danger">Error parsing JSON: ${err.message}</div>`;
+            }
         }
 
         // ========== PATH VALIDATION ==========
