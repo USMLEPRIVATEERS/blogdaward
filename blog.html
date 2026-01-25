@@ -1351,8 +1351,8 @@
                 el.replaceWith(b);
             });
 
-            // Keep only allowed elements
-            const allowedTags = ['B', 'STRONG', 'I', 'EM', 'U', 'UL', 'OL', 'LI', 'BR', 'P', 'DIV', 'A'];
+            // Keep only allowed elements (including tables)
+            const allowedTags = ['B', 'STRONG', 'I', 'EM', 'U', 'UL', 'OL', 'LI', 'BR', 'P', 'DIV', 'A', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD', 'CAPTION'];
 
             function cleanNode(node) {
                 if (node.nodeType === Node.TEXT_NODE) return;
@@ -1388,7 +1388,9 @@
                 /\*[^*]+\*/,                // Italic
                 /^#+\s+/m,                  // Headers
                 /```[\s\S]*```/,            // Code blocks
-                /\[([^\]]+)\]\(([^)]+)\)/   // Links [text](url)
+                /\[([^\]]+)\]\(([^)]+)\)/,  // Links [text](url)
+                /^\|.+\|$/m,               // Table rows |col|col|
+                /^\|[-:| ]+\|$/m           // Table separator |---|---|
             ];
             return mdPatterns.some(pattern => pattern.test(text));
         }
@@ -1411,12 +1413,58 @@
                 return placeholder;
             });
 
+            // Extract and convert markdown tables before escaping HTML
+            const tablePlaceholders = [];
+            html = html.replace(/(?:^|\n)((?:\|[^\n]+\|\n?)+)/g, (match, tableBlock) => {
+                const lines = tableBlock.trim().split('\n').filter(l => l.trim());
+                if (lines.length < 2) return match; // Need at least header + separator
+
+                // Check if second line is separator (|---|---|)
+                const separatorLine = lines[1];
+                if (!/^\|[-:| ]+\|$/.test(separatorLine.trim())) return match;
+
+                let tableHtml = '<table class="md-table">';
+
+                // Process header row
+                const headerCells = lines[0].split('|').filter(c => c.trim() !== '');
+                tableHtml += '<thead><tr>';
+                headerCells.forEach(cell => {
+                    tableHtml += `<th>${cell.trim()}</th>`;
+                });
+                tableHtml += '</tr></thead>';
+
+                // Process body rows (skip separator at index 1)
+                if (lines.length > 2) {
+                    tableHtml += '<tbody>';
+                    for (let i = 2; i < lines.length; i++) {
+                        const cells = lines[i].split('|').filter(c => c.trim() !== '');
+                        tableHtml += '<tr>';
+                        cells.forEach(cell => {
+                            tableHtml += `<td>${cell.trim()}</td>`;
+                        });
+                        tableHtml += '</tr>';
+                    }
+                    tableHtml += '</tbody>';
+                }
+
+                tableHtml += '</table>';
+
+                const placeholder = `__TABLE_PLACEHOLDER_${tablePlaceholders.length}__`;
+                tablePlaceholders.push(tableHtml);
+                return '\n' + placeholder + '\n';
+            });
+
             // Escape HTML
             html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
             // Restore links
             linkPlaceholders.forEach((link, i) => {
                 html = html.replace(`__LINK_PLACEHOLDER_${i}__`, link);
+            });
+
+            // Restore tables
+            tablePlaceholders.forEach((table, i) => {
+                html = html.replace(`__TABLE_PLACEHOLDER_${i}__`, table);
             });
 
             // Bold **text** or __text__
@@ -2437,6 +2485,59 @@
         .char-count {
             font-size: 0.8rem;
             color: var(--gray-500);
+        }
+
+        /* Tables in posts and comments */
+        .post-content table, .post-text table, .comment-content table, .md-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+            background: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .post-content th, .post-text th, .comment-content th, .md-table th {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            color: #1e293b;
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 2px solid #cbd5e1;
+        }
+
+        .post-content td, .post-text td, .comment-content td, .md-table td {
+            padding: 0.65rem 1rem;
+            border-bottom: 1px solid #e2e8f0;
+            color: #374151;
+        }
+
+        .post-content tr:last-child td, .post-text tr:last-child td,
+        .comment-content tr:last-child td, .md-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .post-content tr:nth-child(even), .post-text tr:nth-child(even),
+        .comment-content tr:nth-child(even), .md-table tbody tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        .post-content tr:hover, .post-text tr:hover,
+        .comment-content tr:hover, .md-table tbody tr:hover {
+            background-color: #f1f5f9;
+        }
+
+        /* Responsive tables */
+        @media (max-width: 640px) {
+            .post-content table, .post-text table, .comment-content table, .md-table {
+                font-size: 0.8rem;
+            }
+            .post-content th, .post-text th, .comment-content th, .md-table th,
+            .post-content td, .post-text td, .comment-content td, .md-table td {
+                padding: 0.5rem 0.65rem;
+            }
         }
 
         /* Comments */
