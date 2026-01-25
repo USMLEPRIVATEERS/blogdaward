@@ -738,9 +738,16 @@ Smith et al. 2023"></textarea>
                         </div>
                     </div>
 
-                    <div class="btn-group" style="margin-bottom: 15px;">
+                    <div class="btn-group" style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <button class="btn btn-primary" onclick="generateTrafficLightPlot()">Generate Plot(s)</button>
-                        <button class="btn btn-secondary" onclick="downloadAllPlots('traffic')">Download All PNG</button>
+                        <div style="display: flex; align-items: center; gap: 8px; background: var(--bg-input); padding: 6px 12px; border-radius: 6px;">
+                            <label style="font-size: 12px; color: var(--text-muted);">Format:</label>
+                            <select id="trafficDownloadFormat" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); font-size: 12px;">
+                                <option value="png">PNG (Images)</option>
+                                <option value="excel">Excel (Table)</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-secondary" onclick="downloadTrafficLight()">Download</button>
                     </div>
                     <div id="trafficLightContainer" style="overflow-x: auto; background: white; border-radius: 8px; padding: 10px;">
                         <!-- Dynamic canvases will be inserted here -->
@@ -771,9 +778,16 @@ Smith et al. 2023"></textarea>
                         </div>
                     </div>
 
-                    <div class="btn-group" style="margin-bottom: 15px;">
+                    <div class="btn-group" style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <button class="btn btn-primary" onclick="generateSummaryPlot()">Generate Plot(s)</button>
-                        <button class="btn btn-secondary" onclick="downloadAllPlots('summary')">Download All PNG</button>
+                        <div style="display: flex; align-items: center; gap: 8px; background: var(--bg-input); padding: 6px 12px; border-radius: 6px;">
+                            <label style="font-size: 12px; color: var(--text-muted);">Format:</label>
+                            <select id="summaryDownloadFormat" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); font-size: 12px;">
+                                <option value="png">PNG (Images)</option>
+                                <option value="excel">Excel (Table)</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-secondary" onclick="downloadSummary()">Download</button>
                     </div>
                     <div id="summaryContainer" style="overflow-x: auto; background: white; border-radius: 8px; padding: 10px;">
                         <!-- Dynamic canvases will be inserted here -->
@@ -2438,6 +2452,286 @@ Smith et al. 2023"></textarea>
             } catch (e) {
                 alert('Error creating ZIP: ' + e.message);
             }
+        }
+
+        // Download Traffic Light - check format and call appropriate function
+        function downloadTrafficLight() {
+            const format = document.getElementById('trafficDownloadFormat').value;
+            if (format === 'excel') {
+                downloadTrafficLightExcel();
+            } else {
+                downloadAllPlots('traffic');
+            }
+        }
+
+        // Download Summary - check format and call appropriate function
+        function downloadSummary() {
+            const format = document.getElementById('summaryDownloadFormat').value;
+            if (format === 'excel') {
+                downloadSummaryExcel();
+            } else {
+                downloadAllPlots('summary');
+            }
+        }
+
+        // Download Traffic Light as Excel
+        function downloadTrafficLightExcel() {
+            const p = projects[currentProject];
+            if (!p || !p.studies || p.studies.length === 0) {
+                alert('No studies to export');
+                return;
+            }
+
+            const domainLabels = ['D1: Randomization', 'D2: Deviations', 'D3: Missing Data', 'D4: Measurement', 'D5: Selection', 'Overall'];
+            const biasColors = {
+                'Low': '92D050',      // Green
+                'Some concerns': 'FFEB9C', // Yellow
+                'High': 'FF6B6B',     // Red
+                '': 'E0E0E0'          // Gray
+            };
+
+            // Prepare data based on current mode
+            let studies = [];
+            if (currentPlotMode === 'separateByOutcome') {
+                const uniqueOutcomes = getUniqueOutcomes();
+                Object.keys(uniqueOutcomes).forEach(outcome => {
+                    uniqueOutcomes[outcome].forEach(study => {
+                        studies.push({ ...study, outcomeGroup: outcome });
+                    });
+                });
+            } else if (currentPlotMode === 'byStudy') {
+                studies = getStudyResultsAggregated();
+            } else {
+                p.studies.forEach(study => {
+                    const label = study.info.outcome ? `${study.info.study} - ${study.info.outcome}` : study.info.study;
+                    studies.push({
+                        label,
+                        D1: getDomainResult(study, '1'),
+                        D2: getDomainResult(study, '2'),
+                        D3: getDomainResult(study, '3'),
+                        D4: getDomainResult(study, '4'),
+                        D5: getDomainResult(study, '5'),
+                        Overall: calculateOverallRisk(study)
+                    });
+                });
+            }
+
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+
+            // Header row
+            const header = ['Study', ...domainLabels];
+            const data = [header];
+
+            // Data rows
+            studies.forEach(study => {
+                const row = [
+                    study.label || study.studyId || 'Unknown',
+                    study.D1 || '',
+                    study.D2 || '',
+                    study.D3 || '',
+                    study.D4 || '',
+                    study.D5 || '',
+                    study.Overall || ''
+                ];
+                data.push(row);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(data);
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 40 },  // Study
+                { wch: 18 },  // D1
+                { wch: 18 },  // D2
+                { wch: 18 },  // D3
+                { wch: 18 },  // D4
+                { wch: 18 },  // D5
+                { wch: 18 }   // Overall
+            ];
+
+            // Apply styles (cell colors based on bias level)
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for (let R = 1; R <= range.e.r; R++) {
+                for (let C = 1; C <= 6; C++) {
+                    const cellAddr = XLSX.utils.encode_cell({ r: R, c: C });
+                    if (ws[cellAddr]) {
+                        const value = ws[cellAddr].v;
+                        const color = biasColors[value] || biasColors[''];
+                        ws[cellAddr].s = {
+                            fill: { fgColor: { rgb: color } },
+                            alignment: { horizontal: 'center', vertical: 'center' },
+                            border: {
+                                top: { style: 'thin', color: { rgb: 'CCCCCC' } },
+                                bottom: { style: 'thin', color: { rgb: 'CCCCCC' } },
+                                left: { style: 'thin', color: { rgb: 'CCCCCC' } },
+                                right: { style: 'thin', color: { rgb: 'CCCCCC' } }
+                            }
+                        };
+                    }
+                }
+            }
+
+            // Header style
+            for (let C = 0; C <= 6; C++) {
+                const cellAddr = XLSX.utils.encode_cell({ r: 0, c: C });
+                if (ws[cellAddr]) {
+                    ws[cellAddr].s = {
+                        font: { bold: true, color: { rgb: 'FFFFFF' } },
+                        fill: { fgColor: { rgb: '2563EB' } },
+                        alignment: { horizontal: 'center', vertical: 'center' },
+                        border: {
+                            top: { style: 'thin', color: { rgb: '1E40AF' } },
+                            bottom: { style: 'thin', color: { rgb: '1E40AF' } },
+                            left: { style: 'thin', color: { rgb: '1E40AF' } },
+                            right: { style: 'thin', color: { rgb: '1E40AF' } }
+                        }
+                    };
+                }
+            }
+
+            XLSX.utils.book_append_sheet(wb, ws, 'Traffic Light');
+
+            // Download
+            const filename = `${p.name.replace(/[^a-z0-9]/gi, '_')}_ROB2_traffic_light.xlsx`;
+            XLSX.writeFile(wb, filename);
+        }
+
+        // Download Summary as Excel
+        function downloadSummaryExcel() {
+            const p = projects[currentProject];
+            if (!p || !p.studies || p.studies.length === 0) {
+                alert('No studies to export');
+                return;
+            }
+
+            const domainLabels = ['D1: Randomization', 'D2: Deviations', 'D3: Missing Data', 'D4: Measurement', 'D5: Selection', 'Overall'];
+            const biasLevels = ['Low', 'Some concerns', 'High'];
+            const biasColors = {
+                'Low': '92D050',
+                'Some concerns': 'FFEB9C',
+                'High': 'FF6B6B'
+            };
+
+            // Calculate counts for each domain
+            const counts = {};
+            domainLabels.forEach((label, idx) => {
+                const domainKey = idx < 5 ? `D${idx + 1}` : 'Overall';
+                counts[domainKey] = { Low: 0, 'Some concerns': 0, High: 0, total: 0 };
+            });
+
+            let studies = [];
+            if (currentSummaryMode === 'byStudy') {
+                studies = getStudyResultsAggregated();
+            } else {
+                p.studies.forEach(study => {
+                    studies.push({
+                        D1: getDomainResult(study, '1'),
+                        D2: getDomainResult(study, '2'),
+                        D3: getDomainResult(study, '3'),
+                        D4: getDomainResult(study, '4'),
+                        D5: getDomainResult(study, '5'),
+                        Overall: calculateOverallRisk(study)
+                    });
+                });
+            }
+
+            // Count bias levels
+            studies.forEach(study => {
+                ['D1', 'D2', 'D3', 'D4', 'D5', 'Overall'].forEach(domain => {
+                    const value = study[domain];
+                    if (value && counts[domain][value] !== undefined) {
+                        counts[domain][value]++;
+                    }
+                    counts[domain].total++;
+                });
+            });
+
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+
+            // Header
+            const header = ['Domain', ...biasLevels, 'Total'];
+            const data = [header];
+
+            // Data rows - one per domain
+            domainLabels.forEach((label, idx) => {
+                const domainKey = idx < 5 ? `D${idx + 1}` : 'Overall';
+                const c = counts[domainKey];
+                const total = c.total || studies.length;
+                data.push([
+                    label,
+                    `${c.Low} (${Math.round(c.Low / total * 100)}%)`,
+                    `${c['Some concerns']} (${Math.round(c['Some concerns'] / total * 100)}%)`,
+                    `${c.High} (${Math.round(c.High / total * 100)}%)`,
+                    total
+                ]);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(data);
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 25 },  // Domain
+                { wch: 18 },  // Low
+                { wch: 18 },  // Some concerns
+                { wch: 18 },  // High
+                { wch: 10 }   // Total
+            ];
+
+            // Apply colors to bias columns
+            for (let R = 1; R <= domainLabels.length; R++) {
+                biasLevels.forEach((level, C) => {
+                    const cellAddr = XLSX.utils.encode_cell({ r: R, c: C + 1 });
+                    if (ws[cellAddr]) {
+                        ws[cellAddr].s = {
+                            fill: { fgColor: { rgb: biasColors[level] } },
+                            alignment: { horizontal: 'center', vertical: 'center' },
+                            border: {
+                                top: { style: 'thin', color: { rgb: 'CCCCCC' } },
+                                bottom: { style: 'thin', color: { rgb: 'CCCCCC' } },
+                                left: { style: 'thin', color: { rgb: 'CCCCCC' } },
+                                right: { style: 'thin', color: { rgb: 'CCCCCC' } }
+                            }
+                        };
+                    }
+                });
+            }
+
+            // Header style
+            for (let C = 0; C <= 4; C++) {
+                const cellAddr = XLSX.utils.encode_cell({ r: 0, c: C });
+                if (ws[cellAddr]) {
+                    ws[cellAddr].s = {
+                        font: { bold: true, color: { rgb: 'FFFFFF' } },
+                        fill: { fgColor: { rgb: '2563EB' } },
+                        alignment: { horizontal: 'center', vertical: 'center' }
+                    };
+                }
+            }
+
+            XLSX.utils.book_append_sheet(wb, ws, 'Summary');
+
+            // Download
+            const filename = `${p.name.replace(/[^a-z0-9]/gi, '_')}_ROB2_summary.xlsx`;
+            XLSX.writeFile(wb, filename);
+        }
+
+        // Helper function to get domain result
+        function getDomainResult(study, domainId) {
+            if (domainId === '2') {
+                const variant = study.d2Variant || 'assignment';
+                const variantDomainId = variant === 'adhering' ? '2B' : '2A';
+                const assessment = study.assessments?.[variantDomainId];
+                if (assessment && Object.keys(assessment.answers || {}).length > 0) {
+                    return assessment.result || '';
+                }
+            }
+            const assessment = study.assessments?.[domainId];
+            if (assessment && Object.keys(assessment.answers || {}).length > 0) {
+                return assessment.result || '';
+            }
+            return '';
         }
 
         function generateSummaryPlot() {
