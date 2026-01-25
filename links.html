@@ -300,6 +300,7 @@
         let allLinks = [];
         let isMentor = false;
         let viewingAsStudentId = null;
+        let dynamicCategoryLabels = {}; // Populated from database
 
         const categoryLabels = {
             uworld: '📚 UWorld',
@@ -377,8 +378,8 @@
                 document.getElementById('mentor-actions').style.display = 'flex';
             }
 
+            await loadCustomCategories(); // Load categories first so labels are ready
             await loadLinks();
-            await loadCustomCategories();
         });
 
         async function setupViewingAsStudent(studentId) {
@@ -496,7 +497,7 @@
                     ${link.is_featured ? '<span class="link-pin">📌</span>' : ''}
                     <div class="link-badges">
                         ${link.step ? `<span class="link-step">${stepLabels[link.step] || link.step}</span>` : ''}
-                        <span class="link-category">${categoryLabels[link.category] || link.category}</span>
+                        <span class="link-category">${categoryLabels[link.category] || dynamicCategoryLabels[link.category] || link.category}</span>
                     </div>
                     <h3 class="link-title">${link.title}</h3>
                     ${link.description ? `<p class="link-description">${link.description}</p>` : ''}
@@ -635,10 +636,34 @@
 
         // Save custom category to database
         async function saveCustomCategory(categoryName) {
-            const categorySlug = categoryName.toLowerCase()
+            // Clean the input - remove any invisible characters and trim
+            const cleanName = categoryName
+                .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove zero-width characters
+                .trim();
+
+            // Generate slug with proper Unicode handling
+            const categorySlug = cleanName.toLowerCase()
                 .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
-                .replace(/[^a-z0-9]+/g, '_') // Replace non-alphanumeric with underscore
-                .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
+                .replace(/[^\p{L}\p{N}]+/gu, '_') // Replace non-letter/non-number with underscore (Unicode-aware)
+                .replace(/^_+|_+$/g, '') // Remove leading/trailing underscores
+                .replace(/_+/g, '_'); // Replace multiple underscores with single
+
+            // If slug is empty or too short, generate a fallback
+            if (!categorySlug || categorySlug.length < 2) {
+                const timestamp = Date.now().toString(36);
+                const finalSlug = categorySlug ? `${categorySlug}_${timestamp}` : `cat_${timestamp}`;
+
+                const { error } = await WardApp.db
+                    .from('link_categories')
+                    .insert({
+                        slug: finalSlug,
+                        name: cleanName,
+                        created_by: userData.id
+                    });
+
+                if (!error) await loadCustomCategories();
+                return finalSlug;
+            }
 
             // Check if category already exists
             const { data: existing } = await WardApp.db
@@ -656,7 +681,7 @@
                 .from('link_categories')
                 .insert({
                     slug: categorySlug,
-                    name: categoryName,
+                    name: cleanName,
                     created_by: userData.id
                 });
 
@@ -678,6 +703,12 @@
                 .order('name');
 
             if (categories && categories.length > 0) {
+                // Build dynamic category labels for display
+                dynamicCategoryLabels = {};
+                categories.forEach(cat => {
+                    dynamicCategoryLabels[cat.slug] = cat.name;
+                });
+
                 // Populate modal selects (Add and Edit)
                 const addSelect = document.getElementById('link-category');
                 const editSelect = document.getElementById('edit-link-category');
