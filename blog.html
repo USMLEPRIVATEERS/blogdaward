@@ -1001,7 +1001,7 @@
                                 </div>
                             ` : ''}
                         </div>
-                        <p class="comment-content" id="comment-content-${comment.id}">${comment.content}</p>
+                        <p class="comment-content" id="comment-content-${comment.id}">${sanitizePostContent(comment.content)}</p>
                         <div class="comment-edit-form" id="comment-edit-${comment.id}" style="display: none;">
                             <textarea class="form-textarea" id="edit-comment-${comment.id}" rows="2">${comment.content}</textarea>
                             <div class="d-flex gap-2 mt-1">
@@ -1352,7 +1352,7 @@
             });
 
             // Keep only allowed elements
-            const allowedTags = ['B', 'STRONG', 'I', 'EM', 'U', 'UL', 'OL', 'LI', 'BR', 'P', 'DIV'];
+            const allowedTags = ['B', 'STRONG', 'I', 'EM', 'U', 'UL', 'OL', 'LI', 'BR', 'P', 'DIV', 'A'];
 
             function cleanNode(node) {
                 if (node.nodeType === Node.TEXT_NODE) return;
@@ -1387,7 +1387,8 @@
                 /\*\*[^*]+\*\*/,            // Bold
                 /\*[^*]+\*/,                // Italic
                 /^#+\s+/m,                  // Headers
-                /```[\s\S]*```/             // Code blocks
+                /```[\s\S]*```/,            // Code blocks
+                /\[([^\]]+)\]\(([^)]+)\)/   // Links [text](url)
             ];
             return mdPatterns.some(pattern => pattern.test(text));
         }
@@ -1396,8 +1397,27 @@
         function markdownToHtml(text) {
             let html = text;
 
+            // Extract and protect markdown links before escaping HTML
+            const linkPlaceholders = [];
+            html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
+                const placeholder = `__LINK_PLACEHOLDER_${linkPlaceholders.length}__`;
+                // Sanitize URL - only allow http, https, mailto
+                const sanitizedUrl = url.trim();
+                if (sanitizedUrl.match(/^(https?:|mailto:)/i) || sanitizedUrl.startsWith('/') || sanitizedUrl.startsWith('#')) {
+                    linkPlaceholders.push(`<a href="${sanitizedUrl}" target="_blank" rel="noopener noreferrer">${text}</a>`);
+                } else {
+                    linkPlaceholders.push(text); // Just show text if URL is suspicious
+                }
+                return placeholder;
+            });
+
             // Escape HTML
             html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            // Restore links
+            linkPlaceholders.forEach((link, i) => {
+                html = html.replace(`__LINK_PLACEHOLDER_${i}__`, link);
+            });
 
             // Bold **text** or __text__
             html = html.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
