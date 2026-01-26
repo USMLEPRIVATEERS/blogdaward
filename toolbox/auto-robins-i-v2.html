@@ -778,6 +778,7 @@ Baseline BMI"></textarea>
                             <thead>
                                 <tr>
                                     <th>Study</th>
+                                    <th>Outcome</th>
                                     <th>D1</th>
                                     <th>D2</th>
                                     <th>D3</th>
@@ -2450,12 +2451,12 @@ Baseline BMI"></textarea>
             if (!container || !currentProject) return;
 
             let html = '<table class="results-table" style="margin: 0;"><thead><tr>';
-            html += '<th>Study ID</th><th>Outcome (A3)</th><th>D1</th><th>D2</th><th>D3</th><th>D4</th><th>D5</th><th>D6</th><th>Overall</th>';
+            html += '<th>Study ID</th><th>Outcome (A3) <small style="color: var(--warning);">- click to edit</small></th><th>D1</th><th>D2</th><th>D3</th><th>D4</th><th>D5</th><th>D6</th><th>Overall</th>';
             html += '</tr></thead><tbody>';
 
-            currentProject.studies.forEach(studyId => {
+            currentProject.studies.forEach((studyId, idx) => {
                 const sd = currentProject.assessments[studyId] || {};
-                const outcome = sd.preliminary?.A3 || '(not set)';
+                const outcome = sd.preliminary?.A3 || '';
                 const variant = sd.preliminary?.C4 === 'Yes' ? '1B' : '1A';
 
                 const d1 = sd.domains?.[variant]?.result || '-';
@@ -2469,13 +2470,29 @@ Baseline BMI"></textarea>
 
                 html += `<tr>`;
                 html += `<td style="text-align:left;">${studyId}</td>`;
-                html += `<td style="text-align:left; color: var(--accent);">${outcome}</td>`;
+                html += `<td style="text-align:left; padding: 2px;">
+                    <input type="text" value="${outcome.replace(/"/g, '&quot;')}"
+                           placeholder="Enter outcome..."
+                           style="width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-input); color: var(--text); font-size: 12px;"
+                           onchange="updateStudyOutcome('${studyId.replace(/'/g, "\\'")}', this.value)">
+                </td>`;
                 html += `<td>${d1}</td><td>${d2}</td><td>${d3}</td><td>${d4}</td><td>${d5}</td><td>${d6}</td><td><strong>${overall}</strong></td>`;
                 html += `</tr>`;
             });
 
             html += '</tbody></table>';
             container.innerHTML = html;
+        }
+
+        function updateStudyOutcome(studyId, outcome) {
+            if (!currentProject.assessments[studyId]) {
+                currentProject.assessments[studyId] = { preliminary: {}, confounding: [], domains: {} };
+            }
+            if (!currentProject.assessments[studyId].preliminary) {
+                currentProject.assessments[studyId].preliminary = {};
+            }
+            currentProject.assessments[studyId].preliminary.A3 = outcome;
+            saveProjects();
         }
 
         function copyBatchDomainPrompt() {
@@ -2828,10 +2845,12 @@ Baseline BMI"></textarea>
             const tbody = document.getElementById('resultsBody');
             tbody.innerHTML = currentProject.studies.map(studyId => {
                 const data = currentProject.assessments[studyId] || {};
+                const outcome = data.preliminary?.A3 || '-';
 
                 if (data.preliminary?.criticalScreening) {
                     return `<tr>
                         <td>${studyId}</td>
+                        <td style="color: var(--accent); max-width: 200px; overflow: hidden; text-overflow: ellipsis;">${outcome}</td>
                         <td colspan="6" class="bias-critical">CRITICAL (Screening B)</td>
                         <td class="bias-critical"><strong>Critical</strong></td>
                     </tr>`;
@@ -2852,6 +2871,7 @@ Baseline BMI"></textarea>
 
                 return `<tr>
                     <td>${studyId}</td>
+                    <td style="color: var(--accent); max-width: 200px; overflow: hidden; text-overflow: ellipsis;" title="${outcome}">${outcome}</td>
                     <td class="${cls(d1)}">${d1}</td>
                     <td class="${cls(d2)}">${d2}</td>
                     <td class="${cls(d3)}">${d3}</td>
@@ -2866,13 +2886,14 @@ Baseline BMI"></textarea>
         }
 
         function downloadExcel() {
-            const data = [['Study', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'Overall']];
+            const data = [['Study', 'Outcome', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'Overall']];
 
             currentProject.studies.forEach(studyId => {
                 const sd = currentProject.assessments[studyId] || {};
+                const outcome = sd.preliminary?.A3 || '';
 
                 if (sd.preliminary?.criticalScreening) {
-                    data.push([studyId, 'Critical', 'Critical', 'Critical', 'Critical', 'Critical', 'Critical', 'Critical']);
+                    data.push([studyId, outcome, 'Critical', 'Critical', 'Critical', 'Critical', 'Critical', 'Critical', 'Critical']);
                     return;
                 }
 
@@ -2885,7 +2906,7 @@ Baseline BMI"></textarea>
                 const d6 = sd.domains?.['6']?.result || '';
                 const overall = (d1 && d2 && d3 && d4 && d5 && d6) ? calculateOverall(sd, variant) : '';
 
-                data.push([studyId, d1, d2, d3, d4, d5, d6, overall]);
+                data.push([studyId, outcome, d1, d2, d3, d4, d5, d6, overall]);
             });
 
             const ws = XLSX.utils.aoa_to_sheet(data);
@@ -2895,13 +2916,14 @@ Baseline BMI"></textarea>
         }
 
         function downloadCSV() {
-            let csv = 'Study,D1,D2,D3,D4,D5,D6,Overall\n';
+            let csv = 'Study,Outcome,D1,D2,D3,D4,D5,D6,Overall\n';
 
             currentProject.studies.forEach(studyId => {
                 const sd = currentProject.assessments[studyId] || {};
+                const outcome = (sd.preliminary?.A3 || '').replace(/"/g, '""');
 
                 if (sd.preliminary?.criticalScreening) {
-                    csv += `"${studyId}","Critical","Critical","Critical","Critical","Critical","Critical","Critical"\n`;
+                    csv += `"${studyId}","${outcome}","Critical","Critical","Critical","Critical","Critical","Critical","Critical"\n`;
                     return;
                 }
 
@@ -2914,7 +2936,7 @@ Baseline BMI"></textarea>
                 const d6 = sd.domains?.['6']?.result || '';
                 const overall = (d1 && d2 && d3 && d4 && d5 && d6) ? calculateOverall(sd, variant) : '';
 
-                csv += `"${studyId}","${d1}","${d2}","${d3}","${d4}","${d5}","${d6}","${overall}"\n`;
+                csv += `"${studyId}","${outcome}","${d1}","${d2}","${d3}","${d4}","${d5}","${d6}","${overall}"\n`;
             });
 
             const blob = new Blob([csv], { type: 'text/csv' });
@@ -2927,13 +2949,14 @@ Baseline BMI"></textarea>
         }
 
         function copyResults() {
-            let text = 'Study\tD1\tD2\tD3\tD4\tD5\tD6\tOverall\n';
+            let text = 'Study\tOutcome\tD1\tD2\tD3\tD4\tD5\tD6\tOverall\n';
 
             currentProject.studies.forEach(studyId => {
                 const sd = currentProject.assessments[studyId] || {};
+                const outcome = sd.preliminary?.A3 || '';
 
                 if (sd.preliminary?.criticalScreening) {
-                    text += `${studyId}\tCritical\tCritical\tCritical\tCritical\tCritical\tCritical\tCritical\n`;
+                    text += `${studyId}\t${outcome}\tCritical\tCritical\tCritical\tCritical\tCritical\tCritical\tCritical\n`;
                     return;
                 }
 
@@ -2946,7 +2969,7 @@ Baseline BMI"></textarea>
                 const d6 = sd.domains?.['6']?.result || '';
                 const overall = (d1 && d2 && d3 && d4 && d5 && d6) ? calculateOverall(sd, variant) : '';
 
-                text += `${studyId}\t${d1}\t${d2}\t${d3}\t${d4}\t${d5}\t${d6}\t${overall}\n`;
+                text += `${studyId}\t${outcome}\t${d1}\t${d2}\t${d3}\t${d4}\t${d5}\t${d6}\t${overall}\n`;
             });
 
             navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'));
