@@ -274,7 +274,16 @@
                 </div>
             </div>
             <div class="modal-body">
-                <div class="project-description-formatted mb-3" id="view-project-description"></div>
+                <div class="description-container mb-3" id="description-container">
+                    <div class="project-description-formatted" id="view-project-description" onclick="enterDescriptionEditMode()" title="Clique para editar"></div>
+                    <div class="description-edit-area" id="description-edit-area" style="display: none;">
+                        <div class="rich-text-editor" id="inline-description-editor" contenteditable="true" placeholder="Digite a descrição do projeto..."></div>
+                        <div class="description-edit-buttons">
+                            <button class="btn btn-sm btn-save-desc" onclick="saveInlineDescription()">💾 Salvar</button>
+                            <button class="btn btn-sm btn-cancel-desc" onclick="cancelDescriptionEdit()">❌ Cancelar</button>
+                        </div>
+                    </div>
+                </div>
                 <div class="project-meta mb-3" id="project-meta"></div>
 
                 <!-- Progress -->
@@ -1358,6 +1367,11 @@
             document.getElementById('view-project-title').textContent = currentProject.title;
             document.getElementById('view-project-description').innerHTML = formatDescription(currentProject.description || '');
 
+            // Reset inline description edit mode
+            document.getElementById('view-project-description').style.display = 'block';
+            document.getElementById('description-edit-area').style.display = 'none';
+            isEditingDescription = false;
+
             // Show project metadata (deadline, drive link)
             let metaHtml = '';
             if (currentProject.deadline) {
@@ -1949,6 +1963,121 @@
             const type = document.getElementById('edit-project-type').value;
             document.getElementById('edit-double-arm-fields').style.display = type === 'double-arm' ? 'block' : 'none';
             document.getElementById('edit-single-arm-fields').style.display = type === 'single-arm' ? 'block' : 'none';
+        }
+
+        // ========== INLINE DESCRIPTION EDITING ==========
+        let originalDescription = '';
+        let isEditingDescription = false;
+
+        function enterDescriptionEditMode() {
+            if (isEditingDescription) return;
+            isEditingDescription = true;
+
+            const viewEl = document.getElementById('view-project-description');
+            const editArea = document.getElementById('description-edit-area');
+            const editor = document.getElementById('inline-description-editor');
+
+            // Store original description for cancel
+            originalDescription = currentProject?.description || '';
+
+            // Set editor content
+            editor.innerHTML = originalDescription;
+
+            // Switch visibility
+            viewEl.style.display = 'none';
+            editArea.style.display = 'block';
+
+            // Focus the editor
+            editor.focus();
+        }
+
+        function cancelDescriptionEdit() {
+            const viewEl = document.getElementById('view-project-description');
+            const editArea = document.getElementById('description-edit-area');
+
+            // Switch back to view mode
+            editArea.style.display = 'none';
+            viewEl.style.display = 'block';
+
+            isEditingDescription = false;
+        }
+
+        async function saveInlineDescription() {
+            if (!currentProject) return;
+
+            const editor = document.getElementById('inline-description-editor');
+            const newDescription = formatDescription(editor.innerHTML);
+
+            // Show loading state
+            const saveBtn = document.querySelector('.btn-save-desc');
+            const originalBtnText = saveBtn.innerHTML;
+            saveBtn.innerHTML = '⏳ Salvando...';
+            saveBtn.disabled = true;
+
+            try {
+                const { error } = await WardApp.db
+                    .from('research_projects')
+                    .update({
+                        description: newDescription,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', currentProject.id);
+
+                if (error) throw error;
+
+                // Update local data
+                currentProject.description = newDescription;
+
+                // Update the view
+                document.getElementById('view-project-description').innerHTML = formatDescription(newDescription);
+
+                // Exit edit mode
+                cancelDescriptionEdit();
+
+                // Refresh project list in background
+                loadProjects();
+
+                // Show success feedback
+                showToast('Descrição salva com sucesso!', 'success');
+
+            } catch (err) {
+                console.error('Error saving description:', err);
+                showToast('Erro ao salvar descrição', 'error');
+            } finally {
+                saveBtn.innerHTML = originalBtnText;
+                saveBtn.disabled = false;
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            // Remove existing toast if any
+            const existingToast = document.querySelector('.toast-notification');
+            if (existingToast) existingToast.remove();
+
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                border-radius: 8px;
+                color: white;
+                font-weight: 600;
+                z-index: 10000;
+                animation: slideIn 0.3s ease;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                ${type === 'success' ? 'background: linear-gradient(135deg, #22c55e, #16a34a);' : ''}
+                ${type === 'error' ? 'background: linear-gradient(135deg, #ef4444, #dc2626);' : ''}
+                ${type === 'info' ? 'background: linear-gradient(135deg, #3b82f6, #2563eb);' : ''}
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
         }
 
         function openEditProjectModal() {
@@ -2887,17 +3016,85 @@ function toggleFolder(header) {
             color: #000 !important;
             background: #fff !important;
             font-size: 0.95rem;
-            margin-bottom: 1rem;
+            margin-bottom: 0;
             white-space: pre-wrap;
             word-wrap: break-word;
             padding: 1rem;
             border-radius: var(--radius-md);
-            border: 1px solid var(--gray-200);
+            border: 2px solid var(--gray-200);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-height: 60px;
+        }
+
+        .project-description-formatted:hover {
+            border-color: #6366f1;
+            background: #fafaff !important;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .project-description-formatted:empty::before {
+            content: 'Clique para adicionar descrição...';
+            color: #94a3b8;
+            font-style: italic;
         }
 
         .project-description-formatted * {
             color: #000 !important;
             background: transparent !important;
+        }
+
+        .description-container {
+            position: relative;
+        }
+
+        .description-edit-area {
+            border: 2px solid #6366f1;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+        }
+
+        .description-edit-area .rich-text-editor {
+            border: none;
+            border-radius: 0;
+            min-height: 120px;
+            max-height: 300px;
+        }
+
+        .description-edit-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .btn-save-desc {
+            background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+            color: white !important;
+            border: none !important;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+        }
+
+        .btn-save-desc:hover {
+            background: linear-gradient(135deg, #16a34a, #15803d) !important;
+            transform: translateY(-1px);
+        }
+
+        .btn-cancel-desc {
+            background: #f1f5f9 !important;
+            color: #64748b !important;
+            border: 1px solid #e2e8f0 !important;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+        }
+
+        .btn-cancel-desc:hover {
+            background: #e2e8f0 !important;
+            color: #475569 !important;
         }
 
         .project-description-formatted h1,
@@ -3696,6 +3893,28 @@ function toggleFolder(header) {
 @keyframes bounce {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-3px); }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(100px);
+    }
 }
 
 .subfolders-container {
