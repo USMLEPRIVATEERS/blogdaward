@@ -1969,6 +1969,35 @@
         let originalDescription = '';
         let isEditingDescription = false;
 
+        function cleanPastedHtml(html) {
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+
+            // Remove dangerous elements
+            const dangerousTags = ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'style', 'link'];
+            dangerousTags.forEach(tag => {
+                temp.querySelectorAll(tag).forEach(el => el.remove());
+            });
+
+            // Clean all elements - remove styles, classes, and force black text
+            temp.querySelectorAll('*').forEach(el => {
+                // Remove all on* attributes
+                Array.from(el.attributes).forEach(attr => {
+                    if (attr.name.startsWith('on') || (attr.name === 'href' && attr.value.startsWith('javascript:'))) {
+                        el.removeAttribute(attr.name);
+                    }
+                });
+                // Remove style and class to prevent background colors
+                el.removeAttribute('style');
+                el.removeAttribute('class');
+                // Remove bgcolor/color attributes from old HTML
+                el.removeAttribute('bgcolor');
+                el.removeAttribute('color');
+            });
+
+            return temp.innerHTML;
+        }
+
         function enterDescriptionEditMode() {
             if (isEditingDescription) return;
             isEditingDescription = true;
@@ -1982,6 +2011,21 @@
 
             // Set editor content
             editor.innerHTML = originalDescription;
+
+            // Add paste handler to clean pasted content
+            editor.onpaste = function(e) {
+                e.preventDefault();
+
+                // Get pasted data
+                const clipboardData = e.clipboardData || window.clipboardData;
+                let pastedData = clipboardData.getData('text/html') || clipboardData.getData('text/plain');
+
+                // Clean the pasted HTML
+                const cleanedHtml = cleanPastedHtml(pastedData);
+
+                // Insert at cursor position
+                document.execCommand('insertHTML', false, cleanedHtml);
+            };
 
             // Switch visibility
             viewEl.style.display = 'none';
@@ -3060,6 +3104,14 @@ function toggleFolder(header) {
             border-radius: 0;
             min-height: 120px;
             max-height: 300px;
+            color: #000 !important;
+            background: #fff !important;
+        }
+
+        .description-edit-area .rich-text-editor * {
+            color: #000 !important;
+            background: transparent !important;
+            background-color: transparent !important;
         }
 
         .description-edit-buttons {
