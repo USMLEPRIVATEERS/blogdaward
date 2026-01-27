@@ -219,33 +219,7 @@
             </div>
         </div>
 
-        <!-- Pending Scheduled Calls Section - Only students who booked with Guilherme -->
-        <div class="card mt-4">
-            <div class="card-header">
-                📞 Calls Agendadas Pendentes
-                <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Alunos que selecionaram horário)</span>
-            </div>
-            <div class="card-body">
-                <div id="pending-calls-list" class="calls-grid">
-                    <!-- Filled by JS -->
-                </div>
-            </div>
-        </div>
-
-        <!-- All Pending Landmarks Section - Students who haven't scheduled yet -->
-        <div class="card mt-4">
-            <div class="card-header">
-                📋 Falta Agendar com os Alunos
-                <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Todos os landmarks pendentes)</span>
-            </div>
-            <div class="card-body">
-                <div id="pending-landmarks-list" style="max-height: 600px; overflow-y: auto;">
-                    <!-- Filled by JS -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Anki Questionnaire Responses -->
+        <!-- Anki Questionnaire Responses - MOVED ABOVE CALLS -->
         <div class="card mt-4">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                 <div>
@@ -271,6 +245,32 @@
                     <div id="anki-details-panel" style="padding: 1.5rem; overflow-y: auto; max-height: 600px;">
                         <!-- Filled by JS -->
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Scheduled Calls Section - Only students who booked with Guilherme -->
+        <div class="card mt-4">
+            <div class="card-header">
+                📞 Calls Agendadas Pendentes
+                <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Alunos que selecionaram horário)</span>
+            </div>
+            <div class="card-body">
+                <div id="pending-calls-list" class="calls-grid">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- All Pending Landmarks Section - Students who haven't scheduled yet -->
+        <div class="card mt-4">
+            <div class="card-header">
+                📋 Falta Agendar com os Alunos
+                <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Todos os landmarks pendentes)</span>
+            </div>
+            <div class="card-body">
+                <div id="pending-landmarks-list" style="max-height: 600px; overflow-y: auto;">
+                    <!-- Filled by JS -->
                 </div>
             </div>
         </div>
@@ -1147,8 +1147,7 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             const { data: allUsers } = await WardApp.db
                 .from('users')
                 .select('id, full_name, name, email, role')
-                .in('role', ['aluno', 'assessoria'])
-                .order('full_name');
+                .in('role', ['aluno', 'assessoria']);
 
             if (!allUsers || allUsers.length === 0) {
                 studentsListEl.innerHTML = '<p class="text-muted" style="padding: 1rem;">Nenhum aluno ainda</p>';
@@ -1156,20 +1155,15 @@ Dica: Use as tags do AnKing em vez de decks separados!`
                 return;
             }
 
-            // Filter only users who have answered the questionnaire
+            // Show ALL users in the list (not just those who responded)
+            // Render students list (left sidebar) - shows all students
+            renderAnkiStudentsList(allUsers);
+
+            // For the details panel, only show stats for users with responses
             const usersWithResponses = allUsers.filter(user => ankiData[user.id]);
 
-            if (usersWithResponses.length === 0) {
-                studentsListEl.innerHTML = '<p class="text-muted" style="padding: 1rem;">Nenhuma resposta ainda</p>';
-                detailsPanelEl.innerHTML = '<p class="text-muted">Nenhuma resposta ainda</p>';
-                return;
-            }
-
-            // Render students list (left sidebar)
-            renderAnkiStudentsList(usersWithResponses);
-
             // Render details panel (right side) - overview or selected student
-            renderAnkiDetailsPanel(usersWithResponses);
+            renderAnkiDetailsPanel(usersWithResponses, allUsers);
         }
 
         function renderAnkiStudentsList(users) {
@@ -1182,13 +1176,15 @@ Dica: Use as tags do AnKing em vez de decks separados!`
                 const userName = _dn(user.full_name) || _dn(user.name) || user.email;
                 const data = ankiData[user.id];
                 const isSelected = selectedAnkiStudentId === user.id;
+                const hasResponse = !!data;
 
                 return `
                     <div onclick="selectAnkiStudent(${user.id})"
                          style="padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 6px;
                                 cursor: pointer; transition: all 0.2s;
-                                background: ${isSelected ? '#dbeafe' : 'white'};
-                                border: 2px solid ${isSelected ? '#3b82f6' : '#e5e7eb'};">
+                                background: ${isSelected ? '#dbeafe' : (hasResponse ? 'white' : '#f9fafb')};
+                                border: 2px solid ${isSelected ? '#3b82f6' : (hasResponse ? '#e5e7eb' : '#f3f4f6')};
+                                opacity: ${hasResponse ? '1' : '0.7'};">
                         <div style="display: flex; align-items: center; gap: 0.5rem;">
                             <div style="flex: 1; min-width: 0;">
                                 <div style="font-weight: ${isSelected ? '700' : '600'}; font-size: 0.9rem;
@@ -1200,11 +1196,12 @@ Dica: Use as tags do AnKing em vez de decks separados!`
                                 </div>
                             </div>
                             <div style="display: flex; flex-direction: column; gap: 0.125rem; align-items: flex-end;">
-                                ${data.downloaded ?
-                                    '<span style="font-size: 1rem;">✅</span>' :
-                                    '<span style="font-size: 1rem;">❌</span>'
-                                }
-                                ${data.used ?
+                                ${hasResponse ? (
+                                    data.downloaded ?
+                                        '<span style="font-size: 1rem;">✅</span>' :
+                                        '<span style="font-size: 1rem;">❌</span>'
+                                ) : '<span style="font-size: 0.75rem; color: #94a3b8;">Sem resposta</span>'}
+                                ${hasResponse && data.used ?
                                     '<span style="font-size: 0.9rem;">🃏</span>' : ''
                                 }
                             </div>
@@ -1226,15 +1223,15 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             renderAnkiResponses();
         }
 
-        function renderAnkiDetailsPanel(users) {
+        function renderAnkiDetailsPanel(usersWithResponses, allUsers) {
             const detailsPanelEl = document.getElementById('anki-details-panel');
 
             if (selectedAnkiStudentId === null) {
-                // Show overview
-                renderAnkiOverview(users);
+                // Show overview (only for users with responses)
+                renderAnkiOverview(usersWithResponses);
             } else {
-                // Show selected student details
-                const selectedUser = users.find(u => u.id === selectedAnkiStudentId);
+                // Show selected student details (from all users)
+                const selectedUser = allUsers.find(u => u.id === selectedAnkiStudentId);
                 if (selectedUser) {
                     renderAnkiStudentDetails(selectedUser);
                 } else {
@@ -1381,6 +1378,22 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             const detailsPanelEl = document.getElementById('anki-details-panel');
             const data = ankiData[user.id];
             const userName = _dn(user.full_name) || _dn(user.name) || user.email;
+
+            // If no data, show message
+            if (!data) {
+                detailsPanelEl.innerHTML = `
+                    <div style="padding: 2rem; text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">📝</div>
+                        <h4 style="margin: 0 0 0.5rem 0;">${userName}</h4>
+                        <p style="color: #64748b; margin: 0;">Este aluno ainda não respondeu o questionário de Anki.</p>
+                        <button class="btn btn-primary" style="margin-top: 1.5rem;"
+                                onclick="openMessageModal(${user.id}, '${userName.replace(/'/g, "\\'")}')">
+                            💬 Enviar Dicas de Anki
+                        </button>
+                    </div>
+                `;
+                return;
+            }
 
             // Parse devices if it's a JSON string
             let devices = [];
