@@ -219,33 +219,7 @@
             </div>
         </div>
 
-        <!-- Pending Scheduled Calls Section - Only students who booked with Guilherme -->
-        <div class="card mt-4">
-            <div class="card-header">
-                📞 Calls Agendadas Pendentes
-                <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Alunos que selecionaram horário)</span>
-            </div>
-            <div class="card-body">
-                <div id="pending-calls-list" class="calls-grid">
-                    <!-- Filled by JS -->
-                </div>
-            </div>
-        </div>
-
-        <!-- All Pending Landmarks Section - Students who haven't scheduled yet -->
-        <div class="card mt-4">
-            <div class="card-header">
-                📋 Falta Agendar com os Alunos
-                <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Todos os landmarks pendentes)</span>
-            </div>
-            <div class="card-body">
-                <div id="pending-landmarks-list" style="max-height: 600px; overflow-y: auto;">
-                    <!-- Filled by JS -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Anki Questionnaire Responses -->
+        <!-- Anki Questionnaire Responses - MOVED ABOVE CALLS -->
         <div class="card mt-4">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                 <div>
@@ -271,6 +245,32 @@
                     <div id="anki-details-panel" style="padding: 1.5rem; overflow-y: auto; max-height: 600px;">
                         <!-- Filled by JS -->
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Scheduled Calls Section - Only students who booked with Guilherme -->
+        <div class="card mt-4">
+            <div class="card-header">
+                📞 Calls Agendadas Pendentes
+                <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Alunos que selecionaram horário)</span>
+            </div>
+            <div class="card-body">
+                <div id="pending-calls-list" class="calls-grid">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- All Pending Landmarks Section - Students who haven't scheduled yet -->
+        <div class="card mt-4">
+            <div class="card-header">
+                📋 Falta Agendar com os Alunos
+                <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Todos os landmarks pendentes)</span>
+            </div>
+            <div class="card-body">
+                <div id="pending-landmarks-list" style="max-height: 600px; overflow-y: auto;">
+                    <!-- Filled by JS -->
                 </div>
             </div>
         </div>
@@ -1147,8 +1147,7 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             const { data: allUsers } = await WardApp.db
                 .from('users')
                 .select('id, full_name, name, email, role')
-                .in('role', ['aluno', 'assessoria'])
-                .order('full_name');
+                .in('role', ['aluno', 'assessoria']);
 
             if (!allUsers || allUsers.length === 0) {
                 studentsListEl.innerHTML = '<p class="text-muted" style="padding: 1rem;">Nenhum aluno ainda</p>';
@@ -1156,43 +1155,41 @@ Dica: Use as tags do AnKing em vez de decks separados!`
                 return;
             }
 
-            // Filter only users who have answered the questionnaire
-            const usersWithResponses = allUsers.filter(user => ankiData[user.id]);
+            // Sort all users alphabetically by decrypted name
+            const sortedUsers = sortUsersByName([...allUsers]);
 
-            if (usersWithResponses.length === 0) {
-                studentsListEl.innerHTML = '<p class="text-muted" style="padding: 1rem;">Nenhuma resposta ainda</p>';
-                detailsPanelEl.innerHTML = '<p class="text-muted">Nenhuma resposta ainda</p>';
-                return;
-            }
+            // Render students list (left sidebar) - ALL students, not just those with responses
+            renderAnkiStudentsList(sortedUsers);
 
-            // Render students list (left sidebar)
-            renderAnkiStudentsList(usersWithResponses);
+            // Filter users with responses for the overview stats
+            const usersWithResponses = sortedUsers.filter(user => ankiData[user.id]);
 
             // Render details panel (right side) - overview or selected student
-            renderAnkiDetailsPanel(usersWithResponses);
+            renderAnkiDetailsPanel(usersWithResponses, sortedUsers);
         }
 
         function renderAnkiStudentsList(users) {
             const studentsListEl = document.getElementById('anki-students-list');
 
-            // Sort users alphabetically
-            const sortedUsers = sortUsersByName([...users]);
-
-            studentsListEl.innerHTML = sortedUsers.map(user => {
+            // Users are already sorted alphabetically
+            studentsListEl.innerHTML = users.map(user => {
                 const userName = _dn(user.full_name) || _dn(user.name) || user.email;
                 const data = ankiData[user.id];
                 const isSelected = selectedAnkiStudentId === user.id;
+                const hasData = !!data;
 
                 return `
                     <div onclick="selectAnkiStudent(${user.id})"
                          style="padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 6px;
                                 cursor: pointer; transition: all 0.2s;
-                                background: ${isSelected ? '#dbeafe' : 'white'};
-                                border: 2px solid ${isSelected ? '#3b82f6' : '#e5e7eb'};">
+                                background: ${isSelected ? '#dbeafe' : hasData ? 'white' : '#f8fafc'};
+                                border: 2px solid ${isSelected ? '#3b82f6' : hasData ? '#e5e7eb' : '#f1f5f9'};
+                                opacity: ${hasData ? '1' : '0.7'};">
                         <div style="display: flex; align-items: center; gap: 0.5rem;">
                             <div style="flex: 1; min-width: 0;">
                                 <div style="font-weight: ${isSelected ? '700' : '600'}; font-size: 0.9rem;
-                                           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                                           color: ${hasData ? 'inherit' : '#94a3b8'};">
                                     ${userName}
                                 </div>
                                 <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.125rem;">
@@ -1200,11 +1197,11 @@ Dica: Use as tags do AnKing em vez de decks separados!`
                                 </div>
                             </div>
                             <div style="display: flex; flex-direction: column; gap: 0.125rem; align-items: flex-end;">
-                                ${data.downloaded ?
+                                ${hasData ? (data.downloaded ?
                                     '<span style="font-size: 1rem;">✅</span>' :
                                     '<span style="font-size: 1rem;">❌</span>'
-                                }
-                                ${data.used ?
+                                ) : '<span style="font-size: 0.75rem; color: #94a3b8;">—</span>'}
+                                ${hasData && data.used ?
                                     '<span style="font-size: 0.9rem;">🃏</span>' : ''
                                 }
                             </div>
@@ -1226,15 +1223,15 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             renderAnkiResponses();
         }
 
-        function renderAnkiDetailsPanel(users) {
+        function renderAnkiDetailsPanel(usersWithResponses, allUsers) {
             const detailsPanelEl = document.getElementById('anki-details-panel');
 
             if (selectedAnkiStudentId === null) {
-                // Show overview
-                renderAnkiOverview(users);
+                // Show overview (uses only users with responses for stats)
+                renderAnkiOverview(usersWithResponses);
             } else {
-                // Show selected student details
-                const selectedUser = users.find(u => u.id === selectedAnkiStudentId);
+                // Show selected student details (search in all users)
+                const selectedUser = allUsers.find(u => u.id === selectedAnkiStudentId);
                 if (selectedUser) {
                     renderAnkiStudentDetails(selectedUser);
                 } else {
@@ -1381,6 +1378,29 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             const detailsPanelEl = document.getElementById('anki-details-panel');
             const data = ankiData[user.id];
             const userName = _dn(user.full_name) || _dn(user.name) || user.email;
+
+            // If no data, show "not answered" message
+            if (!data) {
+                detailsPanelEl.innerHTML = `
+                    <div style="padding: 1.25rem; background: #f8fafc; border-radius: 8px; border-left: 4px solid #94a3b8;">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem 0; font-size: 1.05rem; font-weight: 600;">
+                                    ${userName}
+                                </h4>
+                                <span style="font-size: 0.8rem; color: #64748b; text-transform: uppercase;">
+                                    ${user.role === 'aluno' ? '🎓 Aluno' : '📋 Assessoria'}
+                                </span>
+                            </div>
+                        </div>
+                        <div style="text-align: center; padding: 2rem; color: #64748b;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">📝</div>
+                            <p style="margin: 0; font-weight: 500;">Este aluno ainda não respondeu ao questionário de Anki.</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
 
             // Parse devices if it's a JSON string
             let devices = [];
