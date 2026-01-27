@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- v2.0.6 - Added button to view calls from Iria and Guilherme -->
+<!-- v2.0.7 - Added delay message button with templates -->
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -732,6 +732,33 @@ Cardiovascular	Physiology	62	FALSE
         </div>
     </div>
 
+    <!-- Delay Message Modal -->
+    <div id="delay-message-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 class="modal-title">💬 Mensagem de Atraso</h3>
+                <button class="modal-close" onclick="closeModal('delay-message-modal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+                <div id="delay-message-student-info" style="background: #fef2f2; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <!-- Student info filled by JS -->
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+                    <button onclick="prevDelayMessage()" class="btn btn-sm btn-outline" style="padding: 0.5rem 1rem;">⬅️ Anterior</button>
+                    <span id="delay-message-counter" style="font-size: 0.85rem; color: #6b7280;">Versão 1 de 8</span>
+                    <button onclick="nextDelayMessage()" class="btn btn-sm btn-outline" style="padding: 0.5rem 1rem;">Próxima ➡️</button>
+                </div>
+                <div id="delay-message-content" style="background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 8px; padding: 1rem; min-height: 200px; white-space: pre-wrap; font-size: 0.9rem; line-height: 1.6;">
+                    <!-- Message filled by JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('delay-message-modal')">Fechar</button>
+                <button class="btn btn-primary" onclick="copyDelayMessage()">📋 Copiar Mensagem</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
@@ -840,7 +867,7 @@ Cardiovascular	Physiology	62	FALSE
             const studentStatus = await Promise.all(allStudents.map(async (student) => {
                 const { data: studentSchedules } = await WardApp.db
                     .from('schedules')
-                    .select('end_date, completed')
+                    .select('end_date, completed, system, category')
                     .eq('user_id', student.id);
 
                 if (!studentSchedules || studentSchedules.length === 0) {
@@ -849,7 +876,8 @@ Cardiovascular	Physiology	62	FALSE
                         status: 'no_schedule',
                         overdueCount: 0,
                         totalCount: 0,
-                        completedCount: 0
+                        completedCount: 0,
+                        overdueItems: []
                     };
                 }
 
@@ -876,7 +904,12 @@ Cardiovascular	Physiology	62	FALSE
                     status,
                     overdueCount: overdueItems.length,
                     totalCount: studentSchedules.length,
-                    completedCount
+                    completedCount,
+                    overdueItems: overdueItems.map(item => ({
+                        system: item.system,
+                        category: item.category,
+                        end_date: item.end_date
+                    }))
                 };
             }));
 
@@ -894,13 +927,27 @@ Cardiovascular	Physiology	62	FALSE
                 return (priority[a.status] ?? 99) - (priority[b.status] ?? 99);
             });
 
+            // Store student overdue data globally for message modal
+            window.studentOverdueData = {};
+            sorted.forEach(s => {
+                if (s.status === 'overdue') {
+                    window.studentOverdueData[s.id] = {
+                        name: _dn(s.full_name) || s.email,
+                        overdueItems: s.overdueItems,
+                        overdueCount: s.overdueCount
+                    };
+                }
+            });
+
             container.innerHTML = sorted.map(student => {
                 let statusBadge = '';
                 let statusColor = '';
+                let messageButton = '';
 
                 if (student.status === 'overdue') {
                     statusBadge = `<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">⚠️ ${student.overdueCount} ${student.overdueCount === 1 ? 'item atrasado' : 'itens atrasados'}</span>`;
                     statusColor = '#fee2e2';
+                    messageButton = `<button onclick="openDelayMessageModal(${student.id})" class="btn btn-sm" style="background: #3b82f6; color: white; padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px; margin-left: 0.5rem;" title="Enviar mensagem sobre atraso">💬</button>`;
                 } else if (student.status === 'no_schedule') {
                     statusBadge = '<span style="background: #fef3c7; color: #d97706; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">📋 Sem cronograma</span>';
                     statusColor = '#fef3c7';
@@ -919,7 +966,9 @@ Cardiovascular	Physiology	62	FALSE
                     <div style="background: ${statusColor}; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; overflow: hidden;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
                             <div style="flex: 1; min-width: 0;">
-                                <div style="font-weight: 600; margin-bottom: 0.25rem; word-wrap: break-word; overflow-wrap: break-word;">${_dn(student.full_name) || student.email}</div>
+                                <div style="font-weight: 600; margin-bottom: 0.25rem; word-wrap: break-word; overflow-wrap: break-word; display: flex; align-items: center; flex-wrap: wrap;">
+                                    ${_dn(student.full_name) || student.email}${messageButton}
+                                </div>
                                 <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.5rem;">${passLabel} <span style="color: #9ca3af; font-size: 0.65rem;">| Quest. ${questionnairePercent}%</span></div>
                                 ${statusBadge}
                             </div>
@@ -1396,6 +1445,174 @@ Cardiovascular	Physiology	62	FALSE
                 console.error('Error loading other mentors calls:', error);
                 content.innerHTML = '<p class="text-muted">Erro ao carregar calls</p>';
             }
+        }
+
+        // Delay message modal functionality
+        let currentDelayMessageIndex = 0;
+        let currentDelayStudentId = null;
+
+        const delayMessageTemplates = [
+            `Olá {nome}! 👋
+
+Passando aqui para checar seu progresso. Notei que alguns itens do seu cronograma estão pendentes:
+
+{itens}
+
+Sei que imprevistos acontecem! Gostaria de entender melhor: você acha que consegue dar uma acelerada essa semana para colocar tudo em dia, ou prefere que a gente reformule o cronograma?
+
+Se optar por reformular, é só acessar a página 2 do questionário da Ward e ajustar a data prevista para sua prova. Me avise quando fizer isso!
+
+Como você está se sentindo em relação aos estudos? Conta pra mim o que está acontecendo! 💬`,
+
+            `E aí, {nome}! Tudo bem? 😊
+
+Estava dando uma olhada no seu cronograma e vi que tem alguns tópicos acumulados:
+
+{itens}
+
+Sem estresse! Quero te ajudar a resolver isso. Você prefere:
+1️⃣ Intensificar um pouco o ritmo essa semana para recuperar
+2️⃣ Reorganizar as datas do cronograma
+
+Para a opção 2, basta ir na página 2 do questionário da Ward e atualizar quando pretende fazer a prova. Me manda uma mensagem depois!
+
+O que aconteceu pra gerar esse atraso? Tô aqui pra te ouvir! 🎧`,
+
+            `Oi {nome}! 📚
+
+Fiz uma revisão dos cronogramas e percebi que você tem alguns itens para colocar em dia:
+
+{itens}
+
+Acontece nas melhores famílias! 😅 Me conta: dá pra apertar o passo essa semana ou você prefere ajustar o planejamento?
+
+Lembra que você pode atualizar a data da prova na página 2 do questionário sempre que precisar. Só me avisa se fizer alguma alteração!
+
+Quero entender o contexto - o que está pegando aí do seu lado? Compartilha comigo! 🤝`,
+
+            `Fala, {nome}! 👊
+
+Checando aqui os cronogramas e vi que você está com uns tópicos atrasados:
+
+{itens}
+
+Relaxa que isso é super comum e a gente resolve! Tenho duas sugestões:
+• Dar um gás extra essa semana pra zerar os atrasos
+• Recalcular as datas no questionário (página 2) se precisar de mais tempo
+
+Qualquer mudança de plano, me avisa que a gente alinha!
+
+Tô curioso pra saber o que rolou - pode abrir o jogo comigo! 💭`,
+
+            `Olá {nome}! 🌟
+
+Passando pra dar aquele toque amigo! Vi que tem uns itens aguardando sua atenção:
+
+{itens}
+
+Faz parte do processo! A questão é: como você quer resolver?
+✅ Acelerar essa semana e botar tudo em dia
+✅ Ajustar o cronograma com uma nova data de prova (página 2 do questionário)
+
+Me conta o que está pensando e o que motivou esse atraso - assim posso te ajudar melhor! 🎯`,
+
+            `Hey {nome}! 😄
+
+Dando uma passada rápida pra falar sobre seu cronograma. Notei que tem alguns tópicos precisando de atenção:
+
+{itens}
+
+Nada que a gente não resolva juntos! Qual caminho você prefere seguir?
+→ Recuperar o ritmo essa semana
+→ Reformular o planejamento (edite a data da prova na página 2 do questionário)
+
+Se fizer mudanças, me dá um alô! E principalmente: o que está acontecendo aí? Conta tudo! 📝`,
+
+            `Oi {nome}, tudo certo? 💪
+
+Vim dar uma olhada no seu progresso e encontrei alguns itens pendentes:
+
+{itens}
+
+Isso acontece! O importante é ter um plano. O que faz mais sentido pra você agora?
+📈 Intensificar os estudos essa semana
+📅 Replanejar as datas (página 2 do questionário da Ward)
+
+Qualquer decisão, estou aqui pra apoiar! Só preciso entender melhor a situação - o que está rolando do seu lado? Me conta! 🗣️`,
+
+            `{nome}, boa! 🙌
+
+Checando aqui o andamento dos alunos e vi que você tem alguns tópicos pra atualizar:
+
+{itens}
+
+Sem pânico! Vamos resolver isso. Você tem duas opções:
+1. Dar aquela força extra essa semana e recuperar
+2. Atualizar seu planejamento na página 2 do questionário
+
+Me avise o que decidir! E mais importante: quero saber o que aconteceu e como você está se sentindo. Pode desabafar! 💬`
+        ];
+
+        function openDelayMessageModal(studentId) {
+            currentDelayStudentId = studentId;
+            currentDelayMessageIndex = 0;
+
+            const studentData = window.studentOverdueData[studentId];
+            if (!studentData) {
+                WardApp.showToast('Dados do aluno não encontrados', 'error');
+                return;
+            }
+
+            // Fill student info
+            const studentInfo = document.getElementById('delay-message-student-info');
+            studentInfo.innerHTML = `
+                <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">👤 ${studentData.name}</div>
+                <div style="color: #dc2626; font-size: 0.9rem;">⚠️ ${studentData.overdueCount} ${studentData.overdueCount === 1 ? 'item atrasado' : 'itens atrasados'}</div>
+            `;
+
+            updateDelayMessageContent();
+            openModal('delay-message-modal');
+        }
+
+        function updateDelayMessageContent() {
+            const studentData = window.studentOverdueData[currentDelayStudentId];
+            if (!studentData) return;
+
+            // Get first name
+            const firstName = studentData.name.split(' ')[0];
+
+            // Format overdue items as bullet list
+            const itemsList = studentData.overdueItems.map(item =>
+                `• ${item.system} - ${item.category}`
+            ).join('\n');
+
+            // Get current message template and replace placeholders
+            let message = delayMessageTemplates[currentDelayMessageIndex];
+            message = message.replace('{nome}', firstName);
+            message = message.replace('{itens}', itemsList);
+
+            document.getElementById('delay-message-content').textContent = message;
+            document.getElementById('delay-message-counter').textContent = `Versão ${currentDelayMessageIndex + 1} de ${delayMessageTemplates.length}`;
+        }
+
+        function prevDelayMessage() {
+            currentDelayMessageIndex = (currentDelayMessageIndex - 1 + delayMessageTemplates.length) % delayMessageTemplates.length;
+            updateDelayMessageContent();
+        }
+
+        function nextDelayMessage() {
+            currentDelayMessageIndex = (currentDelayMessageIndex + 1) % delayMessageTemplates.length;
+            updateDelayMessageContent();
+        }
+
+        function copyDelayMessage() {
+            const messageContent = document.getElementById('delay-message-content').textContent;
+            navigator.clipboard.writeText(messageContent).then(() => {
+                WardApp.showToast('Mensagem copiada!', 'success');
+            }).catch(err => {
+                console.error('Erro ao copiar:', err);
+                WardApp.showToast('Erro ao copiar mensagem', 'error');
+            });
         }
 
         // Helper to decrypt user name if encrypted
