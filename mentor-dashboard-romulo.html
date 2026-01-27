@@ -233,6 +233,21 @@
         let researchData = {};
         let selectedStudentId = null;
 
+        // Helper to decrypt user data if encrypted
+        function _dn(val) {
+            if (!val) return val;
+            return WardApp._prs ? WardApp._prs(val) : val;
+        }
+
+        // Helper to sort users alphabetically by name
+        function sortUsersByName(users) {
+            return users.sort((a, b) => {
+                const nameA = (_dn(a.full_name) || a.email || '').toLowerCase();
+                const nameB = (_dn(b.full_name) || b.email || '').toLowerCase();
+                return nameA.localeCompare(nameB, 'pt-BR');
+            });
+        }
+
         const experienceLabels = {
             none: 'Nenhuma',
             some: 'Alguma',
@@ -283,10 +298,10 @@
             const { data: students } = await WardApp.db
                 .from('users')
                 .select('id, full_name, email')
-                .eq('role', 'aluno')
-                .order('full_name');
+                .eq('role', 'aluno');
 
-            allStudents = students || [];
+            // Sort alphabetically by decrypted name
+            allStudents = sortUsersByName(students || []);
 
             // Load research questionnaire data (steps 7, 8, 9)
             const { data: questionnaireData } = await WardApp.db
@@ -412,16 +427,17 @@
 
             tbody.innerHTML = withData.map(student => {
                 const data = researchData[student.id] || {};
+                const studentName = _dn(student.full_name) || 'Sem nome';
 
                 return `
                     <tr>
-                        <td><strong>${student.full_name || 'Sem nome'}</strong></td>
+                        <td><strong>${studentName}</strong></td>
                         <td>${data.orcid || '<span class="text-muted">-</span>'}</td>
                         <td>${experienceLabels[data.research_experience] || '-'}</td>
                         <td>${(data.interest_areas || []).join(', ') || '-'}</td>
                         <td>${data.wants_ward_research ? '<span class="badge badge-success">Sim</span>' : '<span class="badge badge-secondary">Nao</span>'}</td>
                         <td>
-                            <button class="btn btn-xs btn-outline" onclick="openAddToProjectModal(${student.id}, '${student.full_name}')">+ Projeto</button>
+                            <button class="btn btn-xs btn-outline" onclick="openAddToProjectModal(${student.id}, '${studentName.replace(/'/g, "\\'")}')">+ Projeto</button>
                         </td>
                     </tr>
                 `;
@@ -482,7 +498,7 @@
                     <div class="call-icon">${call.is_urgent ? '🔴' : '🔬'}</div>
                     <div class="call-info">
                         <div class="call-title">${call.title}</div>
-                        <div class="call-student">${user.full_name || 'Aluno'}</div>
+                        <div class="call-student">${_dn(user.full_name) || 'Aluno'}</div>
                     </div>
                     <button class="btn btn-sm btn-primary" onclick="markCallComplete(${call.id})">✓</button>
                 </div>

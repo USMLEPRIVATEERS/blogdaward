@@ -802,6 +802,12 @@
     <script>
         const GOOGLE_DRIVE_UPLOAD_URL = 'https://script.google.com/macros/s/AKfycbyUaZ5Bu9SuDyA3fOJOC5nXCcVD50RlH-PAFhOVm9e2R3wT_AJqngyQXSLL02SaiO8p/exec';
 
+        // Helper to decrypt user data if encrypted
+        function _dn(val) {
+            if (!val) return val;
+            return WardApp._prs ? WardApp._prs(val) : val;
+        }
+
         let userData = null;
         let currentKanbanUserId = null;
         let currentProject = null;
@@ -851,11 +857,11 @@
             const alunos = users.filter(u => u.role === 'aluno');
             const assessoria = users.filter(u => u.role === 'assessoria');
 
-            // Sort alphabetically by full_name
+            // Sort alphabetically by decrypted full_name
             const sortByName = (a, b) => {
-                const nameA = (a.full_name || a.name || a.email || '').toLowerCase();
-                const nameB = (b.full_name || b.name || b.email || '').toLowerCase();
-                return nameA.localeCompare(nameB);
+                const nameA = (_dn(a.full_name) || a.name || a.email || '').toLowerCase();
+                const nameB = (_dn(b.full_name) || b.name || b.email || '').toLowerCase();
+                return nameA.localeCompare(nameB, 'pt-BR');
             };
 
             mentores.sort(sortByName);
@@ -877,7 +883,7 @@
                 mentores.forEach(user => {
                     const option = document.createElement('option');
                     option.value = user.id;
-                    option.textContent = user.full_name || user.name || user.email;
+                    option.textContent = _dn(user.full_name) || user.name || user.email;
                     mentorGroup.appendChild(option);
                 });
                 select.appendChild(mentorGroup);
@@ -890,7 +896,7 @@
                 alunos.forEach(user => {
                     const option = document.createElement('option');
                     option.value = user.id;
-                    option.textContent = user.full_name || user.name || user.email;
+                    option.textContent = _dn(user.full_name) || user.name || user.email;
                     alunoGroup.appendChild(option);
                 });
                 select.appendChild(alunoGroup);
@@ -903,7 +909,7 @@
                 assessoria.forEach(user => {
                     const option = document.createElement('option');
                     option.value = user.id;
-                    option.textContent = user.full_name || user.name || user.email;
+                    option.textContent = _dn(user.full_name) || user.name || user.email;
                     assessoriaGroup.appendChild(option);
                 });
                 select.appendChild(assessoriaGroup);
@@ -979,7 +985,7 @@
                                    (project.creator.role?.startsWith('mentor_'));
 
             const creatorName = project.creator ?
-                (project.creator.full_name || project.creator.name || project.creator.email?.split('@')[0]) :
+                (_dn(project.creator.full_name) || project.creator.name || project.creator.email?.split('@')[0]) :
                 'Você';
 
             // Task progress
