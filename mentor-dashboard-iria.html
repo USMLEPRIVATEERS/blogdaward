@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- v2.0.2 - Fix type comparison + debug logging -->
+<!-- v2.0.5 - Query schedules per student (avoids API overload) -->
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -1778,12 +1778,7 @@
         async function loadScheduleStatus() {
             const container = document.getElementById('schedule-status-list');
 
-            // Load all schedules for students
-            const { data: schedules } = await WardApp.db
-                .from('schedules')
-                .select('user_id, end_date, completed');
-
-            // Load pass_type and questionnaire_step for all students to ensure we have the latest value
+            // Load pass_type and questionnaire_step for all students
             const { data: userPassTypes } = await WardApp.db
                 .from('users')
                 .select('id, pass_type, questionnaire_step')
@@ -1800,25 +1795,14 @@
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
-            // DEBUG: Log schedules for user 31 (Pedro Luis)
-            const debugUser31 = (schedules || []).filter(s => s.user_id == 31 || s.user_id === '31');
-            if (debugUser31.length > 0) {
-                console.log('DEBUG user 31 schedules:', debugUser31);
-                console.log('DEBUG user 31 with end_date:', debugUser31.filter(s => s.end_date));
-                console.log('DEBUG user 31 overdue:', debugUser31.filter(s => {
-                    if (s.completed || !s.end_date) return false;
-                    const ed = parseLocalDate(s.end_date);
-                    ed.setHours(23, 59, 59, 999);
-                    return ed < today;
-                }));
-            }
+            // Query schedules per student (avoids API overload and row limit issues)
+            const studentStatus = await Promise.all(allStudents.map(async (student) => {
+                const { data: studentSchedules } = await WardApp.db
+                    .from('schedules')
+                    .select('end_date, completed')
+                    .eq('user_id', student.id);
 
-            // Calculate status for each student based on ACTUAL delays (end_date passed and not completed)
-            const studentStatus = allStudents.map(student => {
-                // Use == instead of === to handle string/number type mismatch
-                const studentSchedules = (schedules || []).filter(s => s.user_id == student.id);
-
-                if (studentSchedules.length === 0) {
+                if (!studentSchedules || studentSchedules.length === 0) {
                     return {
                         ...student,
                         status: 'no_schedule',
@@ -1853,7 +1837,7 @@
                     totalCount: studentSchedules.length,
                     completedCount
                 };
-            });
+            }));
 
             // Sort: overdue first, then no schedule, then on track
             const sorted = studentStatus.sort((a, b) => {
