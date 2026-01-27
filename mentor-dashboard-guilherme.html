@@ -348,6 +348,8 @@
         let userData = null;
         let allStudents = [];
         let ankiData = {};
+        let checkinAnkiData = {};
+        let questionnaireAnkiData = {};
         let selectedStudent = null;
         let currentCallDetails = null;
         let frequencyDataSource = 'checkin'; // For frequency chart
@@ -484,7 +486,7 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             allStudents = sortUsersByName(students || []);
 
             // Load check-in data for frequency chart
-            const checkinAnkiData = {};
+            checkinAnkiData = {}; // Reset global
             const { data: latestCheckins } = await WardApp.db
                 .from('daily_checkins')
                 .select('user_id, anki_cards_today, anki_avg_cards, anki_current_streak, date')
@@ -512,7 +514,7 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             });
 
             // Load questionnaire data
-            const questionnaireAnkiData = {};
+            questionnaireAnkiData = {}; // Reset global
             const { data: questionnaireData } = await WardApp.db
                 .from('questionnaire_data')
                 .select('*')
@@ -524,7 +526,6 @@ Dica: Use as tags do AnKing em vez de decks separados!`
 
             // Set ankiData based on which source each section uses
             // Frequency chart uses frequencyDataSource
-            // Everything else uses questionnaireDataSource for now
             ankiData = frequencyDataSource === 'checkin' ? checkinAnkiData : questionnaireAnkiData;
 
             updateStats();
@@ -532,11 +533,8 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             renderNoAnkiList();
             renderStudentsTable();
 
-            // For questionnaire responses, use questionnaireDataSource
-            const tempAnkiData = ankiData;
-            ankiData = questionnaireDataSource === 'checkin' ? checkinAnkiData : questionnaireAnkiData;
+            // For questionnaire responses, always use the correct data source
             await renderAnkiResponses();
-            ankiData = tempAnkiData; // Restore
 
             loadPendingCalls();
         }
@@ -1138,10 +1136,18 @@ Dica: Use as tags do AnKing em vez de decks separados!`
         // Track selected student for Anki responses
         let selectedAnkiStudentId = null;
 
+        // Helper to get the correct data source for questionnaire section
+        function getQuestionnaireData() {
+            return questionnaireDataSource === 'checkin' ? checkinAnkiData : questionnaireAnkiData;
+        }
+
         // Render detailed Anki questionnaire responses
         async function renderAnkiResponses() {
             const studentsListEl = document.getElementById('anki-students-list');
             const detailsPanelEl = document.getElementById('anki-details-panel');
+
+            // Get the correct data source for questionnaire section
+            const qData = getQuestionnaireData();
 
             // Get all users (alunos + assessoria) with their questionnaire data
             const { data: allUsers } = await WardApp.db
@@ -1159,22 +1165,22 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             const sortedUsers = sortUsersByName([...allUsers]);
 
             // Render students list (left sidebar) - ALL students, not just those with responses
-            renderAnkiStudentsList(sortedUsers);
+            renderAnkiStudentsList(sortedUsers, qData);
 
             // Filter users with responses for the overview stats
-            const usersWithResponses = sortedUsers.filter(user => ankiData[user.id]);
+            const usersWithResponses = sortedUsers.filter(user => qData[user.id]);
 
             // Render details panel (right side) - overview or selected student
-            renderAnkiDetailsPanel(usersWithResponses, sortedUsers);
+            renderAnkiDetailsPanel(usersWithResponses, sortedUsers, qData);
         }
 
-        function renderAnkiStudentsList(users) {
+        function renderAnkiStudentsList(users, qData) {
             const studentsListEl = document.getElementById('anki-students-list');
 
             // Users are already sorted alphabetically
             studentsListEl.innerHTML = users.map(user => {
                 const userName = _dn(user.full_name) || _dn(user.name) || user.email;
-                const data = ankiData[user.id];
+                const data = qData[user.id];
                 const isSelected = selectedAnkiStudentId === user.id;
                 const hasData = !!data;
 
@@ -1223,41 +1229,41 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             renderAnkiResponses();
         }
 
-        function renderAnkiDetailsPanel(usersWithResponses, allUsers) {
+        function renderAnkiDetailsPanel(usersWithResponses, allUsers, qData) {
             const detailsPanelEl = document.getElementById('anki-details-panel');
 
             if (selectedAnkiStudentId === null) {
                 // Show overview (uses only users with responses for stats)
-                renderAnkiOverview(usersWithResponses);
+                renderAnkiOverview(usersWithResponses, qData);
             } else {
                 // Show selected student details (search in all users)
                 const selectedUser = allUsers.find(u => u.id === selectedAnkiStudentId);
                 if (selectedUser) {
-                    renderAnkiStudentDetails(selectedUser);
+                    renderAnkiStudentDetails(selectedUser, qData);
                 } else {
                     detailsPanelEl.innerHTML = '<p class="text-muted">Aluno não encontrado</p>';
                 }
             }
         }
 
-        function renderAnkiOverview(users) {
+        function renderAnkiOverview(users, qData) {
             const detailsPanelEl = document.getElementById('anki-details-panel');
 
             // Calculate statistics
             const total = users.length;
-            const downloaded = users.filter(u => ankiData[u.id]?.downloaded).length;
-            const using = users.filter(u => ankiData[u.id]?.used).length;
-            const usesAnking = users.filter(u => ankiData[u.id]?.uses_anking === 'true').length;
+            const downloaded = users.filter(u => qData[u.id]?.downloaded).length;
+            const using = users.filter(u => qData[u.id]?.used).length;
+            const usesAnking = users.filter(u => qData[u.id]?.uses_anking === 'true').length;
 
             // Frequency breakdown
-            const daily = users.filter(u => ankiData[u.id]?.frequency === 'daily').length;
-            const alternate = users.filter(u => ankiData[u.id]?.frequency === 'alternate').length;
-            const fewTimes = users.filter(u => ankiData[u.id]?.frequency === 'few_times').length;
-            const rarely = users.filter(u => ankiData[u.id]?.frequency === 'rarely').length;
+            const daily = users.filter(u => qData[u.id]?.frequency === 'daily').length;
+            const alternate = users.filter(u => qData[u.id]?.frequency === 'alternate').length;
+            const fewTimes = users.filter(u => qData[u.id]?.frequency === 'few_times').length;
+            const rarely = users.filter(u => qData[u.id]?.frequency === 'rarely').length;
 
             // Average cards calculation
             const cardsData = users
-                .map(u => ankiData[u.id]?.average_cards_per_day)
+                .map(u => qData[u.id]?.average_cards_per_day)
                 .filter(c => c && c > 0);
             const avgCards = cardsData.length > 0
                 ? Math.round(cardsData.reduce((a, b) => a + b, 0) / cardsData.length)
@@ -1374,9 +1380,9 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             `;
         }
 
-        function renderAnkiStudentDetails(user) {
+        function renderAnkiStudentDetails(user, qData) {
             const detailsPanelEl = document.getElementById('anki-details-panel');
-            const data = ankiData[user.id];
+            const data = qData[user.id];
             const userName = _dn(user.full_name) || _dn(user.name) || user.email;
 
             // If no data, show "not answered" message
