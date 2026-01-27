@@ -800,6 +800,15 @@ Cardiovascular	Physiology	62	FALSE
                 .from('schedules')
                 .select('user_id, end_date, completed');
 
+            // Load signaled delays (not acknowledged yet)
+            const { data: signaledDelays } = await WardApp.db
+                .from('schedule_delays')
+                .select('user_id')
+                .is('acknowledged_at', null);
+
+            // Create a set of user IDs with signaled delays
+            const usersWithSignaledDelays = new Set((signaledDelays || []).map(d => d.user_id));
+
             // Load pass_type and questionnaire_step for all students to ensure we have the latest value
             const { data: userPassTypes } = await WardApp.db
                 .from('users')
@@ -820,14 +829,16 @@ Cardiovascular	Physiology	62	FALSE
             // Calculate status for each student
             const studentStatus = allStudents.map(student => {
                 const studentSchedules = (schedules || []).filter(s => s.user_id === student.id);
+                const hasSignaledDelay = usersWithSignaledDelays.has(student.id);
 
                 if (studentSchedules.length === 0) {
                     return {
                         ...student,
-                        status: 'no_schedule',
+                        status: hasSignaledDelay ? 'signaled_delay' : 'no_schedule',
                         overdueCount: 0,
                         totalCount: 0,
-                        completedCount: 0
+                        completedCount: 0,
+                        hasSignaledDelay
                     };
                 }
 
@@ -841,12 +852,19 @@ Cardiovascular	Physiology	62	FALSE
 
                 const completedCount = studentSchedules.filter(s => s.completed).length;
 
+                // Status: overdue if has overdue items OR signaled delay
+                let status = 'on_track';
+                if (overdueItems.length > 0 || hasSignaledDelay) {
+                    status = 'overdue';
+                }
+
                 return {
                     ...student,
-                    status: overdueItems.length > 0 ? 'overdue' : 'on_track',
+                    status,
                     overdueCount: overdueItems.length,
                     totalCount: studentSchedules.length,
-                    completedCount
+                    completedCount,
+                    hasSignaledDelay
                 };
             });
 
@@ -858,13 +876,10 @@ Cardiovascular	Physiology	62	FALSE
                 }
             });
 
-            // Sort: overdue first, then no schedule, then on track
+            // Sort: overdue first, then signaled_delay, then no schedule, then on track
             const sorted = studentStatus.sort((a, b) => {
-                if (a.status === 'overdue' && b.status !== 'overdue') return -1;
-                if (a.status !== 'overdue' && b.status === 'overdue') return 1;
-                if (a.status === 'no_schedule' && b.status === 'on_track') return -1;
-                if (a.status === 'on_track' && b.status === 'no_schedule') return 1;
-                return 0;
+                const priority = { overdue: 0, signaled_delay: 1, no_schedule: 2, on_track: 3 };
+                return (priority[a.status] ?? 99) - (priority[b.status] ?? 99);
             });
 
             container.innerHTML = sorted.map(student => {
@@ -872,7 +887,17 @@ Cardiovascular	Physiology	62	FALSE
                 let statusColor = '';
 
                 if (student.status === 'overdue') {
-                    statusBadge = `<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">⚠️ ${student.overdueCount} ${student.overdueCount === 1 ? 'item atrasado' : 'itens atrasados'}</span>`;
+                    // Show different message based on whether it's a signaled delay or calculated overdue
+                    if (student.hasSignaledDelay && student.overdueCount === 0) {
+                        statusBadge = '<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">🚨 Sinalizou atraso</span>';
+                    } else if (student.hasSignaledDelay && student.overdueCount > 0) {
+                        statusBadge = `<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">🚨 Sinalizou atraso + ${student.overdueCount} ${student.overdueCount === 1 ? 'item' : 'itens'}</span>`;
+                    } else {
+                        statusBadge = `<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">⚠️ ${student.overdueCount} ${student.overdueCount === 1 ? 'item atrasado' : 'itens atrasados'}</span>`;
+                    }
+                    statusColor = '#fee2e2';
+                } else if (student.status === 'signaled_delay') {
+                    statusBadge = '<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">🚨 Sinalizou atraso</span>';
                     statusColor = '#fee2e2';
                 } else if (student.status === 'no_schedule') {
                     statusBadge = '<span style="background: #fef3c7; color: #d97706; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">📋 Sem cronograma</span>';
