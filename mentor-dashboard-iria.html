@@ -1782,15 +1782,6 @@
                 .from('schedules')
                 .select('user_id, end_date, completed');
 
-            // Load signaled delays (not acknowledged yet)
-            const { data: signaledDelays } = await WardApp.db
-                .from('schedule_delays')
-                .select('user_id')
-                .is('acknowledged_at', null);
-
-            // Create a set of user IDs with signaled delays
-            const usersWithSignaledDelays = new Set((signaledDelays || []).map(d => d.user_id));
-
             // Load pass_type and questionnaire_step for all students to ensure we have the latest value
             const { data: userPassTypes } = await WardApp.db
                 .from('users')
@@ -1808,22 +1799,22 @@
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
-            // Calculate status for each student
+            // Calculate status for each student based on ACTUAL delays (end_date passed and not completed)
             const studentStatus = allStudents.map(student => {
                 const studentSchedules = (schedules || []).filter(s => s.user_id === student.id);
-                const hasSignaledDelay = usersWithSignaledDelays.has(student.id);
 
                 if (studentSchedules.length === 0) {
                     return {
                         ...student,
-                        status: hasSignaledDelay ? 'signaled_delay' : 'no_schedule',
+                        status: 'no_schedule',
                         overdueCount: 0,
                         totalCount: 0,
-                        completedCount: 0,
-                        hasSignaledDelay
+                        completedCount: 0
                     };
                 }
 
+                // Check for ACTUAL delays: items with end_date < today and not completed
+                // The person has until 23:59:59 of the end_date to complete
                 const overdueItems = studentSchedules.filter(s => {
                     if (s.completed) return false;
                     if (!s.end_date) return false;
@@ -1834,9 +1825,9 @@
 
                 const completedCount = studentSchedules.filter(s => s.completed).length;
 
-                // Status: overdue if has overdue items OR signaled delay
+                // Status: overdue ONLY if has actual overdue items (not based on signalization)
                 let status = 'on_track';
-                if (overdueItems.length > 0 || hasSignaledDelay) {
+                if (overdueItems.length > 0) {
                     status = 'overdue';
                 }
 
@@ -1845,14 +1836,13 @@
                     status,
                     overdueCount: overdueItems.length,
                     totalCount: studentSchedules.length,
-                    completedCount,
-                    hasSignaledDelay
+                    completedCount
                 };
             });
 
-            // Sort: overdue first, then signaled_delay, then no schedule, then on track
+            // Sort: overdue first, then no schedule, then on track
             const sorted = studentStatus.sort((a, b) => {
-                const priority = { overdue: 0, signaled_delay: 1, no_schedule: 2, on_track: 3 };
+                const priority = { overdue: 0, no_schedule: 1, on_track: 2 };
                 return (priority[a.status] ?? 99) - (priority[b.status] ?? 99);
             });
 
@@ -1861,17 +1851,7 @@
                 let statusColor = '';
 
                 if (student.status === 'overdue') {
-                    // Show different message based on whether it's a signaled delay or calculated overdue
-                    if (student.hasSignaledDelay && student.overdueCount === 0) {
-                        statusBadge = '<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">🚨 Sinalizou atraso</span>';
-                    } else if (student.hasSignaledDelay && student.overdueCount > 0) {
-                        statusBadge = `<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">🚨 Sinalizou atraso + ${student.overdueCount} ${student.overdueCount === 1 ? 'item' : 'itens'}</span>`;
-                    } else {
-                        statusBadge = `<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">⚠️ ${student.overdueCount} ${student.overdueCount === 1 ? 'item atrasado' : 'itens atrasados'}</span>`;
-                    }
-                    statusColor = '#fee2e2';
-                } else if (student.status === 'signaled_delay') {
-                    statusBadge = '<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">🚨 Sinalizou atraso</span>';
+                    statusBadge = `<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">⚠️ ${student.overdueCount} ${student.overdueCount === 1 ? 'item atrasado' : 'itens atrasados'}</span>`;
                     statusColor = '#fee2e2';
                 } else if (student.status === 'no_schedule') {
                     statusBadge = '<span style="background: #fef3c7; color: #d97706; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">📋 Sem cronograma</span>';
