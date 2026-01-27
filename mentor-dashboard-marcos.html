@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- v2.0.5 - Query schedules per student (avoids API overload) -->
+<!-- v2.0.6 - Added button to view calls from Iria and Guilherme -->
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -295,9 +295,14 @@
 
         <!-- Pending Scheduled Calls Section - Only students who booked with mentors -->
         <div class="card mt-4">
-            <div class="card-header">
-                📞 Calls Agendadas Pendentes
-                <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Alunos que selecionaram horário)</span>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    📞 Calls Agendadas Pendentes
+                    <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Alunos que selecionaram horário)</span>
+                </div>
+                <button class="btn btn-sm btn-outline" onclick="openOtherMentorsCalls()" title="Ver calls de outros mentores">
+                    👥 Ver Iria/Guilherme
+                </button>
             </div>
             <div class="card-body">
                 <div id="pending-calls-list" class="pending-calls-grid">
@@ -705,6 +710,24 @@ Cardiovascular	Physiology	62	FALSE
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('call-details-modal')">Fechar</button>
                 <button class="btn btn-primary" id="call-details-complete-btn" onclick="completeCallFromModal()">✓ Marcar como Concluída</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Other Mentors Calls Modal -->
+    <div id="other-mentors-calls-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 class="modal-title">👥 Calls Agendadas - Iria & Guilherme</h3>
+                <button class="modal-close" onclick="closeModal('other-mentors-calls-modal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <div id="other-mentors-calls-content">
+                    <p class="text-muted">Carregando...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('other-mentors-calls-modal')">Fechar</button>
             </div>
         </div>
     </div>
@@ -1270,6 +1293,108 @@ Cardiovascular	Physiology	62	FALSE
             } catch (error) {
                 console.error('Error adding note:', error);
                 WardApp.showToast('Erro ao salvar observação', 'error');
+            }
+        }
+
+        async function openOtherMentorsCalls() {
+            const content = document.getElementById('other-mentors-calls-content');
+            content.innerHTML = '<p class="text-muted">Carregando calls...</p>';
+            openModal('other-mentors-calls-modal');
+
+            try {
+                // Load scheduled calls for Iria
+                const { data: iriaCalls } = await WardApp.db
+                    .from('scheduled_calls')
+                    .select('*, landmark:landmarks(*), student:users!scheduled_calls_student_id_fkey(id, full_name, email), mentor:users!scheduled_calls_mentor_id_fkey(id, full_name)')
+                    .eq('status', 'scheduled')
+                    .order('scheduled_date', { ascending: true })
+                    .order('scheduled_time', { ascending: true });
+
+                // Filter for Iria's calls (landmark_type includes 'iria')
+                const iriaFiltered = (iriaCalls || []).filter(item => {
+                    const landmarkType = item.landmark?.landmark_type || '';
+                    return landmarkType.includes('iria');
+                });
+
+                // Filter for Guilherme's calls (landmark_type includes 'guilherme')
+                const guilhermeFiltered = (iriaCalls || []).filter(item => {
+                    const landmarkType = item.landmark?.landmark_type || '';
+                    return landmarkType.includes('guilherme');
+                });
+
+                let html = '';
+
+                // Iria Section
+                html += `
+                    <div style="margin-bottom: 2rem;">
+                        <h4 style="color: #ec4899; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #ec4899;">
+                            👩‍⚕️ Dra. Iria (${iriaFiltered.length} calls)
+                        </h4>
+                `;
+
+                if (iriaFiltered.length === 0) {
+                    html += '<p class="text-muted">Nenhuma call agendada com Iria</p>';
+                } else {
+                    html += '<div style="display: grid; gap: 0.75rem;">';
+                    iriaFiltered.forEach(item => {
+                        const landmark = item.landmark;
+                        const student = item.student;
+                        const hasNotes = (item.notes && item.notes.trim().length > 0) ||
+                                        (landmark?.notes && Array.isArray(landmark.notes) && landmark.notes.length > 0);
+                        const notesIndicator = hasNotes ? '<span style="color: #f59e0b;" title="Tem observações">📝</span>' : '';
+                        html += `
+                            <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #fdf2f8; border-radius: 8px; border-left: 3px solid #ec4899;">
+                                <div style="font-size: 1.25rem;">📞</div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 500;">${landmark?.title || 'Call'} ${notesIndicator}</div>
+                                    <div style="font-size: 0.85rem; color: #6b7280;">${_dn(student?.full_name) || student?.email || 'Aluno'}</div>
+                                    <div style="font-size: 0.8rem; color: #9ca3af;">🕐 ${formatDateTime(item.scheduled_date + 'T' + item.scheduled_time)}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                }
+                html += '</div>';
+
+                // Guilherme Section
+                html += `
+                    <div>
+                        <h4 style="color: #8b5cf6; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #8b5cf6;">
+                            🃏 Guilherme (${guilhermeFiltered.length} calls)
+                        </h4>
+                `;
+
+                if (guilhermeFiltered.length === 0) {
+                    html += '<p class="text-muted">Nenhuma call agendada com Guilherme</p>';
+                } else {
+                    html += '<div style="display: grid; gap: 0.75rem;">';
+                    guilhermeFiltered.forEach(item => {
+                        const landmark = item.landmark;
+                        const student = item.student;
+                        const hasNotes = (item.notes && item.notes.trim().length > 0) ||
+                                        (landmark?.notes && Array.isArray(landmark.notes) && landmark.notes.length > 0);
+                        const notesIndicator = hasNotes ? '<span style="color: #f59e0b;" title="Tem observações">📝</span>' : '';
+                        html += `
+                            <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #f5f3ff; border-radius: 8px; border-left: 3px solid #8b5cf6;">
+                                <div style="font-size: 1.25rem;">📞</div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 500;">${landmark?.title || 'Call'} ${notesIndicator}</div>
+                                    <div style="font-size: 0.85rem; color: #6b7280;">${_dn(student?.full_name) || student?.email || 'Aluno'}</div>
+                                    <div style="font-size: 0.8rem; color: #9ca3af;">🕐 ${formatDateTime(item.scheduled_date + 'T' + item.scheduled_time)}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                }
+                html += '</div>';
+
+                content.innerHTML = html;
+
+            } catch (error) {
+                console.error('Error loading other mentors calls:', error);
+                content.innerHTML = '<p class="text-muted">Erro ao carregar calls</p>';
             }
         }
 
