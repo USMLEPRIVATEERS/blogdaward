@@ -493,6 +493,7 @@
         let specificDates = [];
         let scheduledCalls = [];
         let currentCall = null; // Current call being viewed in modal
+        let editingSpecificId = null; // ID of specific date being edited (null = new)
 
         const dayNames = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
         const dayNamesShort = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
@@ -843,13 +844,17 @@
                                 <div style="margin-top: 0.25rem;">${slotsHtml}</div>
                             `}
                         </div>
-                        <button class="btn btn-sm btn-outline" onclick="removeSpecificDate(${item.id})">🗑️</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-sm btn-outline" onclick="editSpecificDate(${item.id})">✏️</button>
+                            <button class="btn btn-sm btn-outline" onclick="removeSpecificDate(${item.id})">🗑️</button>
+                        </div>
                     </div>
                 `;
             }).join('');
         }
 
         function openAddSpecificModal(isUnavailable) {
+            editingSpecificId = null; // Clear editing mode
             document.getElementById('specific-is-unavailable').value = isUnavailable ? '1' : '0';
             document.getElementById('specific-modal-title').textContent = isUnavailable ?
                 '❌ Marcar Indisponibilidade' : '📆 Adicionar Disponibilidade';
@@ -868,6 +873,36 @@
             openModal('add-specific-modal');
         }
 
+        function editSpecificDate(id) {
+            const item = specificDates.find(d => d.id === id);
+            if (!item) {
+                WardApp.showToast('Data não encontrada', 'error');
+                return;
+            }
+
+            editingSpecificId = id; // Set editing mode
+            const isUnavailable = item.is_unavailable;
+
+            document.getElementById('specific-is-unavailable').value = isUnavailable ? '1' : '0';
+            document.getElementById('specific-modal-title').textContent = isUnavailable ?
+                '✏️ Editar Indisponibilidade' : '✏️ Editar Disponibilidade';
+            document.getElementById('specific-times-group').style.display = isUnavailable ? 'none' : 'block';
+            document.getElementById('specific-date').value = item.available_date;
+            document.getElementById('specific-notes').value = item.notes || '';
+
+            if (!isUnavailable) {
+                document.getElementById('specific-start').value = formatTime(item.start_time);
+                document.getElementById('specific-end').value = formatTime(item.end_time);
+                document.getElementById('specific-duration').value = item.duration_minutes || 60;
+                document.getElementById('specific-break').value = item.break_minutes || 0;
+                updateSpecificPreview();
+            } else {
+                document.getElementById('specific-preview').innerHTML = '';
+            }
+
+            openModal('add-specific-modal');
+        }
+
         async function saveSpecificDate() {
             const isUnavailable = document.getElementById('specific-is-unavailable').value === '1';
             const date = document.getElementById('specific-date').value;
@@ -878,7 +913,7 @@
                 return;
             }
 
-            const insertData = {
+            const saveData = {
                 mentor_id: userData.id,
                 available_date: date,
                 is_unavailable: isUnavailable,
@@ -886,20 +921,33 @@
             };
 
             if (!isUnavailable) {
-                insertData.start_time = document.getElementById('specific-start').value;
-                insertData.end_time = document.getElementById('specific-end').value;
-                insertData.duration_minutes = parseInt(document.getElementById('specific-duration').value);
-                insertData.break_minutes = parseInt(document.getElementById('specific-break').value);
+                saveData.start_time = document.getElementById('specific-start').value;
+                saveData.end_time = document.getElementById('specific-end').value;
+                saveData.duration_minutes = parseInt(document.getElementById('specific-duration').value);
+                saveData.break_minutes = parseInt(document.getElementById('specific-break').value);
             } else {
-                insertData.start_time = '00:00';
-                insertData.end_time = '23:59';
-                insertData.duration_minutes = 60;
-                insertData.break_minutes = 0;
+                saveData.start_time = '00:00';
+                saveData.end_time = '23:59';
+                saveData.duration_minutes = 60;
+                saveData.break_minutes = 0;
             }
 
-            const { error } = await WardApp.db
-                .from('mentor_availability_specific')
-                .insert(insertData);
+            let error;
+
+            if (editingSpecificId) {
+                // Update existing
+                const result = await WardApp.db
+                    .from('mentor_availability_specific')
+                    .update(saveData)
+                    .eq('id', editingSpecificId);
+                error = result.error;
+            } else {
+                // Insert new
+                const result = await WardApp.db
+                    .from('mentor_availability_specific')
+                    .insert(saveData);
+                error = result.error;
+            }
 
             if (error) {
                 console.error('Error saving:', error);
@@ -908,7 +956,8 @@
             }
 
             closeModal('add-specific-modal');
-            WardApp.showToast('Data adicionada!');
+            WardApp.showToast(editingSpecificId ? 'Data atualizada!' : 'Data adicionada!');
+            editingSpecificId = null; // Reset editing mode
             await loadSpecificDates();
         }
 
