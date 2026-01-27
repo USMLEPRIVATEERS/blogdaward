@@ -687,7 +687,7 @@
             allElements.forEach(el => {
                 // Remove all on* attributes (onclick, onload, etc.)
                 Array.from(el.attributes).forEach(attr => {
-                    if (attr.name.startsWith('on') || attr.name === 'href' && attr.value.startsWith('javascript:')) {
+                    if (attr.name.startsWith('on') || (attr.name === 'href' && attr.value.startsWith('javascript:'))) {
                         el.removeAttribute(attr.name);
                     }
                 });
@@ -696,6 +696,36 @@
                 // Remove class to prevent external styling
                 el.removeAttribute('class');
             });
+
+            // Make all existing anchor tags open in new tab
+            temp.querySelectorAll('a').forEach(a => {
+                if (a.href && !a.href.startsWith('javascript:')) {
+                    a.setAttribute('target', '_blank');
+                    a.setAttribute('rel', 'noopener noreferrer');
+                    a.style.color = '#6366f1';
+                    a.style.textDecoration = 'underline';
+                }
+            });
+
+            // Convert plain text URLs to clickable links (in text nodes only)
+            const linkifyTextNodes = (node) => {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    const urlRegex = /(https?:\/\/[^\s<>"]+|www\.[^\s<>"]+)/gi;
+                    const text = node.textContent;
+                    if (urlRegex.test(text)) {
+                        const span = document.createElement('span');
+                        span.innerHTML = text.replace(urlRegex, (url) => {
+                            const fullUrl = url.startsWith('www.') ? 'https://' + url : url;
+                            return `<a href="${fullUrl}" target="_blank" rel="noopener noreferrer" style="color: #6366f1; text-decoration: underline;">${url}</a>`;
+                        });
+                        node.parentNode.replaceChild(span, node);
+                    }
+                } else if (node.nodeType === Node.ELEMENT_NODE && node.tagName !== 'A') {
+                    // Don't process inside existing anchor tags
+                    Array.from(node.childNodes).forEach(linkifyTextNodes);
+                }
+            };
+            Array.from(temp.childNodes).forEach(linkifyTextNodes);
 
             return temp.innerHTML;
         }
