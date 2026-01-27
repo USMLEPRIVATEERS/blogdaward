@@ -2450,14 +2450,27 @@ Baseline BMI"></textarea>
             const container = document.getElementById('batchOutcomesTable');
             if (!container || !currentProject) return;
 
-            let html = '<table class="results-table" style="margin: 0;"><thead><tr>';
-            html += '<th>Study ID</th><th>Outcome (A3) <small style="color: var(--warning);">- click to edit</small></th><th>D1</th><th>D2</th><th>D3</th><th>D4</th><th>D5</th><th>D6</th><th>Overall</th>';
+            let html = `<div style="margin-bottom: 15px; padding: 10px; background: var(--bg-input); border-radius: 8px; border: 1px solid var(--border);">
+                <strong style="color: var(--accent);">📝 Preencha os dados abaixo para cada estudo antes de copiar o Batch Prompt</strong>
+                <p style="font-size: 11px; color: var(--text-muted); margin: 5px 0 0 0;">Os campos editáveis serão incluídos no prompt para a IA avaliar corretamente.</p>
+            </div>`;
+
+            html += '<div style="overflow-x: auto;"><table class="results-table" style="margin: 0; font-size: 12px;"><thead><tr>';
+            html += '<th style="min-width: 120px;">Study ID</th>';
+            html += '<th style="min-width: 200px;">Outcome (A3)</th>';
+            html += '<th style="min-width: 180px;">Intervention (C2)</th>';
+            html += '<th style="min-width: 180px;">Comparator (C3)</th>';
+            html += '<th style="min-width: 100px;">Effect Type</th>';
+            html += '<th>D1</th><th>D2</th><th>D3</th><th>D4</th><th>D5</th><th>D6</th><th>Overall</th>';
             html += '</tr></thead><tbody>';
 
             currentProject.studies.forEach((studyId, idx) => {
                 const sd = currentProject.assessments[studyId] || {};
                 const outcome = sd.preliminary?.A3 || '';
-                const variant = sd.preliminary?.C4 === 'Yes' ? '1B' : '1A';
+                const intervention = sd.preliminary?.C2 || '';
+                const comparator = sd.preliminary?.C3 || '';
+                const c4 = sd.preliminary?.C4 || 'No';
+                const variant = c4 === 'Yes' ? '1B' : '1A';
 
                 const d1 = sd.domains?.[variant]?.result || '-';
                 const d2 = sd.domains?.['2']?.result || '-';
@@ -2468,48 +2481,100 @@ Baseline BMI"></textarea>
                 const overall = (d1 !== '-' && d2 !== '-' && d3 !== '-' && d4 !== '-' && d5 !== '-' && d6 !== '-')
                     ? calculateOverall(sd, variant) : '-';
 
+                const safeStudyId = studyId.replace(/'/g, "\\'");
+                const inputStyle = 'width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-input); color: var(--text); font-size: 11px;';
+
                 html += `<tr>`;
-                html += `<td style="text-align:left;">${studyId}</td>`;
-                html += `<td style="text-align:left; padding: 2px;">
+                html += `<td style="text-align:left; font-weight: 600;">${studyId}</td>`;
+                html += `<td style="padding: 4px;">
                     <input type="text" value="${outcome.replace(/"/g, '&quot;')}"
-                           placeholder="Enter outcome..."
-                           style="width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-input); color: var(--text); font-size: 12px;"
-                           onchange="updateStudyOutcome('${studyId.replace(/'/g, "\\'")}', this.value)">
+                           placeholder="e.g., All-cause mortality"
+                           style="${inputStyle}"
+                           onchange="updateStudyPrelim('${safeStudyId}', 'A3', this.value)">
+                </td>`;
+                html += `<td style="padding: 4px;">
+                    <input type="text" value="${intervention.replace(/"/g, '&quot;')}"
+                           placeholder="e.g., Drug A + standard care"
+                           style="${inputStyle}"
+                           onchange="updateStudyPrelim('${safeStudyId}', 'C2', this.value)">
+                </td>`;
+                html += `<td style="padding: 4px;">
+                    <input type="text" value="${comparator.replace(/"/g, '&quot;')}"
+                           placeholder="e.g., Placebo + standard care"
+                           style="${inputStyle}"
+                           onchange="updateStudyPrelim('${safeStudyId}', 'C3', this.value)">
+                </td>`;
+                html += `<td style="padding: 4px;">
+                    <select style="${inputStyle}" onchange="updateStudyPrelim('${safeStudyId}', 'C4', this.value)">
+                        <option value="No" ${c4 !== 'Yes' ? 'selected' : ''}>ITT (1A)</option>
+                        <option value="Yes" ${c4 === 'Yes' ? 'selected' : ''}>Per-protocol (1B)</option>
+                    </select>
                 </td>`;
                 html += `<td>${d1}</td><td>${d2}</td><td>${d3}</td><td>${d4}</td><td>${d5}</td><td>${d6}</td><td><strong>${overall}</strong></td>`;
                 html += `</tr>`;
             });
 
-            html += '</tbody></table>';
+            html += '</tbody></table></div>';
             container.innerHTML = html;
         }
 
-        function updateStudyOutcome(studyId, outcome) {
+        function updateStudyPrelim(studyId, field, value) {
             if (!currentProject.assessments[studyId]) {
                 currentProject.assessments[studyId] = { preliminary: {}, confounding: [], domains: {} };
             }
             if (!currentProject.assessments[studyId].preliminary) {
                 currentProject.assessments[studyId].preliminary = {};
             }
-            currentProject.assessments[studyId].preliminary.A3 = outcome;
+            currentProject.assessments[studyId].preliminary[field] = value;
             saveProjects();
+
+            // If C4 changed, refresh table to show correct D1 variant
+            if (field === 'C4') {
+                updateBatchOutcomesTable();
+            }
+        }
+
+        function updateStudyOutcome(studyId, outcome) {
+            updateStudyPrelim(studyId, 'A3', outcome);
         }
 
         function copyBatchDomainPrompt() {
+            // Check for missing data
+            let missingData = [];
+            currentProject.studies.forEach(studyId => {
+                const sd = currentProject.assessments[studyId] || {};
+                const missing = [];
+                if (!sd.preliminary?.A3) missing.push('Outcome');
+                if (!sd.preliminary?.C2) missing.push('Intervention');
+                if (!sd.preliminary?.C3) missing.push('Comparator');
+                if (missing.length > 0) {
+                    missingData.push(`${studyId}: ${missing.join(', ')}`);
+                }
+            });
+
+            if (missingData.length > 0) {
+                const proceed = confirm(
+                    `⚠️ Dados faltando em alguns estudos:\n\n${missingData.join('\n')}\n\n` +
+                    `Preencha os campos na tabela acima para melhores resultados.\n\n` +
+                    `Deseja continuar mesmo assim?`
+                );
+                if (!proceed) return;
+            }
+
             let text = `ROBINS-I V2 - BATCH DOMAIN ASSESSMENT\n`;
             text += `════════════════════════════════════════════════════════════════\n\n`;
             text += `Assess ALL study-outcome pairs below for ALL ROBINS-I V2 domains.\n`;
-            text += `Each study may have a different outcome specified in A3.\n\n`;
+            text += `Each study has specific outcome, intervention, and comparator details.\n\n`;
 
             text += `STUDIES TO ASSESS:\n`;
-            text += `------------------\n`;
+            text += `════════════════════════════════════════════════════════════════\n`;
 
             currentProject.studies.forEach(studyId => {
                 const sd = currentProject.assessments[studyId] || {};
-                const outcome = sd.preliminary?.A3 || 'Unspecified';
+                const outcome = sd.preliminary?.A3 || '[NOT SPECIFIED - fill in batch table]';
                 const variant = sd.preliminary?.C4 === 'Yes' ? '1B' : '1A';
-                const intervention = sd.preliminary?.C2 || '';
-                const comparator = sd.preliminary?.C3 || '';
+                const intervention = sd.preliminary?.C2 || '[NOT SPECIFIED]';
+                const comparator = sd.preliminary?.C3 || '[NOT SPECIFIED]';
 
                 text += `\n📋 Study: ${studyId}\n`;
                 text += `   Outcome: ${outcome}\n`;
