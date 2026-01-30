@@ -63,7 +63,13 @@
     // ========== 3. Detecção via dimensões da janela ==========
     var devtoolsOpen = false;
 
+    function isMobile() {
+        return /Android|iPhone|iPad|iPod|Mobile|webOS/i.test(navigator.userAgent) ||
+            ('ontouchstart' in window && window.innerWidth < 1024);
+    }
+
     function checkWindowSize() {
+        if (isMobile()) return;
         var widthThreshold = window.outerWidth - window.innerWidth > 160;
         var heightThreshold = window.outerHeight - window.innerHeight > 160;
         if (widthThreshold || heightThreshold) {
@@ -120,8 +126,10 @@
     setInterval(checkWindowSize, 500);
     setInterval(checkConsole, 1000);
 
-    // Anti-debug: roda periodicamente
-    setInterval(antiDebug, 3000);
+    // Anti-debug: roda periodicamente (apenas desktop)
+    if (!isMobile()) {
+        setInterval(antiDebug, 3000);
+    }
 
     // Bloquear arrastar elementos (previne drag de imagens etc.)
     document.addEventListener('dragstart', function(e) {

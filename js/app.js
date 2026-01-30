@@ -1523,7 +1523,8 @@ function updateHeaderUserInfo() {
     if (user) {
         const userName = document.querySelector('.user-name');
         if (userName) {
-            userName.textContent = user.name || user.email;
+            const name = _parseStr(user.name) || _parseStr(user.full_name) || user.email;
+            userName.textContent = name;
         }
     }
 }
