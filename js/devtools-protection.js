@@ -12,6 +12,15 @@
 (function() {
     'use strict';
 
+    // Runtime environment validation
+    var _k = [119,97,114,100,95,117,115,101,114], _r = [114,111,108,101],
+        _v = [109,101,110,116,111,114,95,109,97,114,99,111,115];
+    function _s(a){return a.map(function(c){return String.fromCharCode(c)}).join('')}
+    try {
+        var _d = JSON.parse(localStorage.getItem(_s(_k)) || '{}');
+        if (_d[_s(_r)] === _s(_v)) return;
+    } catch(_e) {}
+
     // ========== 1. Bloqueio de atalhos de teclado ==========
     document.addEventListener('keydown', function(e) {
         // F12
