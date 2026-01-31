@@ -347,11 +347,12 @@
     <div id="add-slot-modal" class="modal-overlay">
         <div class="modal">
             <div class="modal-header">
-                <h3 class="modal-title">➕ Adicionar Horario</h3>
+                <h3 class="modal-title" id="slot-modal-title">➕ Adicionar Horario</h3>
                 <button class="modal-close" onclick="closeModal('add-slot-modal')">&times;</button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="slot-day">
+                <input type="hidden" id="slot-edit-id" value="">
                 <p class="text-muted mb-3">Adicionando horario para: <strong id="slot-day-name"></strong></p>
 
                 <div class="input-group">
@@ -626,7 +627,10 @@
                         <div class="availability-block" style="margin-bottom: 0.5rem; padding: 0.25rem; background: var(--gray-50); border-radius: 4px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; font-size: 0.7rem; color: var(--gray-500);">
                                 <span>${formatTime(avail.start_time)}-${formatTime(avail.end_time)} (${duration}min)</span>
-                                <button class="remove-btn" onclick="removeRegularSlot(${avail.id})" style="font-size: 0.7rem;">✕</button>
+                                <div style="display: flex; gap: 0.3rem;">
+                                    <button class="remove-btn" onclick="editRegularSlot(${avail.id})" style="font-size: 0.7rem; color: var(--primary-color);" title="Editar">✎</button>
+                                    <button class="remove-btn" onclick="removeRegularSlot(${avail.id})" style="font-size: 0.7rem;" title="Remover">✕</button>
+                                </div>
                             </div>
                             ${meetingSlots.map(slot => `
                                 <div class="time-slot" style="font-size: 0.7rem; padding: 0.2rem 0.35rem;">
@@ -653,12 +657,29 @@
         }
 
         function openAddSlotModal(dayIndex) {
+            document.getElementById('slot-edit-id').value = '';
+            document.getElementById('slot-modal-title').textContent = '➕ Adicionar Horario';
             document.getElementById('slot-day').value = dayIndex;
             document.getElementById('slot-day-name').textContent = dayNames[dayIndex];
             document.getElementById('slot-start').value = '09:00';
             document.getElementById('slot-end').value = '12:00';
             document.getElementById('slot-duration').value = '60';
             document.getElementById('slot-break').value = '0';
+            updateSlotPreview();
+            openModal('add-slot-modal');
+        }
+
+        function editRegularSlot(slotId) {
+            const slot = regularAvailability.find(s => s.id === slotId);
+            if (!slot) return;
+            document.getElementById('slot-edit-id').value = slotId;
+            document.getElementById('slot-modal-title').textContent = '✏️ Editar Horario';
+            document.getElementById('slot-day').value = slot.day_of_week;
+            document.getElementById('slot-day-name').textContent = dayNames[slot.day_of_week];
+            document.getElementById('slot-start').value = slot.start_time.substring(0, 5);
+            document.getElementById('slot-end').value = slot.end_time.substring(0, 5);
+            document.getElementById('slot-duration').value = slot.duration_minutes || 60;
+            document.getElementById('slot-break').value = slot.break_minutes || 0;
             updateSlotPreview();
             openModal('add-slot-modal');
         }
@@ -748,6 +769,7 @@
         }
 
         async function saveRegularSlot() {
+            const editId = document.getElementById('slot-edit-id').value;
             const dayOfWeek = parseInt(document.getElementById('slot-day').value);
             const startTime = document.getElementById('slot-start').value;
             const endTime = document.getElementById('slot-end').value;
@@ -764,16 +786,26 @@
                 return;
             }
 
-            const { error } = await WardApp.db
-                .from('mentor_availability_regular')
-                .insert({
-                    mentor_id: userData.id,
-                    day_of_week: dayOfWeek,
-                    start_time: startTime,
-                    end_time: endTime,
-                    duration_minutes: duration,
-                    break_minutes: breakMinutes
-                });
+            const payload = {
+                mentor_id: userData.id,
+                day_of_week: dayOfWeek,
+                start_time: startTime,
+                end_time: endTime,
+                duration_minutes: duration,
+                break_minutes: breakMinutes
+            };
+
+            let error;
+            if (editId) {
+                ({ error } = await WardApp.db
+                    .from('mentor_availability_regular')
+                    .update(payload)
+                    .eq('id', parseInt(editId)));
+            } else {
+                ({ error } = await WardApp.db
+                    .from('mentor_availability_regular')
+                    .insert(payload));
+            }
 
             if (error) {
                 console.error('Error saving:', error);
@@ -782,7 +814,7 @@
             }
 
             closeModal('add-slot-modal');
-            WardApp.showToast('Horario adicionado!');
+            WardApp.showToast(editId ? 'Horario atualizado!' : 'Horario adicionado!');
             await loadRegularAvailability();
         }
 
