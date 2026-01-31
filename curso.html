@@ -776,6 +776,7 @@
     <script>
         let userData = null;
         let allVideos = [];
+        let allVideosIncludingNoUrl = [];
         let currentPath = []; // Current navigation path
         let currentVideo = null;
         let viewingAsStudentId = null;
@@ -890,8 +891,8 @@
 
             // Verificar se há parâmetro ?video=X para abrir aula diretamente
             const videoIdParam = urlParams.get('video');
-            if (videoIdParam && allVideos.length > 0) {
-                const video = allVideos.find(v => v.id == videoIdParam);
+            if (videoIdParam && allVideosIncludingNoUrl.length > 0) {
+                const video = allVideosIncludingNoUrl.find(v => v.id == videoIdParam);
                 if (video) {
                     // Abrir a aula diretamente
                     showVideoFromSearch(videoIdParam);
@@ -993,8 +994,11 @@
                 return;
             }
 
-            // Filter out hidden videos (is_hidden = true) - keep videos without URL (show as "em breve")
-            allVideos = (data || []).filter(video => !video.is_hidden);
+            // Filter out hidden videos
+            // allVideosIncludingNoUrl keeps everything for showing "Em breve" inside folders
+            // allVideos only has videos with URL - used for folder navigation so empty folders stay hidden
+            allVideosIncludingNoUrl = (data || []).filter(video => !video.is_hidden);
+            allVideos = allVideosIncludingNoUrl.filter(video => video.video_url);
         }
 
         function getUniqueCategories(videos, depth = 0) {
@@ -1034,6 +1038,15 @@
 
         function getVideosExactlyAtPath(path) {
             return allVideos.filter(v => v.tags === path);
+        }
+
+        // Include videos without URL for playlist display (show as "Em breve")
+        function getAllVideosForPath(path) {
+            return allVideosIncludingNoUrl.filter(v => v.tags.startsWith(path));
+        }
+
+        function getAllVideosExactlyAtPath(path) {
+            return allVideosIncludingNoUrl.filter(v => v.tags === path);
         }
 
         function filterCourses() {
@@ -1115,11 +1128,11 @@
         }
 
         function showVideoFromSearch(videoId) {
-            const video = allVideos.find(v => v.id == videoId);
+            const video = allVideosIncludingNoUrl.find(v => v.id == videoId);
             if (video) {
                 // Get all videos from the same path for playlist
                 const videoPath = video.tags.split('::').slice(0, -1).join('::') || video.tags;
-                let videosInPath = getVideosForPath(videoPath);
+                let videosInPath = getAllVideosForPath(videoPath);
 
                 // Sort videos by title using natural sort
                 videosInPath = [...videosInPath].sort((a, b) => naturalSort(a.title, b.title));
@@ -1138,9 +1151,9 @@
             const depth = currentPath.length;
             const categories = getUniqueCategories(videosInScope, depth);
 
-            // Get videos exactly at this level (leaf videos)
+            // Get videos exactly at this level (leaf videos) - include no-URL ones
             const leafVideos = currentPathStr
-                ? getVideosExactlyAtPath(currentPathStr)
+                ? getAllVideosExactlyAtPath(currentPathStr)
                 : [];
 
             // Update breadcrumb
@@ -1283,8 +1296,8 @@
         function showVideoFromCategory(videoId) {
             const currentPathStr = currentPath.join('::');
             let videosInPath = currentPathStr
-                ? getVideosForPath(currentPathStr)
-                : allVideos;
+                ? getAllVideosForPath(currentPathStr)
+                : allVideosIncludingNoUrl;
 
             // Sort videos by title using natural sort (handles numbers correctly: 0, 1, 2, 3 instead of 0, 1, 11, 2)
             videosInPath = [...videosInPath].sort((a, b) => naturalSort(a.title, b.title));
