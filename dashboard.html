@@ -619,6 +619,32 @@
             return WardApp._prs ? WardApp._prs(val) : val;
         }
 
+        function convertTime(date, time, fromTz, toTz) {
+            if (!date || !time || !fromTz || !toTz || fromTz === toTz) return time;
+            try {
+                const dt = new Date(`${date}T${time.substring(0,5)}:00`);
+                const fromStr = dt.toLocaleString('en-US', { timeZone: fromTz });
+                const toStr = dt.toLocaleString('en-US', { timeZone: toTz });
+                const diffMs = new Date(toStr) - new Date(fromStr);
+                return new Date(dt.getTime() + diffMs).toTimeString().substring(0, 5);
+            } catch (e) { return time; }
+        }
+
+        function getCallTimeDisplay(call) {
+            if (!call.scheduled_date || !call.scheduled_time) return 'Data a definir';
+            const studentTz = call.student_timezone || 'America/Sao_Paulo';
+            const mentorTz = call.mentor?.timezone || 'America/Sao_Paulo';
+            const baseTime = call.scheduled_time.substring(0, 5);
+
+            if (studentTz === mentorTz) {
+                return `${WardApp.formatDate(call.scheduled_date)} as ${baseTime}`;
+            }
+            // Convert mentor time to student time
+            const studentTime = convertTime(call.scheduled_date, baseTime, mentorTz, studentTz);
+            const studentTzShort = studentTz.split('/').pop().replace(/_/g, ' ');
+            return `${WardApp.formatDate(call.scheduled_date)} as ${studentTime} <span style="font-size:0.75rem;color:#9ca3af">(${studentTzShort})</span>`;
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
@@ -1248,7 +1274,7 @@
             try {
                 const { data: calls, error } = await WardApp.db
                     .from('scheduled_calls')
-                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, email), landmark:landmarks(title)')
+                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, email, timezone), landmark:landmarks(title)')
                     .eq('student_id', targetUserId)
                     .in('status', ['scheduled', 'pending'])
                     .order('scheduled_date', { ascending: true })
@@ -1266,9 +1292,7 @@
                 }
 
                 container.innerHTML = calls.map(call => {
-                    const datetime = call.scheduled_date && call.scheduled_time
-                        ? `${WardApp.formatDate(call.scheduled_date)} às ${call.scheduled_time}`
-                        : 'Data a definir';
+                    const datetime = getCallTimeDisplay(call);
                     const statusColors = {
                         scheduled: '#10b981',
                         pending: '#f59e0b',
