@@ -515,6 +515,15 @@
                 return WardApp._prs ? WardApp._prs(val) : val;
             }
 
+            function convertTime(date, time, fromTz, toTz) {
+                if (!date || !time || !fromTz || !toTz || fromTz === toTz) return time;
+                try {
+                    const dt = new Date(`${date}T${time.substring(0,5)}:00`);
+                    const diffMs = new Date(dt.toLocaleString('en-US', { timeZone: toTz })) - new Date(dt.toLocaleString('en-US', { timeZone: fromTz }));
+                    return new Date(dt.getTime() + diffMs).toTimeString().substring(0, 5);
+                } catch (e) { return time; }
+            }
+
             // Update user name
             const displayName = viewingAsStudent ? _dn(viewingAsStudent.full_name) || viewingAsStudent.email.split('@')[0] : (_dn(userData.name) || userData.email.split('@')[0]);
             document.getElementById('user-name').textContent = displayName;
@@ -1006,7 +1015,7 @@
             try {
                 const { data: calls, error } = await WardApp.db
                     .from('scheduled_calls')
-                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, email), landmark:landmarks(title)')
+                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, email, timezone), landmark:landmarks(title)')
                     .eq('student_id', targetUserId)
                     .in('status', ['scheduled', 'pending'])
                     .order('scheduled_date', { ascending: true })
@@ -1024,9 +1033,21 @@
                 }
 
                 container.innerHTML = calls.map(call => {
-                    const datetime = call.scheduled_date && call.scheduled_time
-                        ? `${WardApp.formatDate(call.scheduled_date)} às ${call.scheduled_time}`
-                        : 'Data a definir';
+                    let datetime = '';
+                    if (call.scheduled_date && call.scheduled_time) {
+                        const sTz = call.student_timezone || 'America/Sao_Paulo';
+                        const mTz = call.mentor?.timezone || 'America/Sao_Paulo';
+                        const bt = call.scheduled_time.substring(0, 5);
+                        if (sTz !== mTz) {
+                            const st = convertTime(call.scheduled_date, bt, mTz, sTz);
+                            const tzS = sTz.split('/').pop().replace(/_/g, ' ');
+                            datetime = `${WardApp.formatDate(call.scheduled_date)} às ${st} (${tzS})`;
+                        } else {
+                            datetime = `${WardApp.formatDate(call.scheduled_date)} às ${bt}`;
+                        }
+                    } else {
+                        datetime = 'Data a definir';
+                    }
                     const statusColors = {
                         scheduled: '#10b981',
                         pending: '#f59e0b',
@@ -1073,7 +1094,7 @@
             try {
                 const { data: call, error } = await WardApp.db
                     .from('scheduled_calls')
-                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, email), landmark:landmarks(title)')
+                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, email, timezone), landmark:landmarks(title)')
                     .eq('id', callId)
                     .maybeSingle();
 

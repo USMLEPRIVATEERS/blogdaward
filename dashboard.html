@@ -1341,7 +1341,7 @@
             try {
                 const { data: call, error } = await WardApp.db
                     .from('scheduled_calls')
-                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, email), landmark:landmarks(id, title, notes)')
+                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, email, timezone), landmark:landmarks(id, title, notes)')
                     .eq('id', callId)
                     .single();
 
@@ -1352,9 +1352,21 @@
 
                 currentCallData = call;
 
-                const datetime = call.scheduled_date && call.scheduled_time
-                    ? `${WardApp.formatDate(call.scheduled_date)} às ${call.scheduled_time}`
-                    : 'Data a definir';
+                let datetime = '';
+                if (call.scheduled_date && call.scheduled_time) {
+                    const studentTz = call.student_timezone || 'America/Sao_Paulo';
+                    const mentorTz = call.mentor?.timezone || 'America/Sao_Paulo';
+                    const baseTime = call.scheduled_time.substring(0, 5);
+                    if (studentTz !== mentorTz) {
+                        const studentTime = convertTime(call.scheduled_date, baseTime, mentorTz, studentTz);
+                        const tzShort = studentTz.split('/').pop().replace(/_/g, ' ');
+                        datetime = `${WardApp.formatDate(call.scheduled_date)} às ${studentTime} (${tzShort})`;
+                    } else {
+                        datetime = `${WardApp.formatDate(call.scheduled_date)} às ${baseTime}`;
+                    }
+                } else {
+                    datetime = 'Data a definir';
+                }
 
                 const statusLabels = {
                     scheduled: 'Agendada',

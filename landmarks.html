@@ -1337,7 +1337,7 @@
 
                 const { data: call } = await WardApp.db
                     .from('scheduled_calls')
-                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name)')
+                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, timezone)')
                     .eq('id', callId)
                     .single();
 
@@ -1350,9 +1350,21 @@
                 document.getElementById('call-modal-call-id').value = callId;
 
                 // Format call info
-                const datetime = call.scheduled_date && call.scheduled_time
-                    ? `${WardApp.formatDate(call.scheduled_date)} às ${call.scheduled_time}`
-                    : 'Data a definir';
+                let datetime = '';
+                if (call.scheduled_date && call.scheduled_time) {
+                    const studentTz = call.student_timezone || getStudentTimezone();
+                    const mentorTz = call.mentor?.timezone || 'America/Sao_Paulo';
+                    const baseTime = call.scheduled_time.substring(0, 5);
+                    if (studentTz !== mentorTz) {
+                        const studentTime = convertTime(call.scheduled_date, baseTime, mentorTz, studentTz);
+                        const tzShort = studentTz.split('/').pop().replace(/_/g, ' ');
+                        datetime = `${WardApp.formatDate(call.scheduled_date)} às ${studentTime} (${tzShort})`;
+                    } else {
+                        datetime = `${WardApp.formatDate(call.scheduled_date)} às ${baseTime}`;
+                    }
+                } else {
+                    datetime = 'Data a definir';
+                }
 
                 const statusLabels = {
                     scheduled: 'Agendada',
