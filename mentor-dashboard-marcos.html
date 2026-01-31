@@ -1008,7 +1008,7 @@ Cardiovascular	Physiology	62	FALSE
             // Load scheduled calls from scheduled_calls table - ONLY for this mentor
             const { data: scheduledCallsData } = await WardApp.db
                 .from('scheduled_calls')
-                .select('*, landmark:landmarks(*), student:users!scheduled_calls_student_id_fkey(id, full_name, email)')
+                .select('*, landmark:landmarks(*), student:users!scheduled_calls_student_id_fkey(id, full_name, email, timezone)')
                 .eq('mentor_id', userData.id)
                 .eq('status', 'scheduled')
                 .order('scheduled_date', { ascending: true })
@@ -1035,7 +1035,7 @@ Cardiovascular	Physiology	62	FALSE
                             <div class="call-info">
                                 <div class="call-title">${landmark?.title || 'Call'}${notesIndicator}</div>
                                 <div class="call-student">${_dn(student?.full_name) || student?.email || 'Aluno'}</div>
-                                <div class="call-time">🕐 ${formatDateTime(item.scheduled_date + 'T' + item.scheduled_time)}</div>
+                                <div class="call-time">🕐 ${formatDateTime(item.scheduled_date + 'T' + item.scheduled_time)}${getStudentTzLabel(item)}</div>
                             </div>
                             <div style="display: flex; gap: 0.5rem;">
                                 <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); viewCallDetails(${item.id})" title="Ver detalhes">👁️</button>
@@ -1204,7 +1204,7 @@ Cardiovascular	Physiology	62	FALSE
             // Load full call details
             const { data: call, error } = await WardApp.db
                 .from('scheduled_calls')
-                .select('*, landmark:landmarks(*), student:users!scheduled_calls_student_id_fkey(id, full_name, email), mentor:users!scheduled_calls_mentor_id_fkey(id, full_name)')
+                .select('*, landmark:landmarks(*), student:users!scheduled_calls_student_id_fkey(id, full_name, email, timezone), mentor:users!scheduled_calls_mentor_id_fkey(id, full_name)')
                 .eq('id', callId)
                 .single();
 
@@ -1218,7 +1218,7 @@ Cardiovascular	Physiology	62	FALSE
             const student = call.student;
             const mentor = call.mentor;
 
-            const dateFormatted = formatDateTime(call.scheduled_date + 'T' + call.scheduled_time);
+            const dateFormatted = formatDateTime(call.scheduled_date + 'T' + call.scheduled_time) + getStudentTzLabel(call).replace(/<br>/g, ' ');
 
             // Collect all notes
             let notesHtml = '';
@@ -1350,7 +1350,7 @@ Cardiovascular	Physiology	62	FALSE
                 // Load scheduled calls for Iria
                 const { data: iriaCalls } = await WardApp.db
                     .from('scheduled_calls')
-                    .select('*, landmark:landmarks(*), student:users!scheduled_calls_student_id_fkey(id, full_name, email), mentor:users!scheduled_calls_mentor_id_fkey(id, full_name)')
+                    .select('*, landmark:landmarks(*), student:users!scheduled_calls_student_id_fkey(id, full_name, email, timezone), mentor:users!scheduled_calls_mentor_id_fkey(id, full_name)')
                     .eq('status', 'scheduled')
                     .order('scheduled_date', { ascending: true })
                     .order('scheduled_time', { ascending: true });
@@ -1393,7 +1393,7 @@ Cardiovascular	Physiology	62	FALSE
                                 <div style="flex: 1;">
                                     <div style="font-weight: 500;">${landmark?.title || 'Call'} ${notesIndicator}</div>
                                     <div style="font-size: 0.85rem; color: #6b7280;">${_dn(student?.full_name) || student?.email || 'Aluno'}</div>
-                                    <div style="font-size: 0.8rem; color: #9ca3af;">🕐 ${formatDateTime(item.scheduled_date + 'T' + item.scheduled_time)}</div>
+                                    <div style="font-size: 0.8rem; color: #9ca3af;">🕐 ${formatDateTime(item.scheduled_date + 'T' + item.scheduled_time)}${getStudentTzLabel(item)}</div>
                                 </div>
                             </div>
                         `;
@@ -1426,7 +1426,7 @@ Cardiovascular	Physiology	62	FALSE
                                 <div style="flex: 1;">
                                     <div style="font-weight: 500;">${landmark?.title || 'Call'} ${notesIndicator}</div>
                                     <div style="font-size: 0.85rem; color: #6b7280;">${_dn(student?.full_name) || student?.email || 'Aluno'}</div>
-                                    <div style="font-size: 0.8rem; color: #9ca3af;">🕐 ${formatDateTime(item.scheduled_date + 'T' + item.scheduled_time)}</div>
+                                    <div style="font-size: 0.8rem; color: #9ca3af;">🕐 ${formatDateTime(item.scheduled_date + 'T' + item.scheduled_time)}${getStudentTzLabel(item)}</div>
                                 </div>
                             </div>
                         `;
@@ -1613,6 +1613,24 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
         function _dn(name) {
             if (!name) return name;
             return WardApp._prs ? WardApp._prs(name) : name;
+        }
+
+        function convertTimeTz(date, time, fromTz, toTz) {
+            if (!date || !time || !fromTz || !toTz || fromTz === toTz) return time;
+            try {
+                const dt = new Date(`${date}T${time.substring(0,5)}:00`);
+                const diffMs = new Date(dt.toLocaleString('en-US', { timeZone: toTz })) - new Date(dt.toLocaleString('en-US', { timeZone: fromTz }));
+                return new Date(dt.getTime() + diffMs).toTimeString().substring(0, 5);
+            } catch (e) { return time; }
+        }
+
+        function getStudentTzLabel(item) {
+            const studentTz = item.student_timezone || 'America/Sao_Paulo';
+            const mentorTz = userData?.timezone || 'America/Sao_Paulo';
+            if (studentTz === mentorTz) return '';
+            const converted = convertTimeTz(item.scheduled_date, item.scheduled_time, mentorTz, studentTz);
+            const tzShort = studentTz.split('/').pop().replace(/_/g, ' ');
+            return `<br><span style="font-size: 0.7rem; color: #9ca3af;">🌍 ${converted} para o aluno (${tzShort})</span>`;
         }
 
         async function loadGlobalFeed() {
