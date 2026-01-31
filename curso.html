@@ -1482,13 +1482,22 @@
                 return;
             }
 
+            const isMentor = userData?.role === 'mentor_marcos' || userData?.role === 'mentor_iria';
             container.innerHTML = comments.map(c => {
                 const authorName = _dn(c.users?.full_name) || 'Usuario';
+                const isOwn = c.user_id === userData?.id;
+                const canDelete = isOwn || isMentor;
+                const deleteBtn = canDelete
+                    ? `<button onclick="deleteComment(${c.id})" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:0.75rem;padding:0 0.25rem;" title="Excluir comentário">🗑️</button>`
+                    : '';
                 return `
                 <div class="comment-item">
                     <div class="comment-avatar">${WardApp.getPixelAvatarHTML(authorName, 32)}</div>
                     <div class="comment-content">
-                        <div class="comment-author">${authorName}</div>
+                        <div class="comment-author" style="display:flex;align-items:center;gap:0.5rem;">
+                            ${authorName}
+                            ${deleteBtn}
+                        </div>
                         <div class="comment-text">${escapeHtml(c.content)}</div>
                         <div class="comment-time">${WardApp.formatDate(c.created_at)}</div>
                     </div>
@@ -1524,6 +1533,24 @@
             input.value = '';
             WardApp.showToast('Comentario adicionado!');
             await loadComments(currentVideo.id);
+        }
+
+        async function deleteComment(commentId) {
+            if (!confirm('Excluir este comentário?')) return;
+
+            const { error } = await WardApp.db
+                .from('course_video_comments')
+                .delete()
+                .eq('id', commentId);
+
+            if (error) {
+                console.error('Error deleting comment:', error);
+                WardApp.showToast('Erro ao excluir comentário', 'error');
+                return;
+            }
+
+            WardApp.showToast('Comentário excluído');
+            if (currentVideo) await loadComments(currentVideo.id);
         }
 
         function escapeHtml(text) {
