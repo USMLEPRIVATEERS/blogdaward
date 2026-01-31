@@ -289,7 +289,7 @@
                     <span>⚙️ Configuracoes de Agendamento</span>
                 </div>
                 <div class="card-body">
-                    <div class="input-group" style="max-width: 400px;">
+                    <div class="input-group" style="max-width: 600px;">
                         <div class="form-group" style="flex: 1;">
                             <label class="form-label">Minimo de dias para agendamento</label>
                             <select id="min-days-ahead" class="form-input" onchange="saveMinDaysAhead()">
@@ -300,6 +300,27 @@
                                 <option value="7">7 dias (1 semana)</option>
                             </select>
                             <small class="text-muted">Alunos so podem agendar chamadas com pelo menos este tempo de antecedencia</small>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">Seu fuso horario</label>
+                            <select id="mentor-timezone" class="form-input" onchange="saveMentorTimezone()">
+                                <option value="America/Sao_Paulo">Brasilia (UTC-3)</option>
+                                <option value="America/New_York">New York / Eastern (UTC-5)</option>
+                                <option value="America/Chicago">Chicago / Central (UTC-6)</option>
+                                <option value="America/Denver">Denver / Mountain (UTC-7)</option>
+                                <option value="America/Los_Angeles">Los Angeles / Pacific (UTC-8)</option>
+                                <option value="America/Manaus">Manaus (UTC-4)</option>
+                                <option value="America/Belem">Belem (UTC-3)</option>
+                                <option value="America/Recife">Recife (UTC-3)</option>
+                                <option value="America/Fortaleza">Fortaleza (UTC-3)</option>
+                                <option value="America/Cuiaba">Cuiaba (UTC-4)</option>
+                                <option value="America/Rio_Branco">Rio Branco (UTC-5)</option>
+                                <option value="Europe/London">Londres (UTC+0)</option>
+                                <option value="Europe/Lisbon">Lisboa (UTC+0)</option>
+                                <option value="Europe/Paris">Paris (UTC+1)</option>
+                                <option value="Europe/Berlin">Berlim (UTC+1)</option>
+                            </select>
+                            <small class="text-muted">Todos os horarios serao exibidos neste fuso</small>
                         </div>
                     </div>
                 </div>
@@ -563,12 +584,21 @@
 
             const minDays = settings?.min_days_ahead ?? 2;
             document.getElementById('min-days-ahead').value = minDays;
+
+            // Load mentor timezone from users table
+            const { data: userRow } = await WardApp.db
+                .from('users')
+                .select('timezone')
+                .eq('id', userData.id)
+                .maybeSingle();
+
+            const tz = userRow?.timezone || 'America/Sao_Paulo';
+            document.getElementById('mentor-timezone').value = tz;
         }
 
         async function saveMinDaysAhead() {
             const minDays = parseInt(document.getElementById('min-days-ahead').value);
 
-            // Upsert the setting
             const { error } = await WardApp.db
                 .from('mentor_settings')
                 .upsert({
@@ -584,6 +614,28 @@
             }
 
             WardApp.showToast('Configuracao salva!');
+        }
+
+        async function saveMentorTimezone() {
+            const tz = document.getElementById('mentor-timezone').value;
+
+            const { error } = await WardApp.db
+                .from('users')
+                .update({ timezone: tz })
+                .eq('id', userData.id);
+
+            if (error) {
+                console.error('Error saving timezone:', error);
+                WardApp.showToast('Erro ao salvar fuso horario', 'error');
+                return;
+            }
+
+            // Also update localStorage
+            const stored = JSON.parse(localStorage.getItem('ward_user') || '{}');
+            stored.timezone = tz;
+            localStorage.setItem('ward_user', JSON.stringify(stored));
+
+            WardApp.showToast('Fuso horario salvo!');
         }
 
         function showTab(tab) {
@@ -649,6 +701,31 @@
                     </div>
                 `;
             }).join('');
+        }
+
+        // Convert time from one timezone to another
+        // date: 'YYYY-MM-DD', time: 'HH:MM', fromTz/toTz: IANA timezone strings
+        function convertTime(date, time, fromTz, toTz) {
+            if (!date || !time || !fromTz || !toTz || fromTz === toTz) return time;
+            try {
+                const dt = new Date(`${date}T${time.substring(0,5)}:00`);
+                const fromStr = dt.toLocaleString('en-US', { timeZone: fromTz });
+                const toStr = dt.toLocaleString('en-US', { timeZone: toTz });
+                const fromDate = new Date(fromStr);
+                const toDate = new Date(toStr);
+                const diffMs = toDate - fromDate;
+                const result = new Date(dt.getTime() + diffMs);
+                return result.toTimeString().substring(0, 5);
+            } catch (e) { return time; }
+        }
+
+        function getStudentTimezoneLabel(call) {
+            const studentTz = call.student_timezone || call.student?.timezone || 'America/Sao_Paulo';
+            const mentorTz = document.getElementById('mentor-timezone')?.value || 'America/Sao_Paulo';
+            if (studentTz === mentorTz) return '';
+            const convertedTime = convertTime(call.scheduled_date, call.scheduled_time, mentorTz, studentTz);
+            const tzShort = studentTz.split('/').pop().replace(/_/g, ' ');
+            return `<br><span style="font-size: 0.75rem; color: var(--gray-500);">🌍 ${convertedTime} no horario do aluno (${tzShort})</span>`;
         }
 
         function formatTime(time) {
@@ -1019,7 +1096,7 @@
 
             let query = WardApp.db
                 .from('scheduled_calls')
-                .select('*, student:student_id(full_name, email), landmark:landmark_id(title, notes)')
+                .select('*, student:student_id(full_name, email, timezone), landmark:landmark_id(title, notes)')
                 .eq('mentor_id', userData.id)
                 .order('scheduled_date')
                 .order('scheduled_time');
@@ -1152,6 +1229,7 @@
                             <div class="call-meta">
                                 <strong>${_dn(call.student?.full_name) || call.student?.email}</strong><br>
                                 📅 ${WardApp.formatDate(call.scheduled_date)} às ${formatTime(call.scheduled_time)}
+                                ${getStudentTimezoneLabel(call)}
                                 ${call.notes ? `<br>📝 ${call.notes.length > 80 ? call.notes.substring(0, 80) + '...' : call.notes}` : ''}
                             </div>
                         </div>

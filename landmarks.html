@@ -234,6 +234,13 @@
                     </div>
 
                     <div class="form-group">
+                        <label class="form-label">🌍 Seu fuso horario</label>
+                        <select id="new-landmark-timezone" class="form-input" onchange="saveStudentTimezone(); loadNewLandmarkTimeSlots();">
+                        </select>
+                        <small class="text-muted" id="new-landmark-tz-hint"></small>
+                    </div>
+
+                    <div class="form-group">
                         <label class="form-label">Data *</label>
                         <select id="new-landmark-schedule-date" class="form-input" onchange="loadNewLandmarkTimeSlots()">
                             <option value="">Selecione uma data...</option>
@@ -296,6 +303,13 @@
 
                 <div id="extra-call-schedule-fields" style="display: none; background: var(--gray-50); padding: 1rem; border-radius: 8px;">
                     <p class="text-muted mb-2" style="font-size: 0.8rem;">⏰ Horarios no fuso de Brasilia (formato 24h)</p>
+
+                    <div class="form-group">
+                        <label class="form-label">🌍 Seu fuso horario</label>
+                        <select id="extra-call-timezone" class="form-input" onchange="saveStudentTimezone(); loadExtraCallTimeSlots();">
+                        </select>
+                        <small class="text-muted" id="extra-call-tz-hint"></small>
+                    </div>
 
                     <div class="form-group">
                         <label class="form-label">Data *</label>
@@ -385,6 +399,12 @@
                 <button class="modal-close" onclick="closeModal('availability-modal')">&times;</button>
             </div>
             <div class="modal-body">
+                <div class="form-group mb-3">
+                    <label class="form-label">🌍 Seu fuso horario</label>
+                    <select id="availability-timezone" class="form-input" onchange="saveStudentTimezone(); showMentorAvailability(currentMentorTab || 'iria');">
+                    </select>
+                    <small class="text-muted" id="availability-tz-hint"></small>
+                </div>
                 <div class="mentor-tabs mb-3">
                     <button class="mentor-tab active" data-mentor="iria" onclick="showMentorAvailability('iria')">Dra. Iria</button>
                     <button class="mentor-tab" data-mentor="marcos" onclick="showMentorAvailability('marcos')">Marcos</button>
@@ -410,6 +430,13 @@
             <div class="modal-body">
                 <input type="hidden" id="schedule-landmark-id">
                 <p class="mb-3"><strong id="schedule-landmark-title"></strong></p>
+
+                <div class="form-group">
+                    <label class="form-label">🌍 Seu fuso horario</label>
+                    <select id="schedule-timezone" class="form-input" onchange="saveStudentTimezone(); loadTimeSlots();">
+                    </select>
+                    <small class="text-muted" id="schedule-tz-hint"></small>
+                </div>
 
                 <div class="form-group">
                     <label class="form-label">Mentor *</label>
@@ -728,6 +755,98 @@
             return WardApp._prs ? WardApp._prs(name) : name;
         }
 
+        // ===== TIMEZONE UTILITIES =====
+        let currentMentorTab = 'iria';
+        const timezoneOptions = [
+            { value: 'America/Sao_Paulo', label: 'Brasilia (UTC-3)' },
+            { value: 'America/New_York', label: 'New York / Eastern (UTC-5)' },
+            { value: 'America/Chicago', label: 'Chicago / Central (UTC-6)' },
+            { value: 'America/Denver', label: 'Denver / Mountain (UTC-7)' },
+            { value: 'America/Los_Angeles', label: 'Los Angeles / Pacific (UTC-8)' },
+            { value: 'America/Manaus', label: 'Manaus (UTC-4)' },
+            { value: 'America/Belem', label: 'Belem (UTC-3)' },
+            { value: 'America/Recife', label: 'Recife (UTC-3)' },
+            { value: 'America/Fortaleza', label: 'Fortaleza (UTC-3)' },
+            { value: 'America/Cuiaba', label: 'Cuiaba (UTC-4)' },
+            { value: 'America/Rio_Branco', label: 'Rio Branco (UTC-5)' },
+            { value: 'Europe/London', label: 'Londres (UTC+0)' },
+            { value: 'Europe/Lisbon', label: 'Lisboa (UTC+0)' },
+            { value: 'Europe/Paris', label: 'Paris (UTC+1)' },
+            { value: 'Europe/Berlin', label: 'Berlim (UTC+1)' },
+        ];
+
+        function getStudentTimezone() {
+            const stored = JSON.parse(localStorage.getItem('ward_user') || '{}');
+            return stored.timezone || 'America/Sao_Paulo';
+        }
+
+        function populateTimezoneSelects() {
+            const tz = getStudentTimezone();
+            const selects = ['schedule-timezone', 'new-landmark-timezone', 'extra-call-timezone', 'availability-timezone'];
+            selects.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.innerHTML = timezoneOptions.map(opt =>
+                    `<option value="${opt.value}" ${opt.value === tz ? 'selected' : ''}>${opt.label}</option>`
+                ).join('');
+            });
+        }
+
+        async function saveStudentTimezone() {
+            // Get timezone from any of the selects (they're all synced)
+            const selects = ['schedule-timezone', 'new-landmark-timezone', 'extra-call-timezone', 'availability-timezone'];
+            let tz = 'America/Sao_Paulo';
+            for (const id of selects) {
+                const el = document.getElementById(id);
+                if (el && el.value) { tz = el.value; break; }
+            }
+            // Sync all selects
+            selects.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = tz;
+            });
+            // Save to DB and localStorage
+            const stored = JSON.parse(localStorage.getItem('ward_user') || '{}');
+            stored.timezone = tz;
+            localStorage.setItem('ward_user', JSON.stringify(stored));
+            await WardApp.db.from('users').update({ timezone: tz }).eq('id', targetUserId || stored.id);
+        }
+
+        // Convert time from mentor timezone to student timezone for display
+        // date: 'YYYY-MM-DD', time: 'HH:MM', mentorTz/studentTz: IANA timezone strings
+        function convertTime(date, time, fromTz, toTz) {
+            if (!date || !time || !fromTz || !toTz || fromTz === toTz) return { time: time, date: date };
+            try {
+                // Build a date in the source timezone
+                const dt = new Date(`${date}T${time.substring(0,5)}:00`);
+                const fromStr = dt.toLocaleString('en-US', { timeZone: fromTz });
+                const toStr = dt.toLocaleString('en-US', { timeZone: toTz });
+                const fromDate = new Date(fromStr);
+                const toDate = new Date(toStr);
+                const diffMs = toDate - fromDate;
+                const result = new Date(dt.getTime() + diffMs);
+                return {
+                    time: result.toTimeString().substring(0, 5),
+                    date: result.toISOString().substring(0, 10)
+                };
+            } catch (e) { return { time: time, date: date }; }
+        }
+
+        // Convert student-selected time BACK to mentor timezone for storing
+        function convertTimeToMentor(date, time, studentTz, mentorTz) {
+            return convertTime(date, time, studentTz, mentorTz);
+        }
+
+        // Get the mentor's timezone (loaded from their user record)
+        const mentorTimezones = {}; // mentor_id -> timezone
+        async function getMentorTimezone(mentorId) {
+            if (mentorTimezones[mentorId]) return mentorTimezones[mentorId];
+            const { data } = await WardApp.db.from('users').select('timezone').eq('id', mentorId).maybeSingle();
+            const tz = data?.timezone || 'America/Sao_Paulo';
+            mentorTimezones[mentorId] = tz;
+            return tz;
+        }
+
         const defaultLandmarks = [
             // Setup
             { group: 'setup', title: 'Entrada na Ward Academy', type: 'entry' },
@@ -807,6 +926,9 @@
             if (diaryLink && diariesEnabled) {
                 diaryLink.style.display = 'block';
             }
+
+            // Initialize timezone selects
+            populateTimezoneSelects();
 
             // Check if user wants research (from questionnaire step 9)
             const { data: researchData } = await WardApp.db
@@ -1457,13 +1579,25 @@
 
             const uniqueSlots = [...new Set(slots)].sort();
             const timeSelect = document.getElementById('extra-call-time');
+            const studentTz = document.getElementById('extra-call-timezone')?.value || getStudentTimezone();
+            const mentorTz = await getMentorTimezone(mentor.id);
 
             if (uniqueSlots.length === 0) {
                 timeSelect.innerHTML = '<option value="">Nenhum horario disponivel</option>';
             } else {
                 timeSelect.innerHTML = '<option value="">Selecione um horario...</option>' +
-                    uniqueSlots.map(t => `<option value="${t}">${t}</option>`).join('');
+                    uniqueSlots.map(t => {
+                        const converted = convertTime(date, t, mentorTz, studentTz);
+                        const label = (studentTz !== mentorTz)
+                            ? `${converted.time} (seu horario) — ${t} (mentor)`
+                            : t;
+                        return `<option value="${t}">${label}</option>`;
+                    }).join('');
             }
+            const hint = document.getElementById('extra-call-tz-hint');
+            if (hint && studentTz !== mentorTz) {
+                hint.textContent = `Horarios do mentor convertidos para o seu fuso`;
+            } else if (hint) { hint.textContent = ''; }
         }
 
         async function createExtraCall() {
@@ -1526,7 +1660,8 @@
                                 mentor_id: mentor.id,
                                 scheduled_date: date,
                                 scheduled_time: time,
-                                status: 'scheduled'
+                                status: 'scheduled',
+                                student_timezone: getStudentTimezone()
                             });
 
                         WardApp.showToast(`Chamada criada e agendada para ${WardApp.formatDate(date)} às ${time}!`);
@@ -1858,13 +1993,25 @@
 
             const uniqueSlots = [...new Set(slots)].sort();
             const timeSelect = document.getElementById('new-landmark-schedule-time');
+            const studentTz = document.getElementById('new-landmark-timezone')?.value || getStudentTimezone();
+            const mentorTz = await getMentorTimezone(mentorId);
 
             if (uniqueSlots.length === 0) {
                 timeSelect.innerHTML = '<option value="">Nenhum horario disponivel</option>';
             } else {
                 timeSelect.innerHTML = '<option value="">Selecione um horario...</option>' +
-                    uniqueSlots.map(t => `<option value="${t}">${t}</option>`).join('');
+                    uniqueSlots.map(t => {
+                        const converted = convertTime(date, t, mentorTz, studentTz);
+                        const label = (studentTz !== mentorTz)
+                            ? `${converted.time} (seu horario) — ${t} (mentor)`
+                            : t;
+                        return `<option value="${t}">${label}</option>`;
+                    }).join('');
             }
+            const hint = document.getElementById('new-landmark-tz-hint');
+            if (hint && studentTz !== mentorTz) {
+                hint.textContent = `Horarios do mentor convertidos para o seu fuso`;
+            } else if (hint) { hint.textContent = ''; }
         }
 
         function toggleNewCompletionDate() {
@@ -1947,7 +2094,8 @@
                             mentor_id: mentorId,
                             scheduled_date: scheduleDate,
                             scheduled_time: scheduleTime,
-                            status: 'scheduled'
+                            status: 'scheduled',
+                            student_timezone: getStudentTimezone()
                         });
 
                     WardApp.showToast(`Evento criado e agendado para ${WardApp.formatDate(scheduleDate)} às ${scheduleTime}!`);
@@ -1993,6 +2141,7 @@
         }
 
         async function showMentorAvailability(mentorKey) {
+            currentMentorTab = mentorKey;
             // Update tabs
             document.querySelectorAll('.mentor-tab').forEach(tab => {
                 tab.classList.toggle('active', tab.dataset.mentor === mentorKey);
@@ -2142,10 +2291,27 @@
                 </p>`;
                 html += '<div class="availability-slots-list">';
 
+                const studentTz = document.getElementById('availability-timezone')?.value || getStudentTimezone();
+                const mentorTz = await getMentorTimezone(mentor.id);
+                const showTzConversion = studentTz !== mentorTz;
+                const mentorTzShort = mentorTz.split('/').pop().replace(/_/g, ' ');
+
+                const hint = document.getElementById('availability-tz-hint');
+                if (hint && showTzConversion) {
+                    hint.textContent = `Horarios do mentor em ${mentorTzShort}, convertidos para voce`;
+                } else if (hint) { hint.textContent = ''; }
+
                 allSlots.forEach(slot => {
                     const dateObj = new Date(slot.date + 'T12:00:00');
                     const dayName = dayNames[slot.dayOfWeek];
                     const formattedDate = WardApp.formatDate(slot.date);
+
+                    // Convert times for display
+                    const convStart = convertTime(slot.date, slot.startTime, mentorTz, studentTz);
+                    const convEnd = convertTime(slot.date, slot.endTime, mentorTz, studentTz);
+                    const displayTime = showTzConversion
+                        ? `${convStart.time} - ${convEnd.time} <span style="font-size:0.7rem;color:var(--gray-400)">(${slot.startTime}-${slot.endTime} mentor)</span>`
+                        : `${slot.startTime} - ${slot.endTime}`;
 
                     if (isGuilherme) {
                         html += `
@@ -2153,7 +2319,7 @@
                                 <div class="slot-date-icon">📅</div>
                                 <div class="slot-info">
                                     <div class="slot-date">${formattedDate} (${dayName})</div>
-                                    <div class="slot-time">${slot.startTime} - ${slot.endTime}</div>
+                                    <div class="slot-time">${displayTime}</div>
                                 </div>
                                 <div class="slot-action-disabled">
                                     Agende pelo<br>landmark
@@ -2166,7 +2332,7 @@
                                 <div class="slot-date-icon">📅</div>
                                 <div class="slot-info">
                                     <div class="slot-date">${formattedDate} (${dayName})</div>
-                                    <div class="slot-time">${slot.startTime} - ${slot.endTime}</div>
+                                    <div class="slot-time">${displayTime}</div>
                                 </div>
                                 <div class="slot-action">→</div>
                             </div>
@@ -2359,12 +2525,27 @@
             const uniqueSlots = [...new Set(slots)].sort();
 
             const timeSelect = document.getElementById('schedule-time');
+            const studentTz = document.getElementById('schedule-timezone')?.value || getStudentTimezone();
+            const mentorTz = await getMentorTimezone(mentorId);
+
             if (uniqueSlots.length === 0) {
                 timeSelect.innerHTML = '<option value="">Nenhum horario disponivel</option>';
             } else {
                 timeSelect.innerHTML = '<option value="">Selecione um horario...</option>' +
-                    uniqueSlots.map(t => `<option value="${t}">${t}</option>`).join('');
+                    uniqueSlots.map(t => {
+                        const converted = convertTime(date, t, mentorTz, studentTz);
+                        const label = (studentTz !== mentorTz)
+                            ? `${converted.time} (seu horario) — ${t} (mentor)`
+                            : t;
+                        return `<option value="${t}">${label}</option>`;
+                    }).join('');
             }
+            // Update timezone hint
+            const hint = document.getElementById('schedule-tz-hint');
+            if (hint && studentTz !== mentorTz) {
+                const mentorTzShort = mentorTz.split('/').pop().replace(/_/g, ' ');
+                hint.textContent = `Horarios do mentor em ${mentorTzShort}, convertidos para voce`;
+            } else if (hint) { hint.textContent = ''; }
         }
 
         function timeToMinutes(time) {
@@ -2414,7 +2595,8 @@
                     mentor_id: mentorId,
                     scheduled_date: date,
                     scheduled_time: time,
-                    status: 'scheduled'
+                    status: 'scheduled',
+                    student_timezone: document.getElementById('schedule-timezone')?.value || getStudentTimezone()
                 });
 
             if (error) {
@@ -2424,7 +2606,14 @@
             }
 
             closeModal('schedule-modal');
-            WardApp.showToast('Chamada agendada com sucesso!');
+            const studentTz = document.getElementById('schedule-timezone')?.value || getStudentTimezone();
+            const mentorTz = await getMentorTimezone(mentorId);
+            if (studentTz !== mentorTz) {
+                const converted = convertTime(date, time, mentorTz, studentTz);
+                WardApp.showToast(`Chamada agendada! Sera as ${converted.time} no seu horario`);
+            } else {
+                WardApp.showToast('Chamada agendada com sucesso!');
+            }
         }
 
         // Schedule from clicking on an availability slot - opens the new landmark modal
