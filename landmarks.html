@@ -2476,11 +2476,11 @@
 
             currentScheduleMentor = mentorId;
 
-            // Load next 14 days of availability
+            // Load next 30 days of availability
             const today = new Date();
             const dates = [];
 
-            for (let i = 1; i <= 14; i++) {
+            for (let i = 1; i <= 30; i++) {
                 const date = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
                 const year = date.getFullYear();
                 const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -2501,13 +2501,50 @@
                 .eq('is_active', true);
 
             // Load specific dates
+            const firstDateStr = dates[0]?.date || WardApp.getTodayString();
+            const lastDateStr = dates[dates.length - 1]?.date || WardApp.getTodayString();
             const { data: specificDates } = await WardApp.db
                 .from('mentor_availability_specific')
                 .select('*')
                 .eq('mentor_id', mentorId)
-                .gte('available_date', WardApp.getTodayString());
+                .gte('available_date', firstDateStr)
+                .lte('available_date', lastDateStr);
 
-            // Filter dates where mentor is available
+            // Load all scheduled calls in this range to detect fully booked days
+            const { data: bookedCalls } = await WardApp.db
+                .from('scheduled_calls')
+                .select('scheduled_date, scheduled_time')
+                .eq('mentor_id', mentorId)
+                .eq('status', 'scheduled')
+                .gte('scheduled_date', firstDateStr)
+                .lte('scheduled_date', lastDateStr);
+
+            // Build a map of booked times per date
+            const bookedByDate = {};
+            (bookedCalls || []).forEach(c => {
+                if (!bookedByDate[c.scheduled_date]) bookedByDate[c.scheduled_date] = [];
+                bookedByDate[c.scheduled_date].push(c.scheduled_time.substring(0, 5));
+            });
+
+            // Helper to count total slots for a date
+            function countTotalSlots(dateStr, dayOfWeek) {
+                const dayRegular = (regularSlots || []).filter(s => s.day_of_week === dayOfWeek);
+                const daySpecific = (specificDates || []).filter(s => s.available_date === dateStr && !s.is_unavailable);
+                let total = 0;
+                [...dayRegular, ...daySpecific].forEach(slot => {
+                    const duration = slot.duration_minutes || 60;
+                    const breakMins = slot.break_minutes || 0;
+                    let current = timeToMinutesLocal(slot.start_time);
+                    const end = timeToMinutesLocal(slot.end_time);
+                    while (current + duration <= end) {
+                        total++;
+                        current += duration + breakMins;
+                    }
+                });
+                return total;
+            }
+
+            // Filter dates where mentor is available AND has at least 1 free slot
             const availableDates = dates.filter(d => {
                 // Check if there's an unavailability specific date
                 const specificUnavailable = (specificDates || []).find(s =>
@@ -2523,7 +2560,12 @@
                     s.available_date === d.date && !s.is_unavailable
                 );
 
-                return hasRegular || hasSpecific;
+                if (!hasRegular && !hasSpecific) return false;
+
+                // Check if all slots are booked
+                const totalSlots = countTotalSlots(d.date, d.dayOfWeek);
+                const bookedCount = (bookedByDate[d.date] || []).length;
+                return bookedCount < totalSlots;
             });
 
             const dateSelect = document.getElementById('schedule-date');
@@ -2678,6 +2720,8 @@
             } else {
                 WardApp.showToast('Chamada agendada com sucesso!');
             }
+            // Refresh landmarks to show updated status
+            await loadLandmarks();
         }
 
         // Schedule from clicking on an availability slot - opens the new landmark modal
