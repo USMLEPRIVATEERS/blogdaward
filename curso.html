@@ -993,8 +993,8 @@
                 return;
             }
 
-            // Filter out hidden videos (is_hidden = true) AND videos without video_url
-            allVideos = (data || []).filter(video => !video.is_hidden && video.video_url);
+            // Filter out hidden videos (is_hidden = true) - keep videos without URL (show as "em breve")
+            allVideos = (data || []).filter(video => !video.is_hidden);
         }
 
         function getUniqueCategories(videos, depth = 0) {
@@ -1523,7 +1523,23 @@
         function formatDescription(text) {
             if (!text) return '';
 
-            // First escape HTML for security
+            // If text already contains HTML tags, render it directly (from rich text editor)
+            if (/<[a-z][\s\S]*>/i.test(text)) {
+                // Strip dangerous tags (script, iframe, etc.) but keep formatting tags
+                let html = text;
+                html = html.replace(/<script[\s\S]*?<\/script>/gi, '');
+                html = html.replace(/<iframe[\s\S]*?<\/iframe>/gi, '');
+                html = html.replace(/<object[\s\S]*?<\/object>/gi, '');
+                html = html.replace(/<embed[\s\S]*?>/gi, '');
+                html = html.replace(/on\w+\s*=\s*"[^"]*"/gi, '');
+                html = html.replace(/on\w+\s*=\s*'[^']*'/gi, '');
+                // Remove clipboard fragments
+                html = html.replace(/<!--StartFragment-->|<!--EndFragment-->/g, '');
+                // Convert URLs in plain text portions to clickable links
+                return html;
+            }
+
+            // Plain text: escape HTML then apply Markdown-style formatting
             let formatted = escapeHtml(text);
 
             // Convert URLs to clickable links (opens in new tab)
