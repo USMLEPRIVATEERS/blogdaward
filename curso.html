@@ -1487,18 +1487,21 @@
                 const authorName = _dn(c.users?.full_name) || 'Usuario';
                 const isOwn = c.user_id === userData?.id;
                 const canDelete = isOwn || isMentor;
+                const editBtn = isMentor
+                    ? `<button onclick="editComment(${c.id})" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:0.75rem;padding:0 0.25rem;" title="Editar comentário">✏️</button>`
+                    : '';
                 const deleteBtn = canDelete
                     ? `<button onclick="deleteComment(${c.id})" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:0.75rem;padding:0 0.25rem;" title="Excluir comentário">🗑️</button>`
                     : '';
                 return `
-                <div class="comment-item">
+                <div class="comment-item" id="comment-${c.id}">
                     <div class="comment-avatar">${WardApp.getPixelAvatarHTML(authorName, 32)}</div>
                     <div class="comment-content">
                         <div class="comment-author" style="display:flex;align-items:center;gap:0.5rem;">
                             ${authorName}
-                            ${deleteBtn}
+                            ${editBtn}${deleteBtn}
                         </div>
-                        <div class="comment-text">${escapeHtml(c.content)}</div>
+                        <div class="comment-text" id="comment-text-${c.id}">${escapeHtml(c.content)}</div>
                         <div class="comment-time">${WardApp.formatDate(c.created_at)}</div>
                     </div>
                 </div>
@@ -1550,6 +1553,42 @@
             }
 
             WardApp.showToast('Comentário excluído');
+            if (currentVideo) await loadComments(currentVideo.id);
+        }
+
+        function editComment(commentId) {
+            const textEl = document.getElementById(`comment-text-${commentId}`);
+            const currentText = textEl.textContent;
+            textEl.innerHTML = `
+                <textarea id="edit-input-${commentId}" style="width:100%;min-height:60px;padding:0.5rem;border:1px solid #d1d5db;border-radius:6px;font-size:0.875rem;resize:vertical;">${escapeHtml(currentText)}</textarea>
+                <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+                    <button onclick="saveEditComment(${commentId})" style="padding:0.25rem 0.75rem;background:#10b981;color:white;border:none;border-radius:4px;font-size:0.8rem;cursor:pointer;">Salvar</button>
+                    <button onclick="loadComments(currentVideo.id)" style="padding:0.25rem 0.75rem;background:#6b7280;color:white;border:none;border-radius:4px;font-size:0.8rem;cursor:pointer;">Cancelar</button>
+                </div>
+            `;
+            document.getElementById(`edit-input-${commentId}`).focus();
+        }
+
+        async function saveEditComment(commentId) {
+            const input = document.getElementById(`edit-input-${commentId}`);
+            const content = input.value.trim();
+            if (!content) {
+                WardApp.showToast('Comentário não pode ser vazio', 'warning');
+                return;
+            }
+
+            const { error } = await WardApp.db
+                .from('course_video_comments')
+                .update({ content })
+                .eq('id', commentId);
+
+            if (error) {
+                console.error('Error editing comment:', error);
+                WardApp.showToast('Erro ao editar comentário', 'error');
+                return;
+            }
+
+            WardApp.showToast('Comentário editado');
             if (currentVideo) await loadComments(currentVideo.id);
         }
 
