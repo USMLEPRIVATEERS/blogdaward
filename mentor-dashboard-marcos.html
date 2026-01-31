@@ -283,9 +283,14 @@
 
         <!-- Schedule Status Section -->
         <div class="card mt-4">
-            <div class="card-header d-flex justify-between align-center">
+            <div class="card-header d-flex justify-between align-center" style="flex-wrap: wrap; gap: 0.5rem;">
                 <span>📅 Status do Cronograma dos Alunos</span>
-                <a href="mentor-cronograma.html" class="btn btn-sm btn-primary">Gerenciar Cronogramas →</a>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: #6b7280; cursor: pointer; white-space: nowrap;">
+                        <input type="checkbox" id="toggle-assessoria" onchange="toggleAssessoria()"> Mostrar Assessoria Avulsa
+                    </label>
+                    <a href="mentor-cronograma.html" class="btn btn-sm btn-primary">Gerenciar Cronogramas →</a>
+                </div>
             </div>
             <div class="card-body">
                 <div id="schedule-status-list" class="schedule-status-grid">
@@ -964,11 +969,11 @@ Cardiovascular	Physiology	62	FALSE
                 const questionnairePercent = Math.round((questionnaireStep / 11) * 100);
 
                 return `
-                    <div style="background: ${statusColor}; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; overflow: hidden;">
+                    <div class="schedule-student-card" data-role="${student.role || 'aluno'}" style="background: ${statusColor}; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; overflow: hidden;${student.role === 'assessoria' ? ' display: none;' : ''}">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
                             <div style="flex: 1; min-width: 0;">
                                 <div style="font-weight: 600; margin-bottom: 0.25rem; word-wrap: break-word; overflow-wrap: break-word; display: flex; align-items: center; flex-wrap: wrap;">
-                                    ${_dn(student.full_name) || student.email}${messageButton}
+                                    ${_dn(student.full_name) || student.email}${student.role === 'assessoria' ? ' <span style="font-size:0.65rem;color:#9ca3af;margin-left:4px;">(assessoria)</span>' : ''}${messageButton}
                                 </div>
                                 <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.5rem;">${passLabel} <span style="color: #9ca3af; font-size: 0.65rem;">| Quest. ${questionnairePercent}%</span></div>
                                 ${statusBadge}
@@ -1339,6 +1344,16 @@ Cardiovascular	Physiology	62	FALSE
                 console.error('Error adding note:', error);
                 WardApp.showToast('Erro ao salvar observação', 'error');
             }
+        }
+
+        function toggleAssessoria() {
+            const show = document.getElementById('toggle-assessoria').checked;
+            document.querySelectorAll('.schedule-student-card[data-role="assessoria"]').forEach(el => {
+                el.style.display = show ? '' : 'none';
+            });
+            document.querySelectorAll('.assessoria-table-row').forEach(el => {
+                el.style.display = show ? '' : 'none';
+            });
         }
 
         async function openOtherMentorsCalls() {
@@ -2399,16 +2414,20 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 html += regularStudents.map(renderStudentRow).join('');
             }
 
-            // Assessoria section
+            // Assessoria section (hidden by default, toggled by checkbox)
             if (assessoriaStudents.length > 0) {
+                const showAssessoria = document.getElementById('toggle-assessoria')?.checked;
                 html += `
-                    <tr class="group-header">
+                    <tr class="group-header assessoria-table-row" style="${showAssessoria ? '' : 'display: none;'}">
                         <td colspan="6" style="background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%); color: white; font-weight: 700; padding: 0.75rem 1rem; font-size: 1rem;">
                             📋 Assessoria Avulsa (${assessoriaStudents.length})
                         </td>
                     </tr>
                 `;
-                html += assessoriaStudents.map(renderStudentRow).join('');
+                html += assessoriaStudents.map(s => {
+                    const row = renderStudentRow(s);
+                    return row.replace('<tr>', `<tr class="assessoria-table-row" style="${showAssessoria ? '' : 'display: none;'}">`);
+                }).join('');
             }
 
             // If no students
