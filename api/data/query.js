@@ -1,4 +1,5 @@
 const { getSupabase, ALLOWED_TABLES } = require('../_lib/supabase');
+const { verifyAuth, verifyAdmin } = require('../_lib/auth');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -14,6 +15,24 @@ module.exports = async function handler(req, res) {
 
     if (!table || !ALLOWED_TABLES.includes(table)) {
       return res.status(403).json({ error: 'Table not allowed' });
+    }
+
+    // Authentication check
+    const auth = await verifyAuth(req);
+    if (!auth) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Delete operations require admin/mentor
+    if (action === 'delete') {
+      const admin = await verifyAdmin(req);
+      if (!admin) {
+        // Allow students to delete their own records (check via filters)
+        // but not bulk deletes without filters
+        if (!filters || filters.length === 0) {
+          return res.status(403).json({ error: 'Admin access required' });
+        }
+      }
     }
 
     // Get auth token from request header if present

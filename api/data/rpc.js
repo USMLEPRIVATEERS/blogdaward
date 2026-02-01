@@ -1,4 +1,8 @@
 const { getSupabase, ALLOWED_RPCS } = require('../_lib/supabase');
+const { verifyAuth } = require('../_lib/auth');
+
+// RPCs that don't require authentication
+const PUBLIC_RPCS = ['secure_login', 'secure_register'];
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -10,6 +14,14 @@ module.exports = async function handler(req, res) {
 
     if (!function_name || !ALLOWED_RPCS.includes(function_name)) {
       return res.status(403).json({ error: 'Function not allowed' });
+    }
+
+    // Check auth for non-public RPCs
+    if (!PUBLIC_RPCS.includes(function_name)) {
+      const auth = await verifyAuth(req);
+      if (!auth) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
     }
 
     const authToken = req.headers['x-supabase-auth'];

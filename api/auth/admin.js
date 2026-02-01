@@ -1,4 +1,5 @@
 const { getSupabase } = require('../_lib/supabase');
+const { verifyAdmin } = require('../_lib/auth');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -6,9 +7,13 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { action, userData, userId } = req.body;
+    // Verify admin/mentor access before any operation
+    const admin = await verifyAdmin(req);
+    if (!admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
 
-    // Verify the requester is an admin/mentor via their auth token
+    const { action, userData, userId } = req.body;
     const authToken = req.headers['x-supabase-auth'];
     const supabase = getSupabase(authToken || null);
 
