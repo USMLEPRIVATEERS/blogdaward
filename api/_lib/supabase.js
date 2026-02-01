@@ -3,11 +3,12 @@ const { createClient } = require('@supabase/supabase-js');
 let _client = null;
 
 function getSupabase(authToken) {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
   // If auth token provided, create an authenticated client
   if (authToken) {
     return createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_ANON_KEY,
+      key,
       {
         global: {
           headers: { Authorization: `Bearer ${authToken}` }
@@ -15,11 +16,11 @@ function getSupabase(authToken) {
       }
     );
   }
-  // Otherwise reuse the anon client
+  // Otherwise reuse the service/anon client
   if (!_client) {
     _client = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_ANON_KEY
+      key
     );
   }
   return _client;

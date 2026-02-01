@@ -126,6 +126,6 @@ module.exports = async function handler(req, res) {
 
   } catch (err) {
     console.error('Query proxy error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 };
