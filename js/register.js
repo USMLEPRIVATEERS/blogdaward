@@ -1,29 +1,12 @@
-// ============================================
-// WARD ACADEMY - REGISTRATION
-// Self Assessments Gratuitos
-// ============================================
-
-// Wait for Supabase to be ready
 async function ensureSupabase() {
-    if (window.supabase && typeof window.supabase.auth !== 'undefined') {
-        return;
-    }
-
+    if (window.supabase && typeof window.supabase.auth !== 'undefined') return;
     let attempts = 0;
-    while (typeof window.supabase?.createClient !== 'function' && attempts < 100) {
+    while (attempts < 100) {
         await new Promise(resolve => setTimeout(resolve, 50));
+        if (window.supabase && typeof window.supabase.auth !== 'undefined') return;
         attempts++;
     }
-
-    if (typeof window.supabase?.createClient !== 'function') {
-        throw new Error('Supabase library not loaded');
-    }
-
-    if (!window.supabase.auth) {
-        const SUPABASE_URL = 'https://yxtdesthusclivjdewfl.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4dGRlc3RodXNjbGl2amRld2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxNDUzMzYsImV4cCI6MjA4MjcyMTMzNn0.OQgK2s8K7CKJKyIwx7I6jnExTdCBpgiM7KfZuqhbPbw';
-        window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    }
+    throw new Error('Supabase not initialized');
 }
 
 // Initialize on page load
@@ -236,7 +219,7 @@ async function handleSubmit(e) {
     btnRegister.disabled = true;
 
     try {
-        // Usar registro seguro via RPC (hash bcrypt no servidor)
+    
         const { data, error } = await window.supabase.rpc('secure_register', {
             p_cpf: cpf,
             p_email: email,
@@ -247,7 +230,7 @@ async function handleSubmit(e) {
 
         if (error) {
             console.error('Registration RPC error:', error);
-            // Fallback para método antigo se RPC não existir
+    
             if (error.message.includes('does not exist')) {
                 await handleLegacyRegistration(cpf, email, password, name, fullPhone);
                 return;
@@ -289,7 +272,7 @@ async function handleSubmit(e) {
     }
 }
 
-// Fallback para registro se RPC não estiver disponível
+
 async function handleLegacyRegistration(cpf, email, password, name, fullPhone) {
     const btnRegister = document.getElementById('btn-register');
 
@@ -322,7 +305,7 @@ async function handleLegacyRegistration(cpf, email, password, name, fullPhone) {
             return;
         }
 
-        // Hash password (método legado - será migrado depois)
+    
         const hashedPassword = btoa(password + '_ward_salt_2024');
 
         // Create user

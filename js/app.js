@@ -1,32 +1,30 @@
-// ===== WARD ACADEMY - MAIN APPLICATION =====
 
-// Supabase Configuration
+
 const SUPABASE_URL = 'https://yxtdesthusclivjdewfl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4dGRlc3RodXNjbGl2amRld2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxNDUzMzYsImV4cCI6MjA4MjcyMTMzNn0.OQgK2s8K7CKJKyIwx7I6jnExTdCBpgiM7KfZuqhbPbw';
 
-// Initialize Supabase Client
+
 let supabaseClient = null;
 
-// Wait for supabase CDN to be loaded and initialize
+
 function initSupabase() {
     if (window.supabase && window.supabase.createClient) {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        // Expose the initialized client globally so all pages can use supabase.from()
+        
         window.supabase = supabaseClient;
         return true;
     }
     return false;
 }
 
-// Initialize supabase immediately if available, otherwise wait for DOM
+
 if (!initSupabase()) {
     document.addEventListener('DOMContentLoaded', function() {
-        // Retry initialization after DOM is ready
+        
         setTimeout(initSupabase, 100);
     });
 }
 
-// ===== UTILITY FUNCTIONS =====
 
 // Show toast notification
 function showToast(message, type = 'success') {
@@ -147,7 +145,6 @@ function daysRemaining(deadline) {
     return diffDays;
 }
 
-// ===== DATA FORMATTING HELPERS =====
 // Internal string processing utilities for data normalization
 
 const _dfh = {
@@ -212,7 +209,6 @@ function _parseObj(obj, fields) {
 // Fields for data processing
 const _sflds = ['full_name', 'email', 'cpf'];
 
-// ===== AUTHENTICATION =====
 
 // Check if user is logged in
 async function checkAuth() {
@@ -334,7 +330,7 @@ async function login(cpf, password) {
             };
             window.location.href = stepUrls[step] || stepUrls[0];
         } else {
-            // Redirect based on role
+            
             switch (data.role) {
                 case 'mentor_marcos':
                     window.location.href = 'mentor-dashboard-marcos.html';
@@ -367,7 +363,7 @@ async function login(cpf, password) {
     }
 }
 
-// Logout function
+
 function logout() {
     localStorage.removeItem('ward_user');
     localStorage.removeItem('ward_intended_url');
@@ -375,7 +371,6 @@ function logout() {
     window.location.href = 'index.html';
 }
 
-// ===== QUESTIONNAIRE FUNCTIONS =====
 
 // Save questionnaire progress
 async function saveQuestionnaireProgress(step, data) {
@@ -571,7 +566,6 @@ async function loadQuestionnaireData(step) {
     }
 }
 
-// ===== DASHBOARD FUNCTIONS =====
 
 // Load user dashboard data
 async function loadDashboardData() {
@@ -613,7 +607,6 @@ async function loadDashboardData() {
     }
 }
 
-// ===== LANDMARKS FUNCTIONS =====
 
 // Update landmark status
 async function updateLandmark(landmarkId, updates) {
@@ -662,7 +655,6 @@ async function addLandmarkObservation(landmarkId, observation) {
     }
 }
 
-// ===== SCHEDULE FUNCTIONS =====
 
 // Load schedule
 async function loadSchedule(userId = null) {
@@ -723,7 +715,6 @@ async function signalDelay(userId, startDate, endDate, reason) {
     }
 }
 
-// ===== LINKS REPOSITORY FUNCTIONS =====
 
 // Load links
 async function loadLinks(category = null) {
@@ -766,7 +757,6 @@ async function addLink(linkData) {
     }
 }
 
-// ===== BLOG FUNCTIONS =====
 
 // Load blog posts
 async function loadBlogPosts(filter = 'recent') {
@@ -880,7 +870,6 @@ async function addComment(postId, content) {
     }
 }
 
-// ===== RESEARCH FUNCTIONS =====
 
 // Load research projects
 async function loadResearchProjects(userId = null) {
@@ -967,7 +956,6 @@ async function createResearchProject(projectData) {
     }
 }
 
-// ===== DIARY FUNCTIONS =====
 
 // Load study diary entries
 async function loadStudyDiary(userId = null) {
@@ -1057,7 +1045,6 @@ async function addUWorldDiaryEntry(entryData) {
     }
 }
 
-// ===== CHECK-IN MODAL =====
 
 // Show daily check-in modal
 function showCheckInModal() {
@@ -1093,7 +1080,6 @@ async function submitCheckIn(status, message = '') {
     }
 }
 
-// ===== ADMIN FUNCTIONS (Marcos) =====
 
 // Load all members
 async function loadAllMembers() {
@@ -1223,7 +1209,6 @@ async function pasteSchedule(userId, scheduleText) {
     }
 }
 
-// ===== MENTOR FUNCTIONS =====
 
 // Load mentor timeline
 async function loadMentorTimeline(mentorRole) {
@@ -1298,7 +1283,6 @@ async function getPendingCalls(mentorType) {
     }
 }
 
-// ===== MODAL FUNCTIONS =====
 
 function openModal(modalId) {
     const modal = document.getElementById(modalId);
@@ -1321,7 +1305,6 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// ===== TAB FUNCTIONS =====
 
 function initTabs() {
     const tabs = document.querySelectorAll('.tab');
@@ -1346,7 +1329,6 @@ function initTabs() {
     });
 }
 
-// ===== ACCORDION FUNCTIONS =====
 
 function initAccordions() {
     const accordionHeaders = document.querySelectorAll('.accordion-header');
@@ -1360,7 +1342,6 @@ function initAccordions() {
     });
 }
 
-// ===== CONDITIONAL FIELDS =====
 
 function initConditionalFields() {
     const conditionalTriggers = document.querySelectorAll('[data-conditional]');
@@ -1387,7 +1368,6 @@ function initConditionalFields() {
     });
 }
 
-// ===== CHARACTER COUNTER =====
 
 function initCharCounters() {
     const textareas = document.querySelectorAll('[data-maxlength]');
@@ -1414,7 +1394,6 @@ function initCharCounters() {
     });
 }
 
-// ===== RANGE SLIDER =====
 
 function initRangeSliders() {
     const sliders = document.querySelectorAll('.range-slider');
@@ -1430,7 +1409,6 @@ function initRangeSliders() {
     });
 }
 
-// ===== DRAG AND DROP =====
 
 function initDragAndDrop(containerSelector) {
     const container = document.querySelector(containerSelector);
@@ -1503,7 +1481,6 @@ async function updateLandmarkOrder() {
     }
 }
 
-// ===== MOBILE MENU =====
 
 function initMobileMenu() {
     const toggle = document.querySelector('.mobile-menu-toggle');
@@ -1516,7 +1493,6 @@ function initMobileMenu() {
     }
 }
 
-// ===== HEADER USER INFO =====
 
 function updateHeaderUserInfo() {
     const user = JSON.parse(localStorage.getItem('ward_user'));
@@ -1529,7 +1505,6 @@ function updateHeaderUserInfo() {
     }
 }
 
-// ===== DYNAMIC NAVBAR BASED ON ROLE =====
 
 function updateNavbarForRole() {
     const user = JSON.parse(localStorage.getItem('ward_user'));
@@ -1577,7 +1552,6 @@ function updateNavbarForRole() {
     }
 }
 
-// ===== INITIALIZATION =====
 
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
@@ -1641,7 +1615,6 @@ function goToDashboard() {
     }
 }
 
-// ===== PIXEL AVATAR GENERATOR =====
 // Generates unique pixel art avatars based on user name
 
 function generatePixelAvatar(name, size = 40) {

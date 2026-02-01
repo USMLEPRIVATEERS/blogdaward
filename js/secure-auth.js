@@ -1,12 +1,4 @@
-// =============================================
-// WARD ACADEMY - AUTENTICACAO SEGURA
-// Substitui funcoes de login/registro por versoes seguras
-// que usam RPC do Supabase com hash bcrypt no servidor
-// =============================================
-
-/**
- * Login seguro - suporta Supabase Auth e sistema legado
- */
+// Auth
 async function secureLogin(cpf, password) {
     // Verificar rate limiting
     if (window.WardSecurity && !WardSecurity.canAttemptLogin()) {
@@ -20,7 +12,6 @@ async function secureLogin(cpf, password) {
     try {
         // Validar CPF
         const cleanCPF = cpf.replace(/\D/g, '');
-        console.log('[SecureAuth] CPF limpo:', cleanCPF);
 
         if (window.WardSecurity && !WardSecurity.validateCPF(cleanCPF)) {
             hideLoading();
@@ -29,30 +20,20 @@ async function secureLogin(cpf, password) {
             return false;
         }
 
-        // Buscar usuario pelo CPF
-        console.log('[SecureAuth] Buscando usuario pelo CPF...');
+
         const { data: userData, error: userError } = await WardApp.db
             .from('users')
             .select('*')
             .eq('cpf', cleanCPF)
             .single();
 
-        console.log('[SecureAuth] Resultado busca:', { userData, userError });
 
         if (userError || !userData) {
             hideLoading();
-            console.error('[SecureAuth] Usuario nao encontrado:', userError);
             showToast('CPF ou senha incorretos', 'error');
             if (window.WardSecurity) WardSecurity.recordLoginAttempt(false);
             return false;
         }
-
-        console.log('[SecureAuth] Usuario encontrado:', {
-            id: userData.id,
-            email: userData.email,
-            auth_id: userData.auth_id,
-            role: userData.role
-        });
 
         // Verificar se usuario esta inativo
         if (userData.status === 'inactive') {
@@ -61,41 +42,33 @@ async function secureLogin(cpf, password) {
             return false;
         }
 
-        // Se usuario tem auth_id, usar Supabase Auth
+
         if (userData.auth_id && userData.email) {
-            console.log('[SecureAuth] Tentando login via Supabase Auth...');
-            console.log('[SecureAuth] Email:', userData.email);
 
             const { data: authData, error: authError } = await WardApp.db.auth.signInWithPassword({
                 email: userData.email,
                 password: password
             });
 
-            console.log('[SecureAuth] Resultado Supabase Auth:', { authData, authError });
 
             if (authError || !authData.user) {
                 hideLoading();
-                console.error('[SecureAuth] Supabase Auth FALHOU:', authError?.message);
                 showToast('CPF ou senha incorretos', 'error');
                 if (window.WardSecurity) WardSecurity.recordLoginAttempt(false);
                 return false;
             }
-            console.log('[SecureAuth] Login via Supabase Auth SUCESSO!');
         } else {
-            console.log('[SecureAuth] Usuario SEM auth_id, usando RPC seguro');
 
-            // Sistema legado com verificacao de senha no servidor (bcrypt)
+
             const { data: loginResult, error: rpcError } = await WardApp.db
                 .rpc('secure_login', {
                     p_cpf: cleanCPF,
                     p_password: password
                 });
 
-            console.log('[SecureAuth] Resultado RPC:', { loginResult, rpcError });
 
             if (rpcError) {
                 hideLoading();
-                console.error('[SecureAuth] RPC error:', rpcError);
                 showToast('Erro ao verificar credenciais', 'error');
                 if (window.WardSecurity) WardSecurity.recordLoginAttempt(false);
                 return false;
@@ -103,7 +76,6 @@ async function secureLogin(cpf, password) {
 
             if (!loginResult || !loginResult.success) {
                 hideLoading();
-                console.error('[SecureAuth] Login falhou:', loginResult?.error);
                 showToast('CPF ou senha incorretos', 'error');
                 if (window.WardSecurity) WardSecurity.recordLoginAttempt(false);
                 return false;
@@ -111,7 +83,6 @@ async function secureLogin(cpf, password) {
 
             // Atualizar userData com dados retornados do servidor
             Object.assign(userData, loginResult.user);
-            console.log('[SecureAuth] Login via RPC seguro SUCESSO!');
         }
 
         // Login bem sucedido
@@ -145,11 +116,8 @@ async function secureLogin(cpf, password) {
     }
 }
 
-/**
- * Redireciona usuario apos login baseado em seu estado
- */
 function redirectAfterLogin(user) {
-    // Verificar se precisa completar questionario
+    
     if (!user.first_login_completed) {
         const step = user.questionnaire_step || 0;
         const stepUrls = {
@@ -175,7 +143,7 @@ function redirectAfterLogin(user) {
     // Check if there's a saved intended URL from before login
     const intendedUrl = localStorage.getItem('ward_intended_url');
     if (intendedUrl) {
-        // Clear the intended URL so it's not used again
+        
         localStorage.removeItem('ward_intended_url');
         // Make sure the intended URL is from the same origin (security check)
         try {
@@ -203,9 +171,6 @@ function redirectAfterLogin(user) {
     window.location.href = dashboardMap[user.role] || 'dashboard.html';
 }
 
-/**
- * Registro seguro usando funcao RPC do Supabase
- */
 async function secureRegister(cpf, email, password, fullName, role = 'aluno') {
     showLoading();
 
@@ -264,9 +229,6 @@ async function secureRegister(cpf, email, password, fullName, role = 'aluno') {
     }
 }
 
-/**
- * Alterar senha de forma segura
- */
 async function secureChangePassword(userId, oldPassword, newPassword) {
     showLoading();
 
@@ -307,17 +269,14 @@ async function secureChangePassword(userId, oldPassword, newPassword) {
     }
 }
 
-/**
- * Carregar dados do questionario com verificacao de permissao no servidor
- */
 async function secureLoadQuestionnaireData(step) {
     const user = WardSecurity.getStoredUser();
     if (!user) return null;
 
-    // Determinar usuario alvo (suporte a view_as para mentores)
+    
     let targetUserId = user.id;
 
-    // Verificar parametro URL
+    
     const urlParams = new URLSearchParams(window.location.search);
     const urlViewAs = urlParams.get('view_as');
 
@@ -356,14 +315,11 @@ async function secureLoadQuestionnaireData(step) {
     }
 }
 
-/**
- * Salvar dados do questionario com verificacao de permissao no servidor
- */
 async function secureSaveQuestionnaireData(step, formData) {
     const user = WardSecurity.getStoredUser();
     if (!user) return false;
 
-    // Determinar usuario alvo
+    
     let targetUserId = user.id;
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -406,9 +362,6 @@ async function secureSaveQuestionnaireData(step, formData) {
     }
 }
 
-/**
- * Listar usuarios (apenas para mentores)
- */
 async function secureListUsers() {
     const user = WardSecurity.getStoredUser();
     if (!user) return [];
@@ -435,24 +388,18 @@ async function secureListUsers() {
     }
 }
 
-/**
- * Logout seguro
- */
 function secureLogout() {
     WardSecurity.clearUserData();
-    // Also clear intended URL on logout
+    
     localStorage.removeItem('ward_intended_url');
     window.location.href = 'index.html';
 }
 
-/**
- * Verificar autenticacao
- */
 function checkSecureAuth() {
     const user = WardSecurity.getStoredUser();
     if (!user) {
         if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/') {
-            // Save the intended URL before redirecting to login
+            
             const intendedUrl = window.location.href;
             localStorage.setItem('ward_intended_url', intendedUrl);
             window.location.href = 'index.html';
@@ -478,15 +425,14 @@ window.WardSecureAuth = {
 // Compatibilidade com codigo existente
 // Substitui funcoes do WardApp pelas versoes seguras quando disponivel
 document.addEventListener('DOMContentLoaded', function() {
-    // Aguardar WardApp estar disponivel
+    
     setTimeout(function() {
         if (window.WardApp) {
-            // Substituir funcoes por versoes seguras
+            
             window.WardApp.login = secureLogin;
             window.WardApp.logout = secureLogout;
             window.WardApp.checkAuth = checkSecureAuth;
-            // Manter compatibilidade mas usar versoes seguras internamente
-            console.log('WardSecureAuth: Funcoes de seguranca ativadas');
+            
         }
     }, 100);
 });

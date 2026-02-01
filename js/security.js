@@ -1,12 +1,5 @@
-// =============================================
-// WARD ACADEMY - SECURITY UTILITIES
-// Funcoes de seguranca para o frontend
-// =============================================
+// WS
 
-/**
- * Sanitiza string para prevenir XSS
- * Usa a abordagem de criar um elemento de texto e extrair o HTML escapado
- */
 function sanitizeHTML(str) {
     if (str === null || str === undefined) return '';
     if (typeof str !== 'string') str = String(str);
@@ -16,9 +9,6 @@ function sanitizeHTML(str) {
     return div.innerHTML;
 }
 
-/**
- * Sanitiza um objeto inteiro (recursivo)
- */
 function sanitizeObject(obj) {
     if (obj === null || obj === undefined) return obj;
     if (typeof obj === 'string') return sanitizeHTML(obj);
@@ -34,10 +24,6 @@ function sanitizeObject(obj) {
     return sanitized;
 }
 
-/**
- * Cria elemento HTML seguro a partir de template
- * Substitui ${varName} por valores sanitizados
- */
 function createSafeElement(template, data) {
     let html = template;
     for (const key in data) {
@@ -49,10 +35,6 @@ function createSafeElement(template, data) {
     return html;
 }
 
-/**
- * Define innerHTML de forma segura
- * Sanitiza todos os dados antes de inserir
- */
 function setSafeHTML(element, template, data) {
     if (typeof element === 'string') {
         element = document.querySelector(element);
@@ -61,9 +43,6 @@ function setSafeHTML(element, template, data) {
     element.innerHTML = createSafeElement(template, data);
 }
 
-/**
- * Valida CPF (formato basico)
- */
 function validateCPF(cpf) {
     // Remove caracteres nao numericos
     cpf = cpf.replace(/\D/g, '');
@@ -94,42 +73,27 @@ function validateCPF(cpf) {
     return true;
 }
 
-/**
- * Valida email
- */
 function validateEmail(email) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
 }
 
-/**
- * Valida senha (minimo 8 caracteres)
- */
 function validatePassword(password) {
     return password && password.length >= 8;
 }
 
-/**
- * Gera token CSRF
- */
 function generateCSRFToken() {
     const array = new Uint8Array(32);
     crypto.getRandomValues(array);
     return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-/**
- * Armazena token CSRF de forma segura
- */
 function setCSRFToken() {
     const token = generateCSRFToken();
     sessionStorage.setItem('csrf_token', token);
     return token;
 }
 
-/**
- * Obtem token CSRF
- */
 function getCSRFToken() {
     let token = sessionStorage.getItem('csrf_token');
     if (!token) {
@@ -138,12 +102,7 @@ function getCSRFToken() {
     return token;
 }
 
-/**
- * Dados seguros para localStorage (sem informacoes sensiveis)
- */
 function createSafeUserData(userData) {
-    // Retorna apenas dados necessarios para o frontend
-    // NUNCA armazena password_hash ou outros dados sensiveis
     return {
         id: userData.id,
         email: userData.email,
@@ -151,24 +110,18 @@ function createSafeUserData(userData) {
         name: userData.name || userData.full_name || userData.cpf,
         full_name: userData.full_name || userData.name,
         role: userData.role,
-        auth_id: userData.auth_id, // Necessario para Supabase Auth
+        auth_id: userData.auth_id,
         first_login_completed: userData.first_login_completed,
         questionnaire_step: userData.questionnaire_step || 0,
         status: userData.status
     };
 }
 
-/**
- * Armazena dados do usuario de forma segura
- */
 function storeUserSecurely(userData) {
     const safeData = createSafeUserData(userData);
     localStorage.setItem('ward_user', JSON.stringify(safeData));
 }
 
-/**
- * Obtem dados do usuario do storage
- */
 function getStoredUser() {
     try {
         const data = localStorage.getItem('ward_user');
@@ -179,18 +132,12 @@ function getStoredUser() {
     }
 }
 
-/**
- * Limpa dados do usuario (logout)
- */
 function clearUserData() {
     localStorage.removeItem('ward_user');
     localStorage.removeItem('view_as_student');
     sessionStorage.removeItem('csrf_token');
 }
 
-/**
- * Rate limiting simples para tentativas de login
- */
 const loginAttempts = {
     count: 0,
     lastAttempt: 0,
@@ -224,16 +171,10 @@ const loginAttempts = {
     }
 };
 
-/**
- * Verifica se pode fazer login
- */
 function canAttemptLogin() {
     return loginAttempts.canAttempt();
 }
 
-/**
- * Registra tentativa de login
- */
 function recordLoginAttempt(success = false) {
     if (success) {
         loginAttempts.recordSuccess();
@@ -242,14 +183,10 @@ function recordLoginAttempt(success = false) {
     }
 }
 
-/**
- * Tempo restante de bloqueio
- */
 function getLoginLockoutTime() {
     return loginAttempts.getRemainingTime();
 }
 
-// Exportar funcoes para uso global
 window.WardSecurity = {
     sanitizeHTML,
     sanitizeObject,
