@@ -43,8 +43,18 @@ const ALLOWED_TABLES = [
   'course_audio_comments', 'course_videos', 'course_audios',
   'self_assessment_enrollments', 'self_assessment_questions',
   'self_assessment_responses', 'self_assessment_tests',
-  'mentor_settings', 'mentor_availability', 'wasa_schedules',
-  'networking_specialties', 'networking_positions', 'networking_cities'
+  'mentor_settings', 'mentor_availability_regular', 'mentor_availability_specific',
+  'wasa_schedules',
+  'networking_specialties', 'networking_positions', 'networking_cities',
+  'networking_connections', 'networking_contacts', 'networking_mentor_requests',
+  'networking_states',
+  'assessment_enrollments', 'assessments',
+  'kanban_projects', 'kanban_tasks',
+  'link_categories',
+  'research_project_files', 'research_project_folders',
+  'self_assessment_attempts', 'self_assessment_events',
+  'self_assessment_question_stats', 'self_assessments',
+  'user_tutorials', 'uworld_options', 'flash_question_stats'
 ];
 
 // RPCs allowed through the proxy
