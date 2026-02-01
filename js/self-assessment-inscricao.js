@@ -10,24 +10,15 @@ let activeEvent = null; // For event-based scheduling
 
 // Wait for Supabase to be ready
 async function ensureSupabase() {
-    if (window.supabase && typeof window.supabase.auth !== 'undefined') {
-        return;
-    }
-
+    if (window.supabase && window.supabase.from) return;
+    // Wait for app.js proxy to initialize
     let attempts = 0;
-    while (typeof window.supabase?.createClient !== 'function' && attempts < 100) {
-        await new Promise(resolve => setTimeout(resolve, 50));
+    while ((!window.supabase || !window.supabase.from) && attempts < 50) {
+        await new Promise(r => setTimeout(r, 100));
         attempts++;
     }
-
-    if (typeof window.supabase?.createClient !== 'function') {
-        throw new Error('Supabase library not loaded');
-    }
-
-    if (!window.supabase.auth) {
-        const SUPABASE_URL = 'https://yxtdesthusclivjdewfl.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4dGRlc3RodXNjbGl2amRld2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxNDUzMzYsImV4cCI6MjA4MjcyMTMzNn0.OQgK2s8K7CKJKyIwx7I6jnExTdCBpgiM7KfZuqhbPbw';
-        window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    if (!window.supabase || !window.supabase.from) {
+        throw new Error('App not initialized');
     }
 }
 
@@ -517,7 +508,8 @@ async function handleSubmit(e) {
         console.error('Enrollment error:', error);
         hideLoading();
         btnSubmit.disabled = false;
-        showToast('Erro ao realizar inscricao. Tente novamente.', 'error');
+        const msg = error?.message || error?.details || 'Tente novamente.';
+        showToast('Erro ao realizar inscricao: ' + msg, 'error');
     }
 }
 
