@@ -656,6 +656,38 @@ function showStudentDetail(userId) {
                 <div class="student-data-value">${formatStudyStage(enrollment.study_stage) || 'Nao informado'}</div>
             </div>
             <div class="student-data-item">
+                <div class="student-data-label">Inicio dos Estudos</div>
+                <div class="student-data-value">${enrollment.study_start_date ? formatDate(enrollment.study_start_date) : 'Nao informado'}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Data Planejada Step 1</div>
+                <div class="student-data-value">${enrollment.planned_step1_date ? formatDate(enrollment.planned_step1_date) : 'Nao informado'}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Progresso UWorld</div>
+                <div class="student-data-value">${enrollment.uworld_progress != null ? enrollment.uworld_progress + '%' : 'Nao informado'}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Acuracia UWorld</div>
+                <div class="student-data-value">${enrollment.uworld_accuracy != null ? enrollment.uworld_accuracy + '%' : 'Nao informado'}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Systems UWorld Concluidos</div>
+                <div class="student-data-value">${enrollment.uworld_systems && enrollment.uworld_systems.length ? enrollment.uworld_systems.join(', ') : 'Nenhum informado'}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Uso do UWorld</div>
+                <div class="student-data-value">${enrollment.uworld_usage || 'Nao informado'}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Uso do Anki</div>
+                <div class="student-data-value">${enrollment.anki_usage || 'Nao informado'}</div>
+            </div>
+            <div class="student-data-item">
+                <div class="student-data-label">Uso do Boards & Beyond</div>
+                <div class="student-data-value">${enrollment.bnb_usage || 'Nao informado'}</div>
+            </div>
+            <div class="student-data-item">
                 <div class="student-data-label">Instituicao</div>
                 <div class="student-data-value">${enrollment.current_institution || 'Nao informado'}</div>
             </div>
