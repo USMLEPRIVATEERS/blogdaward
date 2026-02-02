@@ -6,7 +6,12 @@ function _handle401() {
     localStorage.removeItem('_ward_tk');
     const sbKeys = Object.keys(localStorage).filter(k => k.startsWith('sb-'));
     sbKeys.forEach(k => localStorage.removeItem(k));
-    window.location.href = '/?expired=1';
+    // If inside iframe, redirect the parent window, not the iframe
+    if (window.self !== window.top) {
+        try { window.top.location.href = '/?expired=1'; } catch(e) {}
+    } else {
+        window.location.href = '/?expired=1';
+    }
 }
 
 // Query builder that mimics supabase-js chaining API
