@@ -235,6 +235,11 @@
             <div class="students-sidebar">
                 <h3 style="margin-bottom: 0.5rem; font-size: 1rem;">Selecione um Aluno</h3>
 
+                <!-- Search bar -->
+                <div style="margin-bottom: 0.75rem;">
+                    <input type="text" id="student-search" placeholder="🔍 Buscar aluno..." oninput="renderStudentsList()" style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem; outline: none; box-sizing: border-box;" onfocus="this.style.borderColor='#C45700'" onblur="this.style.borderColor='#d1d5db'">
+                </div>
+
                 <!-- Filter buttons -->
                 <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
                     <button id="filter-all" class="btn btn-xs btn-primary" onclick="filterByRole('all')" style="flex: 1; font-size: 0.75rem; padding: 0.35rem 0.5rem;">
@@ -343,8 +348,7 @@
             const { data: students, error } = await WardApp.db
                 .from('users')
                 .select('id, full_name, email, questionnaire_step, first_login_completed, role')
-                .in('role', ['aluno', 'assessoria'])
-                .order('full_name', { ascending: true });
+                .in('role', ['aluno', 'assessoria']);
 
             if (error) {
                 console.error('Error loading students:', error);
@@ -357,7 +361,13 @@
                 return;
             }
 
-            allStudents = students;
+            // Decrypt names and sort alphabetically
+            allStudents = students.map(s => ({
+                ...s,
+                _displayName: _dn(s.full_name) || s.email
+            }));
+            allStudents.sort((a, b) => a._displayName.localeCompare(b._displayName, 'pt-BR', { sensitivity: 'base' }));
+
             renderStudentsList();
         }
 
@@ -379,11 +389,20 @@
 
         function renderStudentsList() {
             const container = document.getElementById('students-list');
+            const searchTerm = (document.getElementById('student-search')?.value || '').toLowerCase().trim();
 
-            // Apply filter
+            // Apply role filter
             let filteredStudents = allStudents;
             if (currentRoleFilter !== 'all') {
-                filteredStudents = allStudents.filter(s => s.role === currentRoleFilter);
+                filteredStudents = filteredStudents.filter(s => s.role === currentRoleFilter);
+            }
+
+            // Apply search filter
+            if (searchTerm) {
+                filteredStudents = filteredStudents.filter(s =>
+                    s._displayName.toLowerCase().includes(searchTerm) ||
+                    (s.email && s.email.toLowerCase().includes(searchTerm))
+                );
             }
 
             if (filteredStudents.length === 0) {
@@ -396,14 +415,12 @@
                 const completed = student.first_login_completed && step >= 11;
                 const progress = Math.round((step / 11) * 100);
 
-                // Add role indicator
                 const roleIcon = student.role === 'aluno' ? '🎓' : '📋';
-                const roleLabel = student.role === 'aluno' ? 'Aluno' : 'Assessoria';
 
                 return `
                     <div class="student-item" onclick="selectStudent(${student.id})">
                         <div class="student-item-name">
-                            ${roleIcon} ${_dn(student.full_name) || student.email}
+                            ${roleIcon} ${student._displayName}
                         </div>
                         <div class="student-item-progress">
                             ${completed ? '✅ Completo' : `📊 ${progress}% (${step}/11 etapas)`}
