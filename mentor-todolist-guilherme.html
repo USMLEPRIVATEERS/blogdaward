@@ -68,6 +68,17 @@
             </div>
         </div>
 
+        <!-- Message Modal -->
+        <div id="msg-modal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+            <div style="background: white; border-radius: 12px; max-width: 520px; width: 90%; max-height: 80vh; overflow-y: auto; padding: 1.5rem; position: relative; margin: auto; top: 50%; transform: translateY(-50%);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin: 0;" id="msg-modal-title">Mensagem</h3>
+                    <button onclick="closeMsgModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b;">✕</button>
+                </div>
+                <div id="msg-modal-body"></div>
+            </div>
+        </div>
+
         <!-- Students List -->
         <div id="students-container">
             <div class="loading-spinner" style="text-align: center; padding: 3rem;">
@@ -91,6 +102,33 @@
             { key: 'heatmap_photo', label: '📸 Foto heatmap (15 em 15 dias)', recurring: true, intervalDays: 15 },
             { key: 'second_call', label: '📞 Segunda call otimizações (30 dias)', recurring: true, intervalDays: 30 }
         ];
+
+        const MSG_TEMPLATES = {
+            entry_date: [
+                { title: 'Boas-vindas', msg: 'Oi, {nome}! Bem-vindo(a) a Ward Academy! Sou o Guilherme e vou te acompanhar na sua jornada. Vamos agendar nossa primeira call para alinhar tudo?' },
+                { title: 'Lembrete de acesso', msg: 'Oi, {nome}! Só passando para lembrar de acessar a plataforma da Ward Academy e preencher o questionario inicial. Qualquer duvida estou a disposicao!' }
+            ],
+            first_call: [
+                { title: 'Agendar call', msg: 'Oi, {nome}! Vamos agendar nossa primeira call? Me manda alguns horarios disponiveis que funcione para voce essa semana.' },
+                { title: 'Lembrete da call', msg: 'Oi, {nome}! Lembrando que temos nossa call agendada. Te espero la!' },
+                { title: 'Reagendar', msg: 'Oi, {nome}! Precisamos reagendar nossa call. Pode me mandar novos horarios disponiveis?' }
+            ],
+            fsrs_optimization: [
+                { title: 'Hora de otimizar FSRS', msg: 'Oi, {nome}! Ja faz um mes desde a ultima otimizacao do FSRS. Vamos agendar uma call rapida para otimizar? Me manda um print das suas estatisticas do Anki.' },
+                { title: 'Lembrete FSRS', msg: 'Oi, {nome}! Lembrete: esta na hora de otimizar o FSRS do seu Anki. Isso ajuda a melhorar a eficiencia das revisoes. Me manda suas stats!' },
+                { title: 'Cobrar FSRS atrasado', msg: 'Oi, {nome}! A otimizacao do seu FSRS esta atrasada. E importante manter isso em dia para o Anki funcionar da melhor forma. Vamos resolver isso?' }
+            ],
+            heatmap_photo: [
+                { title: 'Pedir foto heatmap', msg: 'Oi, {nome}! Pode me mandar uma foto do seu heatmap do Anki? Quero acompanhar sua consistencia e te dar um feedback!' },
+                { title: 'Lembrete heatmap', msg: 'Oi, {nome}! Hora do check-in quinzenal! Me manda a foto do heatmap do Anki para eu acompanhar seu progresso.' },
+                { title: 'Cobrar heatmap atrasado', msg: 'Oi, {nome}! Faz tempo que nao recebo a foto do seu heatmap. Como esta indo o Anki? Me atualiza por favor!' }
+            ],
+            second_call: [
+                { title: 'Agendar segunda call', msg: 'Oi, {nome}! Ja faz 30 dias desde nossa ultima conversa sobre otimizacoes. Vamos agendar uma call para revisar como esta indo? Me manda seus horarios.' },
+                { title: 'Lembrete segunda call', msg: 'Oi, {nome}! Lembrando que temos a call de acompanhamento agendada. Ja separa suas duvidas e stats do Anki!' },
+                { title: 'Cobrar segunda call', msg: 'Oi, {nome}! Estamos atrasados na call de acompanhamento. E importante para ajustar suas otimizacoes. Vamos marcar?' }
+            ]
+        };
 
         const _dn = (v) => WardApp._prs ? WardApp._prs(v) : v;
 
@@ -398,6 +436,7 @@
                                     <th style="padding: 0.5rem; text-align: center; width: 50px;">Feito</th>
                                     <th style="padding: 0.5rem; text-align: center; width: 160px;">Data</th>
                                     <th style="padding: 0.5rem; text-align: center; width: 120px;">Status</th>
+                                    <th style="padding: 0.5rem; text-align: center; width: 50px;">Msg</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -437,6 +476,10 @@
                                                 style="padding: 0.3rem 0.5rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.85rem;">
                                         </td>
                                         <td style="padding: 0.6rem 0.5rem; text-align: center;">${statusHtml}</td>
+                                        <td style="padding: 0.6rem 0.5rem; text-align: center;">
+                                            <button onclick="event.stopPropagation(); openMsgModal('${student.id}', '${tt.key}')"
+                                                style="background: #3b82f6; color: white; border: none; border-radius: 6px; padding: 0.25rem 0.5rem; cursor: pointer; font-size: 0.8rem;" title="Mensagens WhatsApp">💬</button>
+                                        </td>
                                     </tr>`;
                                 }).join('')}
                             </tbody>
@@ -540,6 +583,53 @@
             WardApp.showToast('Anki pausado para este aluno');
             renderAll();
         }
+
+        function openMsgModal(studentId, taskKey) {
+            const student = allStudents.find(s => s.id === studentId);
+            if (!student) return;
+            const name = _dn(student.full_name) || student.email || 'Aluno';
+            const firstName = name.split(' ')[0];
+            const templates = MSG_TEMPLATES[taskKey] || [];
+            const taskLabel = TASK_TYPES.find(t => t.key === taskKey)?.label || taskKey;
+
+            document.getElementById('msg-modal-title').textContent = `💬 ${taskLabel}`;
+            document.getElementById('msg-modal-body').innerHTML = templates.length === 0
+                ? '<p style="color: #64748b;">Nenhum template disponivel para esta tarefa.</p>'
+                : templates.map((tpl, i) => {
+                    const msg = tpl.msg.replace(/\{nome\}/g, firstName);
+                    return `
+                    <div style="background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <strong style="font-size: 0.9rem; color: #374151;">${tpl.title}</strong>
+                            <button onclick="copyMsg(this, ${i})" id="copy-btn-${i}"
+                                style="background: #22c55e; color: white; border: none; border-radius: 6px; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 0.8rem; font-weight: 600;">
+                                📋 Copiar
+                            </button>
+                        </div>
+                        <p id="msg-text-${i}" style="margin: 0; font-size: 0.85rem; color: #475569; line-height: 1.5; white-space: pre-wrap;">${msg}</p>
+                    </div>`;
+                }).join('');
+
+            document.getElementById('msg-modal').style.display = 'block';
+        }
+
+        function closeMsgModal() {
+            document.getElementById('msg-modal').style.display = 'none';
+        }
+
+        function copyMsg(btn, idx) {
+            const text = document.getElementById('msg-text-' + idx).textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                btn.textContent = '✅ Copiado!';
+                btn.style.background = '#64748b';
+                setTimeout(() => { btn.textContent = '📋 Copiar'; btn.style.background = '#22c55e'; }, 2000);
+            });
+        }
+
+        // Close modal on overlay click
+        document.getElementById('msg-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeMsgModal();
+        });
 
         async function unpauseAnki(studentId) {
             const existing = tasksMap[studentId]?.['anki_paused'];
