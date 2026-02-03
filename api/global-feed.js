@@ -92,9 +92,25 @@ module.exports = async function handler(req, res) {
       supabase.from('call_reports').select('*, student:student_id(full_name, email), mentor:mentor_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
       // Audio comments
       supabase.from('course_audio_comments').select('*, users:user_id(full_name, email), audio:audio_id(title)').order('created_at', { ascending: false }).limit(30),
-      // Mentor student tasks (Guilherme to-do list)
-      supabase.from('mentor_student_tasks').select('*, mentor:mentor_id(full_name, email), student:student_id(full_name, email)').order('updated_at', { ascending: false }).limit(30)
+      // Mentor student tasks (Guilherme to-do list) - no FK, so we fetch separately
+      supabase.from('mentor_student_tasks').select('*').order('updated_at', { ascending: false }).limit(30)
     ]);
+
+    // Enrich mentor tasks with user names (no FK so we look up manually)
+    let mentorTasks = mentorTasksRes.data || [];
+    if (mentorTasks.length > 0) {
+      const userIds = [...new Set(mentorTasks.flatMap(t => [t.mentor_id, t.student_id].filter(Boolean)))];
+      if (userIds.length > 0) {
+        const { data: taskUsers } = await supabase.from('users').select('id, full_name, email').in('id', userIds);
+        const userMap = {};
+        (taskUsers || []).forEach(u => { userMap[u.id] = u; });
+        mentorTasks = mentorTasks.map(t => ({
+          ...t,
+          mentor: userMap[t.mentor_id] || null,
+          student: userMap[t.student_id] || null
+        }));
+      }
+    }
 
     // Return raw data for client-side processing
     return res.status(200).json({
@@ -122,7 +138,7 @@ module.exports = async function handler(req, res) {
       watchedLessons: watchedLessonsRes.data || [],
       callReports: callReportsRes.data || [],
       audioComments: audioCommentsRes.data || [],
-      mentorTasks: mentorTasksRes.data || []
+      mentorTasks: mentorTasks
     });
 
   } catch (err) {
