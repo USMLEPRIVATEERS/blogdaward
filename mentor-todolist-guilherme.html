@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - To-Do List Guilherme</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </a>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="/mentor-dashboard-guilherme" class="nav-link">Dashboard</a>
+                <a href="/mentor-todolist-guilherme" class="nav-link active">To-Do List</a>
+                <a href="/mentor-cronograma" class="nav-link">Cronograma</a>
+                <a href="/mentor-chamadas" class="nav-link">Chamadas</a>
+                <a href="/links" class="nav-link">Links</a>
+                <a href="/blog" class="nav-link">Blog</a>
+            </nav>
+            <div class="nav-user">
+                <span class="user-name">Guilherme</span>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
+            <h1>📋 To-Do List - Guilherme</h1>
+            <a href="/mentor-dashboard-guilherme" class="btn btn-outline" style="font-size: 0.9rem;">← Voltar ao Dashboard</a>
+        </div>
+
+        <!-- Overdue & Upcoming Banner -->
+        <div id="alerts-section" style="display: none;" class="mb-4">
+            <div id="overdue-alerts" style="display: none;" class="card mb-3" style="border-left: 4px solid #ef4444;">
+                <div class="card-header" style="background: #fef2f2; color: #dc2626; font-weight: 700;">
+                    🚨 ATRASADOS
+                </div>
+                <div class="card-body" id="overdue-list" style="padding: 0.75rem;"></div>
+            </div>
+            <div id="upcoming-alerts" style="display: none;" class="card mb-3">
+                <div class="card-header" style="background: #fffbeb; color: #d97706; font-weight: 700;">
+                    ⏰ Próximos 7 dias
+                </div>
+                <div class="card-body" id="upcoming-list" style="padding: 0.75rem;"></div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="card mb-4" style="padding: 0.75rem 1rem; background: #f9fafb;">
+            <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="search-input" placeholder="🔍 Buscar aluno..." oninput="renderAll()"
+                    style="padding: 0.5rem 1rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.9rem; min-width: 220px;">
+                <select id="role-filter" onchange="renderAll()"
+                    style="padding: 0.5rem 1rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.9rem; font-weight: 600;">
+                    <option value="all">Todos</option>
+                    <option value="aluno">🎓 Alunos</option>
+                    <option value="assessoria">📋 Assessoria</option>
+                </select>
+                <select id="status-filter" onchange="renderAll()"
+                    style="padding: 0.5rem 1rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.9rem; font-weight: 600;">
+                    <option value="all">Todos status</option>
+                    <option value="pending">Pendentes</option>
+                    <option value="completed">Concluídos</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Students List -->
+        <div id="students-container">
+            <div class="loading-spinner" style="text-align: center; padding: 3rem;">
+                <div style="font-size: 2rem; margin-bottom: 1rem;">⏳</div>
+                <p>Carregando alunos...</p>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/app.min.js"></script>
+    <script>
+        let userData = null;
+        let allStudents = [];
+        let tasksMap = {}; // { `${studentId}`: { task_type: taskObj } }
+        let ankiDataMap = {};
+
+        const TASK_TYPES = [
+            { key: 'entry_date', label: '📅 Data de entrada na Ward', recurring: false },
+            { key: 'first_call', label: '📞 Data primeira call com Guilherme', recurring: false },
+            { key: 'fsrs_optimization', label: '🔧 Otimizar FSRS (1x ao mês)', recurring: true, intervalDays: 30 },
+            { key: 'heatmap_photo', label: '📸 Foto heatmap (15 em 15 dias)', recurring: true, intervalDays: 15 },
+            { key: 'second_call', label: '📞 Segunda call otimizações (30 dias)', recurring: true, intervalDays: 30 }
+        ];
+
+        const _dn = (v) => WardApp._prs ? WardApp._prs(v) : v;
+
+        function sortUsersByName(users) {
+            return users.sort((a, b) => {
+                const na = (_dn(a.full_name) || a.email || '').toLowerCase();
+                const nb = (_dn(b.full_name) || b.email || '').toLowerCase();
+                return na.localeCompare(nb, 'pt-BR', { sensitivity: 'base' });
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) { window.location.href = '/'; return; }
+            await loadData();
+        });
+
+        async function loadData() {
+            // Load students (aluno + assessoria)
+            const { data: students } = await WardApp.db
+                .from('users')
+                .select('id, full_name, email, role, created_at')
+                .in('role', ['aluno', 'assessoria']);
+
+            allStudents = sortUsersByName(students || []);
+
+            // Load existing tasks for this mentor
+            const { data: tasks } = await WardApp.db
+                .from('mentor_student_tasks')
+                .select('*')
+                .eq('mentor_id', userData.id);
+
+            tasksMap = {};
+            (tasks || []).forEach(t => {
+                if (!tasksMap[t.student_id]) tasksMap[t.student_id] = {};
+                tasksMap[t.student_id][t.task_type] = t;
+            });
+
+            // Load Anki check-in data
+            const { data: checkins } = await WardApp.db
+                .from('daily_checkins')
+                .select('user_id, anki_cards_today, anki_avg_cards, anki_current_streak, date')
+                .order('date', { ascending: false });
+
+            ankiDataMap = {};
+            (checkins || []).forEach(c => {
+                if (!ankiDataMap[c.user_id] && (c.anki_cards_today > 0 || c.anki_avg_cards > 0)) {
+                    ankiDataMap[c.user_id] = c;
+                }
+            });
+
+            // Load first call dates from scheduled_calls
+            const { data: calls } = await WardApp.db
+                .from('scheduled_calls')
+                .select('student_id, scheduled_date, scheduled_time')
+                .eq('mentor_id', userData.id)
+                .order('scheduled_date', { ascending: true });
+
+            // Store first call per student
+            window._firstCalls = {};
+            (calls || []).forEach(c => {
+                if (!window._firstCalls[c.student_id]) {
+                    window._firstCalls[c.student_id] = c.scheduled_date;
+                }
+            });
+
+            renderAll();
+        }
+
+        function getFilteredStudents() {
+            const search = document.getElementById('search-input').value.toLowerCase().trim();
+            const role = document.getElementById('role-filter').value;
+            const status = document.getElementById('status-filter').value;
+
+            return allStudents.filter(s => {
+                const name = (_dn(s.full_name) || s.email || '').toLowerCase();
+                if (search && !name.includes(search) && !(s.email || '').toLowerCase().includes(search)) return false;
+                if (role !== 'all' && s.role !== role) return false;
+                if (status !== 'all') {
+                    const studentTasks = tasksMap[s.id] || {};
+                    const allCompleted = TASK_TYPES.every(t => studentTasks[t.key]?.completed);
+                    if (status === 'completed' && !allCompleted) return false;
+                    if (status === 'pending' && allCompleted) return false;
+                }
+                return true;
+            });
+        }
+
+        function renderAll() {
+            renderAlerts();
+            renderStudents();
+        }
+
+        function renderAlerts() {
+            const now = new Date();
+            const oneWeek = new Date(now.getTime() + 7 * 86400000);
+            const overdue = [];
+            const upcoming = [];
+
+            allStudents.forEach(student => {
+                const studentTasks = tasksMap[student.id] || {};
+                const name = _dn(student.full_name) || student.email || 'Sem nome';
+
+                TASK_TYPES.forEach(tt => {
+                    if (!tt.recurring) return;
+                    const task = studentTasks[tt.key];
+                    if (task?.dismissed) return;
+
+                    let nextDue = null;
+                    if (task?.task_date) {
+                        nextDue = new Date(task.task_date);
+                        nextDue.setDate(nextDue.getDate() + tt.intervalDays);
+                    } else if (tt.key === 'fsrs_optimization' || tt.key === 'heatmap_photo' || tt.key === 'second_call') {
+                        // If first_call has a date, base from that
+                        const firstCall = studentTasks['first_call'];
+                        if (firstCall?.task_date) {
+                            nextDue = new Date(firstCall.task_date);
+                            nextDue.setDate(nextDue.getDate() + tt.intervalDays);
+                        }
+                    }
+
+                    if (!nextDue) return;
+
+                    if (nextDue < now) {
+                        overdue.push({ student, name, task: tt, nextDue, taskData: task });
+                    } else if (nextDue <= oneWeek) {
+                        upcoming.push({ student, name, task: tt, nextDue, taskData: task });
+                    }
+                });
+            });
+
+            const alertsSection = document.getElementById('alerts-section');
+            const overdueDiv = document.getElementById('overdue-alerts');
+            const upcomingDiv = document.getElementById('upcoming-alerts');
+
+            if (overdue.length === 0 && upcoming.length === 0) {
+                alertsSection.style.display = 'none';
+                return;
+            }
+            alertsSection.style.display = 'block';
+
+            if (overdue.length > 0) {
+                overdueDiv.style.display = 'block';
+                document.getElementById('overdue-list').innerHTML = overdue
+                    .sort((a, b) => a.nextDue - b.nextDue)
+                    .map(item => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid #fee2e2; gap: 0.5rem; flex-wrap: wrap;">
+                            <div>
+                                <strong style="color: #dc2626;">${item.name}</strong>
+                                <span style="color: #64748b; font-size: 0.85rem;"> - ${item.task.label}</span>
+                                <span style="color: #ef4444; font-size: 0.8rem; margin-left: 0.5rem;">
+                                    (${Math.ceil((new Date() - item.nextDue) / 86400000)} dias atrasado)
+                                </span>
+                            </div>
+                            <button class="btn btn-xs btn-outline" onclick="dismissAlert('${item.student.id}', '${item.task.key}')" title="Dispensar">✕</button>
+                        </div>
+                    `).join('');
+            } else {
+                overdueDiv.style.display = 'none';
+            }
+
+            if (upcoming.length > 0) {
+                upcomingDiv.style.display = 'block';
+                document.getElementById('upcoming-list').innerHTML = upcoming
+                    .sort((a, b) => a.nextDue - b.nextDue)
+                    .map(item => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid #fef3c7; gap: 0.5rem; flex-wrap: wrap;">
+                            <div>
+                                <strong>${item.name}</strong>
+                                <span style="color: #64748b; font-size: 0.85rem;"> - ${item.task.label}</span>
+                                <span style="color: #d97706; font-size: 0.8rem; margin-left: 0.5rem;">
+                                    (em ${Math.ceil((item.nextDue - new Date()) / 86400000)} dias)
+                                </span>
+                            </div>
+                            <button class="btn btn-xs btn-outline" onclick="dismissAlert('${item.student.id}', '${item.task.key}')" title="Dispensar">✕</button>
+                        </div>
+                    `).join('');
+            } else {
+                upcomingDiv.style.display = 'none';
+            }
+        }
+
+        async function dismissAlert(studentId, taskType) {
+            const existing = tasksMap[studentId]?.[taskType];
+            if (existing) {
+                await WardApp.db.from('mentor_student_tasks')
+                    .update({ dismissed: true })
+                    .eq('id', existing.id);
+                existing.dismissed = true;
+            } else {
+                const { data } = await WardApp.db.from('mentor_student_tasks')
+                    .insert({ mentor_id: userData.id, student_id: studentId, task_type: taskType, dismissed: true })
+                    .select()
+                    .single();
+                if (data) {
+                    if (!tasksMap[studentId]) tasksMap[studentId] = {};
+                    tasksMap[studentId][taskType] = data;
+                }
+            }
+            renderAlerts();
+        }
+
+        function renderStudents() {
+            const container = document.getElementById('students-container');
+            const filtered = getFilteredStudents();
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="card" style="padding: 2rem; text-align: center;"><p class="text-muted">Nenhum aluno encontrado</p></div>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(student => {
+                const name = _dn(student.full_name) || student.email || 'Sem nome';
+                const role = student.role === 'aluno' ? '🎓 Aluno' : '📋 Assessoria';
+                const studentTasks = tasksMap[student.id] || {};
+                const anki = ankiDataMap[student.id];
+                const firstCallDate = window._firstCalls?.[student.id] || null;
+
+                // Anki summary
+                let ankiSummary = '<span style="color: #94a3b8;">Sem dados Anki</span>';
+                if (anki) {
+                    ankiSummary = `🃏 ${anki.anki_cards_today || 0} hoje | Media: ${anki.anki_avg_cards || 0} | Streak: ${anki.anki_current_streak || 0} 🔥`;
+                }
+
+                // Count completed
+                const completedCount = TASK_TYPES.filter(t => studentTasks[t.key]?.completed).length;
+                const progressPct = Math.round((completedCount / TASK_TYPES.length) * 100);
+                const progressColor = progressPct === 100 ? '#22c55e' : progressPct >= 50 ? '#f59e0b' : '#ef4444';
+
+                return `
+                <div class="card mb-3" id="student-${student.id}">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; cursor: pointer;" onclick="toggleStudent('${student.id}')">
+                        <div>
+                            <strong style="font-size: 1.05rem;">${name}</strong>
+                            <span style="font-size: 0.8rem; color: #64748b; margin-left: 0.5rem;">${role}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <span style="font-size: 0.8rem; color: #64748b;">${ankiSummary}</span>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <div style="width: 80px; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden;">
+                                    <div style="width: ${progressPct}%; height: 100%; background: ${progressColor}; border-radius: 3px;"></div>
+                                </div>
+                                <span style="font-size: 0.75rem; color: ${progressColor}; font-weight: 600;">${completedCount}/${TASK_TYPES.length}</span>
+                            </div>
+                            <span class="expand-icon" id="icon-${student.id}" style="transition: transform 0.2s;">▼</span>
+                        </div>
+                    </div>
+                    <div class="card-body" id="body-${student.id}" style="display: none; padding: 1rem;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: #f8fafc; font-size: 0.85rem; color: #64748b;">
+                                    <th style="padding: 0.5rem; text-align: left;">Tarefa</th>
+                                    <th style="padding: 0.5rem; text-align: center; width: 50px;">Feito</th>
+                                    <th style="padding: 0.5rem; text-align: center; width: 160px;">Data</th>
+                                    <th style="padding: 0.5rem; text-align: center; width: 120px;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${TASK_TYPES.map(tt => {
+                                    const task = studentTasks[tt.key] || {};
+                                    const checked = task.completed ? 'checked' : '';
+                                    const dateVal = task.task_date || (tt.key === 'entry_date' ? (student.created_at ? student.created_at.split('T')[0] : '') : '') || (tt.key === 'first_call' && firstCallDate ? firstCallDate : '');
+                                    let statusHtml = '';
+                                    if (tt.recurring && task.task_date) {
+                                        const next = new Date(task.task_date);
+                                        next.setDate(next.getDate() + tt.intervalDays);
+                                        const now = new Date();
+                                        const diff = Math.ceil((next - now) / 86400000);
+                                        if (diff < 0) {
+                                            statusHtml = `<span style="color: #ef4444; font-weight: 600; font-size: 0.8rem;">🔴 ${Math.abs(diff)}d atrasado</span>`;
+                                        } else if (diff <= 7) {
+                                            statusHtml = `<span style="color: #f59e0b; font-weight: 600; font-size: 0.8rem;">🟡 em ${diff}d</span>`;
+                                        } else {
+                                            statusHtml = `<span style="color: #22c55e; font-size: 0.8rem;">🟢 em ${diff}d</span>`;
+                                        }
+                                    } else if (task.completed) {
+                                        statusHtml = '<span style="color: #22c55e; font-size: 0.8rem;">✅ Concluído</span>';
+                                    } else {
+                                        statusHtml = '<span style="color: #94a3b8; font-size: 0.8rem;">⏳ Pendente</span>';
+                                    }
+                                    return `
+                                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                                        <td style="padding: 0.6rem 0.5rem; font-size: 0.9rem;">${tt.label}</td>
+                                        <td style="padding: 0.6rem 0.5rem; text-align: center;">
+                                            <input type="checkbox" ${checked}
+                                                onchange="updateTask('${student.id}', '${tt.key}', 'completed', this.checked)"
+                                                style="width: 18px; height: 18px; cursor: pointer;">
+                                        </td>
+                                        <td style="padding: 0.6rem 0.5rem; text-align: center;">
+                                            <input type="date" value="${dateVal}"
+                                                onchange="updateTask('${student.id}', '${tt.key}', 'task_date', this.value)"
+                                                style="padding: 0.3rem 0.5rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.85rem;">
+                                        </td>
+                                        <td style="padding: 0.6rem 0.5rem; text-align: center;">${statusHtml}</td>
+                                    </tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function toggleStudent(id) {
+            const body = document.getElementById('body-' + id);
+            const icon = document.getElementById('icon-' + id);
+            if (body.style.display === 'none') {
+                body.style.display = 'block';
+                icon.style.transform = 'rotate(180deg)';
+            } else {
+                body.style.display = 'none';
+                icon.style.transform = '';
+            }
+        }
+
+        async function updateTask(studentId, taskType, field, value) {
+            const existing = tasksMap[studentId]?.[taskType];
+
+            if (existing) {
+                const updateData = { [field]: value, updated_at: new Date().toISOString() };
+                // For recurring tasks, when updating date, reset dismissed
+                if (field === 'task_date') {
+                    updateData.dismissed = false;
+                }
+                await WardApp.db.from('mentor_student_tasks')
+                    .update(updateData)
+                    .eq('id', existing.id);
+                Object.assign(existing, updateData);
+            } else {
+                const newTask = {
+                    mentor_id: userData.id,
+                    student_id: studentId,
+                    task_type: taskType,
+                    completed: field === 'completed' ? value : false,
+                    task_date: field === 'task_date' ? value : null,
+                    dismissed: false
+                };
+                const { data } = await WardApp.db.from('mentor_student_tasks')
+                    .insert(newTask)
+                    .select()
+                    .single();
+                if (data) {
+                    if (!tasksMap[studentId]) tasksMap[studentId] = {};
+                    tasksMap[studentId][taskType] = data;
+                }
+            }
+
+            renderAlerts();
+            // Re-render status column for this student
+            const studentCard = document.getElementById('student-' + studentId);
+            if (studentCard) {
+                // Quick re-render of the specific student's progress bar in header
+                const studentTasks = tasksMap[studentId] || {};
+                const completedCount = TASK_TYPES.filter(t => studentTasks[t.key]?.completed).length;
+                const progressPct = Math.round((completedCount / TASK_TYPES.length) * 100);
+                // Full re-render for simplicity since status column needs update
+                renderStudents();
+            }
+        }
+    </script>
+
+    <style>
+        .card-header {
+            padding: 1rem 1.25rem;
+        }
+        .card-body {
+            padding: 1rem 1.25rem;
+        }
+        @media (max-width: 768px) {
+            table { font-size: 0.8rem; }
+            input[type="date"] { width: 130px; }
+        }
+    </style>
+</body>
+</html>

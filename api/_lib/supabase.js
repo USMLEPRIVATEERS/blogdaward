@@ -55,7 +55,8 @@ const ALLOWED_TABLES = [
   'research_project_files', 'research_project_folders',
   'self_assessment_attempts', 'self_assessment_events',
   'self_assessment_question_stats', 'self_assessments',
-  'user_tutorials', 'uworld_options', 'flash_question_stats'
+  'user_tutorials', 'uworld_options', 'flash_question_stats',
+  'mentor_student_tasks'
 ];
 
 // RPCs allowed through the proxy

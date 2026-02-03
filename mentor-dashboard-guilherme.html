@@ -70,6 +70,15 @@
             </div>
         </div>
 
+        <!-- To-Do Reminders -->
+        <div id="todo-reminders" class="card mb-4" style="display: none; border-left: 4px solid #f59e0b;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; background: #fffbeb;">
+                <div style="font-weight: 700; color: #d97706;">📋 Lembretes To-Do List</div>
+                <a href="/mentor-todolist-guilherme" style="font-size: 0.85rem; color: #3b82f6; text-decoration: none; font-weight: 600;">Ver tudo →</a>
+            </div>
+            <div class="card-body" id="todo-reminders-body" style="padding: 0.75rem 1rem;"></div>
+        </div>
+
         <!-- Anki Usage Chart -->
         <div class="card mb-4">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
@@ -108,6 +117,17 @@
                           border-radius: 6px; text-decoration: none; font-size: 0.9rem; font-weight: 600;
                           transition: transform 0.2s ease;">
                     ⚡ Flash Questions
+                </a>
+
+                <div style="width: 1px; height: 24px; background: #e5e7eb;"></div>
+
+                <!-- To-Do List Link -->
+                <a href="/mentor-todolist-guilherme"
+                   style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem;
+                          background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;
+                          border-radius: 6px; text-decoration: none; font-size: 0.9rem; font-weight: 600;
+                          transition: transform 0.2s ease;">
+                    📋 To-Do List
                 </a>
 
                 <div style="width: 1px; height: 24px; background: #e5e7eb;"></div>
@@ -470,6 +490,7 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             }
 
             await loadStudentsData();
+            await loadTodoReminders();
             await loadDiaryPreference();
 
             // Add event listeners for data source toggles (independent)
@@ -1086,6 +1107,71 @@ Dica: Use as tags do AnKing em vez de decks separados!`
 
         function closeModal(id) {
             document.getElementById(id).classList.remove('active');
+        }
+
+        // To-Do reminders
+        async function loadTodoReminders() {
+            const TASK_DEFS = [
+                { key: 'fsrs_optimization', label: '🔧 Otimizar FSRS', intervalDays: 30 },
+                { key: 'heatmap_photo', label: '📸 Foto heatmap', intervalDays: 15 },
+                { key: 'second_call', label: '📞 Segunda call', intervalDays: 30 }
+            ];
+
+            const { data: tasks } = await WardApp.db
+                .from('mentor_student_tasks')
+                .select('*')
+                .eq('mentor_id', userData.id);
+
+            if (!tasks || tasks.length === 0) {
+                // No tasks yet — show prompt
+                const widget = document.getElementById('todo-reminders');
+                widget.style.display = 'block';
+                document.getElementById('todo-reminders-body').innerHTML =
+                    '<p style="color: #64748b; margin: 0;">Nenhuma tarefa configurada ainda. <a href="/mentor-todolist-guilherme" style="color: #3b82f6; font-weight: 600;">Configure o To-Do List →</a></p>';
+                return;
+            }
+
+            const tasksByStudent = {};
+            tasks.forEach(t => {
+                if (!tasksByStudent[t.student_id]) tasksByStudent[t.student_id] = {};
+                tasksByStudent[t.student_id][t.task_type] = t;
+            });
+
+            const now = new Date();
+            const oneWeek = new Date(now.getTime() + 7 * 86400000);
+            const alerts = [];
+
+            // Build student name map from already loaded allStudents
+            const nameMap = {};
+            (allStudents || []).forEach(s => { nameMap[s.id] = _dn(s.full_name) || s.email || 'Aluno'; });
+
+            Object.keys(tasksByStudent).forEach(studentId => {
+                const st = tasksByStudent[studentId];
+                TASK_DEFS.forEach(td => {
+                    const task = st[td.key];
+                    if (!task || task.dismissed || !task.task_date) return;
+                    const next = new Date(task.task_date);
+                    next.setDate(next.getDate() + td.intervalDays);
+                    if (next <= oneWeek) {
+                        const diff = Math.ceil((next - now) / 86400000);
+                        alerts.push({ name: nameMap[studentId] || 'Aluno', label: td.label, diff, overdue: diff < 0 });
+                    }
+                });
+            });
+
+            if (alerts.length === 0) return;
+
+            alerts.sort((a, b) => a.diff - b.diff);
+            const widget = document.getElementById('todo-reminders');
+            widget.style.display = 'block';
+            document.getElementById('todo-reminders-body').innerHTML = alerts.slice(0, 10).map(a => {
+                const color = a.overdue ? '#ef4444' : '#d97706';
+                const text = a.overdue ? `${Math.abs(a.diff)}d atrasado` : `em ${a.diff}d`;
+                return `<div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem;">
+                    <span><strong>${a.name}</strong> - ${a.label}</span>
+                    <span style="color: ${color}; font-weight: 600;">${a.overdue ? '🔴' : '🟡'} ${text}</span>
+                </div>`;
+            }).join('') + (alerts.length > 10 ? `<p style="margin: 0.5rem 0 0; font-size: 0.85rem; color: #64748b;">+ ${alerts.length - 10} mais...</p>` : '');
         }
 
         // Diary preference functions
