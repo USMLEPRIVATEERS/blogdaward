@@ -166,6 +166,11 @@
             <a href="/mentor-dashboard-guilherme" class="btn btn-outline" style="font-size: 0.85rem;">← Dashboard</a>
         </div>
 
+        <!-- Read-only banner for non-Guilherme users -->
+        <div id="readonly-banner" style="display: none; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; color: #92400e;">
+            <strong>👁️ Modo visualização</strong> - Você está vendo as tarefas do Guilherme. Apenas ele pode fazer alterações.
+        </div>
+
         <!-- Alerts -->
         <div id="alerts-section"></div>
 
@@ -208,6 +213,8 @@
     <script src="js/app.js"></script>
     <script>
         let userData = null;
+        let guilhermeData = null; // Guilherme's user data (the owner of this to-do list)
+        let canEdit = false; // Only Guilherme can edit
         let allStudents = [];
         let tasksMap = {};
         let ankiDataMap = {};
@@ -276,6 +283,29 @@
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) { window.location.href = '/'; return; }
+
+            // Fetch Guilherme's user data (owner of this to-do list)
+            const guilhermeRes = await WardApp.db
+                .from('users')
+                .select('id, full_name, email, role')
+                .eq('role', 'mentor_guilherme')
+                .limit(1)
+                .maybeSingle();
+
+            if (guilhermeRes.error || !guilhermeRes.data) {
+                showError('Erro ao carregar dados do mentor Guilherme', guilhermeRes.error?.message || 'Mentor não encontrado');
+                return;
+            }
+            guilhermeData = guilhermeRes.data;
+
+            // Only Guilherme can edit, others can only view
+            canEdit = userData.role === 'mentor_guilherme';
+
+            // Show read-only banner for non-Guilherme users
+            if (!canEdit) {
+                document.getElementById('readonly-banner').style.display = 'block';
+            }
+
             await loadData();
         });
 
@@ -296,11 +326,12 @@
                 markStep('step-students', 'done');
 
                 // 2. Load tasks (may fail if table doesn't exist yet)
+                // Always load Guilherme's tasks, regardless of who is logged in
                 markStep('step-tasks', 'active');
                 const tasksRes = await WardApp.db
                     .from('mentor_student_tasks')
                     .select('*')
-                    .eq('mentor_id', String(userData.id));
+                    .eq('mentor_id', String(guilhermeData.id));
 
                 tasksMap = {};
                 if (!tasksRes.error && tasksRes.data) {
@@ -331,12 +362,12 @@
                 }
                 markStep('step-anki', 'done');
 
-                // 4. Load first calls
+                // 4. Load first calls - Guilherme's scheduled calls
                 markStep('step-calls', 'active');
                 const callsRes = await WardApp.db
                     .from('scheduled_calls')
                     .select('student_id, scheduled_date, scheduled_time')
-                    .eq('mentor_id', String(userData.id))
+                    .eq('mentor_id', String(guilhermeData.id))
                     .order('scheduled_date', { ascending: true });
 
                 window._firstCalls = {};
@@ -434,13 +465,14 @@
         }
 
         async function dismissAlert(studentId, taskType) {
+            if (!canEdit) { WardApp.showToast('Apenas o Guilherme pode editar estas tarefas', 'warning'); return; }
             const existing = tasksMap[studentId]?.[taskType];
             if (existing) {
                 await WardApp.db.from('mentor_student_tasks').update({ dismissed: true }).eq('id', existing.id);
                 existing.dismissed = true;
             } else {
                 const { data } = await WardApp.db.from('mentor_student_tasks')
-                    .insert({ mentor_id: String(userData.id), student_id: String(studentId), task_type: taskType, dismissed: true })
+                    .insert({ mentor_id: String(guilhermeData.id), student_id: String(studentId), task_type: taskType, dismissed: true })
                     .select().single();
                 if (data) { if (!tasksMap[studentId]) tasksMap[studentId] = {}; tasksMap[studentId][taskType] = data; }
             }
@@ -570,6 +602,7 @@
         }
 
         async function updateTask(studentId, taskType, field, value) {
+            if (!canEdit) { WardApp.showToast('Apenas o Guilherme pode editar estas tarefas', 'warning'); renderAll(); return; }
             const existing = tasksMap[studentId]?.[taskType];
             if (existing) {
                 const upd = { [field]: value, updated_at: new Date().toISOString() };
@@ -578,7 +611,7 @@
                 Object.assign(existing, upd);
             } else {
                 const newTask = {
-                    mentor_id: String(userData.id), student_id: String(studentId), task_type: taskType,
+                    mentor_id: String(guilhermeData.id), student_id: String(studentId), task_type: taskType,
                     completed: field === 'completed' ? value : false,
                     task_date: field === 'task_date' ? value : null, dismissed: false
                 };
@@ -598,6 +631,7 @@
         }
 
         async function confirmPause(studentId) {
+            if (!canEdit) { WardApp.showToast('Apenas o Guilherme pode editar estas tarefas', 'warning'); return; }
             const select = document.getElementById('pause-reason-' + studentId);
             let reason = select.value;
             if (!reason) { WardApp.showToast('Selecione o motivo da pausa', 'warning'); return; }
@@ -614,7 +648,7 @@
                 Object.assign(existing, { completed: true, notes: reason, task_date: returnDate });
             } else {
                 const { data } = await WardApp.db.from('mentor_student_tasks')
-                    .insert({ mentor_id: String(userData.id), student_id: String(studentId), task_type: 'anki_paused', completed: true, notes: reason, task_date: returnDate })
+                    .insert({ mentor_id: String(guilhermeData.id), student_id: String(studentId), task_type: 'anki_paused', completed: true, notes: reason, task_date: returnDate })
                     .select().single();
                 if (data) { if (!tasksMap[studentId]) tasksMap[studentId] = {}; tasksMap[studentId]['anki_paused'] = data; }
             }
@@ -623,6 +657,7 @@
         }
 
         async function unpauseAnki(studentId) {
+            if (!canEdit) { WardApp.showToast('Apenas o Guilherme pode editar estas tarefas', 'warning'); return; }
             const existing = tasksMap[studentId]?.['anki_paused'];
             if (existing) {
                 await WardApp.db.from('mentor_student_tasks')
