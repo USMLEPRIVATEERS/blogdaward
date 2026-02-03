@@ -59,12 +59,6 @@
             <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                 <input type="text" id="search-input" placeholder="🔍 Buscar aluno..." oninput="renderAll()"
                     style="padding: 0.5rem 1rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.9rem; min-width: 220px;">
-                <select id="role-filter" onchange="renderAll()"
-                    style="padding: 0.5rem 1rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.9rem; font-weight: 600;">
-                    <option value="all">Todos</option>
-                    <option value="aluno">🎓 Alunos</option>
-                    <option value="assessoria">📋 Assessoria</option>
-                </select>
                 <select id="status-filter" onchange="renderAll()"
                     style="padding: 0.5rem 1rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.9rem; font-weight: 600;">
                     <option value="all">Todos status</option>
@@ -115,11 +109,11 @@
         });
 
         async function loadData() {
-            // Load students (aluno + assessoria)
+            // Load students (only alunos)
             const { data: students } = await WardApp.db
                 .from('users')
                 .select('id, full_name, email, role, created_at')
-                .in('role', ['aluno', 'assessoria']);
+                .eq('role', 'aluno');
 
             allStudents = sortUsersByName(students || []);
 
@@ -168,13 +162,11 @@
 
         function getFilteredStudents() {
             const search = document.getElementById('search-input').value.toLowerCase().trim();
-            const role = document.getElementById('role-filter').value;
             const status = document.getElementById('status-filter').value;
 
             return allStudents.filter(s => {
                 const name = (_dn(s.full_name) || s.email || '').toLowerCase();
                 if (search && !name.includes(search) && !(s.email || '').toLowerCase().includes(search)) return false;
-                if (role !== 'all' && s.role !== role) return false;
                 if (status !== 'all') {
                     const studentTasks = tasksMap[s.id] || {};
                     const allCompleted = TASK_TYPES.every(t => studentTasks[t.key]?.completed);
@@ -310,28 +302,81 @@
 
             container.innerHTML = filtered.map(student => {
                 const name = _dn(student.full_name) || student.email || 'Sem nome';
-                const role = student.role === 'aluno' ? '🎓 Aluno' : '📋 Assessoria';
                 const studentTasks = tasksMap[student.id] || {};
                 const anki = ankiDataMap[student.id];
                 const firstCallDate = window._firstCalls?.[student.id] || null;
+                const pauseTask = studentTasks['anki_paused'] || {};
+                const isPaused = pauseTask.completed; // completed = paused
 
                 // Anki summary
-                let ankiSummary = '<span style="color: #94a3b8;">Sem dados Anki</span>';
-                if (anki) {
+                let ankiSummary = '';
+                if (isPaused) {
+                    ankiSummary = '<span style="color: #ef4444; font-weight: 600;">⏸️ PAUSADO</span>';
+                } else if (anki) {
                     ankiSummary = `🃏 ${anki.anki_cards_today || 0} hoje | Media: ${anki.anki_avg_cards || 0} | Streak: ${anki.anki_current_streak || 0} 🔥`;
+                } else {
+                    ankiSummary = '<span style="color: #94a3b8;">Sem dados Anki</span>';
                 }
 
-                // Count completed
+                // Count completed (exclude anki_paused from progress)
                 const completedCount = TASK_TYPES.filter(t => studentTasks[t.key]?.completed).length;
                 const progressPct = Math.round((completedCount / TASK_TYPES.length) * 100);
                 const progressColor = progressPct === 100 ? '#22c55e' : progressPct >= 50 ? '#f59e0b' : '#ef4444';
 
+                // Pause section HTML
+                const pauseReason = pauseTask.notes || '';
+                const pauseReturnDate = pauseTask.task_date || '';
+                let pauseHtml = '';
+                if (isPaused) {
+                    pauseHtml = `
+                        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <strong style="color: #dc2626;">⏸️ Anki Pausado</strong>
+                                <button class="btn btn-xs" style="background: #22c55e; color: white; border: none; border-radius: 6px; padding: 0.3rem 0.75rem; cursor: pointer; font-weight: 600;"
+                                    onclick="unpauseAnki('${student.id}')">▶️ Despausar</button>
+                            </div>
+                            <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.4rem;">
+                                <strong>Motivo:</strong> ${pauseReason || '<em>Não informado</em>'}
+                            </div>
+                            ${pauseReturnDate ? `<div style="font-size: 0.85rem; color: #64748b;"><strong>Retorno previsto:</strong> ${new Date(pauseReturnDate + 'T12:00:00').toLocaleDateString('pt-BR')}</div>` : ''}
+                        </div>`;
+                } else {
+                    pauseHtml = `
+                        <div style="border: 1px dashed #e5e7eb; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem;">
+                            <button class="btn btn-xs" style="background: #f59e0b; color: white; border: none; border-radius: 6px; padding: 0.3rem 0.75rem; cursor: pointer; font-weight: 600;"
+                                onclick="showPauseForm('${student.id}')">⏸️ Pausar Anki</button>
+                            <div id="pause-form-${student.id}" style="display: none; margin-top: 0.75rem;">
+                                <div style="margin-bottom: 0.5rem;">
+                                    <label style="font-size: 0.85rem; font-weight: 600; color: #374151;">Motivo da pausa:</label>
+                                    <select id="pause-reason-${student.id}" style="width: 100%; padding: 0.4rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.85rem; margin-top: 0.25rem;">
+                                        <option value="">Selecione...</option>
+                                        <option value="Não quer usar Anki">Não quer usar Anki</option>
+                                        <option value="Não se adaptou">Não se adaptou</option>
+                                        <option value="Pausou os estudos">Pausou os estudos</option>
+                                        <option value="Terminou o processo">Terminou o processo</option>
+                                        <option value="Outro">Outro</option>
+                                    </select>
+                                </div>
+                                <div id="pause-other-${student.id}" style="display: none; margin-bottom: 0.5rem;">
+                                    <input type="text" id="pause-other-text-${student.id}" placeholder="Descreva o motivo..."
+                                        style="width: 100%; padding: 0.4rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.85rem;">
+                                </div>
+                                <div style="margin-bottom: 0.5rem;">
+                                    <label style="font-size: 0.85rem; font-weight: 600; color: #374151;">Data prevista de retorno (opcional):</label>
+                                    <input type="date" id="pause-return-${student.id}"
+                                        style="padding: 0.4rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.85rem; margin-top: 0.25rem;">
+                                </div>
+                                <button class="btn btn-xs" style="background: #ef4444; color: white; border: none; border-radius: 6px; padding: 0.3rem 0.75rem; cursor: pointer; font-weight: 600;"
+                                    onclick="confirmPause('${student.id}')">Confirmar Pausa</button>
+                            </div>
+                        </div>`;
+                }
+
                 return `
-                <div class="card mb-3" id="student-${student.id}">
+                <div class="card mb-3" id="student-${student.id}" ${isPaused ? 'style="opacity: 0.7;"' : ''}>
                     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; cursor: pointer;" onclick="toggleStudent('${student.id}')">
                         <div>
                             <strong style="font-size: 1.05rem;">${name}</strong>
-                            <span style="font-size: 0.8rem; color: #64748b; margin-left: 0.5rem;">${role}</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 1rem;">
                             <span style="font-size: 0.8rem; color: #64748b;">${ankiSummary}</span>
@@ -345,7 +390,8 @@
                         </div>
                     </div>
                     <div class="card-body" id="body-${student.id}" style="display: none; padding: 1rem;">
-                        <table style="width: 100%; border-collapse: collapse;">
+                        ${pauseHtml}
+                        <table style="width: 100%; border-collapse: collapse; ${isPaused ? 'opacity: 0.5; pointer-events: none;' : ''}">
                             <thead>
                                 <tr style="background: #f8fafc; font-size: 0.85rem; color: #64748b;">
                                     <th style="padding: 0.5rem; text-align: left;">Tarefa</th>
@@ -455,6 +501,58 @@
                 // Full re-render for simplicity since status column needs update
                 renderStudents();
             }
+        }
+        function showPauseForm(studentId) {
+            const form = document.getElementById('pause-form-' + studentId);
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+            // Show/hide "Outro" text field based on select
+            const select = document.getElementById('pause-reason-' + studentId);
+            select.onchange = function() {
+                document.getElementById('pause-other-' + studentId).style.display = this.value === 'Outro' ? 'block' : 'none';
+            };
+        }
+
+        async function confirmPause(studentId) {
+            const select = document.getElementById('pause-reason-' + studentId);
+            let reason = select.value;
+            if (!reason) { WardApp.showToast('Selecione o motivo da pausa', 'warning'); return; }
+            if (reason === 'Outro') {
+                reason = document.getElementById('pause-other-text-' + studentId).value.trim();
+                if (!reason) { WardApp.showToast('Descreva o motivo', 'warning'); return; }
+            }
+            const returnDate = document.getElementById('pause-return-' + studentId).value || null;
+
+            const existing = tasksMap[studentId]?.['anki_paused'];
+            if (existing) {
+                await WardApp.db.from('mentor_student_tasks')
+                    .update({ completed: true, notes: reason, task_date: returnDate, updated_at: new Date().toISOString() })
+                    .eq('id', existing.id);
+                Object.assign(existing, { completed: true, notes: reason, task_date: returnDate });
+            } else {
+                const { data } = await WardApp.db.from('mentor_student_tasks')
+                    .insert({ mentor_id: userData.id, student_id: studentId, task_type: 'anki_paused', completed: true, notes: reason, task_date: returnDate })
+                    .select().single();
+                if (data) {
+                    if (!tasksMap[studentId]) tasksMap[studentId] = {};
+                    tasksMap[studentId]['anki_paused'] = data;
+                }
+            }
+            WardApp.showToast('Anki pausado para este aluno');
+            renderAll();
+        }
+
+        async function unpauseAnki(studentId) {
+            const existing = tasksMap[studentId]?.['anki_paused'];
+            if (existing) {
+                // Set completed=false, update return date to today (marks when they resumed)
+                await WardApp.db.from('mentor_student_tasks')
+                    .update({ completed: false, task_date: new Date().toISOString().split('T')[0], notes: existing.notes + ' | Retornou em ' + new Date().toLocaleDateString('pt-BR'), updated_at: new Date().toISOString() })
+                    .eq('id', existing.id);
+                existing.completed = false;
+                existing.task_date = new Date().toISOString().split('T')[0];
+            }
+            WardApp.showToast('Anki despausado! Contagens reiniciadas.');
+            renderAll();
         }
     </script>
 
