@@ -2653,6 +2653,10 @@
                         .single();
 
                     if (error) throw error;
+                    if (!data || !data.id) {
+                        console.error('Insert returned no data:', data);
+                        throw new Error('Contato criado mas ID não retornado');
+                    }
                     savedContactId = data.id;
 
                     // Add connections for each selected type
@@ -2668,9 +2672,16 @@
                         added_at: new Date().toISOString()
                     }));
 
-                    await WardApp.db
+                    console.log('Inserting connections:', JSON.stringify(connectionsToInsert));
+                    const connResult = await WardApp.db
                         .from('networking_connections')
                         .insert(connectionsToInsert);
+
+                    console.log('Connection insert result:', JSON.stringify(connResult));
+                    if (connResult.error) {
+                        console.error('Error inserting connections:', connResult.error);
+                        showToast('Contato criado, mas erro ao vincular conexão: ' + (connResult.error.message || connResult.error.details || 'erro desconhecido'), 'warning');
+                    }
                 }
 
                 closeModal('add-contact-modal');
