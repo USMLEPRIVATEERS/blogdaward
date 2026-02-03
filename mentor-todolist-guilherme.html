@@ -7,9 +7,137 @@
     <title>Ward Academy - To-Do List Guilherme</title>
     <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .todo-loading {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 3rem 1rem; gap: 1rem;
+        }
+        .todo-loading .spinner {
+            width: 40px; height: 40px; border: 4px solid #e5e7eb;
+            border-top-color: #3b82f6; border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .todo-loading .loading-text { color: #64748b; font-size: 0.9rem; }
+        .todo-loading .loading-steps { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; margin-top: 0.5rem; }
+        .todo-loading .step {
+            padding: 0.25rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600;
+            background: #f1f5f9; color: #94a3b8; transition: all 0.3s;
+        }
+        .todo-loading .step.done { background: #dcfce7; color: #16a34a; }
+        .todo-loading .step.active { background: #dbeafe; color: #2563eb; }
+        .todo-error {
+            background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px;
+            padding: 1.5rem; text-align: center; color: #dc2626;
+        }
+        .todo-error code { display: block; margin-top: 0.5rem; font-size: 0.8rem; color: #64748b; word-break: break-all; }
+
+        /* Header & title mobile */
+        .todo-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.25rem; }
+        .todo-header h1 { margin: 0; font-size: 1.4rem; }
+
+        /* Filter bar */
+        .todo-filters {
+            display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;
+            padding: 0.75rem 1rem; background: #f9fafb; border-radius: 12px; margin-bottom: 1.25rem;
+            border: 1px solid #e5e7eb;
+        }
+        .todo-filters input, .todo-filters select {
+            padding: 0.5rem 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px;
+            font-size: 0.9rem; font-family: inherit;
+        }
+        .todo-filters input { flex: 1; min-width: 180px; }
+        .todo-filters select { font-weight: 600; }
+        .todo-filters input:focus, .todo-filters select:focus { outline: none; border-color: #3b82f6; }
+
+        /* Student card */
+        .student-card { border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb; margin-bottom: 0.75rem; background: white; }
+        .student-card.paused { opacity: 0.65; }
+        .student-header {
+            display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;
+            gap: 0.5rem; padding: 0.85rem 1rem; cursor: pointer; transition: background 0.2s;
+        }
+        .student-header:hover { background: #f8fafc; }
+        .student-name { font-size: 1rem; font-weight: 600; }
+        .student-meta { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+        .anki-badge { font-size: 0.78rem; color: #64748b; white-space: nowrap; }
+        .progress-bar { width: 70px; height: 5px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+        .progress-label { font-size: 0.72rem; font-weight: 700; }
+        .expand-arrow { transition: transform 0.2s; font-size: 0.75rem; color: #94a3b8; }
+        .expand-arrow.open { transform: rotate(180deg); }
+
+        .student-body { padding: 0.75rem 1rem; border-top: 1px solid #f1f5f9; display: none; }
+        .student-body.open { display: block; }
+
+        /* Task table — mobile cards */
+        .task-table { width: 100%; border-collapse: collapse; }
+        .task-table th { padding: 0.4rem 0.5rem; font-size: 0.78rem; color: #94a3b8; font-weight: 600; text-align: center; background: #f8fafc; }
+        .task-table th:first-child { text-align: left; }
+        .task-table td { padding: 0.5rem; font-size: 0.85rem; text-align: center; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        .task-table td:first-child { text-align: left; }
+        .task-table input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #22c55e; }
+        .task-table input[type="date"] {
+            padding: 0.25rem 0.4rem; border: 1px solid #e5e7eb; border-radius: 6px;
+            font-size: 0.82rem; font-family: inherit; max-width: 140px;
+        }
+        .msg-btn {
+            background: #3b82f6; color: white; border: none; border-radius: 6px;
+            padding: 0.2rem 0.45rem; cursor: pointer; font-size: 0.78rem;
+        }
+        .msg-btn:active { transform: scale(0.95); }
+
+        /* Pause section */
+        .pause-banner { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem; }
+        .pause-form-area { border: 1px dashed #e5e7eb; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem; }
+
+        /* Alerts */
+        .alert-card { border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb; margin-bottom: 0.75rem; }
+        .alert-header { padding: 0.6rem 1rem; font-weight: 700; font-size: 0.9rem; }
+        .alert-body { padding: 0; }
+        .alert-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0.5rem 1rem; gap: 0.5rem; flex-wrap: wrap; border-bottom: 1px solid #f1f5f9;
+            font-size: 0.85rem;
+        }
+        .alert-item:last-child { border-bottom: none; }
+
+        /* Modal */
+        .msg-modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            z-index: 1000; padding: 1rem; overflow-y: auto;
+        }
+        .msg-modal-overlay.active { display: flex; align-items: center; justify-content: center; }
+        .msg-modal {
+            background: white; border-radius: 12px; max-width: 520px; width: 100%;
+            max-height: 85vh; overflow-y: auto; padding: 1.25rem;
+        }
+        .msg-template {
+            background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px;
+            padding: 0.75rem; margin-bottom: 0.6rem;
+        }
+        .msg-template-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
+        .copy-btn {
+            background: #22c55e; color: white; border: none; border-radius: 6px;
+            padding: 0.25rem 0.6rem; cursor: pointer; font-size: 0.78rem; font-weight: 600;
+        }
+        .copy-btn:active { transform: scale(0.95); }
+
+        /* Mobile responsive */
+        @media (max-width: 640px) {
+            .todo-header h1 { font-size: 1.15rem; }
+            .todo-filters { gap: 0.5rem; }
+            .todo-filters input { min-width: 100%; }
+            .student-meta { gap: 0.5rem; }
+            .anki-badge { display: none; }
+            .task-table th, .task-table td { padding: 0.35rem 0.3rem; font-size: 0.78rem; }
+            .task-table input[type="date"] { font-size: 0.75rem; max-width: 115px; padding: 0.2rem 0.3rem; }
+            .alert-item { font-size: 0.8rem; padding: 0.4rem 0.75rem; }
+            .msg-modal { padding: 1rem; }
+        }
+    </style>
 </head>
 <body>
-    <!-- Header -->
     <header class="header">
         <div class="header-container">
             <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
@@ -33,57 +161,46 @@
     </header>
 
     <main class="main-container">
-        <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
+        <div class="todo-header">
             <h1>📋 To-Do List - Guilherme</h1>
-            <a href="/mentor-dashboard-guilherme" class="btn btn-outline" style="font-size: 0.9rem;">← Voltar ao Dashboard</a>
+            <a href="/mentor-dashboard-guilherme" class="btn btn-outline" style="font-size: 0.85rem;">← Dashboard</a>
         </div>
 
-        <!-- Overdue & Upcoming Banner -->
-        <div id="alerts-section" style="display: none;" class="mb-4">
-            <div id="overdue-alerts" style="display: none;" class="card mb-3" style="border-left: 4px solid #ef4444;">
-                <div class="card-header" style="background: #fef2f2; color: #dc2626; font-weight: 700;">
-                    🚨 ATRASADOS
-                </div>
-                <div class="card-body" id="overdue-list" style="padding: 0.75rem;"></div>
-            </div>
-            <div id="upcoming-alerts" style="display: none;" class="card mb-3">
-                <div class="card-header" style="background: #fffbeb; color: #d97706; font-weight: 700;">
-                    ⏰ Próximos 7 dias
-                </div>
-                <div class="card-body" id="upcoming-list" style="padding: 0.75rem;"></div>
-            </div>
-        </div>
+        <!-- Alerts -->
+        <div id="alerts-section"></div>
 
         <!-- Filters -->
-        <div class="card mb-4" style="padding: 0.75rem 1rem; background: #f9fafb;">
-            <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                <input type="text" id="search-input" placeholder="🔍 Buscar aluno..." oninput="renderAll()"
-                    style="padding: 0.5rem 1rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.9rem; min-width: 220px;">
-                <select id="status-filter" onchange="renderAll()"
-                    style="padding: 0.5rem 1rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.9rem; font-weight: 600;">
-                    <option value="all">Todos status</option>
-                    <option value="pending">Pendentes</option>
-                    <option value="completed">Concluídos</option>
-                </select>
+        <div class="todo-filters">
+            <input type="text" id="search-input" placeholder="🔍 Buscar aluno..." oninput="renderAll()">
+            <select id="status-filter" onchange="renderAll()">
+                <option value="all">Todos status</option>
+                <option value="pending">Pendentes</option>
+                <option value="completed">Concluídos</option>
+            </select>
+        </div>
+
+        <!-- Students -->
+        <div id="students-container">
+            <div class="todo-loading" id="loading-indicator">
+                <div class="spinner"></div>
+                <div class="loading-text">Carregando dados...</div>
+                <div class="loading-steps">
+                    <span class="step active" id="step-students">Alunos</span>
+                    <span class="step" id="step-tasks">Tarefas</span>
+                    <span class="step" id="step-anki">Anki</span>
+                    <span class="step" id="step-calls">Calls</span>
+                </div>
             </div>
         </div>
 
         <!-- Message Modal -->
-        <div id="msg-modal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
-            <div style="background: white; border-radius: 12px; max-width: 520px; width: 90%; max-height: 80vh; overflow-y: auto; padding: 1.5rem; position: relative; margin: auto; top: 50%; transform: translateY(-50%);">
+        <div id="msg-modal" class="msg-modal-overlay" onclick="if(event.target===this)closeMsgModal()">
+            <div class="msg-modal">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h3 style="margin: 0;" id="msg-modal-title">Mensagem</h3>
-                    <button onclick="closeMsgModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b;">✕</button>
+                    <h3 style="margin: 0; font-size: 1.05rem;" id="msg-modal-title">Mensagem</h3>
+                    <button onclick="closeMsgModal()" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #64748b;">✕</button>
                 </div>
                 <div id="msg-modal-body"></div>
-            </div>
-        </div>
-
-        <!-- Students List -->
-        <div id="students-container">
-            <div class="loading-spinner" style="text-align: center; padding: 3rem;">
-                <div style="font-size: 2rem; margin-bottom: 1rem;">⏳</div>
-                <p>Carregando alunos...</p>
             </div>
         </div>
     </main>
@@ -92,7 +209,7 @@
     <script>
         let userData = null;
         let allStudents = [];
-        let tasksMap = {}; // { `${studentId}`: { task_type: taskObj } }
+        let tasksMap = {};
         let ankiDataMap = {};
 
         const TASK_TYPES = [
@@ -140,6 +257,22 @@
             });
         }
 
+        function markStep(id, status) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.className = 'step ' + status;
+        }
+
+        function showError(msg, detail) {
+            document.getElementById('students-container').innerHTML = `
+                <div class="todo-error">
+                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">⚠️</div>
+                    <p style="margin: 0; font-weight: 600;">${msg}</p>
+                    ${detail ? `<code>${detail}</code>` : ''}
+                    <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.5rem 1.5rem; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">🔄 Tentar novamente</button>
+                </div>`;
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) { window.location.href = '/'; return; }
@@ -147,69 +280,93 @@
         });
 
         async function loadData() {
-            // Load students (only alunos)
-            const { data: students } = await WardApp.db
-                .from('users')
-                .select('id, full_name, email, role, created_at')
-                .eq('role', 'aluno');
+            try {
+                // 1. Load students
+                markStep('step-students', 'active');
+                const studentsRes = await WardApp.db
+                    .from('users')
+                    .select('id, full_name, email, role, created_at')
+                    .eq('role', 'aluno');
 
-            allStudents = sortUsersByName(students || []);
-
-            // Load existing tasks for this mentor
-            const { data: tasks } = await WardApp.db
-                .from('mentor_student_tasks')
-                .select('*')
-                .eq('mentor_id', userData.id);
-
-            tasksMap = {};
-            (tasks || []).forEach(t => {
-                if (!tasksMap[t.student_id]) tasksMap[t.student_id] = {};
-                tasksMap[t.student_id][t.task_type] = t;
-            });
-
-            // Load Anki check-in data
-            const { data: checkins } = await WardApp.db
-                .from('daily_checkins')
-                .select('user_id, anki_cards_today, anki_avg_cards, anki_current_streak, date')
-                .order('date', { ascending: false });
-
-            ankiDataMap = {};
-            (checkins || []).forEach(c => {
-                if (!ankiDataMap[c.user_id] && (c.anki_cards_today > 0 || c.anki_avg_cards > 0)) {
-                    ankiDataMap[c.user_id] = c;
+                if (studentsRes.error) {
+                    showError('Erro ao carregar alunos', studentsRes.error.message);
+                    return;
                 }
-            });
+                allStudents = sortUsersByName(studentsRes.data || []);
+                markStep('step-students', 'done');
 
-            // Load first call dates from scheduled_calls
-            const { data: calls } = await WardApp.db
-                .from('scheduled_calls')
-                .select('student_id, scheduled_date, scheduled_time')
-                .eq('mentor_id', userData.id)
-                .order('scheduled_date', { ascending: true });
+                // 2. Load tasks (may fail if table doesn't exist yet)
+                markStep('step-tasks', 'active');
+                const tasksRes = await WardApp.db
+                    .from('mentor_student_tasks')
+                    .select('*')
+                    .eq('mentor_id', String(userData.id));
 
-            // Store first call per student
-            window._firstCalls = {};
-            (calls || []).forEach(c => {
-                if (!window._firstCalls[c.student_id]) {
-                    window._firstCalls[c.student_id] = c.scheduled_date;
+                tasksMap = {};
+                if (!tasksRes.error && tasksRes.data) {
+                    tasksRes.data.forEach(t => {
+                        if (!tasksMap[t.student_id]) tasksMap[t.student_id] = {};
+                        tasksMap[t.student_id][t.task_type] = t;
+                    });
+                } else {
+                    console.warn('Tasks table may not exist yet:', tasksRes.error?.message);
                 }
-            });
+                markStep('step-tasks', 'done');
 
-            renderAll();
+                // 3. Load Anki data (latest per student only)
+                markStep('step-anki', 'active');
+                const checkinsRes = await WardApp.db
+                    .from('daily_checkins')
+                    .select('user_id, anki_cards_today, anki_avg_cards, anki_current_streak, date')
+                    .order('date', { ascending: false })
+                    .limit(1000);
+
+                ankiDataMap = {};
+                if (!checkinsRes.error && checkinsRes.data) {
+                    checkinsRes.data.forEach(c => {
+                        if (!ankiDataMap[c.user_id] && (c.anki_cards_today > 0 || c.anki_avg_cards > 0)) {
+                            ankiDataMap[c.user_id] = c;
+                        }
+                    });
+                }
+                markStep('step-anki', 'done');
+
+                // 4. Load first calls
+                markStep('step-calls', 'active');
+                const callsRes = await WardApp.db
+                    .from('scheduled_calls')
+                    .select('student_id, scheduled_date, scheduled_time')
+                    .eq('mentor_id', String(userData.id))
+                    .order('scheduled_date', { ascending: true });
+
+                window._firstCalls = {};
+                if (!callsRes.error && callsRes.data) {
+                    callsRes.data.forEach(c => {
+                        if (!window._firstCalls[c.student_id]) {
+                            window._firstCalls[c.student_id] = c.scheduled_date;
+                        }
+                    });
+                }
+                markStep('step-calls', 'done');
+
+                renderAll();
+            } catch (err) {
+                console.error('loadData error:', err);
+                showError('Erro inesperado ao carregar dados', err.message);
+            }
         }
 
         function getFilteredStudents() {
             const search = document.getElementById('search-input').value.toLowerCase().trim();
             const status = document.getElementById('status-filter').value;
-
             return allStudents.filter(s => {
                 const name = (_dn(s.full_name) || s.email || '').toLowerCase();
                 if (search && !name.includes(search) && !(s.email || '').toLowerCase().includes(search)) return false;
                 if (status !== 'all') {
-                    const studentTasks = tasksMap[s.id] || {};
-                    const allCompleted = TASK_TYPES.every(t => studentTasks[t.key]?.completed);
-                    if (status === 'completed' && !allCompleted) return false;
-                    if (status === 'pending' && allCompleted) return false;
+                    const st = tasksMap[s.id] || {};
+                    const allDone = TASK_TYPES.every(t => st[t.key]?.completed);
+                    if (status === 'completed' && !allDone) return false;
+                    if (status === 'pending' && allDone) return false;
                 }
                 return true;
             });
@@ -223,108 +380,69 @@
         function renderAlerts() {
             const now = new Date();
             const oneWeek = new Date(now.getTime() + 7 * 86400000);
-            const overdue = [];
-            const upcoming = [];
+            const overdue = [], upcoming = [];
 
             allStudents.forEach(student => {
-                const studentTasks = tasksMap[student.id] || {};
+                const st = tasksMap[student.id] || {};
                 const name = _dn(student.full_name) || student.email || 'Sem nome';
-
                 TASK_TYPES.forEach(tt => {
                     if (!tt.recurring) return;
-                    const task = studentTasks[tt.key];
+                    const task = st[tt.key];
                     if (task?.dismissed) return;
-
                     let nextDue = null;
                     if (task?.task_date) {
                         nextDue = new Date(task.task_date);
                         nextDue.setDate(nextDue.getDate() + tt.intervalDays);
-                    } else if (tt.key === 'fsrs_optimization' || tt.key === 'heatmap_photo' || tt.key === 'second_call') {
-                        // If first_call has a date, base from that
-                        const firstCall = studentTasks['first_call'];
-                        if (firstCall?.task_date) {
-                            nextDue = new Date(firstCall.task_date);
+                    } else {
+                        const fc = st['first_call'];
+                        if (fc?.task_date) {
+                            nextDue = new Date(fc.task_date);
                             nextDue.setDate(nextDue.getDate() + tt.intervalDays);
                         }
                     }
-
                     if (!nextDue) return;
-
-                    if (nextDue < now) {
-                        overdue.push({ student, name, task: tt, nextDue, taskData: task });
-                    } else if (nextDue <= oneWeek) {
-                        upcoming.push({ student, name, task: tt, nextDue, taskData: task });
-                    }
+                    if (nextDue < now) overdue.push({ student, name, task: tt, nextDue });
+                    else if (nextDue <= oneWeek) upcoming.push({ student, name, task: tt, nextDue });
                 });
             });
 
-            const alertsSection = document.getElementById('alerts-section');
-            const overdueDiv = document.getElementById('overdue-alerts');
-            const upcomingDiv = document.getElementById('upcoming-alerts');
+            const section = document.getElementById('alerts-section');
+            if (overdue.length === 0 && upcoming.length === 0) { section.innerHTML = ''; return; }
 
-            if (overdue.length === 0 && upcoming.length === 0) {
-                alertsSection.style.display = 'none';
-                return;
-            }
-            alertsSection.style.display = 'block';
-
+            let html = '';
             if (overdue.length > 0) {
-                overdueDiv.style.display = 'block';
-                document.getElementById('overdue-list').innerHTML = overdue
-                    .sort((a, b) => a.nextDue - b.nextDue)
-                    .map(item => `
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid #fee2e2; gap: 0.5rem; flex-wrap: wrap;">
-                            <div>
-                                <strong style="color: #dc2626;">${item.name}</strong>
-                                <span style="color: #64748b; font-size: 0.85rem;"> - ${item.task.label}</span>
-                                <span style="color: #ef4444; font-size: 0.8rem; margin-left: 0.5rem;">
-                                    (${Math.ceil((new Date() - item.nextDue) / 86400000)} dias atrasado)
-                                </span>
-                            </div>
-                            <button class="btn btn-xs btn-outline" onclick="dismissAlert('${item.student.id}', '${item.task.key}')" title="Dispensar">✕</button>
-                        </div>
-                    `).join('');
-            } else {
-                overdueDiv.style.display = 'none';
+                html += `<div class="alert-card" style="border-color: #fecaca;">
+                    <div class="alert-header" style="background: #fef2f2; color: #dc2626;">🚨 ATRASADOS (${overdue.length})</div>
+                    <div class="alert-body">${overdue.sort((a,b) => a.nextDue - b.nextDue).map(item => `
+                        <div class="alert-item">
+                            <div><strong style="color: #dc2626;">${item.name}</strong> <span style="color: #64748b;">- ${item.task.label}</span>
+                            <span style="color: #ef4444; font-weight: 600;"> (${Math.ceil((now - item.nextDue) / 86400000)}d atrasado)</span></div>
+                            <button class="btn btn-xs btn-outline" onclick="dismissAlert('${item.student.id}','${item.task.key}')" title="Dispensar">✕</button>
+                        </div>`).join('')}</div></div>`;
             }
-
             if (upcoming.length > 0) {
-                upcomingDiv.style.display = 'block';
-                document.getElementById('upcoming-list').innerHTML = upcoming
-                    .sort((a, b) => a.nextDue - b.nextDue)
-                    .map(item => `
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid #fef3c7; gap: 0.5rem; flex-wrap: wrap;">
-                            <div>
-                                <strong>${item.name}</strong>
-                                <span style="color: #64748b; font-size: 0.85rem;"> - ${item.task.label}</span>
-                                <span style="color: #d97706; font-size: 0.8rem; margin-left: 0.5rem;">
-                                    (em ${Math.ceil((item.nextDue - new Date()) / 86400000)} dias)
-                                </span>
-                            </div>
-                            <button class="btn btn-xs btn-outline" onclick="dismissAlert('${item.student.id}', '${item.task.key}')" title="Dispensar">✕</button>
-                        </div>
-                    `).join('');
-            } else {
-                upcomingDiv.style.display = 'none';
+                html += `<div class="alert-card" style="border-color: #fde68a;">
+                    <div class="alert-header" style="background: #fffbeb; color: #d97706;">⏰ Próximos 7 dias (${upcoming.length})</div>
+                    <div class="alert-body">${upcoming.sort((a,b) => a.nextDue - b.nextDue).map(item => `
+                        <div class="alert-item">
+                            <div><strong>${item.name}</strong> <span style="color: #64748b;">- ${item.task.label}</span>
+                            <span style="color: #d97706; font-weight: 600;"> (em ${Math.ceil((item.nextDue - now) / 86400000)}d)</span></div>
+                            <button class="btn btn-xs btn-outline" onclick="dismissAlert('${item.student.id}','${item.task.key}')" title="Dispensar">✕</button>
+                        </div>`).join('')}</div></div>`;
             }
+            section.innerHTML = html;
         }
 
         async function dismissAlert(studentId, taskType) {
             const existing = tasksMap[studentId]?.[taskType];
             if (existing) {
-                await WardApp.db.from('mentor_student_tasks')
-                    .update({ dismissed: true })
-                    .eq('id', existing.id);
+                await WardApp.db.from('mentor_student_tasks').update({ dismissed: true }).eq('id', existing.id);
                 existing.dismissed = true;
             } else {
                 const { data } = await WardApp.db.from('mentor_student_tasks')
-                    .insert({ mentor_id: userData.id, student_id: studentId, task_type: taskType, dismissed: true })
-                    .select()
-                    .single();
-                if (data) {
-                    if (!tasksMap[studentId]) tasksMap[studentId] = {};
-                    tasksMap[studentId][taskType] = data;
-                }
+                    .insert({ mentor_id: String(userData.id), student_id: String(studentId), task_type: taskType, dismissed: true })
+                    .select().single();
+                if (data) { if (!tasksMap[studentId]) tasksMap[studentId] = {}; tasksMap[studentId][taskType] = data; }
             }
             renderAlerts();
         }
@@ -334,155 +452,110 @@
             const filtered = getFilteredStudents();
 
             if (filtered.length === 0) {
-                container.innerHTML = '<div class="card" style="padding: 2rem; text-align: center;"><p class="text-muted">Nenhum aluno encontrado</p></div>';
+                container.innerHTML = '<div style="text-align: center; padding: 3rem; color: #94a3b8;"><div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div><p>Nenhum aluno encontrado</p></div>';
                 return;
             }
 
-            container.innerHTML = filtered.map(student => {
+            container.innerHTML = `<div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.5rem; padding-left: 0.25rem;">${filtered.length} aluno${filtered.length > 1 ? 's' : ''}</div>` +
+            filtered.map(student => {
                 const name = _dn(student.full_name) || student.email || 'Sem nome';
-                const studentTasks = tasksMap[student.id] || {};
+                const st = tasksMap[student.id] || {};
                 const anki = ankiDataMap[student.id];
                 const firstCallDate = window._firstCalls?.[student.id] || null;
-                const pauseTask = studentTasks['anki_paused'] || {};
-                const isPaused = pauseTask.completed; // completed = paused
+                const pauseTask = st['anki_paused'] || {};
+                const isPaused = pauseTask.completed;
 
-                // Anki summary
-                let ankiSummary = '';
-                if (isPaused) {
-                    ankiSummary = '<span style="color: #ef4444; font-weight: 600;">⏸️ PAUSADO</span>';
-                } else if (anki) {
-                    ankiSummary = `🃏 ${anki.anki_cards_today || 0} hoje | Media: ${anki.anki_avg_cards || 0} | Streak: ${anki.anki_current_streak || 0} 🔥`;
-                } else {
-                    ankiSummary = '<span style="color: #94a3b8;">Sem dados Anki</span>';
-                }
+                let ankiHtml = '';
+                if (isPaused) ankiHtml = '<span class="anki-badge" style="color: #ef4444; font-weight: 700;">⏸️ PAUSADO</span>';
+                else if (anki) ankiHtml = `<span class="anki-badge">🃏 ${anki.anki_cards_today||0} hoje · ${anki.anki_avg_cards||0} avg · ${anki.anki_current_streak||0}🔥</span>`;
+                else ankiHtml = '<span class="anki-badge">Sem dados</span>';
 
-                // Count completed (exclude anki_paused from progress)
-                const completedCount = TASK_TYPES.filter(t => studentTasks[t.key]?.completed).length;
-                const progressPct = Math.round((completedCount / TASK_TYPES.length) * 100);
-                const progressColor = progressPct === 100 ? '#22c55e' : progressPct >= 50 ? '#f59e0b' : '#ef4444';
+                const done = TASK_TYPES.filter(t => st[t.key]?.completed).length;
+                const pct = Math.round((done / TASK_TYPES.length) * 100);
+                const pColor = pct === 100 ? '#22c55e' : pct >= 40 ? '#f59e0b' : '#ef4444';
 
-                // Pause section HTML
-                const pauseReason = pauseTask.notes || '';
-                const pauseReturnDate = pauseTask.task_date || '';
+                // Pause HTML
                 let pauseHtml = '';
                 if (isPaused) {
-                    pauseHtml = `
-                        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <strong style="color: #dc2626;">⏸️ Anki Pausado</strong>
-                                <button class="btn btn-xs" style="background: #22c55e; color: white; border: none; border-radius: 6px; padding: 0.3rem 0.75rem; cursor: pointer; font-weight: 600;"
-                                    onclick="unpauseAnki('${student.id}')">▶️ Despausar</button>
-                            </div>
-                            <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.4rem;">
-                                <strong>Motivo:</strong> ${pauseReason || '<em>Não informado</em>'}
-                            </div>
-                            ${pauseReturnDate ? `<div style="font-size: 0.85rem; color: #64748b;"><strong>Retorno previsto:</strong> ${new Date(pauseReturnDate + 'T12:00:00').toLocaleDateString('pt-BR')}</div>` : ''}
-                        </div>`;
+                    pauseHtml = `<div class="pause-banner">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                            <strong style="color: #dc2626; font-size: 0.9rem;">⏸️ Anki Pausado</strong>
+                            <button onclick="unpauseAnki('${student.id}')" style="background: #22c55e; color: white; border: none; border-radius: 6px; padding: 0.25rem 0.6rem; cursor: pointer; font-size: 0.8rem; font-weight: 600;">▶️ Despausar</button>
+                        </div>
+                        <div style="font-size: 0.82rem; color: #64748b;"><strong>Motivo:</strong> ${pauseTask.notes || '<em>Não informado</em>'}</div>
+                        ${pauseTask.task_date ? `<div style="font-size: 0.82rem; color: #64748b;"><strong>Retorno:</strong> ${new Date(pauseTask.task_date + 'T12:00:00').toLocaleDateString('pt-BR')}</div>` : ''}
+                    </div>`;
                 } else {
-                    pauseHtml = `
-                        <div style="border: 1px dashed #e5e7eb; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem;">
-                            <button class="btn btn-xs" style="background: #f59e0b; color: white; border: none; border-radius: 6px; padding: 0.3rem 0.75rem; cursor: pointer; font-weight: 600;"
-                                onclick="showPauseForm('${student.id}')">⏸️ Pausar Anki</button>
-                            <div id="pause-form-${student.id}" style="display: none; margin-top: 0.75rem;">
-                                <div style="margin-bottom: 0.5rem;">
-                                    <label style="font-size: 0.85rem; font-weight: 600; color: #374151;">Motivo da pausa:</label>
-                                    <select id="pause-reason-${student.id}" style="width: 100%; padding: 0.4rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.85rem; margin-top: 0.25rem;">
-                                        <option value="">Selecione...</option>
-                                        <option value="Não quer usar Anki">Não quer usar Anki</option>
-                                        <option value="Não se adaptou">Não se adaptou</option>
-                                        <option value="Pausou os estudos">Pausou os estudos</option>
-                                        <option value="Terminou o processo">Terminou o processo</option>
-                                        <option value="Outro">Outro</option>
-                                    </select>
-                                </div>
-                                <div id="pause-other-${student.id}" style="display: none; margin-bottom: 0.5rem;">
-                                    <input type="text" id="pause-other-text-${student.id}" placeholder="Descreva o motivo..."
-                                        style="width: 100%; padding: 0.4rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.85rem;">
-                                </div>
-                                <div style="margin-bottom: 0.5rem;">
-                                    <label style="font-size: 0.85rem; font-weight: 600; color: #374151;">Data prevista de retorno (opcional):</label>
-                                    <input type="date" id="pause-return-${student.id}"
-                                        style="padding: 0.4rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.85rem; margin-top: 0.25rem;">
-                                </div>
-                                <button class="btn btn-xs" style="background: #ef4444; color: white; border: none; border-radius: 6px; padding: 0.3rem 0.75rem; cursor: pointer; font-weight: 600;"
-                                    onclick="confirmPause('${student.id}')">Confirmar Pausa</button>
+                    pauseHtml = `<div class="pause-form-area">
+                        <button onclick="showPauseForm('${student.id}')" style="background: #f59e0b; color: white; border: none; border-radius: 6px; padding: 0.25rem 0.6rem; cursor: pointer; font-size: 0.82rem; font-weight: 600;">⏸️ Pausar Anki</button>
+                        <div id="pause-form-${student.id}" style="display: none; margin-top: 0.6rem;">
+                            <div style="margin-bottom: 0.4rem;">
+                                <label style="font-size: 0.82rem; font-weight: 600;">Motivo:</label>
+                                <select id="pause-reason-${student.id}" style="width: 100%; padding: 0.35rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.82rem; margin-top: 0.2rem;">
+                                    <option value="">Selecione...</option>
+                                    <option value="Não quer usar Anki">Não quer usar Anki</option>
+                                    <option value="Não se adaptou">Não se adaptou</option>
+                                    <option value="Pausou os estudos">Pausou os estudos</option>
+                                    <option value="Terminou o processo">Terminou o processo</option>
+                                    <option value="Outro">Outro</option>
+                                </select>
                             </div>
-                        </div>`;
+                            <div id="pause-other-${student.id}" style="display: none; margin-bottom: 0.4rem;">
+                                <input type="text" id="pause-other-text-${student.id}" placeholder="Descreva o motivo..." style="width: 100%; padding: 0.35rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.82rem;">
+                            </div>
+                            <div style="margin-bottom: 0.4rem;">
+                                <label style="font-size: 0.82rem; font-weight: 600;">Retorno previsto (opcional):</label>
+                                <input type="date" id="pause-return-${student.id}" style="padding: 0.35rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.82rem; margin-top: 0.2rem;">
+                            </div>
+                            <button onclick="confirmPause('${student.id}')" style="background: #ef4444; color: white; border: none; border-radius: 6px; padding: 0.25rem 0.6rem; cursor: pointer; font-size: 0.82rem; font-weight: 600;">Confirmar Pausa</button>
+                        </div>
+                    </div>`;
                 }
 
                 return `
-                <div class="card mb-3" id="student-${student.id}" ${isPaused ? 'style="opacity: 0.7;"' : ''}>
-                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; cursor: pointer;" onclick="toggleStudent('${student.id}')">
-                        <div>
-                            <strong style="font-size: 1.05rem;">${name}</strong>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 1rem;">
-                            <span style="font-size: 0.8rem; color: #64748b;">${ankiSummary}</span>
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <div style="width: 80px; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden;">
-                                    <div style="width: ${progressPct}%; height: 100%; background: ${progressColor}; border-radius: 3px;"></div>
-                                </div>
-                                <span style="font-size: 0.75rem; color: ${progressColor}; font-weight: 600;">${completedCount}/${TASK_TYPES.length}</span>
+                <div class="student-card ${isPaused ? 'paused' : ''}" id="student-${student.id}">
+                    <div class="student-header" onclick="toggleStudent('${student.id}')">
+                        <span class="student-name">${name}</span>
+                        <div class="student-meta">
+                            ${ankiHtml}
+                            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                <div class="progress-bar"><div class="progress-fill" style="width:${pct}%; background:${pColor};"></div></div>
+                                <span class="progress-label" style="color:${pColor};">${done}/${TASK_TYPES.length}</span>
                             </div>
-                            <span class="expand-icon" id="icon-${student.id}" style="transition: transform 0.2s;">▼</span>
+                            <span class="expand-arrow" id="icon-${student.id}">▼</span>
                         </div>
                     </div>
-                    <div class="card-body" id="body-${student.id}" style="display: none; padding: 1rem;">
+                    <div class="student-body" id="body-${student.id}">
                         ${pauseHtml}
-                        <table style="width: 100%; border-collapse: collapse; ${isPaused ? 'opacity: 0.5; pointer-events: none;' : ''}">
-                            <thead>
-                                <tr style="background: #f8fafc; font-size: 0.85rem; color: #64748b;">
-                                    <th style="padding: 0.5rem; text-align: left;">Tarefa</th>
-                                    <th style="padding: 0.5rem; text-align: center; width: 50px;">Feito</th>
-                                    <th style="padding: 0.5rem; text-align: center; width: 160px;">Data</th>
-                                    <th style="padding: 0.5rem; text-align: center; width: 120px;">Status</th>
-                                    <th style="padding: 0.5rem; text-align: center; width: 50px;">Msg</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${TASK_TYPES.map(tt => {
-                                    const task = studentTasks[tt.key] || {};
-                                    const checked = task.completed ? 'checked' : '';
-                                    const dateVal = task.task_date || (tt.key === 'entry_date' ? (student.created_at ? student.created_at.split('T')[0] : '') : '') || (tt.key === 'first_call' && firstCallDate ? firstCallDate : '');
-                                    let statusHtml = '';
-                                    if (tt.recurring && task.task_date) {
-                                        const next = new Date(task.task_date);
-                                        next.setDate(next.getDate() + tt.intervalDays);
-                                        const now = new Date();
-                                        const diff = Math.ceil((next - now) / 86400000);
-                                        if (diff < 0) {
-                                            statusHtml = `<span style="color: #ef4444; font-weight: 600; font-size: 0.8rem;">🔴 ${Math.abs(diff)}d atrasado</span>`;
-                                        } else if (diff <= 7) {
-                                            statusHtml = `<span style="color: #f59e0b; font-weight: 600; font-size: 0.8rem;">🟡 em ${diff}d</span>`;
-                                        } else {
-                                            statusHtml = `<span style="color: #22c55e; font-size: 0.8rem;">🟢 em ${diff}d</span>`;
-                                        }
-                                    } else if (task.completed) {
-                                        statusHtml = '<span style="color: #22c55e; font-size: 0.8rem;">✅ Concluído</span>';
-                                    } else {
-                                        statusHtml = '<span style="color: #94a3b8; font-size: 0.8rem;">⏳ Pendente</span>';
-                                    }
-                                    return `
-                                    <tr style="border-bottom: 1px solid #f1f5f9;">
-                                        <td style="padding: 0.6rem 0.5rem; font-size: 0.9rem;">${tt.label}</td>
-                                        <td style="padding: 0.6rem 0.5rem; text-align: center;">
-                                            <input type="checkbox" ${checked}
-                                                onchange="updateTask('${student.id}', '${tt.key}', 'completed', this.checked)"
-                                                style="width: 18px; height: 18px; cursor: pointer;">
-                                        </td>
-                                        <td style="padding: 0.6rem 0.5rem; text-align: center;">
-                                            <input type="date" value="${dateVal}"
-                                                onchange="updateTask('${student.id}', '${tt.key}', 'task_date', this.value)"
-                                                style="padding: 0.3rem 0.5rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.85rem;">
-                                        </td>
-                                        <td style="padding: 0.6rem 0.5rem; text-align: center;">${statusHtml}</td>
-                                        <td style="padding: 0.6rem 0.5rem; text-align: center;">
-                                            <button onclick="event.stopPropagation(); openMsgModal('${student.id}', '${tt.key}')"
-                                                style="background: #3b82f6; color: white; border: none; border-radius: 6px; padding: 0.25rem 0.5rem; cursor: pointer; font-size: 0.8rem;" title="Mensagens WhatsApp">💬</button>
-                                        </td>
-                                    </tr>`;
-                                }).join('')}
-                            </tbody>
+                        <table class="task-table" ${isPaused ? 'style="opacity:0.4; pointer-events:none;"' : ''}>
+                            <thead><tr>
+                                <th style="text-align:left;">Tarefa</th>
+                                <th style="width:40px;">✓</th>
+                                <th style="width:140px;">Data</th>
+                                <th style="width:100px;">Status</th>
+                                <th style="width:40px;">Msg</th>
+                            </tr></thead>
+                            <tbody>${TASK_TYPES.map(tt => {
+                                const task = st[tt.key] || {};
+                                const checked = task.completed ? 'checked' : '';
+                                const dateVal = task.task_date || (tt.key === 'entry_date' && student.created_at ? student.created_at.split('T')[0] : '') || (tt.key === 'first_call' && firstCallDate ? firstCallDate : '');
+                                let statusHtml = '';
+                                if (tt.recurring && task.task_date) {
+                                    const next = new Date(task.task_date); next.setDate(next.getDate() + tt.intervalDays);
+                                    const diff = Math.ceil((next - new Date()) / 86400000);
+                                    if (diff < 0) statusHtml = `<span style="color:#ef4444;font-weight:600;">🔴 ${Math.abs(diff)}d</span>`;
+                                    else if (diff <= 7) statusHtml = `<span style="color:#f59e0b;font-weight:600;">🟡 ${diff}d</span>`;
+                                    else statusHtml = `<span style="color:#22c55e;">🟢 ${diff}d</span>`;
+                                } else if (task.completed) statusHtml = '<span style="color:#22c55e;">✅</span>';
+                                else statusHtml = '<span style="color:#94a3b8;">⏳</span>';
+                                return `<tr>
+                                    <td>${tt.label}</td>
+                                    <td><input type="checkbox" ${checked} onchange="updateTask('${student.id}','${tt.key}','completed',this.checked)"></td>
+                                    <td><input type="date" value="${dateVal}" onchange="updateTask('${student.id}','${tt.key}','task_date',this.value)"></td>
+                                    <td>${statusHtml}</td>
+                                    <td><button class="msg-btn" onclick="event.stopPropagation();openMsgModal('${student.id}','${tt.key}')" title="WhatsApp">💬</button></td>
+                                </tr>`;
+                            }).join('')}</tbody>
                         </table>
                     </div>
                 </div>`;
@@ -492,63 +565,32 @@
         function toggleStudent(id) {
             const body = document.getElementById('body-' + id);
             const icon = document.getElementById('icon-' + id);
-            if (body.style.display === 'none') {
-                body.style.display = 'block';
-                icon.style.transform = 'rotate(180deg)';
-            } else {
-                body.style.display = 'none';
-                icon.style.transform = '';
-            }
+            body.classList.toggle('open');
+            icon.classList.toggle('open');
         }
 
         async function updateTask(studentId, taskType, field, value) {
             const existing = tasksMap[studentId]?.[taskType];
-
             if (existing) {
-                const updateData = { [field]: value, updated_at: new Date().toISOString() };
-                // For recurring tasks, when updating date, reset dismissed
-                if (field === 'task_date') {
-                    updateData.dismissed = false;
-                }
-                await WardApp.db.from('mentor_student_tasks')
-                    .update(updateData)
-                    .eq('id', existing.id);
-                Object.assign(existing, updateData);
+                const upd = { [field]: value, updated_at: new Date().toISOString() };
+                if (field === 'task_date') upd.dismissed = false;
+                await WardApp.db.from('mentor_student_tasks').update(upd).eq('id', existing.id);
+                Object.assign(existing, upd);
             } else {
                 const newTask = {
-                    mentor_id: userData.id,
-                    student_id: studentId,
-                    task_type: taskType,
+                    mentor_id: String(userData.id), student_id: String(studentId), task_type: taskType,
                     completed: field === 'completed' ? value : false,
-                    task_date: field === 'task_date' ? value : null,
-                    dismissed: false
+                    task_date: field === 'task_date' ? value : null, dismissed: false
                 };
-                const { data } = await WardApp.db.from('mentor_student_tasks')
-                    .insert(newTask)
-                    .select()
-                    .single();
-                if (data) {
-                    if (!tasksMap[studentId]) tasksMap[studentId] = {};
-                    tasksMap[studentId][taskType] = data;
-                }
+                const { data } = await WardApp.db.from('mentor_student_tasks').insert(newTask).select().single();
+                if (data) { if (!tasksMap[studentId]) tasksMap[studentId] = {}; tasksMap[studentId][taskType] = data; }
             }
-
-            renderAlerts();
-            // Re-render status column for this student
-            const studentCard = document.getElementById('student-' + studentId);
-            if (studentCard) {
-                // Quick re-render of the specific student's progress bar in header
-                const studentTasks = tasksMap[studentId] || {};
-                const completedCount = TASK_TYPES.filter(t => studentTasks[t.key]?.completed).length;
-                const progressPct = Math.round((completedCount / TASK_TYPES.length) * 100);
-                // Full re-render for simplicity since status column needs update
-                renderStudents();
-            }
+            renderAll();
         }
+
         function showPauseForm(studentId) {
             const form = document.getElementById('pause-form-' + studentId);
             form.style.display = form.style.display === 'none' ? 'block' : 'none';
-            // Show/hide "Outro" text field based on select
             const select = document.getElementById('pause-reason-' + studentId);
             select.onchange = function() {
                 document.getElementById('pause-other-' + studentId).style.display = this.value === 'Outro' ? 'block' : 'none';
@@ -564,7 +606,6 @@
                 if (!reason) { WardApp.showToast('Descreva o motivo', 'warning'); return; }
             }
             const returnDate = document.getElementById('pause-return-' + studentId).value || null;
-
             const existing = tasksMap[studentId]?.['anki_paused'];
             if (existing) {
                 await WardApp.db.from('mentor_student_tasks')
@@ -573,90 +614,61 @@
                 Object.assign(existing, { completed: true, notes: reason, task_date: returnDate });
             } else {
                 const { data } = await WardApp.db.from('mentor_student_tasks')
-                    .insert({ mentor_id: userData.id, student_id: studentId, task_type: 'anki_paused', completed: true, notes: reason, task_date: returnDate })
+                    .insert({ mentor_id: String(userData.id), student_id: String(studentId), task_type: 'anki_paused', completed: true, notes: reason, task_date: returnDate })
                     .select().single();
-                if (data) {
-                    if (!tasksMap[studentId]) tasksMap[studentId] = {};
-                    tasksMap[studentId]['anki_paused'] = data;
-                }
+                if (data) { if (!tasksMap[studentId]) tasksMap[studentId] = {}; tasksMap[studentId]['anki_paused'] = data; }
             }
             WardApp.showToast('Anki pausado para este aluno');
             renderAll();
         }
 
+        async function unpauseAnki(studentId) {
+            const existing = tasksMap[studentId]?.['anki_paused'];
+            if (existing) {
+                await WardApp.db.from('mentor_student_tasks')
+                    .update({ completed: false, task_date: new Date().toISOString().split('T')[0], notes: (existing.notes || '') + ' | Retornou em ' + new Date().toLocaleDateString('pt-BR'), updated_at: new Date().toISOString() })
+                    .eq('id', existing.id);
+                existing.completed = false;
+                existing.task_date = new Date().toISOString().split('T')[0];
+            }
+            WardApp.showToast('Anki despausado!');
+            renderAll();
+        }
+
         function openMsgModal(studentId, taskKey) {
-            const student = allStudents.find(s => s.id === studentId);
+            const student = allStudents.find(s => String(s.id) === String(studentId));
             if (!student) return;
             const name = _dn(student.full_name) || student.email || 'Aluno';
             const firstName = name.split(' ')[0];
             const templates = MSG_TEMPLATES[taskKey] || [];
             const taskLabel = TASK_TYPES.find(t => t.key === taskKey)?.label || taskKey;
 
-            document.getElementById('msg-modal-title').textContent = `💬 ${taskLabel}`;
+            document.getElementById('msg-modal-title').textContent = '💬 ' + taskLabel;
             document.getElementById('msg-modal-body').innerHTML = templates.length === 0
-                ? '<p style="color: #64748b;">Nenhum template disponivel para esta tarefa.</p>'
+                ? '<p style="color:#64748b;">Nenhum template disponivel.</p>'
                 : templates.map((tpl, i) => {
                     const msg = tpl.msg.replace(/\{nome\}/g, firstName);
-                    return `
-                    <div style="background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <strong style="font-size: 0.9rem; color: #374151;">${tpl.title}</strong>
-                            <button onclick="copyMsg(this, ${i})" id="copy-btn-${i}"
-                                style="background: #22c55e; color: white; border: none; border-radius: 6px; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 0.8rem; font-weight: 600;">
-                                📋 Copiar
-                            </button>
+                    return `<div class="msg-template">
+                        <div class="msg-template-header">
+                            <strong style="font-size:0.88rem;">${tpl.title}</strong>
+                            <button class="copy-btn" onclick="copyMsg(this,${i})">📋 Copiar</button>
                         </div>
-                        <p id="msg-text-${i}" style="margin: 0; font-size: 0.85rem; color: #475569; line-height: 1.5; white-space: pre-wrap;">${msg}</p>
+                        <p id="msg-text-${i}" style="margin:0; font-size:0.83rem; color:#475569; line-height:1.5; white-space:pre-wrap;">${msg}</p>
                     </div>`;
                 }).join('');
 
-            document.getElementById('msg-modal').style.display = 'block';
+            document.getElementById('msg-modal').classList.add('active');
         }
 
-        function closeMsgModal() {
-            document.getElementById('msg-modal').style.display = 'none';
-        }
+        function closeMsgModal() { document.getElementById('msg-modal').classList.remove('active'); }
 
         function copyMsg(btn, idx) {
             const text = document.getElementById('msg-text-' + idx).textContent;
             navigator.clipboard.writeText(text).then(() => {
-                btn.textContent = '✅ Copiado!';
-                btn.style.background = '#64748b';
+                btn.textContent = '✅ Copiado!'; btn.style.background = '#64748b';
                 setTimeout(() => { btn.textContent = '📋 Copiar'; btn.style.background = '#22c55e'; }, 2000);
             });
         }
-
-        // Close modal on overlay click
-        document.getElementById('msg-modal').addEventListener('click', function(e) {
-            if (e.target === this) closeMsgModal();
-        });
-
-        async function unpauseAnki(studentId) {
-            const existing = tasksMap[studentId]?.['anki_paused'];
-            if (existing) {
-                // Set completed=false, update return date to today (marks when they resumed)
-                await WardApp.db.from('mentor_student_tasks')
-                    .update({ completed: false, task_date: new Date().toISOString().split('T')[0], notes: existing.notes + ' | Retornou em ' + new Date().toLocaleDateString('pt-BR'), updated_at: new Date().toISOString() })
-                    .eq('id', existing.id);
-                existing.completed = false;
-                existing.task_date = new Date().toISOString().split('T')[0];
-            }
-            WardApp.showToast('Anki despausado! Contagens reiniciadas.');
-            renderAll();
-        }
     </script>
-
-    <style>
-        .card-header {
-            padding: 1rem 1.25rem;
-        }
-        .card-body {
-            padding: 1rem 1.25rem;
-        }
-        @media (max-width: 768px) {
-            table { font-size: 0.8rem; }
-            input[type="date"] { width: 130px; }
-        }
-    </style>
 </body>
 </html>
