@@ -1654,27 +1654,100 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             container.innerHTML = '<p class="text-muted">Carregando atividades...</p>';
 
             try {
-                // Use dedicated API endpoint (separate from other page requests)
-                const token = WardApp.session?.access_token;
-                const response = await fetch('/api/global-feed', {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-supabase-auth': token || ''
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to load global feed');
-                }
-
-                const data = await response.json();
+                // Load ALL platform activities - EVERYTHING that happens in the app
+                const [
+                    linksRes,
+                    linksUpdatesRes,
+                    postsRes,
+                    postReactionsRes,
+                    commentsRes,
+                    commentLikesRes,
+                    checkinsRes,
+                    studyDiaryRes,
+                    uworldDiaryRes,
+                    delaysRes,
+                    messagesRes,
+                    researchRes,
+                    researchTasksRes,
+                    researchCoauthorsRes,
+                    researchNotesRes,
+                    landmarksRes,
+                    difficultiesRes,
+                    scheduledCallsRes,
+                    schedulesCreatedRes,
+                    schedulesUpdatedRes,
+                    completedSchedulesRes,
+                    questionnaireRes,
+                    flashTestsCreatedRes,
+                    flashTestsCompletedRes,
+                    flashCommentsRes,
+                    watchedLessonsRes,
+                    callReportsRes,
+                    audioCommentsRes
+                ] = await Promise.all([
+                    // Links - new additions
+                    WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    // Links - updates to existing links
+                    WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('updated_at', { ascending: false }).limit(20),
+                    // Blog posts
+                    WardApp.db.from('blog_posts').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    // Post reactions (likes/dislikes)
+                    WardApp.db.from('blog_reactions').select('*, users:user_id(full_name, email), post:post_id(content)').order('created_at', { ascending: false }).limit(30),
+                    // Blog comments
+                    WardApp.db.from('blog_comments').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    // Comment likes
+                    WardApp.db.from('blog_comment_likes').select('*, users:user_id(full_name, email), comment:comment_id(content)').order('created_at', { ascending: false }).limit(30),
+                    // Daily check-ins
+                    WardApp.db.from('daily_checkins').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30),
+                    // Study diary entries
+                    WardApp.db.from('study_diary').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    // UWorld diary entries
+                    WardApp.db.from('uworld_diary').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    // Schedule delays
+                    WardApp.db.from('schedule_delays').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    // Mentor messages
+                    WardApp.db.from('mentor_messages').select('*, users:user_id(full_name, email), mentor:mentor_id(full_name)').order('created_at', { ascending: false }).limit(20),
+                    // Research projects updates
+                    WardApp.db.from('research_projects').select('*, users:created_by(full_name, email)').order('updated_at', { ascending: false }).limit(15),
+                    // Research tasks (created and updated)
+                    WardApp.db.from('research_tasks').select('*, users:assigned_to(full_name, email), project:project_id(title)').order('updated_at', { ascending: false }).limit(25),
+                    // Research coauthors (new authors added)
+                    WardApp.db.from('research_coauthors').select('*, users:user_id(full_name, email), project:project_id(title)').order('added_at', { ascending: false }).limit(20),
+                    // Research notes/comments
+                    WardApp.db.from('research_notes').select('*, users:user_id(full_name, email), project:project_id(title)').order('created_at', { ascending: false }).limit(20),
+                    // Completed landmarks
+                    WardApp.db.from('landmarks').select('*, users:user_id(full_name, email)').eq('completed', true).order('completion_date', { ascending: false }).limit(20),
+                    // Study difficulties
+                    WardApp.db.from('study_difficulties').select('*, users:user_id(full_name, email)').eq('resolved', false).order('created_at', { ascending: false }).limit(20),
+                    // Scheduled calls
+                    WardApp.db.from('scheduled_calls').select('*, users:student_id(full_name, email), mentor:mentor_id(full_name), landmark:landmark_id(title)').order('created_at', { ascending: false }).limit(20),
+                    // Schedules - newly created
+                    WardApp.db.from('schedules').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30),
+                    // Schedules - updated (modifications)
+                    WardApp.db.from('schedules').select('*, users:user_id(full_name, email)').order('updated_at', { ascending: false }).limit(30),
+                    // Schedules - completed
+                    WardApp.db.from('schedules').select('*, users:user_id(full_name, email)').eq('completed', true).order('completion_date', { ascending: false }).limit(30),
+                    // Questionnaires completed (users who finished all 11 steps)
+                    WardApp.db.from('users').select('id, full_name, email, questionnaire_step, updated_at').gte('questionnaire_step', 11).order('updated_at', { ascending: false }).limit(20),
+                    // Flash tests - created/started
+                    WardApp.db.from('flash_tests').select('*, users:user_id(full_name, email)').order('started_at', { ascending: false }).limit(30),
+                    // Flash tests - completed
+                    WardApp.db.from('flash_tests').select('*, users:user_id(full_name, email)').eq('status', 'completed').order('completed_at', { ascending: false }).limit(30),
+                    // Flash question comments
+                    WardApp.db.from('flash_question_comments').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30),
+                    // Watched lessons - students marking lessons as watched
+                    WardApp.db.from('watched_lessons').select('*, users:user_id(full_name, email)').order('watched_at', { ascending: false }).limit(30),
+                    // Call reports - mentor reports from calls
+                    WardApp.db.from('call_reports').select('*, student:student_id(full_name, email), mentor:mentor_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    // Audio comments - comments on audio resumos
+                    WardApp.db.from('course_audio_comments').select('*, users:user_id(full_name, email), audio:audio_id(title)').order('created_at', { ascending: false }).limit(30)
+                ]);
 
                 // Combine all activities into a single timeline
                 const feed = [];
 
                 // Links added
-                (data.links || []).forEach(item => {
+                (linksRes.data || []).forEach(item => {
                     feed.push({
                         type: 'link',
                         icon: '🔗',
@@ -1688,7 +1761,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Blog posts - FULL CONTENT
-                (data.posts || []).forEach(item => {
+                (postsRes.data || []).forEach(item => {
                     feed.push({
                         type: 'post',
                         icon: '📝',
@@ -1703,7 +1776,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Comments - FULL CONTENT
-                (data.comments || []).forEach(item => {
+                (commentsRes.data || []).forEach(item => {
                     feed.push({
                         type: 'comment',
                         icon: '💬',
@@ -1718,7 +1791,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Check-ins - FULL CONTENT with UWorld and Anki data
-                (data.checkins || []).forEach(item => {
+                (checkinsRes.data || []).forEach(item => {
                     const statusMap = {
                         tranquilo: '🟢 Tranquilo',
                         preciso_ajuda: '🟡 Precisa de Ajuda',
@@ -1758,7 +1831,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Study diary - FULL CONTENT
-                (data.studyDiary || []).forEach(item => {
+                (studyDiaryRes.data || []).forEach(item => {
                     feed.push({
                         type: 'study',
                         icon: '📔',
@@ -1773,7 +1846,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // UWorld diary - FULL CONTENT
-                (data.uworldDiary || []).forEach(item => {
+                (uworldDiaryRes.data || []).forEach(item => {
                     const acertos = item.correct_answers && item.total_questions
                         ? Math.round((item.correct_answers / item.total_questions) * 100) + '% acertos'
                         : '';
@@ -1795,7 +1868,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Schedule delays
-                (data.delays || []).forEach(item => {
+                (delaysRes.data || []).forEach(item => {
                     feed.push({
                         type: 'delay',
                         icon: '⚠️',
@@ -1809,7 +1882,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Study difficulties - FULL CONTENT
-                (data.difficulties || []).forEach(item => {
+                (difficultiesRes.data || []).forEach(item => {
                     const wantsMeetingBadge = item.wants_meeting ? ' <span style="background: #fef3c7; color: #92400e; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">🔔 QUER REUNIÃO COM DRA. IRIA</span>' : '';
                     const percentageBadge = item.correct_percentage !== null ? ` - ${item.correct_percentage}% acertos` : '';
                     feed.push({
@@ -1826,7 +1899,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Mentor messages - FULL CONTENT
-                (data.messages || []).forEach(item => {
+                (messagesRes.data || []).forEach(item => {
                     feed.push({
                         type: 'message',
                         icon: '✉️',
@@ -1841,7 +1914,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Research projects updates
-                (data.research || []).forEach(item => {
+                (researchRes.data || []).forEach(item => {
                     feed.push({
                         type: 'research',
                         icon: '🔬',
@@ -1855,7 +1928,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Completed landmarks
-                (data.landmarks || []).forEach(item => {
+                (landmarksRes.data || []).forEach(item => {
                     feed.push({
                         type: 'landmark',
                         icon: '✅',
@@ -1868,8 +1941,58 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                     });
                 });
 
+                // Links updates (modifications to existing links)
+                const linkCreatedIds = new Set((linksRes.data || []).map(l => l.id));
+                (linksUpdatesRes.data || []).forEach(item => {
+                    // Only show updates, not new creations (those are already shown above)
+                    if (!linkCreatedIds.has(item.id) && item.created_at !== item.updated_at) {
+                        feed.push({
+                            type: 'link_updated',
+                            icon: '🔄',
+                            color: '#2563eb',
+                            user: _dn(item.users?.full_name) || item.users?.email || 'Sistema',
+                            action: 'atualizou um link',
+                            title: item.title,
+                            detail: item.category ? `Categoria: ${item.category}` : item.url,
+                            date: item.updated_at
+                        });
+                    }
+                });
+
+                // Post reactions (likes/dislikes)
+                (postReactionsRes.data || []).forEach(item => {
+                    const reactionIcon = item.reaction_type === 'like' ? '👍' : '👎';
+                    const reactionText = item.reaction_type === 'like' ? 'curtiu' : 'não curtiu';
+                    const postPreview = item.post?.content ? item.post.content.substring(0, 100) + (item.post.content.length > 100 ? '...' : '') : '';
+                    feed.push({
+                        type: 'post_reaction',
+                        icon: reactionIcon,
+                        color: item.reaction_type === 'like' ? '#10b981' : '#ef4444',
+                        user: _dn(item.users?.full_name) || item.users?.email || 'Aluno',
+                        action: reactionText + ' um post',
+                        title: '',
+                        detail: postPreview,
+                        date: item.created_at
+                    });
+                });
+
+                // Comment likes
+                (commentLikesRes.data || []).forEach(item => {
+                    const commentPreview = item.comment?.content ? item.comment.content.substring(0, 100) + (item.comment.content.length > 100 ? '...' : '') : '';
+                    feed.push({
+                        type: 'comment_like',
+                        icon: '💙',
+                        color: '#3b82f6',
+                        user: _dn(item.users?.full_name) || item.users?.email || 'Aluno',
+                        action: 'curtiu um comentário',
+                        title: '',
+                        detail: commentPreview,
+                        date: item.created_at
+                    });
+                });
+
                 // Research tasks (created and updated)
-                (data.researchTasks || []).forEach(item => {
+                (researchTasksRes.data || []).forEach(item => {
                     const isNew = item.created_at === item.updated_at;
                     feed.push({
                         type: 'research_task',
@@ -1884,7 +2007,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Research coauthors (new authors added)
-                (data.researchCoauthors || []).forEach(item => {
+                (researchCoauthorsRes.data || []).forEach(item => {
                     feed.push({
                         type: 'research_author',
                         icon: '👥',
@@ -1898,7 +2021,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Research notes/comments
-                (data.researchNotes || []).forEach(item => {
+                (researchNotesRes.data || []).forEach(item => {
                     feed.push({
                         type: 'research_note',
                         icon: '💭',
@@ -1913,7 +2036,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Scheduled calls
-                (data.scheduledCalls || []).forEach(item => {
+                (scheduledCallsRes.data || []).forEach(item => {
                     const scheduledDate = item.scheduled_date && item.scheduled_time
                         ? `${WardApp.formatDate(item.scheduled_date)} às ${item.scheduled_time}`
                         : 'Data a definir';
@@ -1930,8 +2053,8 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Schedules - newly created
-                const scheduleCompletedIds = new Set((data.completedSchedules || []).map(s => s.id));
-                (data.schedulesCreated || []).forEach(item => {
+                const scheduleCompletedIds = new Set((completedSchedulesRes.data || []).map(s => s.id));
+                (schedulesCreatedRes.data || []).forEach(item => {
                     // Only show new creations, not completed ones (those are shown separately)
                     if (!scheduleCompletedIds.has(item.id) && !item.completed) {
                         feed.push({
@@ -1947,8 +2070,26 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                     }
                 });
 
+                // Schedules - updated (modifications)
+                const scheduleCreatedIds = new Set((schedulesCreatedRes.data || []).map(s => s.id));
+                (schedulesUpdatedRes.data || []).forEach(item => {
+                    // Only show updates, not new creations or completed ones
+                    if (!scheduleCreatedIds.has(item.id) && !scheduleCompletedIds.has(item.id) && item.created_at !== item.updated_at && !item.completed) {
+                        feed.push({
+                            type: 'schedule_updated',
+                            icon: '🔄',
+                            color: '#f59e0b',
+                            user: _dn(item.users?.full_name) || item.users?.email || 'Aluno',
+                            action: 'modificou tópico do cronograma',
+                            title: `${item.system} - ${item.category}`,
+                            detail: item.questions ? `${item.questions} questões` : '',
+                            date: item.updated_at
+                        });
+                    }
+                });
+
                 // Completed schedules
-                (data.completedSchedules || []).forEach(item => {
+                (completedSchedulesRes.data || []).forEach(item => {
                     feed.push({
                         type: 'schedule_completed',
                         icon: '✓',
@@ -1962,7 +2103,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Completed questionnaires
-                (data.questionnaire || []).forEach(item => {
+                (questionnaireRes.data || []).forEach(item => {
                     feed.push({
                         type: 'questionnaire',
                         icon: '📋',
@@ -1976,7 +2117,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Flash tests - started/created
-                (data.flashTestsCreated || []).forEach(item => {
+                (flashTestsCreatedRes.data || []).forEach(item => {
                     if (item.status === 'in_progress' || !item.completed_at) {
                         feed.push({
                             type: 'flash_test_started',
@@ -1992,7 +2133,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Flash tests - completed
-                (data.flashTestsCompleted || []).forEach(item => {
+                (flashTestsCompletedRes.data || []).forEach(item => {
                     const percentage = item.total_questions > 0
                         ? Math.round((item.correct_answers / item.total_questions) * 100)
                         : 0;
@@ -2013,7 +2154,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Flash question comments
-                (data.flashComments || []).forEach(item => {
+                (flashCommentsRes.data || []).forEach(item => {
                     feed.push({
                         type: 'flash_comment',
                         icon: '💬',
@@ -2028,7 +2169,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Watched lessons - students marking recommended lessons as watched
-                (data.watchedLessons || []).forEach(item => {
+                (watchedLessonsRes.data || []).forEach(item => {
                     feed.push({
                         type: 'watched_lesson',
                         icon: '📺',
@@ -2042,7 +2183,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Call reports - mentor reports from calls with students
-                (data.callReports || []).forEach(item => {
+                (callReportsRes.data || []).forEach(item => {
                     const studentName = _dn(item.student?.full_name) || item.student?.email || 'Aluno';
                     const mentorName = _dn(item.mentor?.full_name) || 'Mentor';
                     feed.push({
@@ -2058,7 +2199,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 });
 
                 // Audio comments - comments on audio resumos
-                (data.audioComments || []).forEach(item => {
+                (audioCommentsRes.data || []).forEach(item => {
                     feed.push({
                         type: 'audio_comment',
                         icon: '🎧',
@@ -2069,56 +2210,6 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                         fullContent: item.content || '',
                         detail: '',
                         date: item.created_at
-                    });
-                });
-
-                // Mentor student tasks (Guilherme to-do list)
-                const taskTypeLabels = {
-                    'anki_heatmap': 'Anki Heatmap',
-                    'fsrs_optimize': 'FSRS Optimize',
-                    'call_guilherme': 'Call Guilherme',
-                    'anki_paused': 'Anki Pausado',
-                    'anki_resumed': 'Anki Retomado'
-                };
-                (data.mentorTasks || []).forEach(item => {
-                    const mentorName = _dn(item.mentor?.full_name) || 'Guilherme';
-                    const studentName = _dn(item.student?.full_name) || item.student?.email || 'Aluno';
-                    const taskLabel = taskTypeLabels[item.task_type] || item.task_type;
-                    const isCompleted = item.completed;
-                    const isDismissed = item.dismissed;
-
-                    let action, icon, color;
-                    if (item.task_type === 'anki_paused') {
-                        action = `pausou Anki de ${studentName}`;
-                        icon = '⏸️';
-                        color = '#f59e0b';
-                    } else if (item.task_type === 'anki_resumed') {
-                        action = `retomou Anki de ${studentName}`;
-                        icon = '▶️';
-                        color = '#10b981';
-                    } else if (isCompleted) {
-                        action = `completou ${taskLabel} de ${studentName}`;
-                        icon = '✅';
-                        color = '#10b981';
-                    } else if (isDismissed) {
-                        action = `dispensou ${taskLabel} de ${studentName}`;
-                        icon = '🚫';
-                        color = '#6b7280';
-                    } else {
-                        action = `marcou ${taskLabel} pendente para ${studentName}`;
-                        icon = '📋';
-                        color = '#C45700';
-                    }
-
-                    feed.push({
-                        type: 'mentor_task',
-                        icon: icon,
-                        color: color,
-                        user: mentorName,
-                        action: action,
-                        title: '',
-                        detail: item.notes || '',
-                        date: item.updated_at || item.created_at
                     });
                 });
 
@@ -2147,6 +2238,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 `).join('');
 
             } catch (error) {
+                console.error('Error loading global feed:', error);
                 container.innerHTML = '<p class="text-muted">Erro ao carregar atividades</p>';
             }
         }
