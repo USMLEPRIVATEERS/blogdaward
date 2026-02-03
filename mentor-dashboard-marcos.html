@@ -1683,7 +1683,8 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                     flashCommentsRes,
                     watchedLessonsRes,
                     callReportsRes,
-                    audioCommentsRes
+                    audioCommentsRes,
+                    mentorTasksRes
                 ] = await Promise.all([
                     // Links - new additions
                     WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('created_at', { ascending: false }).limit(20),
@@ -1740,7 +1741,9 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                     // Call reports - mentor reports from calls
                     WardApp.db.from('call_reports').select('*, student:student_id(full_name, email), mentor:mentor_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
                     // Audio comments - comments on audio resumos
-                    WardApp.db.from('course_audio_comments').select('*, users:user_id(full_name, email), audio:audio_id(title)').order('created_at', { ascending: false }).limit(30)
+                    WardApp.db.from('course_audio_comments').select('*, users:user_id(full_name, email), audio:audio_id(title)').order('created_at', { ascending: false }).limit(30),
+                    // Mentor student tasks (Guilherme to-do list)
+                    WardApp.db.from('mentor_student_tasks').select('*').order('updated_at', { ascending: false }).limit(30)
                 ]);
 
                 // Combine all activities into a single timeline
@@ -2212,6 +2215,65 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                         date: item.created_at
                     });
                 });
+
+                // Mentor student tasks (Guilherme to-do list) - fetch user names separately
+                const mentorTasks = mentorTasksRes.data || [];
+                if (mentorTasks.length > 0) {
+                    const taskUserIds = [...new Set(mentorTasks.flatMap(t => [t.mentor_id, t.student_id].filter(Boolean)))];
+                    const { data: taskUsers } = await WardApp.db.from('users').select('id, full_name, email').in('id', taskUserIds);
+                    const userMap = {};
+                    (taskUsers || []).forEach(u => { userMap[u.id] = u; });
+
+                    const taskTypeLabels = {
+                        'anki_heatmap': 'Anki Heatmap',
+                        'fsrs_optimize': 'FSRS Optimize',
+                        'call_guilherme': 'Call Guilherme',
+                        'anki_paused': 'Anki Pausado',
+                        'anki_resumed': 'Anki Retomado'
+                    };
+
+                    mentorTasks.forEach(item => {
+                        const mentor = userMap[item.mentor_id];
+                        const student = userMap[item.student_id];
+                        const mentorName = _dn(mentor?.full_name) || 'Guilherme';
+                        const studentName = _dn(student?.full_name) || student?.email || 'Aluno';
+                        const taskLabel = taskTypeLabels[item.task_type] || item.task_type;
+
+                        let action, icon, color;
+                        if (item.task_type === 'anki_paused') {
+                            action = `pausou Anki de ${studentName}`;
+                            icon = '⏸️';
+                            color = '#f59e0b';
+                        } else if (item.task_type === 'anki_resumed') {
+                            action = `retomou Anki de ${studentName}`;
+                            icon = '▶️';
+                            color = '#10b981';
+                        } else if (item.completed) {
+                            action = `completou ${taskLabel} de ${studentName}`;
+                            icon = '✅';
+                            color = '#10b981';
+                        } else if (item.dismissed) {
+                            action = `dispensou ${taskLabel} de ${studentName}`;
+                            icon = '🚫';
+                            color = '#6b7280';
+                        } else {
+                            action = `marcou ${taskLabel} pendente para ${studentName}`;
+                            icon = '📋';
+                            color = '#C45700';
+                        }
+
+                        feed.push({
+                            type: 'mentor_task',
+                            icon: icon,
+                            color: color,
+                            user: mentorName,
+                            action: action,
+                            title: '',
+                            detail: item.notes || '',
+                            date: item.updated_at || item.created_at
+                        });
+                    });
+                }
 
                 // Sort by date descending
                 feed.sort((a, b) => new Date(b.date) - new Date(a.date));
