@@ -3,8 +3,8 @@
 
 CREATE TABLE IF NOT EXISTS mentor_student_tasks (
     id BIGSERIAL PRIMARY KEY,
-    mentor_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    student_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    mentor_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    student_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     task_type TEXT NOT NULL, -- 'entry_date', 'first_call', 'fsrs_optimization', 'heatmap_photo', 'second_call'
     completed BOOLEAN DEFAULT FALSE,
     task_date DATE, -- date the task was done or is scheduled
