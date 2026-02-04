@@ -24,8 +24,10 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    const authToken = req.headers['x-supabase-auth'];
-    const supabase = getSupabase(authToken || null);
+    // Always use service role client for RPC operations.
+    // Auth is already verified above. Passing an expired user JWT
+    // would override the service role Authorization header.
+    const supabase = getSupabase();
 
     const { data, error } = await supabase.rpc(function_name, params || {});
 

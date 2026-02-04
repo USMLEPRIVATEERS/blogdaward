@@ -14,8 +14,9 @@ module.exports = async function handler(req, res) {
     }
 
     const { action, userData, userId } = req.body;
-    const authToken = req.headers['x-supabase-auth'];
-    const supabase = getSupabase(authToken || null);
+    // Always use service role client for admin operations.
+    // Admin auth is already verified above.
+    const supabase = getSupabase();
 
     if (action === 'createUser') {
       const { data, error } = await supabase.auth.admin.createUser(userData);

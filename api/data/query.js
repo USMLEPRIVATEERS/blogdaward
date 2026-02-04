@@ -35,9 +35,11 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    // Get auth token from request header if present
-    const authToken = req.headers['x-supabase-auth'];
-    const supabase = getSupabase(authToken || null);
+    // Always use service role client for database operations.
+    // Auth is already verified above via verifyAuth().
+    // Passing the user's Supabase JWT here would override the service role
+    // Authorization header, causing failures when the JWT expires.
+    const supabase = getSupabase();
 
     let query;
 
