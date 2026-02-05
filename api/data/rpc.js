@@ -21,10 +21,10 @@ module.exports = async function handler(req, res) {
 
     // Check auth for non-public RPCs
     if (!PUBLIC_RPCS.includes(function_name)) {
-      // Admin RPCs require mentor role
+      // Admin RPCs require mentor_marcos role specifically
       if (ADMIN_RPCS.includes(function_name)) {
         const admin = await verifyAdmin(req);
-        if (!admin) {
+        if (!admin || admin.role !== 'mentor_marcos') {
           return res.status(403).json({ error: 'Admin access required' });
         }
       } else {
