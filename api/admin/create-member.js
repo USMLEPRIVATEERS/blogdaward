@@ -1,5 +1,5 @@
 const { getSupabase } = require('../_lib/supabase');
-const { verifyAdmin } = require('../_lib/auth');
+const { verifyAuth } = require('../_lib/auth');
 const bcrypt = require('bcryptjs');
 
 module.exports = async function handler(req, res) {
@@ -8,9 +8,22 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // Only mentor_marcos can create members
-    const admin = await verifyAdmin(req);
-    if (!admin || admin.role !== 'mentor_marcos') {
+    // Step 1: Verify the user has a valid session token
+    const auth = await verifyAuth(req);
+    if (!auth) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Step 2: Verify role directly from DATABASE (not token)
+    // Token role can be stale if it was changed in the DB after login
+    const supabaseCheck = getSupabase();
+    const { data: dbUser, error: dbError } = await supabaseCheck
+      .from('users')
+      .select('id, role')
+      .eq('id', auth.uid)
+      .single();
+
+    if (dbError || !dbUser || dbUser.role !== 'mentor_marcos') {
       return res.status(403).json({ error: 'Access denied: only mentor_marcos can create members' });
     }
 
