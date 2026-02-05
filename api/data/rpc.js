@@ -1,8 +1,11 @@
 const { getSupabase, ALLOWED_RPCS } = require('../_lib/supabase');
-const { verifyAuth } = require('../_lib/auth');
+const { verifyAuth, verifyAdmin } = require('../_lib/auth');
 
 // RPCs that don't require authentication
 const PUBLIC_RPCS = ['secure_login', 'secure_register'];
+
+// RPCs that require admin/mentor authentication
+const ADMIN_RPCS = ['create_user_secure', 'update_password_secure'];
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -18,9 +21,17 @@ module.exports = async function handler(req, res) {
 
     // Check auth for non-public RPCs
     if (!PUBLIC_RPCS.includes(function_name)) {
-      const auth = await verifyAuth(req);
-      if (!auth) {
-        return res.status(401).json({ error: 'Authentication required' });
+      // Admin RPCs require mentor role
+      if (ADMIN_RPCS.includes(function_name)) {
+        const admin = await verifyAdmin(req);
+        if (!admin) {
+          return res.status(403).json({ error: 'Admin access required' });
+        }
+      } else {
+        const auth = await verifyAuth(req);
+        if (!auth) {
+          return res.status(401).json({ error: 'Authentication required' });
+        }
       }
     }
 
