@@ -7,9 +7,9 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // Verify admin/mentor access before any operation
+    // SECURITY: Only mentor_marcos can perform admin auth operations
     const admin = await verifyAdmin(req);
-    if (!admin) {
+    if (!admin || admin.role !== 'mentor_marcos') {
       return res.status(403).json({ error: 'Admin access required' });
     }
 

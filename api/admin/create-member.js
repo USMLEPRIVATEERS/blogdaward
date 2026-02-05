@@ -24,6 +24,21 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
+    // SECURITY: Validate CPF format (digits only, 11 chars)
+    const cleanCpf = cpf.replace(/\D/g, '');
+    if (cleanCpf.length !== 11) {
+      return res.status(400).json({ error: 'CPF invalido' });
+    }
+
+    // SECURITY: Validate role against allowed values
+    const ALLOWED_ROLES = ['aluno', 'assessoria', 'externo', 'mentor_iria', 'mentor_marcos', 'mentor_guilherme', 'mentor_romulo'];
+    if (role && !ALLOWED_ROLES.includes(role)) {
+      return res.status(400).json({ error: 'Role invalido' });
+    }
+
+    // SECURITY: Sanitize text inputs to prevent stored XSS
+    const sanitize = (str) => str ? str.replace(/<[^>]*>/g, '').replace(/on\w+\s*=/gi, '').replace(/javascript:/gi, '') : str;
+
     const supabase = getSupabase();
 
     // Check if CPF already exists
@@ -58,10 +73,10 @@ module.exports = async function handler(req, res) {
     const { data: newUser, error: insertError } = await supabase
       .from('users')
       .insert({
-        cpf,
-        email: email || null,
+        cpf: cleanCpf,
+        email: email ? sanitize(email.trim()) : null,
         password_hash: passwordHash,
-        full_name,
+        full_name: sanitize(full_name),
         role: role || 'aluno',
         first_login_completed: false,
         questionnaire_step: 0,
