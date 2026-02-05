@@ -413,6 +413,21 @@
                         </button>
                     </div>
                 </div>
+                <div id="edit-check-folders-group" class="form-group" style="display: none;">
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 1.5rem;">🔍</span>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; font-size: 0.85rem; color: #166534;">Verificar pastas do Google Drive</div>
+                                <div style="font-size: 0.75rem; color: #16a34a;">Confere se todas as subpastas existem e cria as faltantes automaticamente</div>
+                            </div>
+                            <button type="button" class="btn btn-primary" id="edit-check-folders-btn" onclick="checkProjectFolders()" style="white-space: nowrap; font-size: 0.8rem; background: #16a34a;">
+                                🔍 Verificar Pastas
+                            </button>
+                        </div>
+                        <div id="check-folders-result" style="display: none; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #bbf7d0; font-size: 0.8rem;"></div>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('edit-project-modal')">Cancelar</button>
@@ -2222,8 +2237,13 @@
 
             updateEditTitleFields();
 
-            // Check if project has Drive folders and show create button if not
+            // Check if project has Drive folders and show create/check buttons
             const driveFolderGroup = document.getElementById('edit-create-drive-folder-group');
+            const checkFoldersGroup = document.getElementById('edit-check-folders-group');
+            const checkFoldersResult = document.getElementById('check-folders-result');
+            checkFoldersResult.style.display = 'none';
+            checkFoldersResult.innerHTML = '';
+
             const { data: existingFolders } = await WardApp.db
                 .from('research_project_folders')
                 .select('id')
@@ -2232,8 +2252,13 @@
 
             if (isMentor && (!existingFolders || existingFolders.length === 0)) {
                 driveFolderGroup.style.display = '';
+                checkFoldersGroup.style.display = 'none';
+            } else if (isMentor) {
+                driveFolderGroup.style.display = 'none';
+                checkFoldersGroup.style.display = '';
             } else {
                 driveFolderGroup.style.display = 'none';
+                checkFoldersGroup.style.display = 'none';
             }
 
             // For non-mentors, hide most fields - they can only edit description
@@ -2246,6 +2271,7 @@
             if (!isMentor) {
                 allFieldsToHide.forEach(el => el.style.display = 'none');
                 driveFolderGroup.style.display = 'none';
+                checkFoldersGroup.style.display = 'none';
                 document.querySelector('#edit-project-modal .modal-title').textContent = '✏️ Editar Descricao';
             } else {
                 allFieldsToHide.forEach(el => el.style.display = '');
@@ -2579,6 +2605,98 @@
             } catch (error) {
                 console.error('Drive folder creation error:', error);
                 WardApp.showToast('Erro ao criar pasta no Drive', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        async function checkProjectFolders() {
+            if (!currentProject) return;
+
+            const btn = document.getElementById('edit-check-folders-btn');
+            const resultDiv = document.getElementById('check-folders-result');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Verificando...';
+            resultDiv.style.display = 'none';
+
+            try {
+                // Buscar a pasta principal do projeto no banco
+                const { data: mainFolderData } = await WardApp.db
+                    .from('research_project_folders')
+                    .select('folder_id, folder_name')
+                    .eq('project_id', currentProject.id)
+                    .is('parent_folder_name', null)
+                    .limit(1);
+
+                if (!mainFolderData || mainFolderData.length === 0) {
+                    resultDiv.innerHTML = '<div style="color: #dc2626;">Pasta principal nao encontrada no banco de dados. Crie a pasta primeiro.</div>';
+                    resultDiv.style.display = '';
+                    return;
+                }
+
+                const mainFolderId = mainFolderData[0].folder_id;
+
+                // Chamar Google Apps Script para verificar pastas
+                const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'checkAndCreateMissingFolders',
+                        mainFolderId: mainFolderId
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Erro ao verificar pastas');
+                }
+
+                // Salvar pastas criadas no banco de dados
+                if (data.created && data.created.length > 0) {
+                    const newRecords = data.created.map(f => ({
+                        project_id: currentProject.id,
+                        folder_name: f.name,
+                        folder_id: f.id,
+                        parent_folder_name: f.parent,
+                        folder_url: f.url
+                    }));
+
+                    const { error } = await WardApp.db
+                        .from('research_project_folders')
+                        .insert(newRecords);
+
+                    if (error) {
+                        console.error('Error saving new folders:', error);
+                    }
+                }
+
+                // Mostrar resultado
+                if (data.createdCount === 0) {
+                    resultDiv.innerHTML = '<div style="color: #166534;">Todas as pastas estao corretas! Nenhuma pasta faltante.</div>';
+                } else {
+                    const createdList = data.created.map(f => `<li><strong>${f.parent} > ${f.name}</strong></li>`).join('');
+                    resultDiv.innerHTML = `
+                        <div style="color: #166534; margin-bottom: 0.5rem;">
+                            <strong>${data.createdCount} pasta(s) criada(s):</strong>
+                        </div>
+                        <ul style="margin: 0; padding-left: 1.2rem;">${createdList}</ul>
+                    `;
+                }
+
+                resultDiv.style.display = '';
+                WardApp.showToast(data.createdCount === 0 ? 'Todas as pastas OK!' : `${data.createdCount} pasta(s) criada(s)!`);
+
+            } catch (error) {
+                console.error('Check folders error:', error);
+                resultDiv.innerHTML = `<div style="color: #dc2626;">Erro: ${error.message}</div>`;
+                resultDiv.style.display = '';
+                WardApp.showToast('Erro ao verificar pastas', 'error');
             } finally {
                 btn.disabled = false;
                 btn.textContent = originalText;

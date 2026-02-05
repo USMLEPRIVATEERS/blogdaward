@@ -1,6 +1,6 @@
 // ============================================
 // WARD ACADEMY - RESEARCH FOLDERS & FILE UPLOAD API
-// Google Apps Script Backend - v2.4 COM PASTA PROTOCOL
+// Google Apps Script Backend - v2.5 COM SUBMISSION SUBFOLDERS + CHECK MISSING
 // ============================================
 //
 // INSTRUÇÕES DE INSTALAÇÃO:
@@ -80,11 +80,12 @@ function doGet(e) {
     else {
       result = {
         success: true,
-        message: 'Ward Academy Research Folders API v2.4',
-        status: 'Working - Includes PROTOCOL folder',
+        message: 'Ward Academy Research Folders API v2.5',
+        status: 'Working - Includes SUBMISSION subfolders + check missing',
         timestamp: new Date().toISOString(),
         endpoints: {
-          'POST createProjectFolder': 'Cria estrutura de pastas para projeto (com PROTOCOL)',
+          'POST createProjectFolder': 'Cria estrutura de pastas para projeto (com PROTOCOL + SUBMISSION subfolders)',
+          'POST checkAndCreateMissingFolders': 'Verifica e cria pastas faltantes em projeto existente',
           'POST uploadToFolder': 'Upload de arquivo para pasta específica',
           'GET deleteFile': 'Deleta um arquivo',
           'GET list': 'Lista arquivos de uma pasta'
@@ -118,6 +119,11 @@ function doPost(e) {
       result = createProjectFolderStructure(data.projectTitle);
     }
     
+    // VERIFICAR E CRIAR PASTAS FALTANTES
+    else if (action === 'checkAndCreateMissingFolders') {
+      result = checkAndCreateMissingFolders(data.mainFolderId);
+    }
+
     // FAZER UPLOAD DE ARQUIVO PARA PASTA ESPECÍFICA
     else if (action === 'uploadToFolder') {
       result = uploadFileToFolder(
@@ -250,6 +256,38 @@ function createProjectFolderStructure(projectTitle) {
       url: figures.getUrl()
     };
 
+    // 7.3. SUBMISSION > ABSTRACT
+    const abstract = submission.createFolder('ABSTRACT');
+    abstract.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+    subfolders['SUBMISSION'].subfolders['ABSTRACT'] = {
+      id: abstract.getId(),
+      url: abstract.getUrl()
+    };
+
+    // 7.4. SUBMISSION > MANUSCRIPT
+    const manuscript = submission.createFolder('MANUSCRIPT');
+    manuscript.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+    subfolders['SUBMISSION'].subfolders['MANUSCRIPT'] = {
+      id: manuscript.getId(),
+      url: manuscript.getUrl()
+    };
+
+    // 7.5. SUBMISSION > SUPPLEMENTARY
+    const supplementary = submission.createFolder('SUPPLEMENTARY');
+    supplementary.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+    subfolders['SUBMISSION'].subfolders['SUPPLEMENTARY'] = {
+      id: supplementary.getId(),
+      url: supplementary.getUrl()
+    };
+
+    // 7.6. SUBMISSION > COVER LETTER
+    const coverLetter = submission.createFolder('COVER LETTER');
+    coverLetter.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+    subfolders['SUBMISSION'].subfolders['COVER LETTER'] = {
+      id: coverLetter.getId(),
+      url: coverLetter.getUrl()
+    };
+
     // ========================================
     // RETORNAR ESTRUTURA CRIADA
     // ========================================
@@ -262,6 +300,98 @@ function createProjectFolderStructure(projectTitle) {
         mainFolderUrl: mainFolder.getUrl(),
         subfolders: subfolders
       }
+    };
+
+  } catch (error) {
+    return {
+      success: false,
+      error: error.toString(),
+      stack: error.stack
+    };
+  }
+}
+
+// ============================================
+// VERIFICAR E CRIAR PASTAS FALTANTES
+// ============================================
+
+function checkAndCreateMissingFolders(mainFolderId) {
+  try {
+    const mainFolder = DriveApp.getFolderById(mainFolderId);
+
+    // Estrutura esperada: pasta -> subpastas esperadas
+    const expectedStructure = {
+      'PROTOCOL': [],
+      'DATABASES': [],
+      'FULL TEXT REVIEW': [],
+      'INCLUDED': [],
+      'DATA EXTRACTION': ['FOREST PLOTS'],
+      'RISK OF BIAS': [],
+      'SUBMISSION': ['TABLES', 'FIGURES', 'ABSTRACT', 'MANUSCRIPT', 'SUPPLEMENTARY', 'COVER LETTER']
+    };
+
+    // Listar pastas existentes no nivel principal
+    const existingMainFolders = {};
+    const mainFolders = mainFolder.getFolders();
+    while (mainFolders.hasNext()) {
+      const f = mainFolders.next();
+      existingMainFolders[f.getName().toUpperCase()] = f;
+    }
+
+    const created = [];
+    const alreadyExists = [];
+
+    // Verificar cada pasta esperada
+    for (const [folderName, expectedSubfolders] of Object.entries(expectedStructure)) {
+      let folder;
+
+      if (existingMainFolders[folderName.toUpperCase()]) {
+        folder = existingMainFolders[folderName.toUpperCase()];
+        alreadyExists.push(folderName);
+      } else {
+        // Criar pasta faltante
+        folder = mainFolder.createFolder(folderName);
+        folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+        created.push({
+          name: folderName,
+          id: folder.getId(),
+          url: folder.getUrl(),
+          parent: mainFolder.getName()
+        });
+      }
+
+      // Verificar subpastas
+      if (expectedSubfolders.length > 0) {
+        const existingSubs = {};
+        const subs = folder.getFolders();
+        while (subs.hasNext()) {
+          const s = subs.next();
+          existingSubs[s.getName().toUpperCase()] = s;
+        }
+
+        for (const subName of expectedSubfolders) {
+          if (existingSubs[subName.toUpperCase()]) {
+            alreadyExists.push(folderName + ' > ' + subName);
+          } else {
+            const sub = folder.createFolder(subName);
+            sub.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+            created.push({
+              name: subName,
+              id: sub.getId(),
+              url: sub.getUrl(),
+              parent: folderName
+            });
+          }
+        }
+      }
+    }
+
+    return {
+      success: true,
+      created: created,
+      createdCount: created.length,
+      alreadyExistsCount: alreadyExists.length,
+      alreadyExists: alreadyExists
     };
 
   } catch (error) {
@@ -348,9 +478,18 @@ Quando você chamar createProjectFolder, será criada esta estrutura:
 ├── 📁 RISK OF BIAS
 └── 📁 SUBMISSION
     ├── 📁 TABLES
-    └── 📁 FIGURES
+    ├── 📁 FIGURES
+    ├── 📁 ABSTRACT
+    ├── 📁 MANUSCRIPT
+    ├── 📁 SUPPLEMENTARY
+    └── 📁 COVER LETTER
 
 Todas as pastas com permissão: "Qualquer pessoa com o link pode editar"
+
+Actions disponíveis (POST):
+- createProjectFolder: Cria a estrutura completa de pastas
+- checkAndCreateMissingFolders: Verifica e cria pastas faltantes (requer mainFolderId)
+- uploadToFolder: Upload de arquivo para pasta específica
 */
 
 // ============================================
