@@ -39,16 +39,23 @@ const USER_SCOPED_TABLES = [
 ];
 
 // =============================================
-// SECURITY: Strip HTML tags from strings to prevent stored XSS
+// SECURITY: Sanitize strings to prevent stored XSS
+// Only removes dangerous tags/attributes, preserves safe formatting
 // =============================================
 function sanitizeValue(val) {
   if (typeof val === 'string') {
-    // Remove HTML tags and dangerous attributes
     return val
+      // Remove dangerous tags entirely (script, iframe, object, embed, form, base)
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<[^>]*>/g, '')
-      .replace(/on\w+\s*=/gi, '')
-      .replace(/javascript:/gi, '');
+      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+      .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
+      .replace(/<embed\b[^>]*\/?>/gi, '')
+      .replace(/<form\b[^<]*(?:(?!<\/form>)<[^<]*)*<\/form>/gi, '')
+      .replace(/<base\b[^>]*\/?>/gi, '')
+      // Remove event handler attributes from remaining tags (onclick, onerror, etc.)
+      .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      // Remove javascript: URLs in attributes
+      .replace(/javascript\s*:/gi, 'nojs:');
   }
   return val;
 }
