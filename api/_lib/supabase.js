@@ -63,7 +63,7 @@ const ALLOWED_TABLES = [
 const ALLOWED_RPCS = [
   'secure_login', 'secure_register', 'change_password',
   'get_questionnaire_data', 'save_questionnaire_data', 'list_users',
-  'create_user_secure', 'update_password_secure',
+  'update_password_secure',
   'add_networking_specialty', 'add_networking_position', 'add_networking_city',
   'delete_old_archived_projects', 'get_pending_emails',
   'mark_email_sent', 'mark_email_failed'

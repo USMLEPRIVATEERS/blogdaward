@@ -5,7 +5,7 @@ const { verifyAuth, verifyAdmin } = require('../_lib/auth');
 const PUBLIC_RPCS = ['secure_login', 'secure_register'];
 
 // RPCs that require admin/mentor authentication
-const ADMIN_RPCS = ['create_user_secure', 'update_password_secure'];
+const ADMIN_RPCS = ['update_password_secure'];
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
