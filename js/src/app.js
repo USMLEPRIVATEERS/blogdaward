@@ -1713,7 +1713,7 @@ function updateHeaderUserInfo() {
         const userName = document.querySelector('.user-name');
         if (userName) {
             const name = _parseStr(user.name) || _parseStr(user.full_name) || user.email;
-            userName.textContent = name;
+            userName.textContent = name ? name.split(' ')[0] : name;
         }
     }
 }
