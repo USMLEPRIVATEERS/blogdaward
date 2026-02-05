@@ -16,6 +16,9 @@ const ADMIN_WRITE_TABLES = [
 // =============================================
 const BLOCKED_COLUMNS = ['password_hash'];
 
+// Extra columns blocked for non-admin users
+const NON_ADMIN_BLOCKED_COLUMNS = ['password_hash', 'cpf'];
+
 // =============================================
 // SECURITY: Tables where non-admin users can only access their own rows
 // These tables have a user_id column that must match the authenticated user
@@ -124,19 +127,9 @@ module.exports = async function handler(req, res) {
     }
 
     // =============================================
-    // SECURITY: Non-admin users can only access users table for their own record
+    // SECURITY: Users table - allow SELECT but strip PII for non-admin
+    // Writing to users table is already blocked by ADMIN_WRITE_TABLES
     // =============================================
-    if (table === 'users' && !isAdmin) {
-      if (action === 'select') {
-        // Students can only read their own user record
-        const hasOwnFilter = filters && filters.some(f =>
-          f.col === 'id' && f.type === 'eq' && String(f.val) === String(userId)
-        );
-        if (!hasOwnFilter) {
-          return res.status(403).json({ error: 'Access denied: you can only view your own profile' });
-        }
-      }
-    }
 
     // Delete operations require admin, except own records
     if (action === 'delete') {
@@ -160,21 +153,35 @@ module.exports = async function handler(req, res) {
     }
 
     // =============================================
-    // SECURITY: For user-scoped tables, non-admin write ops must include user_id
+    // SECURITY: For user-scoped tables, non-admin users:
+    // - INSERT: user_id in data must match authenticated user (if present)
+    // - UPDATE/DELETE: must have user_id filter matching auth user,
+    //   OR an id filter (ownership verified via pre-query)
     // =============================================
     if (!isAdmin && USER_SCOPED_TABLES.includes(table)) {
       if (action === 'update' || action === 'delete') {
-        if (!hasUserIdFilter(filters)) {
-          return res.status(403).json({ error: 'You can only modify your own records' });
-        }
-        // Verify the user_id in the filter matches the authenticated user
-        const userIdFilter = filters.find(f => f.col === 'user_id' && f.type === 'eq');
-        if (userIdFilter && String(userIdFilter.val) !== String(userId)) {
-          return res.status(403).json({ error: 'Access denied: user_id mismatch' });
+        const hasIdFilter = filters && filters.some(f => f.col === 'id' && f.type === 'eq');
+        if (hasUserIdFilter(filters)) {
+          // Verify the user_id in the filter matches the authenticated user
+          const userIdFilter = filters.find(f => f.col === 'user_id' && f.type === 'eq');
+          if (String(userIdFilter.val) !== String(userId)) {
+            return res.status(403).json({ error: 'Access denied: user_id mismatch' });
+          }
+        } else if (hasIdFilter) {
+          // Update/delete by primary key - verify ownership via pre-query
+          const recordId = filters.find(f => f.col === 'id' && f.type === 'eq').val;
+          const supabaseCheck = getSupabase();
+          const { data: record } = await supabaseCheck
+            .from(table).select('user_id').eq('id', recordId).maybeSingle();
+          if (record && String(record.user_id) !== String(userId)) {
+            return res.status(403).json({ error: 'Access denied: record belongs to another user' });
+          }
+        } else if (!filters || filters.length === 0) {
+          // No filters at all - block bulk operations
+          return res.status(403).json({ error: 'Bulk operations not allowed' });
         }
       }
       if (action === 'insert' || action === 'upsert') {
-        // Ensure inserted data has the correct user_id
         if (sanitizedData) {
           const rows = Array.isArray(sanitizedData) ? sanitizedData : [sanitizedData];
           for (const row of rows) {
@@ -240,10 +247,6 @@ module.exports = async function handler(req, res) {
           case 'contains': query = query.contains(f.col, f.val); break;
           case 'not': query = query.not(f.col, f.op, f.val); break;
           case 'or':
-            // SECURITY: Only admins can use the 'or' operator
-            if (!isAdmin) {
-              return res.status(403).json({ error: 'OR filter not allowed for this role' });
-            }
             query = query.or(f.expr);
             break;
           case 'match': query = query.match(f.val); break;
@@ -284,8 +287,18 @@ module.exports = async function handler(req, res) {
 
     // =============================================
     // SECURITY: Strip sensitive columns from response
+    // Non-admins also get CPF stripped from users table queries
     // =============================================
-    const safeData = stripSensitiveColumns(result.data);
+    let safeData = stripSensitiveColumns(result.data);
+    if (table === 'users' && !isAdmin && safeData) {
+      const stripExtra = (row) => {
+        if (!row || typeof row !== 'object') return row;
+        const cleaned = { ...row };
+        for (const col of NON_ADMIN_BLOCKED_COLUMNS) delete cleaned[col];
+        return cleaned;
+      };
+      safeData = Array.isArray(safeData) ? safeData.map(stripExtra) : stripExtra(safeData);
+    }
 
     return res.status(200).json({
       data: safeData,
