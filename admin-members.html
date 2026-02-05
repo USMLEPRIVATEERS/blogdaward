@@ -557,19 +557,34 @@
                 return;
             }
 
-            // Criar usuario com senha bcrypt no servidor
-            // Uses secure_register (SECURITY DEFINER) which handles bcrypt hashing
-            // Auth is enforced by: frontend (mentor_marcos check) + API proxy (admin check)
-            const { data: result, error } = await WardApp.db.rpc('secure_register', {
-                p_cpf: cpf,
-                p_email: email || '',
-                p_password: password,
-                p_full_name: name,
-                p_role: role
-            });
+            // Create user via dedicated admin API endpoint
+            // Bypasses SQL functions entirely - hashes password server-side with bcrypt
+            // Auth: API verifies mentor_marcos session token
+            try {
+                const token = localStorage.getItem('ward_token');
+                const response = await fetch('/api/admin/create-member', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-ward-token': token
+                    },
+                    body: JSON.stringify({
+                        cpf,
+                        email: email || '',
+                        password,
+                        full_name: name,
+                        role
+                    })
+                });
 
-            if (error || !result?.success) {
-                WardApp.showToast('Erro ao criar membro: ' + (result?.error || error?.message), 'error');
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    WardApp.showToast('Erro ao criar membro: ' + (result.error || 'Erro desconhecido'), 'error');
+                    return;
+                }
+            } catch (fetchErr) {
+                WardApp.showToast('Erro de conexao ao criar membro: ' + fetchErr.message, 'error');
                 return;
             }
 
