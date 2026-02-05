@@ -401,6 +401,18 @@
                     <label class="form-label">Link Externo (Drive, etc)</label>
                     <input type="url" id="edit-project-link" class="form-input" placeholder="https://...">
                 </div>
+                <div id="edit-create-drive-folder-group" class="form-group" style="display: none;">
+                    <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.75rem; display: flex; align-items: center; gap: 0.75rem;">
+                        <span style="font-size: 1.5rem;">📁</span>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; font-size: 0.85rem; color: #1e40af;">Este projeto nao possui pasta no Google Drive</div>
+                            <div style="font-size: 0.75rem; color: #3b82f6;">Crie a estrutura de pastas organizada para os arquivos da pesquisa</div>
+                        </div>
+                        <button type="button" class="btn btn-primary" id="edit-create-drive-btn" onclick="createDriveFolderFromEdit()" style="white-space: nowrap; font-size: 0.8rem;">
+                            📁 Criar Pasta
+                        </button>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('edit-project-modal')">Cancelar</button>
@@ -2180,7 +2192,7 @@
             }, 3000);
         }
 
-        function openEditProjectModal() {
+        async function openEditProjectModal() {
             if (!currentProject) return;
 
             document.getElementById('edit-project-id').value = currentProject.id;
@@ -2210,6 +2222,20 @@
 
             updateEditTitleFields();
 
+            // Check if project has Drive folders and show create button if not
+            const driveFolderGroup = document.getElementById('edit-create-drive-folder-group');
+            const { data: existingFolders } = await WardApp.db
+                .from('research_project_folders')
+                .select('id')
+                .eq('project_id', currentProject.id)
+                .limit(1);
+
+            if (isMentor && (!existingFolders || existingFolders.length === 0)) {
+                driveFolderGroup.style.display = '';
+            } else {
+                driveFolderGroup.style.display = 'none';
+            }
+
             // For non-mentors, hide most fields - they can only edit description
             const formGroupsToHide = ['edit-project-type', 'edit-project-status', 'edit-project-deadline', 'edit-project-link']
                 .map(id => document.getElementById(id)?.parentElement).filter(Boolean);
@@ -2219,6 +2245,7 @@
 
             if (!isMentor) {
                 allFieldsToHide.forEach(el => el.style.display = 'none');
+                driveFolderGroup.style.display = 'none';
                 document.querySelector('#edit-project-modal .modal-title').textContent = '✏️ Editar Descricao';
             } else {
                 allFieldsToHide.forEach(el => el.style.display = '');
@@ -2328,13 +2355,41 @@
                 return;
             }
 
-            // First delete all tasks for this project
-            await WardApp.db
+            // Delete all related records first (files, folders, tasks)
+            const { error: filesErr } = await WardApp.db
+                .from('research_project_files')
+                .delete()
+                .eq('project_id', currentProject.id);
+
+            if (filesErr) {
+                console.error('Error deleting project files:', filesErr);
+                WardApp.showToast('Erro ao excluir arquivos do projeto', 'error');
+                return;
+            }
+
+            const { error: foldersErr } = await WardApp.db
+                .from('research_project_folders')
+                .delete()
+                .eq('project_id', currentProject.id);
+
+            if (foldersErr) {
+                console.error('Error deleting project folders:', foldersErr);
+                WardApp.showToast('Erro ao excluir pastas do projeto', 'error');
+                return;
+            }
+
+            const { error: tasksErr } = await WardApp.db
                 .from('research_tasks')
                 .delete()
                 .eq('project_id', currentProject.id);
 
-            // Then delete the project
+            if (tasksErr) {
+                console.error('Error deleting project tasks:', tasksErr);
+                WardApp.showToast('Erro ao excluir tarefas do projeto', 'error');
+                return;
+            }
+
+            // Then delete the project itself
             const { error } = await WardApp.db
                 .from('research_projects')
                 .delete()
@@ -2488,6 +2543,47 @@
         // ============================================
         // GOOGLE DRIVE INTEGRATION FUNCTIONS
         // ============================================
+
+        // Create Drive folder from the Edit Project modal
+        async function createDriveFolderFromEdit() {
+            if (!currentProject) return;
+
+            const btn = document.getElementById('edit-create-drive-btn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Criando...';
+
+            try {
+                const folderStructure = await createProjectDriveFolder(currentProject.title);
+
+                // Save folder structure to database
+                await saveFolderStructure(currentProject.id, folderStructure);
+
+                // Update project drive_link
+                const driveLink = folderStructure.mainFolderUrl;
+                await WardApp.db
+                    .from('research_projects')
+                    .update({
+                        drive_link: driveLink,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', currentProject.id);
+
+                // Update the link field in the edit modal
+                document.getElementById('edit-project-link').value = driveLink;
+
+                // Hide the create folder button
+                document.getElementById('edit-create-drive-folder-group').style.display = 'none';
+
+                WardApp.showToast('Pasta criada no Google Drive!');
+            } catch (error) {
+                console.error('Drive folder creation error:', error);
+                WardApp.showToast('Erro ao criar pasta no Drive', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
 
         // Create project folder structure in Drive
 async function createProjectDriveFolder(projectTitle) {
