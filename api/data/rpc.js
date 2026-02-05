@@ -35,6 +35,14 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    // secure_register with non-externo role requires mentor_marcos
+    if (function_name === 'secure_register' && params && params.p_role && params.p_role !== 'externo') {
+      const admin = await verifyAdmin(req);
+      if (!admin || admin.role !== 'mentor_marcos') {
+        return res.status(403).json({ error: 'Only mentor_marcos can create non-external users' });
+      }
+    }
+
     // Always use service role client for RPC operations.
     // Auth is already verified above. Passing an expired user JWT
     // would override the service role Authorization header.
