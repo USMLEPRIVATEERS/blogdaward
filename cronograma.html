@@ -1642,6 +1642,7 @@
             await loadUserScheduleType();
 
             await loadWatchedLessons();
+            loadWardMethodLessons(); // Merge Ward Method lessons from localStorage
             await loadSchedule();
             await loadDelays();
 
@@ -1966,10 +1967,10 @@
                     watchedLessons.delete(lessonKey);
                     WardApp.showToast('Aula desmarcada');
                 } else {
-                    // Add to watched
+                    // Add to watched (upsert to avoid duplicate key errors)
                     const { error } = await WardApp.db
                         .from('watched_lessons')
-                        .insert({
+                        .upsert({
                             user_id: targetUserId,
                             schedule_id: scheduleId || null,
                             course_name: courseName,
@@ -2792,16 +2793,16 @@
             localStorage.setItem('ward_watched_lessons', JSON.stringify(Array.from(watchedLessons)));
         }
 
-        // Load watched lessons from localStorage
-        function loadWatchedLessons() {
+        // Load Ward Method lessons from localStorage (merges into existing Set)
+        function loadWardMethodLessons() {
             try {
                 const saved = localStorage.getItem('ward_watched_lessons');
                 if (saved) {
                     const arr = JSON.parse(saved);
-                    watchedLessons = new Set(arr);
+                    arr.forEach(key => watchedLessons.add(key));
                 }
             } catch (e) {
-                console.error('Error loading watched lessons:', e);
+                console.error('Error loading ward method lessons:', e);
             }
         }
 
