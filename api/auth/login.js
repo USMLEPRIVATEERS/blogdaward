@@ -1,5 +1,6 @@
 const { getSupabase } = require('../_lib/supabase');
 const { createSessionToken, verifyAuth } = require('../_lib/auth');
+const bcrypt = require('bcryptjs');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -48,18 +49,27 @@ module.exports = async function handler(req, res) {
         }
         session = authData.session;
       } else {
-        // 3. Legacy login via RPC
-        const { data: rpcData, error: rpcError } = await supabase.rpc('secure_login', {
-          p_cpf: cleanCPF,
-          p_password: password
-        });
-
-        if (rpcError || !rpcData || !rpcData.success) {
+        // 3. Verify password directly with bcryptjs (same library used to hash)
+        // This avoids pgcrypto/bcryptjs compatibility issues and
+        // bypasses any modified SQL functions in the database
+        if (!user.password_hash) {
           return res.status(200).json({ data: null, error: { message: 'CPF ou senha incorretos' } });
         }
 
-        // Merge RPC-returned user data
-        Object.assign(user, rpcData.user);
+        let passwordValid = false;
+
+        if (user.password_hash.startsWith('$2')) {
+          // bcrypt hash - verify with bcryptjs
+          passwordValid = await bcrypt.compare(password, user.password_hash);
+        } else {
+          // Legacy hash (base64) - keep backward compatibility
+          const legacyHash = Buffer.from(password + '_ward_salt_2024').toString('base64');
+          passwordValid = (user.password_hash === legacyHash || user.password_hash === password);
+        }
+
+        if (!passwordValid) {
+          return res.status(200).json({ data: null, error: { message: 'CPF ou senha incorretos' } });
+        }
       }
 
       // 4. Create ward session token (works for both auth and legacy users)
