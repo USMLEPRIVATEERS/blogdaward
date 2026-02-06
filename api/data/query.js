@@ -144,8 +144,10 @@ module.exports = async function handler(req, res) {
         if (!filters || filters.length === 0) {
           return res.status(403).json({ error: 'Admin access required' });
         }
-        // Non-admin: enforce user_id filter for deletion in scoped tables
-        if (USER_SCOPED_TABLES.includes(table) && !hasUserIdFilter(filters)) {
+        // Non-admin: enforce user_id or id filter for deletion in scoped tables
+        // (id filter ownership is verified later via pre-query)
+        const hasIdFilter = filters && filters.some(f => f.col === 'id' && f.type === 'eq');
+        if (USER_SCOPED_TABLES.includes(table) && !hasUserIdFilter(filters) && !hasIdFilter) {
           return res.status(403).json({ error: 'You can only delete your own records' });
         }
       }
