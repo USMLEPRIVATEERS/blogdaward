@@ -2,6 +2,11 @@ const { getSupabase, ALLOWED_TABLES } = require('../_lib/supabase');
 const { verifyAuth, verifyAdmin } = require('../_lib/auth');
 
 // =============================================
+// SECURITY: Safe columns that users can update on their OWN users row
+// =============================================
+const USER_SELF_UPDATE_COLUMNS = ['diaries_enabled', 'full_name', 'timezone'];
+
+// =============================================
 // SECURITY: Tables that only admins can WRITE to
 // =============================================
 const ADMIN_WRITE_TABLES = [
@@ -126,10 +131,22 @@ module.exports = async function handler(req, res) {
 
     // =============================================
     // SECURITY: Block non-admin write operations on protected tables
+    // Exception: users can update safe columns on their own row
     // =============================================
     if (!isAdmin && ADMIN_WRITE_TABLES.includes(table)) {
-      if (action === 'update' || action === 'delete' || action === 'insert' || action === 'upsert') {
-        return res.status(403).json({ error: 'Admin access required for this table' });
+      let allowed = false;
+      if (table === 'users' && action === 'update' && data) {
+        const updateCols = Object.keys(typeof data === 'string' ? JSON.parse(data) : data);
+        const allSafe = updateCols.every(col => USER_SELF_UPDATE_COLUMNS.includes(col));
+        const hasOwnIdFilter = filters && filters.some(f => f.col === 'id' && f.type === 'eq' && String(f.val) === String(userId));
+        if (allSafe && hasOwnIdFilter) {
+          allowed = true;
+        }
+      }
+      if (!allowed) {
+        if (action === 'update' || action === 'delete' || action === 'insert' || action === 'upsert') {
+          return res.status(403).json({ error: 'Admin access required for this table' });
+        }
       }
     }
 
