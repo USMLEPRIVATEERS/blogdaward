@@ -186,7 +186,12 @@
             <div class="card">
                 <div class="card-header">
                     <span>🌐 Atividade Global da Plataforma</span>
-                    <button class="btn btn-sm btn-outline" onclick="loadGlobalFeed()">🔄 Atualizar</button>
+                    <div style="display: flex; gap: 4px; align-items: center;">
+                        <button class="btn btn-sm feed-period-btn active" data-period="week" onclick="setFeedPeriod('week')">Semana</button>
+                        <button class="btn btn-sm feed-period-btn" data-period="month" onclick="setFeedPeriod('month')">Mes</button>
+                        <button class="btn btn-sm feed-period-btn" data-period="all" onclick="setFeedPeriod('all')">Total</button>
+                        <button class="btn btn-sm btn-outline" onclick="loadGlobalFeed()">🔄</button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div id="global-activity-feed" class="activity-feed">
@@ -1692,11 +1697,86 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             }
         }
 
+        let feedPeriod = 'week';
+        let allFeedItems = [];
+        let feedDisplayCount = 50;
+
+        function setFeedPeriod(period) {
+            feedPeriod = period;
+            document.querySelectorAll('.feed-period-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector(`.feed-period-btn[data-period="${period}"]`).classList.add('active');
+            loadGlobalFeed();
+        }
+
+        function getFeedCutoffDate() {
+            const now = new Date();
+            if (feedPeriod === 'week') {
+                return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+            } else if (feedPeriod === 'month') {
+                return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+            }
+            return null; // 'all' = no cutoff
+        }
+
+        function renderFeedItems(container) {
+            const cutoff = getFeedCutoffDate();
+            const filtered = cutoff
+                ? allFeedItems.filter(item => item.date && item.date >= cutoff)
+                : allFeedItems;
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<p class="text-muted">Nenhuma atividade neste periodo</p>';
+                return;
+            }
+
+            const toShow = filtered.slice(0, feedDisplayCount);
+            let html = toShow.map(item => `
+                <div class="feed-item" style="border-left-color: ${item.color}">
+                    <div class="feed-icon">${item.icon}</div>
+                    <div class="feed-content">
+                        <div class="feed-header">
+                            <strong>${item.user}</strong> ${item.action}
+                        </div>
+                        ${item.title ? `<div class="feed-title">${item.title}</div>` : ''}
+                        ${item.fullContent ? `<div class="feed-full-content">${item.fullContent}</div>` : ''}
+                        ${item.detail ? `<div class="feed-detail">${item.detail}</div>` : ''}
+                        <div class="feed-date">${WardApp.formatDate(item.date)}</div>
+                    </div>
+                    <button class="feed-capture-btn" onclick="captureNotificationAsImage(this)" title="Copiar como imagem">🖼️</button>
+                </div>
+            `).join('');
+
+            if (filtered.length > feedDisplayCount) {
+                html += `<div class="feed-load-more">
+                    <button onclick="loadMoreFeed()">Carregar mais (${filtered.length - feedDisplayCount} restantes)</button>
+                </div>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function loadMoreFeed() {
+            feedDisplayCount += 50;
+            const container = document.getElementById('global-activity-feed');
+            renderFeedItems(container);
+        }
+
         async function loadGlobalFeed() {
             const container = document.getElementById('global-activity-feed');
             container.innerHTML = '<p class="text-muted">Carregando atividades...</p>';
+            feedDisplayCount = 50;
 
             try {
+                // Calculate query date cutoff based on period
+                const queryCutoff = getFeedCutoffDate();
+                const qLimit = feedPeriod === 'all' ? 200 : feedPeriod === 'month' ? 100 : 50;
+
+                // Helper to apply date filter
+                function applyDateFilter(query, dateCol) {
+                    if (queryCutoff) return query.gte(dateCol, queryCutoff);
+                    return query.limit(qLimit);
+                }
+
                 // Load ALL platform activities - EVERYTHING that happens in the app
                 const [
                     linksRes,
@@ -1730,63 +1810,63 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                     mentorTasksRes
                 ] = await Promise.all([
                     // Links - new additions
-                    WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('created_at', { ascending: false }), 'created_at'),
                     // Links - updates to existing links
-                    WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('updated_at', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('updated_at', { ascending: false }), 'updated_at'),
                     // Blog posts
-                    WardApp.db.from('blog_posts').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('blog_posts').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }), 'created_at'),
                     // Post reactions (likes/dislikes)
-                    WardApp.db.from('blog_reactions').select('*, users:user_id(full_name, email), post:post_id(content)').order('created_at', { ascending: false }).limit(30),
+                    applyDateFilter(WardApp.db.from('blog_reactions').select('*, users:user_id(full_name, email), post:post_id(content)').order('created_at', { ascending: false }), 'created_at'),
                     // Blog comments
-                    WardApp.db.from('blog_comments').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('blog_comments').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }), 'created_at'),
                     // Comment likes
-                    WardApp.db.from('blog_comment_likes').select('*, users:user_id(full_name, email), comment:comment_id(content)').order('created_at', { ascending: false }).limit(30),
+                    applyDateFilter(WardApp.db.from('blog_comment_likes').select('*, users:user_id(full_name, email), comment:comment_id(content)').order('created_at', { ascending: false }), 'created_at'),
                     // Daily check-ins
-                    WardApp.db.from('daily_checkins').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30),
+                    applyDateFilter(WardApp.db.from('daily_checkins').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }), 'created_at'),
                     // Study diary entries
-                    WardApp.db.from('study_diary').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('study_diary').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }), 'created_at'),
                     // UWorld diary entries
-                    WardApp.db.from('uworld_diary').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('uworld_diary').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }), 'created_at'),
                     // Schedule delays
-                    WardApp.db.from('schedule_delays').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('schedule_delays').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }), 'created_at'),
                     // Mentor messages
-                    WardApp.db.from('mentor_messages').select('*, users:user_id(full_name, email), mentor:mentor_id(full_name)').order('created_at', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('mentor_messages').select('*, users:user_id(full_name, email), mentor:mentor_id(full_name)').order('created_at', { ascending: false }), 'created_at'),
                     // Research projects updates
-                    WardApp.db.from('research_projects').select('*, users:created_by(full_name, email)').order('updated_at', { ascending: false }).limit(15),
+                    applyDateFilter(WardApp.db.from('research_projects').select('*, users:created_by(full_name, email)').order('updated_at', { ascending: false }), 'updated_at'),
                     // Research tasks (created and updated)
-                    WardApp.db.from('research_tasks').select('*, users:assigned_to(full_name, email), project:project_id(title)').order('updated_at', { ascending: false }).limit(25),
+                    applyDateFilter(WardApp.db.from('research_tasks').select('*, users:assigned_to(full_name, email), project:project_id(title)').order('updated_at', { ascending: false }), 'updated_at'),
                     // Research coauthors (new authors added)
-                    WardApp.db.from('research_coauthors').select('*, users:user_id(full_name, email), project:project_id(title)').order('added_at', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('research_coauthors').select('*, users:user_id(full_name, email), project:project_id(title)').order('added_at', { ascending: false }), 'added_at'),
                     // Research notes/comments
-                    WardApp.db.from('research_notes').select('*, users:user_id(full_name, email), project:project_id(title)').order('created_at', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('research_notes').select('*, users:user_id(full_name, email), project:project_id(title)').order('created_at', { ascending: false }), 'created_at'),
                     // Completed landmarks
-                    WardApp.db.from('landmarks').select('*, users:user_id(full_name, email)').eq('completed', true).order('completion_date', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('landmarks').select('*, users:user_id(full_name, email)').eq('completed', true).order('completion_date', { ascending: false }), 'completion_date'),
                     // Study difficulties
-                    WardApp.db.from('study_difficulties').select('*, users:user_id(full_name, email)').eq('resolved', false).order('created_at', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('study_difficulties').select('*, users:user_id(full_name, email)').eq('resolved', false).order('created_at', { ascending: false }), 'created_at'),
                     // Scheduled calls
-                    WardApp.db.from('scheduled_calls').select('*, users:student_id(full_name, email), mentor:mentor_id(full_name), landmark:landmark_id(title)').order('created_at', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('scheduled_calls').select('*, users:student_id(full_name, email), mentor:mentor_id(full_name), landmark:landmark_id(title)').order('created_at', { ascending: false }), 'created_at'),
                     // Schedules - newly created
-                    WardApp.db.from('schedules').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30),
+                    applyDateFilter(WardApp.db.from('schedules').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }), 'created_at'),
                     // Schedules - updated (modifications)
-                    WardApp.db.from('schedules').select('*, users:user_id(full_name, email)').order('updated_at', { ascending: false }).limit(30),
+                    applyDateFilter(WardApp.db.from('schedules').select('*, users:user_id(full_name, email)').order('updated_at', { ascending: false }), 'updated_at'),
                     // Schedules - completed
-                    WardApp.db.from('schedules').select('*, users:user_id(full_name, email)').eq('completed', true).order('completion_date', { ascending: false }).limit(30),
+                    applyDateFilter(WardApp.db.from('schedules').select('*, users:user_id(full_name, email)').eq('completed', true).order('completion_date', { ascending: false }), 'completion_date'),
                     // Questionnaires completed (users who finished all 11 steps)
-                    WardApp.db.from('users').select('id, full_name, email, questionnaire_step, updated_at').gte('questionnaire_step', 11).order('updated_at', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('users').select('id, full_name, email, questionnaire_step, updated_at').gte('questionnaire_step', 11).order('updated_at', { ascending: false }), 'updated_at'),
                     // Flash tests - created/started
-                    WardApp.db.from('flash_tests').select('*, users:user_id(full_name, email)').order('started_at', { ascending: false }).limit(30),
+                    applyDateFilter(WardApp.db.from('flash_tests').select('*, users:user_id(full_name, email)').order('started_at', { ascending: false }), 'started_at'),
                     // Flash tests - completed
-                    WardApp.db.from('flash_tests').select('*, users:user_id(full_name, email)').eq('status', 'completed').order('completed_at', { ascending: false }).limit(30),
+                    applyDateFilter(WardApp.db.from('flash_tests').select('*, users:user_id(full_name, email)').eq('status', 'completed').order('completed_at', { ascending: false }), 'completed_at'),
                     // Flash question comments
-                    WardApp.db.from('flash_question_comments').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30),
+                    applyDateFilter(WardApp.db.from('flash_question_comments').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }), 'created_at'),
                     // Watched lessons - students marking lessons as watched
-                    WardApp.db.from('watched_lessons').select('*, users:user_id(full_name, email)').order('watched_at', { ascending: false }).limit(30),
+                    applyDateFilter(WardApp.db.from('watched_lessons').select('*, users:user_id(full_name, email)').order('watched_at', { ascending: false }), 'watched_at'),
                     // Call reports - mentor reports from calls
-                    WardApp.db.from('call_reports').select('*, student:student_id(full_name, email), mentor:mentor_id(full_name, email)').order('created_at', { ascending: false }).limit(20),
+                    applyDateFilter(WardApp.db.from('call_reports').select('*, student:student_id(full_name, email), mentor:mentor_id(full_name, email)').order('created_at', { ascending: false }), 'created_at'),
                     // Audio comments - comments on audio resumos
-                    WardApp.db.from('course_audio_comments').select('*, users:user_id(full_name, email), audio:audio_id(title)').order('created_at', { ascending: false }).limit(30),
+                    applyDateFilter(WardApp.db.from('course_audio_comments').select('*, users:user_id(full_name, email), audio:audio_id(title)').order('created_at', { ascending: false }), 'created_at'),
                     // Mentor student tasks (Guilherme to-do list)
-                    WardApp.db.from('mentor_student_tasks').select('*').order('updated_at', { ascending: false }).limit(30)
+                    applyDateFilter(WardApp.db.from('mentor_student_tasks').select('*').order('updated_at', { ascending: false }), 'updated_at')
                 ]);
 
                 // Combine all activities into a single timeline
@@ -2321,27 +2401,9 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 // Sort by date descending
                 feed.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-                if (feed.length === 0) {
-                    container.innerHTML = '<p class="text-muted">Nenhuma atividade recente</p>';
-                    return;
-                }
-
-                // Render feed (show last 50 items) with FULL CONTENT
-                container.innerHTML = feed.slice(0, 50).map(item => `
-                    <div class="feed-item" style="border-left-color: ${item.color}">
-                        <div class="feed-icon">${item.icon}</div>
-                        <div class="feed-content">
-                            <div class="feed-header">
-                                <strong>${item.user}</strong> ${item.action}
-                            </div>
-                            ${item.title ? `<div class="feed-title">${item.title}</div>` : ''}
-                            ${item.fullContent ? `<div class="feed-full-content">${item.fullContent}</div>` : ''}
-                            ${item.detail ? `<div class="feed-detail">${item.detail}</div>` : ''}
-                            <div class="feed-date">${WardApp.formatDate(item.date)}</div>
-                        </div>
-                        <button class="feed-capture-btn" onclick="captureNotificationAsImage(this)" title="Copiar como imagem">🖼️</button>
-                    </div>
-                `).join('');
+                // Store globally for period filtering and load-more
+                allFeedItems = feed;
+                renderFeedItems(container);
 
             } catch (error) {
                 console.error('Error loading global feed:', error);
@@ -4677,9 +4739,38 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             }
         }
 
+        .feed-period-btn {
+            padding: 0.25rem 0.6rem;
+            font-size: 0.75rem;
+            border: 1px solid var(--gray-300);
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            color: var(--gray-600);
+        }
+        .feed-period-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
         .activity-feed {
-            max-height: 500px;
+            max-height: 600px;
             overflow-y: auto;
+        }
+        .feed-load-more {
+            text-align: center;
+            padding: 0.75rem;
+        }
+        .feed-load-more button {
+            padding: 0.5rem 1.5rem;
+            border: 1px solid var(--gray-300);
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .feed-load-more button:hover {
+            background: var(--gray-100);
         }
 
         .feed-item {
