@@ -209,6 +209,12 @@
                 <button class="btn btn-sm btn-outline" onclick="loadGlobalFeed()">🔄 Atualizar</button>
             </div>
             <div class="card-body">
+                <div style="margin-bottom: 0.5rem;">
+                    <label style="font-size: 0.8rem; color: var(--gray-500); cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                        <input type="checkbox" id="feed-show-schedule" onchange="onFeedFilterChange()">
+                        Mostrar adições ao cronograma
+                    </label>
+                </div>
                 <div id="global-activity-feed" class="activity-feed">
                     <!-- Filled by JS -->
                 </div>
@@ -1235,6 +1241,40 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
         }
 
         // Load GLOBAL activity feed - Facebook style with ALL platform activity
+        function onFeedFilterChange() {
+            const container = document.getElementById('global-activity-feed');
+            _renderGlobalFeed(container);
+        }
+
+        function _renderGlobalFeed(container) {
+            const showSchedule = document.getElementById('feed-show-schedule')?.checked;
+            let items = window._allFeedItems || [];
+            if (!showSchedule) {
+                items = items.filter(item => item.type !== 'schedule_created');
+            }
+
+            if (items.length === 0) {
+                container.innerHTML = '<p class="text-muted">Nenhuma atividade recente</p>';
+                return;
+            }
+
+            container.innerHTML = items.slice(0, 50).map(item => `
+                <div class="feed-item" style="border-left-color: ${item.color}">
+                    <div class="feed-icon">${item.icon}</div>
+                    <div class="feed-content">
+                        <div class="feed-header">
+                            <strong>${item.user}</strong> ${item.action}
+                        </div>
+                        ${item.title ? `<div class="feed-title">${item.title}</div>` : ''}
+                        ${item.fullContent ? `<div class="feed-full-content">${item.fullContent}</div>` : ''}
+                        ${item.detail ? `<div class="feed-detail">${item.detail}</div>` : ''}
+                        <div class="feed-date">${WardApp.formatDate(item.date)}</div>
+                    </div>
+                    <button class="feed-capture-btn" onclick="captureNotificationAsImage(this)" title="Copiar como imagem">🖼️</button>
+                </div>
+            `).join('');
+        }
+
         async function loadGlobalFeed() {
             const container = document.getElementById('global-activity-feed');
             container.innerHTML = '<p class="text-muted">Carregando atividades...</p>';
@@ -1864,27 +1904,9 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 // Sort by date descending
                 feed.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-                if (feed.length === 0) {
-                    container.innerHTML = '<p class="text-muted">Nenhuma atividade recente</p>';
-                    return;
-                }
-
-                // Render feed (show last 50 items) with FULL CONTENT
-                container.innerHTML = feed.slice(0, 50).map(item => `
-                    <div class="feed-item" style="border-left-color: ${item.color}">
-                        <div class="feed-icon">${item.icon}</div>
-                        <div class="feed-content">
-                            <div class="feed-header">
-                                <strong>${item.user}</strong> ${item.action}
-                            </div>
-                            ${item.title ? `<div class="feed-title">${item.title}</div>` : ''}
-                            ${item.fullContent ? `<div class="feed-full-content">${item.fullContent}</div>` : ''}
-                            ${item.detail ? `<div class="feed-detail">${item.detail}</div>` : ''}
-                            <div class="feed-date">${WardApp.formatDate(item.date)}</div>
-                        </div>
-                        <button class="feed-capture-btn" onclick="captureNotificationAsImage(this)" title="Copiar como imagem">🖼️</button>
-                    </div>
-                `).join('');
+                // Store globally for filter toggle
+                window._allFeedItems = feed;
+                _renderGlobalFeed(container);
 
             } catch (error) {
                 console.error('Error loading global feed:', error);
