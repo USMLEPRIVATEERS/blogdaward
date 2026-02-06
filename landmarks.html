@@ -1050,18 +1050,35 @@
             }
         }
 
+        let landmarkCreateAttempted = false;
+
         async function loadLandmarks() {
             // Load landmarks with scheduled calls information
-            const { data: landmarks } = await WardApp.db
+            const { data: landmarks, error: loadError } = await WardApp.db
                 .from('landmarks')
                 .select('*')
                 .eq('user_id', targetUserId)
                 .order('order_position', { ascending: true });
 
-            // If no landmarks exist, create defaults
+            if (loadError) {
+                console.error('Error loading landmarks:', loadError);
+                WardApp.showToast('Erro ao carregar landmarks', 'error');
+                return;
+            }
+
+            // If no landmarks exist, create defaults (once only to prevent infinite recursion)
             if (!landmarks || landmarks.length === 0) {
-                await createDefaultLandmarks();
-                return loadLandmarks();
+                if (landmarkCreateAttempted) {
+                    console.error('Default landmarks creation failed - already attempted');
+                    WardApp.showToast('Erro ao criar landmarks padrão. Recarregue a página ou contate o suporte.', 'error');
+                    return;
+                }
+                landmarkCreateAttempted = true;
+                const success = await createDefaultLandmarks();
+                if (success) {
+                    return loadLandmarks();
+                }
+                return;
             }
 
             // Load scheduled calls for these landmarks
@@ -1111,7 +1128,13 @@
                     };
                 });
 
-            await WardApp.db.from('landmarks').insert(landmarksToCreate);
+            const { error } = await WardApp.db.from('landmarks').insert(landmarksToCreate);
+            if (error) {
+                console.error('Error creating default landmarks:', error);
+                WardApp.showToast('Erro ao criar landmarks: ' + (error.message || 'erro desconhecido'), 'error');
+                return false;
+            }
+            return true;
         }
 
         function renderLandmarks(landmarks) {

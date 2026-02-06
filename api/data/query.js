@@ -4,7 +4,10 @@ const { verifyAuth, verifyAdmin } = require('../_lib/auth');
 // =============================================
 // SECURITY: Safe columns that users can update on their OWN users row
 // =============================================
-const USER_SELF_UPDATE_COLUMNS = ['diaries_enabled', 'full_name', 'timezone'];
+const USER_SELF_UPDATE_COLUMNS = [
+  'diaries_enabled', 'full_name', 'timezone',
+  'first_login_completed', 'questionnaire_step'
+];
 
 // =============================================
 // SECURITY: Tables that only admins can WRITE to
