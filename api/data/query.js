@@ -200,8 +200,12 @@ module.exports = async function handler(req, res) {
           // Update/delete by primary key - verify ownership via pre-query
           const recordId = filters.find(f => f.col === 'id' && f.type === 'eq').val;
           const supabaseCheck = getSupabase();
-          const { data: record } = await supabaseCheck
+          const { data: record, error: checkError } = await supabaseCheck
             .from(table).select('user_id').eq('id', recordId).maybeSingle();
+          if (checkError) {
+            console.error('Ownership check error:', table, recordId, checkError);
+            return res.status(500).json({ error: 'Failed to verify record ownership' });
+          }
           if (record && String(record.user_id) !== String(userId)) {
             return res.status(403).json({ error: 'Access denied: record belongs to another user' });
           }
@@ -313,6 +317,11 @@ module.exports = async function handler(req, res) {
     }
 
     const result = await query;
+
+    // Log errors for debugging (server-side only)
+    if (result.error) {
+      console.error('Query error:', action, table, result.error.message || result.error);
+    }
 
     // =============================================
     // SECURITY: Strip sensitive columns from response
