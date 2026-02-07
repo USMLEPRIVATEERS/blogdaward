@@ -1580,6 +1580,8 @@
 
         // File format parsers
         function parseFileContent(content, filename) {
+            // Strip BOM and normalize line endings
+            content = content.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
             // Try to detect format
             if (filename.endsWith('.nbib') || content.includes('PMID-')) {
                 return parseNBIB(content);
@@ -1773,7 +1775,8 @@
 
                 // Detecta início de registro (TY com variações de espaçamento)
                 if (trimmedLine.match(/^TY\s+-/)) {
-                    if (currentStudy && currentStudy.title) {
+                    if (currentStudy) {
+                        if (!currentStudy.title) currentStudy.title = 'Sem título';
                         currentStudy.authors = authors.slice();
                         studies.push({...currentStudy});
                     }
@@ -1841,7 +1844,8 @@
                     }
                 // Fim de registro
                 } else if (trimmedLine.match(/^ER\s+-/)) {
-                    if (currentStudy && currentStudy.title) {
+                    if (currentStudy) {
+                        if (!currentStudy.title) currentStudy.title = 'Sem título';
                         currentStudy.authors = authors.slice();
                         studies.push({...currentStudy});
                     }
@@ -1859,7 +1863,8 @@
             }
 
             // Adiciona último registro se houver
-            if (currentStudy && currentStudy.title) {
+            if (currentStudy) {
+                if (!currentStudy.title) currentStudy.title = 'Sem título';
                 currentStudy.authors = authors.slice();
                 studies.push({...currentStudy});
             }
@@ -1894,7 +1899,8 @@
                 const trimmedLine = line.trim();
 
                 if (trimmedLine.startsWith('PMID-')) {
-                    if (currentStudy && currentStudy.title) {
+                    if (currentStudy) {
+                        if (!currentStudy.title) currentStudy.title = 'Sem título';
                         currentStudy.authors = authors.slice();
                         studies.push({...currentStudy});
                     }
@@ -1961,7 +1967,8 @@
             }
 
             // Save last study
-            if (currentStudy && currentStudy.title) {
+            if (currentStudy) {
+                if (!currentStudy.title) currentStudy.title = 'Sem título';
                 currentStudy.authors = authors.slice();
                 studies.push({...currentStudy});
             }
@@ -1980,7 +1987,8 @@
                 const line = lines[i];
 
                 if (line.startsWith('PT ')) {
-                    if (currentStudy && currentStudy.title) {
+                    if (currentStudy) {
+                        if (!currentStudy.title) currentStudy.title = 'Sem título';
                         currentStudy.authors = authors.slice();
                         studies.push({...currentStudy});
                     }
@@ -2023,7 +2031,8 @@
                         currentField = 'doi';
                     }
                 } else if (line.startsWith('ER')) {
-                    if (currentStudy && currentStudy.title) {
+                    if (currentStudy) {
+                        if (!currentStudy.title) currentStudy.title = 'Sem título';
                         currentStudy.authors = authors.slice();
                         studies.push({...currentStudy});
                     }
@@ -2042,7 +2051,8 @@
                 }
             }
 
-            if (currentStudy && currentStudy.title) {
+            if (currentStudy) {
+                if (!currentStudy.title) currentStudy.title = 'Sem título';
                 currentStudy.authors = authors.slice();
                 studies.push({...currentStudy});
             }
@@ -2248,6 +2258,8 @@
             }
 
             studies = [];
+            // Strip BOM and normalize
+            content = content.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
             const lines = content.split('\n');
             let currentStudy = {};
             let currentField = '';
@@ -2255,7 +2267,7 @@
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
-                
+
                 if (line.startsWith('TY  -')) {
                     currentStudy = {
                         id: '',
@@ -2290,13 +2302,12 @@
                     currentStudy.id = line.substring(6).trim();
                     currentField = 'id';
                 } else if (line.startsWith('ER  -')) {
-                    if (currentStudy.title) {
-                        currentStudy.authors = authors.slice();
-                        if (!currentStudy.id) {
-                            currentStudy.id = studies.length + 1;
-                        }
-                        studies.push({...currentStudy});
+                    if (!currentStudy.title) currentStudy.title = 'Sem título';
+                    currentStudy.authors = authors.slice();
+                    if (!currentStudy.id) {
+                        currentStudy.id = studies.length + 1;
                     }
+                    studies.push({...currentStudy});
                     currentStudy = {};
                     authors = [];
                     currentField = '';
@@ -2307,6 +2318,16 @@
                         currentStudy.abstract += ' ' + line;
                     }
                 }
+            }
+
+            // Adiciona último registro se houver (arquivo sem ER final)
+            if (currentStudy && (currentStudy.title || currentStudy.doi || currentStudy.id)) {
+                if (!currentStudy.title) currentStudy.title = 'Sem título';
+                currentStudy.authors = authors.slice();
+                if (!currentStudy.id) {
+                    currentStudy.id = studies.length + 1;
+                }
+                studies.push({...currentStudy});
             }
 
             if (studies.length > 0) {
