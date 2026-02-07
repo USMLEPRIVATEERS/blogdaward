@@ -158,6 +158,65 @@
             margin: 2px 0;
         }
 
+        .multi-file-badge {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            font-size: 0.65em;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: normal;
+        }
+
+        .files-list {
+            margin-top: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .files-list .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 8px;
+            background: #fff;
+            border-radius: 6px;
+            margin-bottom: 4px;
+            font-size: 0.85em;
+        }
+
+        .files-list .file-item .remove-file-btn {
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            font-size: 1.1em;
+            padding: 0 4px;
+        }
+
+        .merge-btn {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.95em;
+            cursor: pointer;
+            margin-top: 10px;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+
+        .merge-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(40,167,69,0.3);
+        }
+
+        .merge-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .add-database {
             background: linear-gradient(45deg, #667eea, #764ba2);
             color: white;
@@ -333,7 +392,13 @@
     <script>
         // Bases de dados padrão
         const defaultDatabases = ['PUBMED', 'EMBASE', 'COCHRANE', 'SCOPUS', 'PSYCNET'];
-        
+
+        // Bases que aceitam multiplos arquivos (merge)
+        const multiFileDatabases = ['PSYCNET'];
+
+        // Armazenar arquivos pendentes para merge
+        const pendingFiles = {};
+
         // Carregar bases personalizadas do localStorage
         let customDatabases = JSON.parse(localStorage.getItem('customDatabases')) || [];
 
@@ -357,23 +422,29 @@
         function createDatabaseCard(databaseName, isCustom) {
             const grid = document.getElementById('databasesGrid');
             const card = document.createElement('div');
+            const isMulti = multiFileDatabases.includes(databaseName);
             card.className = `database-card ${isCustom ? 'custom' : ''}`;
             card.innerHTML = `
                 <div class="database-title">
                     ${databaseName}
+                    ${isMulti ? ' <span class="multi-file-badge">multi-arquivo</span>' : ''}
                     ${isCustom ? '<button class="remove-btn" onclick="removeCustomDatabase(\'' + databaseName + '\')">×</button>' : ''}
                 </div>
                 <div class="drop-zone" ondrop="dropHandler(event, '${databaseName}')" ondragover="dragOverHandler(event)" ondragleave="dragLeaveHandler(event)">
-                    <div class="drop-icon">📁</div>
-                    <div class="drop-text">Arraste arquivos .nbib ou .ris aqui<br>ou clique para selecionar</div>
+                    <div class="drop-icon">${isMulti ? '📂' : '📁'}</div>
+                    <div class="drop-text">${isMulti
+                        ? 'Arraste multiplos arquivos .ris aqui<br>ou clique para selecionar varios<br><small style="color:#667eea">Os arquivos serao combinados em 1 so</small>'
+                        : 'Arraste arquivos .nbib ou .ris aqui<br>ou clique para selecionar'}</div>
                 </div>
+                ${isMulti ? '<div class="files-list" id="files-list-' + databaseName + '"></div>' : ''}
+                ${isMulti ? '<button class="merge-btn" id="merge-btn-' + databaseName + '" style="display:none" onclick="mergeAndDownload(\'' + databaseName + '\')">📥 Combinar e Baixar (0 arquivos)</button>' : ''}
                 <div class="file-info" id="info-${databaseName}" style="display: none;"></div>
             `;
-            
+
             // Adicionar click handler para seleção de arquivo
             const dropZone = card.querySelector('.drop-zone');
             dropZone.onclick = () => selectFile(databaseName);
-            
+
             grid.appendChild(card);
         }
 
@@ -390,9 +461,13 @@
         function dropHandler(event, databaseName) {
             event.preventDefault();
             event.currentTarget.classList.remove('dragover');
-            
+
             const files = event.dataTransfer.files;
-            if (files.length > 0) {
+            if (files.length === 0) return;
+
+            if (multiFileDatabases.includes(databaseName)) {
+                addFilesToPending(databaseName, Array.from(files));
+            } else {
                 processFile(files[0], databaseName);
             }
         }
@@ -402,12 +477,118 @@
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = '.nbib,.ris,.txt';
+            if (multiFileDatabases.includes(databaseName)) {
+                input.multiple = true;
+            }
             input.onchange = (event) => {
-                if (event.target.files.length > 0) {
+                if (event.target.files.length === 0) return;
+                if (multiFileDatabases.includes(databaseName)) {
+                    addFilesToPending(databaseName, Array.from(event.target.files));
+                } else {
                     processFile(event.target.files[0], databaseName);
                 }
             };
             input.click();
+        }
+
+        // Adicionar arquivos a lista de pendentes para merge
+        function addFilesToPending(databaseName, newFiles) {
+            if (!pendingFiles[databaseName]) {
+                pendingFiles[databaseName] = [];
+            }
+            newFiles.forEach(f => pendingFiles[databaseName].push(f));
+            updatePendingFilesUI(databaseName);
+        }
+
+        // Remover arquivo da lista de pendentes
+        function removePendingFile(databaseName, index) {
+            pendingFiles[databaseName].splice(index, 1);
+            updatePendingFilesUI(databaseName);
+        }
+
+        // Atualizar UI da lista de arquivos pendentes
+        function updatePendingFilesUI(databaseName) {
+            const listDiv = document.getElementById(`files-list-${databaseName}`);
+            const mergeBtn = document.getElementById(`merge-btn-${databaseName}`);
+            const files = pendingFiles[databaseName] || [];
+
+            if (files.length === 0) {
+                listDiv.innerHTML = '';
+                mergeBtn.style.display = 'none';
+                return;
+            }
+
+            listDiv.innerHTML = files.map((f, i) => `
+                <div class="file-item">
+                    <span>📄 ${f.name}</span>
+                    <button class="remove-file-btn" onclick="removePendingFile('${databaseName}', ${i})" title="Remover">×</button>
+                </div>
+            `).join('');
+
+            mergeBtn.style.display = 'block';
+            mergeBtn.textContent = `📥 Combinar e Baixar (${files.length} arquivo${files.length > 1 ? 's' : ''})`;
+        }
+
+        // Combinar multiplos arquivos e baixar
+        async function mergeAndDownload(databaseName) {
+            const files = pendingFiles[databaseName];
+            if (!files || files.length === 0) return;
+
+            const mergeBtn = document.getElementById(`merge-btn-${databaseName}`);
+            mergeBtn.disabled = true;
+            mergeBtn.textContent = '⏳ Processando...';
+
+            try {
+                let mergedContent = '';
+                let totalStudies = 0;
+                let extension = 'ris';
+
+                for (const file of files) {
+                    const text = await file.text();
+                    const count = countStudies(text, file.name);
+                    totalStudies += count;
+                    extension = file.name.split('.').pop().toLowerCase() || 'ris';
+
+                    if (mergedContent && !mergedContent.endsWith('\n')) {
+                        mergedContent += '\n';
+                    }
+                    mergedContent += text;
+                }
+
+                const newFileName = generateFileName(databaseName, totalStudies, `merged.${extension}`);
+
+                // Baixar arquivo combinado
+                const blob = new Blob([mergedContent], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = newFileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                // Mostrar info
+                const infoDiv = document.getElementById(`info-${databaseName}`);
+                infoDiv.innerHTML = `
+                    <h4>✅ ${files.length} Arquivos Combinados</h4>
+                    <p><strong>Arquivos mesclados:</strong> ${files.map(f => f.name).join(', ')}</p>
+                    <p><strong>Total de estudos:</strong> ${totalStudies}</p>
+                    <p><strong>Arquivo gerado:</strong> ${newFileName}</p>
+                `;
+                infoDiv.style.display = 'block';
+
+                // Limpar lista
+                pendingFiles[databaseName] = [];
+                updatePendingFilesUI(databaseName);
+
+            } catch (error) {
+                console.error('Erro ao combinar arquivos:', error);
+                alert('Erro ao combinar os arquivos. Verifique se sao arquivos validos.');
+            } finally {
+                mergeBtn.disabled = false;
+                mergeBtn.textContent = `📥 Combinar e Baixar (0 arquivos)`;
+            }
         }
 
         // Processar arquivo
