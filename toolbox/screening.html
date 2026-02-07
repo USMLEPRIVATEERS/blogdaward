@@ -1193,16 +1193,16 @@
                         <strong>💡 Como usar:</strong>
                     </p>
                     <ol class="text-xs text-blue-700 list-decimal list-inside space-y-1">
-                        <li>Cole a resposta completa do Claude (pode incluir texto antes/depois da tabela)</li>
-                        <li>O app extrai automaticamente a tabela com decisões</li>
-                        <li>Revise o preview das decisões</li>
-                        <li>Clique "Aplicar Decisões" para atualizar seus estudos</li>
+                        <li>Cole a resposta JSON do Claude (aceita tambem tabela markdown como fallback)</li>
+                        <li>O app detecta automaticamente o formato e extrai as decisoes</li>
+                        <li>Revise o preview das decisoes</li>
+                        <li>Clique "Aplicar Decisoes" para atualizar seus estudos</li>
                     </ol>
                 </div>
 
                 <div class="mb-4">
                     <label class="block font-semibold mb-2">Cole a resposta do Claude aqui:</label>
-                    <textarea id="claudeResponseInput" class="w-full border rounded p-3 h-48 font-mono text-xs" placeholder="Cole toda a resposta do Claude aqui (incluindo a tabela)..."></textarea>
+                    <textarea id="claudeResponseInput" class="w-full border rounded p-3 h-48 font-mono text-xs" placeholder='Cole o JSON do Claude aqui, ex: [{"study_id": "...", "status": "INCLUDE", ...}]'></textarea>
                 </div>
 
                 <button onclick="parseClaudeResponse()" class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold mb-4">
@@ -1210,7 +1210,7 @@
                 </button>
 
                 <div id="claudeResponsePreview" class="hidden">
-                    <div class="mb-4 bg-purple-50 p-4 rounded-lg">
+                    <div id="columnSelectorArea" class="mb-4 bg-purple-50 p-4 rounded-lg hidden">
                         <label class="block font-semibold mb-2">📊 Selecione a coluna que contém as decisões (INCLUDE/EXCLUDE/PENDING):</label>
                         <select id="decisionColumnSelect" class="w-full border rounded px-4 py-2" onchange="updateDecisionColumnMapping()">
                             <option value="">-- Selecione a coluna --</option>
@@ -5052,17 +5052,8 @@
                 picoSection += `${field.label}: ${value}\n`;
             });
 
-            let command = `NOW, BASED IN THE FRAMEWORK BELOW, YOU WILL DECIDE BETWEEN INCLUDE OR EXCLUDE THE STUDIES. SO YOU WILL REWRITE THE TABLE (JUST TITLE, STATUS, AND REASON FOR EXCLUSION) WITH YOUR DECISION. THE STUDY DESIGN CAN BE ANY WITH PATIENT GROUPS:
-
-${picoSection}
-HERE THE TABLE:
-
-| STUDY ID | TITLE | ABSTRACT | STATUS | REASON FOR EXCLUSION |
-|----------|-------|----------|--------|---------------------|
-`;
-
             const selectedStudies = filteredStudies.slice(start - 1, end);
-            selectedStudies.forEach(study => {
+            const studiesJson = selectedStudies.map(study => {
                 const authorText = study.authors && study.authors.length > 0
                     ? study.authors[0] + (study.authors.length > 1 ? ' et al.' : '')
                     : '';
@@ -5070,12 +5061,25 @@ HERE THE TABLE:
                     ? `${authorText}, ${study.year}`
                     : study.id;
 
-                const title = study.title.replace(/\|/g, '¦');
-                // MODIFICADO: Abstract completo, sem substring
-                const abstract = (study.abstract || 'N/A').replace(/\|/g, '¦').replace(/\n/g, ' ');
-
-                command += `| ${studyId} | ${title} | ${abstract} | PENDING | - |\n`;
+                return {
+                    study_id: String(studyId),
+                    title: study.title,
+                    abstract: study.abstract || 'N/A'
+                };
             });
+
+            let command = `BASED ON THE FRAMEWORK BELOW, DECIDE BETWEEN INCLUDE OR EXCLUDE EACH STUDY. THE STUDY DESIGN CAN BE ANY WITH PATIENT GROUPS.
+
+${picoSection}
+I WILL GIVE YOU THE STUDIES AS A JSON ARRAY. YOU MUST RESPOND WITH A JSON ARRAY ONLY (NO MARKDOWN, NO EXPLANATION BEFORE OR AFTER), WITH YOUR DECISION FOR EACH STUDY IN THIS EXACT FORMAT:
+
+[
+  {"study_id": "...", "title": "...", "status": "INCLUDE or EXCLUDE", "reason": "reason for exclusion or empty"}
+]
+
+HERE ARE THE STUDIES:
+
+${JSON.stringify(studiesJson, null, 2)}`;
 
             document.getElementById('claudeCommandText').value = command;
             document.getElementById('claudeCommandOutput').classList.remove('hidden');
@@ -5114,21 +5118,25 @@ HERE THE TABLE:
                 return;
             }
 
-            // Parse table and detect columns
-            const tableData = parseMarkdownTableWithColumns(input);
+            // Try JSON first, then fallback to markdown table
+            const jsonDecisions = tryParseJsonResponse(input);
+            if (jsonDecisions) {
+                processJsonDecisions(jsonDecisions);
+                return;
+            }
 
+            // Fallback: Parse markdown table
+            const tableData = parseMarkdownTableWithColumns(input);
             if (!tableData || tableData.rows.length === 0) {
-                alert('Não foi possível identificar uma tabela na resposta. Verifique o formato.');
+                alert('Não foi possível identificar JSON ou tabela na resposta. Verifique o formato.');
                 return;
             }
 
             rawClaudeData = tableData;
             detectedColumns = tableData.columns;
 
-            // Populate column dropdown
             const select = document.getElementById('decisionColumnSelect');
             select.innerHTML = '<option value="">-- Selecione a coluna --</option>';
-
             detectedColumns.forEach((col, index) => {
                 const option = document.createElement('option');
                 option.value = index;
@@ -5136,19 +5144,78 @@ HERE THE TABLE:
                 select.appendChild(option);
             });
 
-            // Auto-detect decision column
             const decisionKeywords = ['status', 'decision', 'decisão', 'decisao', 'include', 'exclude'];
             decisionColumnIndex = detectedColumns.findIndex(col =>
                 decisionKeywords.some(keyword => col.toLowerCase().includes(keyword))
             );
-
             if (decisionColumnIndex >= 0) {
                 select.value = decisionColumnIndex;
-                showToast(`Coluna "${detectedColumns[decisionColumnIndex]}" detectada automaticamente!`, 'success');
             }
 
+            document.getElementById('columnSelectorArea').classList.remove('hidden');
             updateDecisionColumnMapping();
             document.getElementById('claudeResponsePreview').classList.remove('hidden');
+        }
+
+        // Try to extract and parse JSON from Claude's response
+        function tryParseJsonResponse(text) {
+            // Try direct parse
+            try {
+                const parsed = JSON.parse(text);
+                if (Array.isArray(parsed)) return parsed;
+                if (parsed.decisions && Array.isArray(parsed.decisions)) return parsed.decisions;
+                if (parsed.studies && Array.isArray(parsed.studies)) return parsed.studies;
+            } catch (e) {}
+
+            // Extract JSON array from surrounding text
+            const arrayMatch = text.match(/\[\s*\{[\s\S]*?\}\s*\]/);
+            if (arrayMatch) {
+                try {
+                    return JSON.parse(arrayMatch[0]);
+                } catch (e) {}
+            }
+
+            // Extract JSON object with decisions array
+            const objMatch = text.match(/\{[\s\S]*"(?:decisions|studies)"[\s\S]*\}/);
+            if (objMatch) {
+                try {
+                    const parsed = JSON.parse(objMatch[0]);
+                    return parsed.decisions || parsed.studies;
+                } catch (e) {}
+            }
+
+            return null;
+        }
+
+        // Process JSON decisions directly (no column selector needed)
+        function processJsonDecisions(jsonArray) {
+            parsedClaudeDecisions = [];
+
+            jsonArray.forEach(item => {
+                const studyId = item.study_id || item.studyId || item.id || '';
+                const title = item.title || '';
+                const rawDecision = item.status || item.decision || '';
+                const decision = normalizeDecision(rawDecision);
+                const reason = item.reason || item.reason_for_exclusion || item.exclusion_reason || '';
+                const matchedStudy = findMatchingStudy(studyId, title);
+
+                parsedClaudeDecisions.push({
+                    studyId,
+                    title,
+                    decision,
+                    rawDecision,
+                    reason,
+                    matchedStudy
+                });
+            });
+
+            // Hide column selector (not needed for JSON)
+            document.getElementById('columnSelectorArea').classList.add('hidden');
+            renderClaudeDecisionsPreview();
+            document.getElementById('claudeResponsePreview').classList.remove('hidden');
+
+            const matchCount = parsedClaudeDecisions.filter(d => d.matchedStudy).length;
+            showToast(`✅ JSON detectado! ${parsedClaudeDecisions.length} decisões, ${matchCount} com match`, 'success');
         }
 
         function parseMarkdownTableWithColumns(text) {
@@ -5157,11 +5224,9 @@ HERE THE TABLE:
 
             if (tableLines.length < 2) return null;
 
-            // Get headers
             const headerLine = tableLines[0];
             const columns = headerLine.split('|').map(c => c.trim()).filter(c => c);
 
-            // Get data rows
             const rows = [];
             tableLines.slice(1).forEach(line => {
                 const cells = line.split('|').map(c => c.trim()).filter(c => c);
@@ -5191,25 +5256,18 @@ HERE THE TABLE:
             parsedClaudeDecisions = [];
 
             rawClaudeData.rows.forEach(row => {
-                // Find study ID column (usually first column or contains author names)
                 const studyId = row[detectedColumns[0]] || '';
-
-                // Find title column (usually second column or contains "title")
                 const titleColIndex = detectedColumns.findIndex(c => c.toLowerCase().includes('title') || c.toLowerCase().includes('título'));
                 const title = titleColIndex >= 0 ? row[detectedColumns[titleColIndex]] : row[detectedColumns[1]] || '';
-
-                // Get decision from selected column
                 const rawDecision = row[decisionColumn] || '';
                 const decision = normalizeDecision(rawDecision);
 
-                // Find reason column
                 const reasonColIndex = detectedColumns.findIndex(c =>
                     c.toLowerCase().includes('reason') ||
                     c.toLowerCase().includes('exclusion') ||
                     c.toLowerCase().includes('motivo')
                 );
                 const reason = reasonColIndex >= 0 ? row[detectedColumns[reasonColIndex]] : '';
-
                 const matchedStudy = findMatchingStudy(studyId, title);
 
                 parsedClaudeDecisions.push({
