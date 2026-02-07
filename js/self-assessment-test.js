@@ -51,7 +51,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await ensureSupabase();
         await checkAuth();
-        await loadEnrollmentData();
+        const canContinue = await loadEnrollmentData();
+        if (canContinue === false) return;
         await initializeTest();
     } catch (error) {
         console.error('Error initializing:', error);
@@ -78,7 +79,7 @@ async function loadEnrollmentData() {
     if (!enrollmentId) {
         showToast('Inscricao nao encontrada', 'error');
         setTimeout(() => window.location.href = 'dashboard-externo.html', 2000);
-        return;
+        return false;
     }
 
     showLoading();
@@ -108,8 +109,8 @@ async function loadEnrollmentData() {
         breakTimeMinutes = assessmentData.break_time_minutes || 15;
         totalBlocks = Math.ceil(assessmentData.total_questions / questionsPerBlock);
 
-        // Check scheduled time and calculate lateness (skip in review mode)
-        if (!isReviewMode && enrollmentData.scheduled_datetime_utc) {
+        // Check scheduled time and calculate lateness (skip in review mode and if already in progress)
+        if (!isReviewMode && enrollmentData.scheduled_datetime_utc && enrollmentData.status !== 'in_progress') {
             const scheduledTime = new Date(enrollmentData.scheduled_datetime_utc);
             const now = new Date();
             const timeDiff = now - scheduledTime; // positive if late
@@ -123,7 +124,7 @@ async function loadEnrollmentData() {
                     hideLoading();
                     showToast('Prova perdida - voce nao compareceu no horario agendado', 'error');
                     setTimeout(() => window.location.href = 'dashboard-externo.html', 3000);
-                    return;
+                    return false;
                 }
 
                 // Show late warning
@@ -135,7 +136,7 @@ async function loadEnrollmentData() {
                 hideLoading();
                 showToast('A prova ainda nao comecou. Volte no horario agendado.', 'error');
                 setTimeout(() => window.location.href = 'dashboard-externo.html', 3000);
-                return;
+                return false;
             }
         }
 
@@ -146,6 +147,7 @@ async function loadEnrollmentData() {
         hideLoading();
         showToast('Erro ao carregar inscricao', 'error');
         setTimeout(() => window.location.href = 'dashboard-externo.html', 2000);
+        return false;
     }
 }
 
