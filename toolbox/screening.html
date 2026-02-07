@@ -1339,6 +1339,94 @@
         let rememberedRangeEnd = null;
         let rememberedFilter = 'all';
 
+        // ========== IndexedDB Storage Layer ==========
+        // Replaces localStorage to support large projects (>5MB)
+        const DB_NAME = 'ward_screening_db';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'projects';
+        const LS_KEY = 'ward_academy_projects';
+        let _projectsCache = null; // In-memory cache for synchronous access
+        let _dbInstance = null;
+
+        function _openDB() {
+            return new Promise((resolve, reject) => {
+                if (_dbInstance) { resolve(_dbInstance); return; }
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+                    }
+                };
+                request.onsuccess = (e) => {
+                    _dbInstance = e.target.result;
+                    resolve(_dbInstance);
+                };
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        function _idbGetAll() {
+            return _openDB().then(db => new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+                const req = store.getAll();
+                req.onsuccess = () => resolve(req.result || []);
+                req.onerror = () => reject(req.error);
+            }));
+        }
+
+        function _idbPutAll(projects) {
+            return _openDB().then(db => new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                store.clear();
+                projects.forEach(p => store.put(p));
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            }));
+        }
+
+        async function initProjectsStorage() {
+            try {
+                // Try loading from IndexedDB first
+                let projects = await _idbGetAll();
+
+                // Migrate from localStorage if IndexedDB is empty
+                if (projects.length === 0) {
+                    const lsData = localStorage.getItem(LS_KEY);
+                    if (lsData) {
+                        try {
+                            projects = JSON.parse(lsData);
+                            if (Array.isArray(projects) && projects.length > 0) {
+                                await _idbPutAll(projects);
+                                console.log(`Migrated ${projects.length} project(s) from localStorage to IndexedDB`);
+                                // Keep localStorage as backup until user saves again
+                            }
+                        } catch (e) {
+                            console.error('Failed to parse localStorage projects:', e);
+                            projects = [];
+                        }
+                    }
+                } else {
+                    // IndexedDB has data - clean up localStorage to free space
+                    try { localStorage.removeItem(LS_KEY); } catch(e) {}
+                }
+
+                _projectsCache = projects;
+            } catch (e) {
+                console.warn('IndexedDB not available, falling back to localStorage:', e);
+                // Fallback: load from localStorage
+                try {
+                    const lsData = localStorage.getItem(LS_KEY);
+                    _projectsCache = lsData ? JSON.parse(lsData) : [];
+                } catch (e2) {
+                    _projectsCache = [];
+                }
+            }
+        }
+        // ========== End IndexedDB Storage Layer ==========
+
         // Centralized function to get selected reviewers from checkboxes
         function getSelectedReviewers() {
             const checkboxes = document.querySelectorAll('.reviewer-checkbox');
@@ -1366,7 +1454,8 @@
             return selected.sort((a, b) => a - b);
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
+            await initProjectsStorage();
             setupDragAndDrop();
             document.getElementById('fileInput').addEventListener('change', handleFileSelect);
             updateRangeInfo();
@@ -5551,12 +5640,37 @@ ${JSON.stringify(studiesJson, null, 2)}`;
         }
 
         function getAllProjects() {
-            const projectsData = localStorage.getItem('ward_academy_projects');
-            return projectsData ? JSON.parse(projectsData) : [];
+            // Return from in-memory cache (always in sync)
+            if (_projectsCache !== null) {
+                return _projectsCache.map(p => JSON.parse(JSON.stringify(p))); // deep copy
+            }
+            // Fallback if cache not initialized yet
+            try {
+                const lsData = localStorage.getItem(LS_KEY);
+                return lsData ? JSON.parse(lsData) : [];
+            } catch (e) {
+                return [];
+            }
         }
 
         function saveProjectsList(projects) {
-            localStorage.setItem('ward_academy_projects', JSON.stringify(projects));
+            // Update in-memory cache
+            _projectsCache = projects;
+
+            // Persist to IndexedDB (async, fire-and-forget)
+            _idbPutAll(projects).then(() => {
+                // Clean up localStorage after successful IndexedDB write
+                try { localStorage.removeItem(LS_KEY); } catch(e) {}
+            }).catch(err => {
+                console.warn('IndexedDB write failed, trying localStorage:', err);
+                // Fallback to localStorage
+                try {
+                    localStorage.setItem(LS_KEY, JSON.stringify(projects));
+                } catch (lsErr) {
+                    console.error('Both IndexedDB and localStorage failed:', lsErr);
+                    showToast('Erro ao salvar: armazenamento cheio. Exporte seu projeto como backup.', 'error');
+                }
+            });
         }
 
         function generateProjectId() {
