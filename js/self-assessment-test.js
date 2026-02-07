@@ -245,6 +245,18 @@ async function initializeTest() {
                 const elapsed = Math.floor((new Date() - startedAt) / 1000);
                 blockTimeRemaining = Math.max(0, (timePerBlockMinutes * 60) - elapsed);
 
+                // If time expired while page was away, auto-finish gracefully
+                if (blockTimeRemaining <= 0) {
+                    // Load responses so they count in the final results
+                    await loadExistingResponses(inProgressAttempt.id);
+                    loadBlockQuestions();
+                    hideLoading();
+                    showToast('O tempo do bloco expirou. Finalizando...', 'warning');
+                    await new Promise(r => setTimeout(r, 1500));
+                    await completeCurrentBlock('timed_out');
+                    return;
+                }
+
                 // Load existing responses for this block
                 await loadExistingResponses(inProgressAttempt.id);
             } else {
