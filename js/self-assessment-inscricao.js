@@ -420,16 +420,30 @@ async function handleSubmit(e) {
         return;
     }
 
-    // Validate scheduled datetime is in the future
+    // Validate scheduled datetime is in the future (with grace period for events)
     const scheduledDateTimeLocal = new Date(`${scheduledDate}T${scheduledTime}`);
     const now = new Date();
     if (scheduledDateTimeLocal <= now) {
-        showToast('O horario agendado deve ser no futuro', 'error');
-        return;
+        if (activeEvent) {
+            // For events, allow enrollment up to block time after start (lateness handled by test page)
+            const lateMinutes = Math.floor((now - scheduledDateTimeLocal) / (1000 * 60));
+            const blockTime = assessmentData?.time_per_block_minutes || 75;
+            if (lateMinutes >= blockTime) {
+                showToast(`O evento comecou ha ${lateMinutes} minutos. O prazo para iniciar ja passou.`, 'error');
+                return;
+            }
+            // Show warning about time deduction
+            showToast(`Voce esta ${lateMinutes} min atrasado. O tempo sera descontado do primeiro bloco.`, 'warning');
+        } else {
+            showToast('O horario agendado deve ser no futuro', 'error');
+            return;
+        }
     }
 
     // Convert to UTC for storage
-    const scheduledDateTimeUTC = convertToUTC(scheduledDate, scheduledTime, userTimezone);
+    // For events, the time is always in Brasilia timezone (as displayed in the event notification)
+    const conversionTimezone = activeEvent ? 'America/Sao_Paulo' : userTimezone;
+    const scheduledDateTimeUTC = convertToUTC(scheduledDate, scheduledTime, conversionTimezone);
 
     showLoading();
     const btnSubmit = document.getElementById('btn-submit');
@@ -514,27 +528,27 @@ async function handleSubmit(e) {
 }
 
 // Convert local date/time to UTC based on timezone
+// Input: "08:00" in "America/Sao_Paulo" → output: "11:00Z" (UTC)
 function convertToUTC(date, time, timezone) {
     try {
-        // Create a date string in the local timezone format
-        const localDateTimeStr = `${date}T${time}:00`;
+        // Parse as UTC first (anchor point, independent of browser timezone)
+        const asUTC = new Date(`${date}T${time}:00Z`);
 
-        // Parse the local datetime
-        const localDate = new Date(localDateTimeStr);
+        // Find the timezone offset by comparing how UTC and the target timezone
+        // represent this same instant. Re-parsing through toLocaleString is needed
+        // because the offset depends on DST for the given date.
+        const utcDate = new Date(asUTC.toLocaleString('en-US', { timeZone: 'UTC' }));
+        const tzDate = new Date(asUTC.toLocaleString('en-US', { timeZone: timezone }));
+        const offset = utcDate - tzDate; // positive for west-of-UTC timezones
 
-        // Get the timezone offset
-        const utcDate = new Date(localDate.toLocaleString('en-US', { timeZone: 'UTC' }));
-        const tzDate = new Date(localDate.toLocaleString('en-US', { timeZone: timezone }));
-        const offset = utcDate - tzDate;
-
-        // Apply offset to get UTC
-        const utcResult = new Date(localDate.getTime() + offset);
+        // Apply offset: e.g., 08:00 in UTC-3 → 08:00Z + 3h = 11:00Z
+        const utcResult = new Date(asUTC.getTime() + offset);
 
         return utcResult.toISOString();
     } catch (e) {
         console.error('Error converting to UTC:', e);
-        // Fallback: just return the datetime as-is in ISO format
-        return new Date(`${date}T${time}:00`).toISOString();
+        // Fallback: return as UTC (better than wrong local conversion)
+        return new Date(`${date}T${time}:00Z`).toISOString();
     }
 }
 
