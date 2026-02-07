@@ -544,13 +544,14 @@
                 let extension = 'ris';
 
                 for (const file of files) {
-                    const text = await file.text();
+                    let text = cleanText(await file.text()).trim();
                     const count = countStudies(text, file.name);
                     totalStudies += count;
                     extension = file.name.split('.').pop().toLowerCase() || 'ris';
 
-                    if (mergedContent && !mergedContent.endsWith('\n')) {
-                        mergedContent += '\n';
+                    if (mergedContent) {
+                        // Garantir separacao entre registros RIS
+                        mergedContent += '\n\n';
                     }
                     mergedContent += text;
                 }
@@ -615,8 +616,14 @@
             }
         }
 
+        // Remover BOM e limpar texto
+        function cleanText(text) {
+            return text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+        }
+
         // Contar estudos no arquivo
         function countStudies(text, fileName) {
+            text = cleanText(text);
             const extension = fileName.split('.').pop().toLowerCase();
             let count = 0;
 
@@ -638,7 +645,7 @@
                 // Tentar ambos os métodos
                 const pmidMatches = text.match(/^PMID-/gm);
                 const tyMatches = text.match(/^TY  -/gm);
-                
+
                 if (pmidMatches) {
                     count = pmidMatches.length;
                 } else if (tyMatches) {
