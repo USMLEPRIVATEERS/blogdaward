@@ -140,6 +140,22 @@
             </div>
         </div>
 
+        <!-- Search Bar -->
+        <div class="card mb-4">
+            <div class="card-body" style="padding: 1rem 1.5rem;">
+                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px; position: relative;">
+                        <input type="text" id="project-search" class="form-input" placeholder="Buscar projetos por titulo..." oninput="applySearchFilter()" style="width: 100%; padding: 0.5rem 0.75rem 0.5rem 2.25rem;">
+                        <span style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: #9ca3af; pointer-events: none;">🔎</span>
+                    </div>
+                    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: #374151; cursor: pointer; white-space: nowrap;">
+                        <input type="checkbox" id="search-description" onchange="applySearchFilter()">
+                        Buscar na descricao
+                    </label>
+                </div>
+            </div>
+        </div>
+
         <!-- Projects List -->
         <div id="projects-container">
             <!-- Filled by JS -->
@@ -828,6 +844,7 @@
         let selectedStage = '';
         let selectedComparison = '=';
         let includeCompleted = false;
+        let searchQuery = '';
 
         // Get active stages for a project (stages with tasks based on filter)
         function getActiveStages(project) {
@@ -907,6 +924,12 @@
         }
 
         // Apply filter and re-render
+        function applySearchFilter() {
+            searchQuery = document.getElementById('project-search').value.trim().toLowerCase();
+            renderProjects();
+            if (isMentor) renderPendingProjects();
+        }
+
         function applyStageFilter() {
             const newIncludeCompleted = document.getElementById('task-status-filter').value === 'all';
 
@@ -1197,7 +1220,19 @@
 
             // Filter out pending_approval projects for the main list (they show in pending section)
             let approvedProjects = allProjects.filter(p => p.status !== 'pending_approval');
-            const myPendingProjects = allProjects.filter(p => p.status === 'pending_approval' && p.created_by === userData.id);
+            let myPendingProjects = allProjects.filter(p => p.status === 'pending_approval' && p.created_by === userData.id);
+
+            // Apply search filter
+            if (searchQuery) {
+                const searchInDesc = document.getElementById('search-description').checked;
+                const matchesSearch = (p) => {
+                    if ((p.title || '').toLowerCase().includes(searchQuery)) return true;
+                    if (searchInDesc && (p.description || '').toLowerCase().includes(searchQuery)) return true;
+                    return false;
+                };
+                approvedProjects = approvedProjects.filter(matchesSearch);
+                myPendingProjects = myPendingProjects.filter(matchesSearch);
+            }
 
             // Apply stage filter to approved projects
             if (selectedStage) {
@@ -1205,10 +1240,11 @@
             }
 
             if (approvedProjects.length === 0 && myPendingProjects.length === 0) {
-                container.innerHTML = selectedStage
-                    ? `<div class="card"><div class="card-body text-center p-4"><div class="empty-state"><div class="empty-state-icon">🔍</div><h3 class="empty-state-title">Nenhum projeto encontrado</h3><p class="text-muted">Nenhum projeto possui tarefas pendentes no estágio filtrado.</p></div></div></div>`
+                const hasFilter = selectedStage || searchQuery;
+                container.innerHTML = hasFilter
+                    ? `<div class="card"><div class="card-body text-center p-4"><div class="empty-state"><div class="empty-state-icon">🔍</div><h3 class="empty-state-title">Nenhum projeto encontrado</h3><p class="text-muted">${searchQuery ? 'Nenhum projeto corresponde a busca.' : 'Nenhum projeto possui tarefas pendentes no estágio filtrado.'}</p></div></div></div>`
                     : '';
-                noProjects.style.display = selectedStage ? 'none' : 'block';
+                noProjects.style.display = hasFilter ? 'none' : 'block';
                 return;
             }
 
@@ -1340,7 +1376,17 @@
             const container = document.getElementById('pending-projects-list');
 
             // Get all pending projects (mentors see all)
-            const pendingProjects = allProjects.filter(p => p.status === 'pending_approval');
+            let pendingProjects = allProjects.filter(p => p.status === 'pending_approval');
+
+            // Apply search filter
+            if (searchQuery) {
+                const searchInDesc = document.getElementById('search-description').checked;
+                pendingProjects = pendingProjects.filter(p => {
+                    if ((p.title || '').toLowerCase().includes(searchQuery)) return true;
+                    if (searchInDesc && (p.description || '').toLowerCase().includes(searchQuery)) return true;
+                    return false;
+                });
+            }
 
             if (pendingProjects.length === 0) {
                 section.style.display = 'none';
