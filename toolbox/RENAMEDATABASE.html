@@ -543,20 +543,24 @@
                 let totalStudies = 0;
                 let extension = 'ris';
 
+                const perFileInfo = [];
+
                 for (const file of files) {
                     let text = cleanText(await file.text()).trim();
                     const count = countStudies(text, file.name);
                     totalStudies += count;
                     extension = file.name.split('.').pop().toLowerCase() || 'ris';
+                    perFileInfo.push({ name: file.name, count });
 
                     if (mergedContent) {
-                        // Garantir separacao entre registros RIS
                         mergedContent += '\n\n';
                     }
                     mergedContent += text;
                 }
 
-                const newFileName = generateFileName(databaseName, totalStudies, `merged.${extension}`);
+                // Recontar no arquivo mesclado para verificar
+                const mergedCount = countStudies(mergedContent, `merged.${extension}`);
+                const newFileName = generateFileName(databaseName, mergedCount, `merged.${extension}`);
 
                 // Baixar arquivo combinado
                 const blob = new Blob([mergedContent], { type: 'text/plain' });
@@ -569,12 +573,15 @@
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
 
-                // Mostrar info
+                // Mostrar info com detalhamento por arquivo
                 const infoDiv = document.getElementById(`info-${databaseName}`);
+                const perFileHtml = perFileInfo.map(f =>
+                    `<span style="white-space:nowrap">${f.name}: <strong>${f.count}</strong></span>`
+                ).join(' | ');
                 infoDiv.innerHTML = `
                     <h4>✅ ${files.length} Arquivos Combinados</h4>
-                    <p><strong>Arquivos mesclados:</strong> ${files.map(f => f.name).join(', ')}</p>
-                    <p><strong>Total de estudos:</strong> ${totalStudies}</p>
+                    <p style="font-size:0.8em; color:#666">${perFileHtml}</p>
+                    <p><strong>Soma dos arquivos:</strong> ${totalStudies} | <strong>Contagem no mesclado:</strong> ${mergedCount}</p>
                     <p><strong>Arquivo gerado:</strong> ${newFileName}</p>
                 `;
                 infoDiv.style.display = 'block';
@@ -638,13 +645,13 @@
                     count = records.length;
                 }
             } else if (extension === 'ris') {
-                // Arquivos RIS: cada estudo começa com "TY  -"
-                const tyMatches = text.match(/^TY  -/gm);
+                // Arquivos RIS: cada estudo começa com "TY  -" (aceita espacamento variavel)
+                const tyMatches = text.match(/^TY\s+-/gm);
                 count = tyMatches ? tyMatches.length : 0;
             } else {
                 // Tentar ambos os métodos
                 const pmidMatches = text.match(/^PMID-/gm);
-                const tyMatches = text.match(/^TY  -/gm);
+                const tyMatches = text.match(/^TY\s+-/gm);
 
                 if (pmidMatches) {
                     count = pmidMatches.length;
@@ -657,7 +664,7 @@
                 }
             }
 
-            return Math.max(1, count); // Garantir que sempre tenha pelo menos 1
+            return count;
         }
 
         // Gerar novo nome do arquivo
