@@ -71,7 +71,7 @@
         </div>
 
         <!-- To-Do Reminders -->
-        <div id="todo-reminders" class="card mb-4" style="display: none; border-left: 4px solid #f59e0b;">
+        <div id="todo-reminders" class="card mb-4" style="display: none; border-left: 4px solid #ef4444;">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; background: #fffbeb;">
                 <div style="font-weight: 700; color: #d97706;">📋 Lembretes To-Do List</div>
                 <a href="/mentor-todolist-guilherme" style="font-size: 0.85rem; color: #3b82f6; text-decoration: none; font-weight: 600;">Ver tudo →</a>
@@ -467,8 +467,8 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             userData = await WardApp.checkAuth();
             if (!userData) return;
 
-            // Check if mentor_guilherme or mentor_marcos
-            if (userData.role !== 'mentor_guilherme' && userData.role !== 'mentor_marcos') {
+            // Check if mentor_guilherme, mentor_marcos, or mentor_iria
+            if (userData.role !== 'mentor_guilherme' && userData.role !== 'mentor_marcos' && userData.role !== 'mentor_iria') {
                 WardApp.showToast('Acesso negado', 'error');
                 window.location.href = '/dashboard';
                 return;
@@ -1109,7 +1109,7 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             document.getElementById(id).classList.remove('active');
         }
 
-        // To-Do reminders
+        // To-Do reminders — always loads Guilherme's tasks regardless of who is logged in
         async function loadTodoReminders() {
             const TASK_DEFS = [
                 { key: 'fsrs_optimization', label: '🔧 Otimizar FSRS', intervalDays: 30 },
@@ -1117,13 +1117,76 @@ Dica: Use as tags do AnKing em vez de decks separados!`
                 { key: 'second_call', label: '📞 Segunda call', intervalDays: 30 }
             ];
 
+            // Fetch Guilherme's user data to get his ID
+            const guilhermeRes = await WardApp.db
+                .from('users')
+                .select('id')
+                .eq('role', 'mentor_guilherme')
+                .limit(1)
+                .maybeSingle();
+
+            if (!guilhermeRes.data) {
+                console.warn('Could not find mentor_guilherme user');
+                return;
+            }
+            const guilhermeId = String(guilhermeRes.data.id);
+
+            // Load tasks using Guilherme's ID (not the logged-in user's ID)
             const { data: tasks } = await WardApp.db
                 .from('mentor_student_tasks')
                 .select('*')
-                .eq('mentor_id', userData.id);
+                .eq('mentor_id', guilhermeId);
 
-            if (!tasks || tasks.length === 0) {
-                // No tasks yet — show prompt
+            // Load scheduled_calls for first call dates (same as todolist)
+            const { data: calls } = await WardApp.db
+                .from('scheduled_calls')
+                .select('student_id, scheduled_date')
+                .eq('mentor_id', guilhermeId)
+                .order('scheduled_date', { ascending: true });
+
+            const firstCalls = {};
+            if (calls) {
+                calls.forEach(c => {
+                    if (!firstCalls[c.student_id]) firstCalls[c.student_id] = c.scheduled_date;
+                });
+            }
+
+            const tasksByStudent = {};
+            if (tasks) {
+                tasks.forEach(t => {
+                    if (!tasksByStudent[t.student_id]) tasksByStudent[t.student_id] = {};
+                    tasksByStudent[t.student_id][t.task_type] = t;
+                });
+            }
+
+            // Backfill: compute missing recurring dates from first_call date
+            (allStudents || []).forEach(student => {
+                const sid = String(student.id);
+                if (!tasksByStudent[sid]) tasksByStudent[sid] = {};
+                const st = tasksByStudent[sid];
+
+                const firstCallDate = st['first_call']?.task_date
+                    || firstCalls[sid] || firstCalls[student.id] || null;
+                if (!firstCallDate) return;
+
+                const baseDate = new Date(firstCallDate + 'T12:00:00');
+                if (isNaN(baseDate.getTime())) return;
+
+                TASK_DEFS.forEach(td => {
+                    if (st[td.key]?.task_date) return; // already has a date
+                    const suggestedDate = new Date(baseDate);
+                    suggestedDate.setDate(suggestedDate.getDate() + td.intervalDays);
+                    const dateStr = suggestedDate.toISOString().split('T')[0];
+
+                    if (st[td.key]) {
+                        st[td.key].task_date = dateStr;
+                    } else {
+                        st[td.key] = { task_type: td.key, completed: false, task_date: dateStr, dismissed: false };
+                    }
+                });
+            });
+
+            if (Object.keys(tasksByStudent).length === 0) {
                 const widget = document.getElementById('todo-reminders');
                 widget.style.display = 'block';
                 document.getElementById('todo-reminders-body').innerHTML =
@@ -1131,28 +1194,20 @@ Dica: Use as tags do AnKing em vez de decks separados!`
                 return;
             }
 
-            const tasksByStudent = {};
-            tasks.forEach(t => {
-                if (!tasksByStudent[t.student_id]) tasksByStudent[t.student_id] = {};
-                tasksByStudent[t.student_id][t.task_type] = t;
-            });
-
             const now = new Date();
             const oneWeek = new Date(now.getTime() + 7 * 86400000);
-            const alerts = [];
+            const overdue = [], upcoming = [];
 
-            // Build student name map from already loaded allStudents
+            // Build student name map
             const nameMap = {};
-            (allStudents || []).forEach(s => { nameMap[s.id] = _dn(s.full_name) || s.email || 'Aluno'; });
+            (allStudents || []).forEach(s => { nameMap[String(s.id)] = _dn(s.full_name) || s.email || 'Aluno'; });
 
             Object.keys(tasksByStudent).forEach(studentId => {
                 const st = tasksByStudent[studentId];
                 TASK_DEFS.forEach(td => {
-                    // Find all occurrences (base + numbered: fsrs_optimization, fsrs_optimization_2, etc.)
                     const re = new RegExp('^' + td.key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(_\\d+)?$');
                     const allKeys = Object.keys(st).filter(k => re.test(k));
 
-                    // Find the latest uncompleted occurrence with a date (task_date = due date)
                     let latestUncompleted = null;
                     for (const k of allKeys) {
                         const task = st[k];
@@ -1165,26 +1220,44 @@ Dica: Use as tags do AnKing em vez de decks separados!`
 
                     if (!latestUncompleted) return;
                     const dueDate = new Date(latestUncompleted.task_date + 'T12:00:00');
-                    if (dueDate <= oneWeek) {
-                        const diff = Math.ceil((dueDate - now) / 86400000);
-                        alerts.push({ name: nameMap[studentId] || 'Aluno', label: td.label, diff, overdue: diff < 0 });
+                    const diff = Math.ceil((dueDate - now) / 86400000);
+                    const name = nameMap[studentId] || 'Aluno';
+
+                    if (diff < 0) {
+                        overdue.push({ name, label: td.label, diff, overdue: true });
+                    } else if (dueDate <= oneWeek) {
+                        upcoming.push({ name, label: td.label, diff, overdue: false });
                     }
                 });
             });
 
-            if (alerts.length === 0) return;
+            if (overdue.length === 0 && upcoming.length === 0) return;
 
-            alerts.sort((a, b) => a.diff - b.diff);
             const widget = document.getElementById('todo-reminders');
             widget.style.display = 'block';
-            document.getElementById('todo-reminders-body').innerHTML = alerts.slice(0, 10).map(a => {
-                const color = a.overdue ? '#ef4444' : '#d97706';
-                const text = a.overdue ? `${Math.abs(a.diff)}d atrasado` : `em ${a.diff}d`;
-                return `<div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem;">
-                    <span><strong>${a.name}</strong> - ${a.label}</span>
-                    <span style="color: ${color}; font-weight: 600;">${a.overdue ? '🔴' : '🟡'} ${text}</span>
+
+            let html = '';
+            if (overdue.length > 0) {
+                overdue.sort((a, b) => a.diff - b.diff);
+                html += `<div style="background: #fef2f2; border-radius: 8px; padding: 0.6rem 0.75rem; margin-bottom: 0.5rem;">
+                    <div style="font-weight: 700; color: #dc2626; font-size: 0.85rem; margin-bottom: 0.4rem;">🚨 ATRASADOS (${overdue.length})</div>
+                    ${overdue.map(a => `<div style="display: flex; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid #fecaca; font-size: 0.88rem;">
+                        <span><strong style="color: #dc2626;">${a.name}</strong> - ${a.label}</span>
+                        <span style="color: #ef4444; font-weight: 600;">🔴 ${Math.abs(a.diff)}d</span>
+                    </div>`).join('')}
                 </div>`;
-            }).join('') + (alerts.length > 10 ? `<p style="margin: 0.5rem 0 0; font-size: 0.85rem; color: #64748b;">+ ${alerts.length - 10} mais...</p>` : '');
+            }
+            if (upcoming.length > 0) {
+                upcoming.sort((a, b) => a.diff - b.diff);
+                html += `<div style="background: #fffbeb; border-radius: 8px; padding: 0.6rem 0.75rem;">
+                    <div style="font-weight: 700; color: #d97706; font-size: 0.85rem; margin-bottom: 0.4rem;">⏰ Próximos 7 dias (${upcoming.length})</div>
+                    ${upcoming.map(a => `<div style="display: flex; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid #fde68a; font-size: 0.88rem;">
+                        <span><strong>${a.name}</strong> - ${a.label}</span>
+                        <span style="color: #d97706; font-weight: 600;">🟡 em ${a.diff}d</span>
+                    </div>`).join('')}
+                </div>`;
+            }
+            document.getElementById('todo-reminders-body').innerHTML = html;
         }
 
         // Diary preference functions
