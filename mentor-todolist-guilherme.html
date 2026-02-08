@@ -123,25 +123,6 @@
         }
         .copy-btn:active { transform: scale(0.95); }
 
-        /* Reports section */
-        .report-row {
-            display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;
-            padding: 0.6rem 0.85rem; border-bottom: 1px solid #f1f5f9; font-size: 0.88rem;
-            transition: background 0.15s;
-        }
-        .report-row:hover { background: #f8fafc; }
-        .report-row:last-child { border-bottom: none; }
-        .report-title { font-weight: 600; color: #1e293b; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .report-meta { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; font-size: 0.8rem; color: #64748b; }
-        .report-mentor { padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
-        .reports-limit-btn {
-            padding: 0.25rem 0.6rem; border: 1px solid #e5e7eb; border-radius: 6px;
-            background: white; font-size: 0.78rem; font-weight: 600; cursor: pointer;
-            color: #64748b; transition: all 0.15s;
-        }
-        .reports-limit-btn:hover { border-color: #3b82f6; color: #3b82f6; }
-        .reports-limit-btn.active { background: #3b82f6; color: white; border-color: #3b82f6; }
-
         /* Mobile responsive */
         @media (max-width: 640px) {
             .todo-header h1 { font-size: 1.15rem; }
@@ -217,19 +198,6 @@
             </div>
         </div>
 
-        <!-- Recent Reports -->
-        <div id="reports-section" style="display: none; margin-top: 1.5rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                <h2 style="margin: 0; font-size: 1.15rem; font-weight: 700;">📝 Últimos Relatórios</h2>
-                <div style="display: flex; gap: 0.35rem;">
-                    <button class="reports-limit-btn active" onclick="setReportsLimit(10)">10</button>
-                    <button class="reports-limit-btn" onclick="setReportsLimit(20)">20</button>
-                    <button class="reports-limit-btn" onclick="setReportsLimit(50)">50</button>
-                </div>
-            </div>
-            <div id="reports-list"></div>
-        </div>
-
         <!-- Message Modal -->
         <div id="msg-modal" class="msg-modal-overlay" onclick="if(event.target===this)closeMsgModal()">
             <div class="msg-modal">
@@ -250,8 +218,7 @@
         let allStudents = [];
         let tasksMap = {};
         let ankiDataMap = {};
-        let allReports = [];
-        let reportsLimit = 10;
+
 
         const TASK_TYPES = [
             { key: 'entry_date', label: '📅 Data de entrada na Ward', recurring: false },
@@ -613,9 +580,6 @@
                 console.log('[TodoList] TasksMap sample:', Object.keys(tasksMap).slice(0, 5).map(k => ({ key: k, tasks: Object.keys(tasksMap[k]) })));
                 console.log('[TodoList] FirstCalls:', Object.keys(window._firstCalls || {}).length, 'entries');
                 console.log('[TodoList] canEdit:', canEdit, 'guilhermeData.id:', guilhermeData?.id);
-
-                // 6. Load recent reports (non-blocking)
-                loadReports();
 
                 renderAll();
             } catch (err) {
@@ -1025,72 +989,6 @@
             });
         }
 
-        // ===== Recent Reports =====
-        async function loadReports() {
-            try {
-                const { data, error } = await WardApp.db
-                    .from('call_reports')
-                    .select('id, title, call_date, created_at, student_id, mentor_id, student:student_id(full_name, email), mentor:mentor_id(full_name, email)')
-                    .order('created_at', { ascending: false })
-                    .limit(50);
-
-                if (error || !data) { console.warn('Reports load error:', error?.message); return; }
-                allReports = data;
-                renderReports();
-            } catch (e) { console.warn('Reports load failed:', e); }
-        }
-
-        const MENTOR_COLORS = {
-            'iria': { bg: '#fef3c7', color: '#92400e' },
-            'marcos': { bg: '#dbeafe', color: '#1e40af' },
-            'guilherme': { bg: '#dcfce7', color: '#166534' }
-        };
-
-        function getMentorStyle(mentorName) {
-            const lower = (mentorName || '').toLowerCase();
-            for (const [key, style] of Object.entries(MENTOR_COLORS)) {
-                if (lower.includes(key)) return style;
-            }
-            return { bg: '#f1f5f9', color: '#475569' };
-        }
-
-        function renderReports() {
-            const section = document.getElementById('reports-section');
-            const list = document.getElementById('reports-list');
-            if (!allReports.length) { section.style.display = 'none'; return; }
-
-            section.style.display = 'block';
-            const visible = allReports.slice(0, reportsLimit);
-
-            list.innerHTML = `<div style="border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; background: white;">
-                ${visible.map(r => {
-                    const studentName = _dn(r.student?.full_name) || r.student?.email || 'Aluno';
-                    const mentorName = _dn(r.mentor?.full_name) || 'Mentor';
-                    const mentorFirst = mentorName.split(' ')[0];
-                    const mStyle = getMentorStyle(mentorName);
-                    const date = r.call_date ? new Date(r.call_date + 'T12:00:00').toLocaleDateString('pt-BR') : '';
-                    return `<a href="/relatorios?report=${r.id}" class="report-row" style="text-decoration: none; color: inherit;">
-                        <div style="min-width: 0; flex: 1;">
-                            <div class="report-title">${r.title || 'Sem título'}</div>
-                            <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 0.15rem;">${studentName.split(' ')[0]}</div>
-                        </div>
-                        <div class="report-meta">
-                            <span class="report-mentor" style="background:${mStyle.bg}; color:${mStyle.color};">${mentorFirst}</span>
-                            <span style="white-space: nowrap;">${date}</span>
-                        </div>
-                    </a>`;
-                }).join('')}
-            </div>
-            ${allReports.length > reportsLimit ? `<div style="text-align: center; padding: 0.5rem; font-size: 0.82rem; color: #64748b;">Mostrando ${reportsLimit} de ${allReports.length}</div>` : ''}`;
-        }
-
-        function setReportsLimit(n) {
-            reportsLimit = n;
-            document.querySelectorAll('.reports-limit-btn').forEach(btn => {
-                btn.classList.toggle('active', parseInt(btn.textContent) === n);
-            });
-            renderReports();
-        }
     </script>
 </body>
 </html>
