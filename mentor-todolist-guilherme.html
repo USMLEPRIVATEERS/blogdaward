@@ -401,6 +401,68 @@
         }
         // ===== End recurring task helpers =====
 
+        // Backfill: for students that already have first_call date but missing recurring dates,
+        // calculate and save the suggested dates. Runs once on page load.
+        async function backfillRecurringDates() {
+            const recurringTypes = TASK_TYPES.filter(t => t.recurring);
+            let totalBackfilled = 0;
+
+            for (const student of allStudents) {
+                const st = tasksMap[student.id] || {};
+                const firstCallTask = st['first_call'];
+                if (!firstCallTask?.task_date) continue; // no first call date set
+
+                const baseDate = new Date(firstCallTask.task_date + 'T12:00:00');
+                if (isNaN(baseDate.getTime())) continue;
+
+                for (const tt of recurringTypes) {
+                    const existing = st[tt.key];
+                    if (existing?.task_date) continue; // already has a date
+
+                    const suggestedDate = new Date(baseDate);
+                    suggestedDate.setDate(suggestedDate.getDate() + tt.intervalDays);
+                    const dateStr = suggestedDate.toISOString().split('T')[0];
+
+                    if (canEdit) {
+                        // Guilherme: write to DB
+                        if (existing) {
+                            await WardApp.db.from('mentor_student_tasks')
+                                .update({ task_date: dateStr, dismissed: false, updated_at: new Date().toISOString() })
+                                .eq('id', existing.id);
+                            existing.task_date = dateStr;
+                            existing.dismissed = false;
+                        } else {
+                            const newTask = {
+                                mentor_id: String(guilhermeData.id), student_id: String(student.id),
+                                task_type: tt.key, completed: false, task_date: dateStr, dismissed: false
+                            };
+                            const { data } = await WardApp.db.from('mentor_student_tasks').insert(newTask).select().single();
+                            if (data) {
+                                if (!tasksMap[student.id]) tasksMap[student.id] = {};
+                                tasksMap[student.id][tt.key] = data;
+                            }
+                        }
+                    } else {
+                        // Other mentors: calculate locally for display only (no DB write)
+                        if (!tasksMap[student.id]) tasksMap[student.id] = {};
+                        if (existing) {
+                            existing.task_date = dateStr;
+                        } else {
+                            tasksMap[student.id][tt.key] = {
+                                task_type: tt.key, completed: false, task_date: dateStr,
+                                dismissed: false, _local: true
+                            };
+                        }
+                    }
+                    totalBackfilled++;
+                }
+            }
+
+            if (totalBackfilled > 0) {
+                console.log(`Backfilled ${totalBackfilled} recurring date(s)`);
+            }
+        }
+
         const _dn = (v) => WardApp._prs ? WardApp._prs(v) : v;
 
         function sortUsersByName(users) {
@@ -527,7 +589,10 @@
                 }
                 markStep('step-calls', 'done');
 
-                // 5. Load recent reports (non-blocking)
+                // 5. Backfill recurring dates for students with first_call but missing dates
+                await backfillRecurringDates();
+
+                // 6. Load recent reports (non-blocking)
                 loadReports();
 
                 renderAll();
