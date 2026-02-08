@@ -1500,9 +1500,9 @@
             const { data } = await WardApp.db
                 .from('users')
                 .select('id, full_name, email, timezone, role')
-                .in('role', ['aluno', 'assessoria'])
-                .order('full_name');
-            allStudents = data || [];
+                .in('role', ['aluno', 'assessoria']);
+            allStudents = (data || []).map(s => ({ ...s, _displayName: _dn(s.full_name) || s.email || '' }))
+                .sort((a, b) => a._displayName.localeCompare(b._displayName, 'pt-BR'));
         }
 
         async function openNewCallModal() {
@@ -1511,7 +1511,7 @@
             // Populate student dropdown
             const select = document.getElementById('new-call-student');
             select.innerHTML = '<option value="">Selecione o aluno...</option>' +
-                allStudents.map(s => `<option value="${s.id}">${_dn(s.full_name) || s.email}</option>`).join('');
+                allStudents.map(s => `<option value="${s.id}">${s._displayName}</option>`).join('');
 
             // Reset fields
             document.getElementById('new-call-title').value = '';
