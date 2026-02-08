@@ -1148,12 +1148,25 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             Object.keys(tasksByStudent).forEach(studentId => {
                 const st = tasksByStudent[studentId];
                 TASK_DEFS.forEach(td => {
-                    const task = st[td.key];
-                    if (!task || task.dismissed || !task.task_date) return;
-                    const next = new Date(task.task_date);
-                    next.setDate(next.getDate() + td.intervalDays);
-                    if (next <= oneWeek) {
-                        const diff = Math.ceil((next - now) / 86400000);
+                    // Find all occurrences (base + numbered: fsrs_optimization, fsrs_optimization_2, etc.)
+                    const re = new RegExp('^' + td.key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(_\\d+)?$');
+                    const allKeys = Object.keys(st).filter(k => re.test(k));
+
+                    // Find the latest uncompleted occurrence with a date (task_date = due date)
+                    let latestUncompleted = null;
+                    for (const k of allKeys) {
+                        const task = st[k];
+                        if (task && !task.completed && !task.dismissed && task.task_date) {
+                            if (!latestUncompleted || task.task_date > latestUncompleted.task_date) {
+                                latestUncompleted = task;
+                            }
+                        }
+                    }
+
+                    if (!latestUncompleted) return;
+                    const dueDate = new Date(latestUncompleted.task_date + 'T12:00:00');
+                    if (dueDate <= oneWeek) {
+                        const diff = Math.ceil((dueDate - now) / 86400000);
                         alerts.push({ name: nameMap[studentId] || 'Aluno', label: td.label, diff, overdue: diff < 0 });
                     }
                 });
