@@ -302,6 +302,7 @@
                     </div>
                 </div>
                 <div class="project-meta mb-3" id="project-meta"></div>
+                <div id="view-project-tags" class="mb-3"></div>
 
                 <!-- Progress -->
                 <div class="progress-container mb-4">
@@ -408,6 +409,26 @@
                         <option value="active">Em andamento</option>
                         <option value="completed">Concluido</option>
                     </select>
+                </div>
+                <div class="form-group" id="edit-tags-group">
+                    <label class="form-label">Tags do Projeto</label>
+                    <div class="tags-checkbox-group" id="edit-project-tags">
+                        <label class="tag-checkbox-label" data-tag="congresso">
+                            <input type="checkbox" value="congresso" onchange="toggleTagCheckbox(this)"> 🎤 Congresso
+                        </label>
+                        <label class="tag-checkbox-label" data-tag="publicado">
+                            <input type="checkbox" value="publicado" onchange="toggleTagCheckbox(this)"> 📄 Publicado
+                        </label>
+                        <label class="tag-checkbox-label" data-tag="submetido">
+                            <input type="checkbox" value="submetido" onchange="toggleTagCheckbox(this)"> 📨 Submetido
+                        </label>
+                        <label class="tag-checkbox-label" data-tag="revisao">
+                            <input type="checkbox" value="revisao" onchange="toggleTagCheckbox(this)"> 🔄 Em Revisao
+                        </label>
+                        <label class="tag-checkbox-label" data-tag="arquivado">
+                            <input type="checkbox" value="arquivado" onchange="toggleTagCheckbox(this)"> 📦 Arquivado
+                        </label>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Data Limite</label>
@@ -1279,6 +1300,53 @@
             container.innerHTML = html;
         }
 
+        const TAG_CONFIG = {
+            congresso: { label: '🎤 CONGRESSO', css: 'tag-congresso' },
+            publicado: { label: '📄 PUBLICADO', css: 'tag-publicado' },
+            submetido: { label: '📨 SUBMETIDO', css: 'tag-submetido' },
+            revisao:   { label: '🔄 EM REVISAO', css: 'tag-revisao' },
+            arquivado: { label: '📦 ARQUIVADO', css: 'tag-arquivado' }
+        };
+
+        function renderProjectTags(tags) {
+            if (!tags || !Array.isArray(tags) || tags.length === 0) return '';
+            const badges = tags.map(t => {
+                const cfg = TAG_CONFIG[t];
+                if (!cfg) return '';
+                return `<span class="project-tag ${cfg.css}">${cfg.label}</span>`;
+            }).filter(Boolean).join('');
+            return badges ? `<div class="project-tags">${badges}</div>` : '';
+        }
+
+        function toggleTagCheckbox(checkbox) {
+            const label = checkbox.closest('.tag-checkbox-label');
+            const tag = label.dataset.tag;
+            if (checkbox.checked) {
+                label.classList.add('checked-' + tag);
+            } else {
+                label.classList.remove('checked-' + tag);
+            }
+        }
+
+        function getSelectedTags() {
+            const checkboxes = document.querySelectorAll('#edit-project-tags input[type="checkbox"]');
+            return Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+        }
+
+        function setTagCheckboxes(tags) {
+            const checkboxes = document.querySelectorAll('#edit-project-tags input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                const label = cb.closest('.tag-checkbox-label');
+                const tag = cb.value;
+                cb.checked = (tags || []).includes(tag);
+                if (cb.checked) {
+                    label.classList.add('checked-' + tag);
+                } else {
+                    label.classList.remove('checked-' + tag);
+                }
+            });
+        }
+
         function renderProjectCard(project, isPending) {
             const tasks = project.tasks || [];
             const completedTasks = tasks.filter(t => t.stage === 'tarefa_concluida').length;
@@ -1338,6 +1406,8 @@
                 statusText = '⏳ Em Análise';
             }
 
+            const tagsHtml = renderProjectTags(project.tags);
+
             return `
                 <div class="project-card ${isPending ? 'pending' : ''}" onclick="viewProject(${project.id})">
                     <div class="project-header">
@@ -1346,6 +1416,7 @@
                             ${statusText}
                         </span>
                     </div>
+                    ${tagsHtml}
                     ${project.description ? `<div class="project-description">${formatDescription(project.description)}</div>` : ''}
                     ${!isPending ? `
                         <div class="progress-container">
@@ -1505,6 +1576,17 @@
                 metaHtml += `<a href="${currentProject.drive_link}" target="_blank" class="project-meta-item link">📁 Google Drive</a>`;
             }
             document.getElementById('project-meta').innerHTML = metaHtml;
+
+            // Render tags
+            const viewTagsEl = document.getElementById('view-project-tags');
+            const projectTags = currentProject.tags || [];
+            if (projectTags.length > 0) {
+                viewTagsEl.innerHTML = renderProjectTags(projectTags);
+                viewTagsEl.style.display = 'block';
+            } else {
+                viewTagsEl.innerHTML = '';
+                viewTagsEl.style.display = 'none';
+            }
 
             // Calculate progress
             const tasks = currentProject.tasks || [];
@@ -2262,6 +2344,7 @@
             document.getElementById('edit-project-status').value = currentProject.status || 'active';
             document.getElementById('edit-project-deadline').value = currentProject.deadline ? currentProject.deadline.split('T')[0] : '';
             document.getElementById('edit-project-link').value = currentProject.drive_link || '';
+            setTagCheckboxes(currentProject.tags);
 
             // Parse the title to fill the fields
             const title = currentProject.title || '';
@@ -2310,7 +2393,7 @@
             // For non-mentors, hide most fields - they can only edit description
             const formGroupsToHide = ['edit-project-type', 'edit-project-status', 'edit-project-deadline', 'edit-project-link']
                 .map(id => document.getElementById(id)?.parentElement).filter(Boolean);
-            const divsToHide = ['edit-double-arm-fields', 'edit-single-arm-fields']
+            const divsToHide = ['edit-double-arm-fields', 'edit-single-arm-fields', 'edit-tags-group']
                 .map(id => document.getElementById(id)).filter(Boolean);
             const allFieldsToHide = [...formGroupsToHide, ...divsToHide];
 
@@ -2381,6 +2464,8 @@
                 return;
             }
 
+            const tags = getSelectedTags();
+
             const { error } = await WardApp.db
                 .from('research_projects')
                 .update({
@@ -2390,6 +2475,7 @@
                     status,
                     deadline,
                     drive_link: driveLink,
+                    tags,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', projectId);
@@ -3501,6 +3587,78 @@ function toggleFolder(header) {
         .project-description-formatted p {
             margin-bottom: 0.5rem;
         }
+
+        .project-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            margin-top: 0.6rem;
+        }
+        .project-tag {
+            display: inline-block;
+            padding: 0.15rem 0.55rem;
+            font-size: 0.68rem;
+            font-weight: 700;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .tag-congresso {
+            background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+        .tag-publicado {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            color: #065f46;
+            border: 1px solid #6ee7b7;
+        }
+        .tag-arquivado {
+            background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+            color: #6b7280;
+            border: 1px solid #d1d5db;
+        }
+        .tag-revisao {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            color: #92400e;
+            border: 1px solid #fcd34d;
+        }
+        .tag-submetido {
+            background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+            color: #5b21b6;
+            border: 1px solid #c4b5fd;
+        }
+        .tags-checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .tag-checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.4rem 0.75rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.82rem;
+            font-weight: 600;
+            border: 2px solid #e5e7eb;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+        .tag-checkbox-label:hover {
+            border-color: #9ca3af;
+        }
+        .tag-checkbox-label input[type="checkbox"] {
+            accent-color: #4f46e5;
+            width: 16px;
+            height: 16px;
+        }
+        .tag-checkbox-label.checked-congresso { border-color: #3b82f6; background: #eff6ff; }
+        .tag-checkbox-label.checked-publicado { border-color: #10b981; background: #ecfdf5; }
+        .tag-checkbox-label.checked-arquivado { border-color: #9ca3af; background: #f9fafb; }
+        .tag-checkbox-label.checked-revisao { border-color: #f59e0b; background: #fffbeb; }
+        .tag-checkbox-label.checked-submetido { border-color: #8b5cf6; background: #f5f3ff; }
 
         .project-footer {
             display: flex;
