@@ -968,6 +968,27 @@
             transform: rotate(180deg);
         }
 
+        /* Recent reports toggle */
+        .recent-limit-btn {
+            padding: 0.3rem 0.75rem; border: 1px solid var(--gray-200); border-radius: 8px;
+            background: white; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+            color: var(--gray-500); transition: all 0.15s;
+        }
+        .recent-limit-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .recent-limit-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        .recent-report-row {
+            display: flex; align-items: center; gap: 1rem; padding: 0.85rem 1.25rem;
+            border-bottom: 1px solid var(--gray-100); cursor: pointer; transition: background 0.15s;
+            text-decoration: none; color: inherit;
+        }
+        .recent-report-row:hover { background: var(--gray-50); }
+        .recent-report-row:last-child { border-bottom: none; }
+
+        .recent-report-mentor {
+            padding: 0.2rem 0.6rem; border-radius: 10px; font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+        }
+
         /* Responsive */
         @media (max-width: 1024px) {
             .reports-container {
@@ -1316,10 +1337,16 @@
 
             <!-- Reports Main Area -->
             <div class="reports-main">
-                <div id="no-student-selected" class="no-student-state">
-                    <div class="icon">👈</div>
-                    <h3>Selecione um aluno</h3>
-                    <p>Clique em um aluno na lista para ver seus relatórios de chamadas</p>
+                <div id="no-student-selected">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h2 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--gray-900);">📝 Últimos Relatórios</h2>
+                        <div style="display: flex; gap: 0.35rem;">
+                            <button class="recent-limit-btn active" onclick="setRecentLimit(10)">10</button>
+                            <button class="recent-limit-btn" onclick="setRecentLimit(20)">20</button>
+                            <button class="recent-limit-btn" onclick="setRecentLimit(50)">50</button>
+                        </div>
+                    </div>
+                    <div id="recent-reports-list"></div>
                 </div>
 
                 <div id="student-reports-area" style="display: none;">
@@ -1482,6 +1509,7 @@
         let currentMentorFilter = 'all';
         let mentorsMap = {};
         let imageActionMode = 'copy'; // 'copy' or 'download'
+        let recentLimit = 10;
 
         // Helper to decrypt user data if encrypted
         function _dn(val) {
@@ -1555,6 +1583,7 @@
             allReports = reports || [];
             document.getElementById('total-reports').textContent = allReports.length;
             updateReportCounts();
+            if (!selectedStudent) renderRecentReports();
         }
 
         function updateReportCounts() {
@@ -2092,6 +2121,70 @@
                 console.error('Error generating image:', error);
                 WardApp.showToast('Erro ao gerar imagem', 'error');
             }
+        }
+
+        // Recent reports (when no student selected)
+        const MENTOR_COLORS = {
+            'iria': { bg: '#fef3c7', color: '#92400e' },
+            'marcos': { bg: '#dbeafe', color: '#1e40af' },
+            'guilherme': { bg: '#dcfce7', color: '#166534' }
+        };
+
+        function getMentorStyle(name) {
+            const lower = (name || '').toLowerCase();
+            for (const [key, style] of Object.entries(MENTOR_COLORS)) {
+                if (lower.includes(key)) return style;
+            }
+            return { bg: '#f1f5f9', color: '#475569' };
+        }
+
+        function renderRecentReports() {
+            const list = document.getElementById('recent-reports-list');
+            if (!list || selectedStudent) return;
+
+            if (allReports.length === 0) {
+                list.innerHTML = '<div style="text-align: center; padding: 3rem; color: var(--gray-500);">Nenhum relatório encontrado.</div>';
+                return;
+            }
+
+            const visible = allReports.slice(0, recentLimit);
+            list.innerHTML = `<div style="border: 1px solid var(--gray-200); border-radius: 16px; overflow: hidden; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.08);">
+                ${visible.map(r => {
+                    const studentName = _dn(r.student?.full_name) || r.student?.email || 'Aluno';
+                    const mentorName = _dn(r.mentor?.full_name) || 'Mentor';
+                    const mentorFirst = mentorName.split(' ')[0];
+                    const mStyle = getMentorStyle(mentorName);
+                    const date = formatDateBR(r.call_date);
+                    const initials = getInitials(studentName);
+                    return `<div class="recent-report-row" onclick="openRecentReport(${r.id})">
+                        <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, var(--secondary), #818cf8); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0;">${initials}</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 600; color: var(--gray-900); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${r.title || 'Sem título'}</div>
+                            <div style="font-size: 0.78rem; color: var(--gray-500); margin-top: 0.1rem;">${studentName.split(' ')[0]}</div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0;">
+                            <span class="recent-report-mentor" style="background: ${mStyle.bg}; color: ${mStyle.color};">${mentorFirst}</span>
+                            <span style="font-size: 0.8rem; color: var(--gray-500); white-space: nowrap;">${date}</span>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+            ${allReports.length > recentLimit ? `<div style="text-align: center; padding: 0.6rem; font-size: 0.85rem; color: var(--gray-500);">Mostrando ${recentLimit} de ${allReports.length}</div>` : ''}`;
+        }
+
+        function setRecentLimit(n) {
+            recentLimit = n;
+            document.querySelectorAll('.recent-limit-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.textContent) === n);
+            });
+            renderRecentReports();
+        }
+
+        function openRecentReport(reportId) {
+            const report = allReports.find(r => r.id === reportId);
+            if (!report) return;
+            selectStudent(report.student_id);
+            setTimeout(() => viewReport(reportId), 100);
         }
 
         // Handle shared report links
