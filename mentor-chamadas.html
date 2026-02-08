@@ -237,7 +237,8 @@
             <div class="card">
                 <div class="card-header d-flex justify-between align-center flex-wrap gap-2">
                     <span>📅 Chamadas</span>
-                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+                        <button class="btn btn-primary btn-sm" onclick="openNewCallModal()" style="white-space: nowrap;">+ Nova Chamada</button>
                         <div class="form-group" style="margin: 0; min-width: 200px;">
                             <input type="text" id="filter-student" class="form-input" placeholder="🔍 Filtrar por aluno..." oninput="loadScheduledCalls()">
                         </div>
@@ -515,6 +516,48 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('add-specific-modal')">Cancelar</button>
                 <button class="btn btn-primary" onclick="saveSpecificDate()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Call Modal (Mentor schedules with student) -->
+    <div id="new-call-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">📞 Agendar Chamada com Aluno</h3>
+                <button class="modal-close" onclick="closeModal('new-call-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Titulo da Chamada *</label>
+                    <input type="text" id="new-call-title" class="form-input" placeholder="Ex: Chamada de acompanhamento, Revisao de cronograma...">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Aluno *</label>
+                    <select id="new-call-student" class="form-input">
+                        <option value="">Selecione o aluno...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Data *</label>
+                    <select id="new-call-date" class="form-input" onchange="loadNewCallTimeSlots()">
+                        <option value="">Selecione uma data...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Horario *</label>
+                    <select id="new-call-time" class="form-input">
+                        <option value="">Selecione um horario...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Observacoes</label>
+                    <textarea id="new-call-notes" class="form-textarea" rows="2" placeholder="Observacoes sobre a chamada (opcional)..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('new-call-modal')">Cancelar</button>
+                <button class="btn btn-primary" id="new-call-submit-btn" onclick="submitNewCall()">📞 Agendar</button>
             </div>
         </div>
     </div>
@@ -1446,6 +1489,252 @@
             await loadScheduledCalls();
             if (previousCallsLoaded) {
                 await loadPreviousCalls();
+            }
+        }
+
+        // ===== New Call (Mentor → Student) =====
+        let allStudents = [];
+
+        async function loadStudentsList() {
+            if (allStudents.length > 0) return;
+            const { data } = await WardApp.db
+                .from('users')
+                .select('id, full_name, email, timezone')
+                .eq('role', 'student')
+                .order('full_name');
+            allStudents = data || [];
+        }
+
+        async function openNewCallModal() {
+            await loadStudentsList();
+
+            // Populate student dropdown
+            const select = document.getElementById('new-call-student');
+            select.innerHTML = '<option value="">Selecione o aluno...</option>' +
+                allStudents.map(s => `<option value="${s.id}">${_dn(s.full_name) || s.email}</option>`).join('');
+
+            // Reset fields
+            document.getElementById('new-call-title').value = '';
+            document.getElementById('new-call-notes').value = '';
+            document.getElementById('new-call-date').innerHTML = '<option value="">Carregando datas...</option>';
+            document.getElementById('new-call-time').innerHTML = '<option value="">Selecione uma data primeiro...</option>';
+
+            // Load mentor's available dates for next 60 days
+            await loadNewCallDates();
+
+            openModal('new-call-modal');
+        }
+
+        async function loadNewCallDates() {
+            const dateSelect = document.getElementById('new-call-date');
+            const today = new Date();
+            const availableDates = [];
+
+            // Get all regular availability slots
+            const regSlots = regularAvailability; // Already loaded
+
+            // Get specific dates for next 60 days
+            const startStr = today.toISOString().split('T')[0];
+            const endDate = new Date(today);
+            endDate.setDate(endDate.getDate() + 60);
+            const endStr = endDate.toISOString().split('T')[0];
+
+            const { data: specificData } = await WardApp.db
+                .from('mentor_availability_specific')
+                .select('*')
+                .eq('mentor_id', userData.id)
+                .gte('available_date', startStr)
+                .lte('available_date', endStr);
+
+            const specificByDate = {};
+            (specificData || []).forEach(s => {
+                specificByDate[s.available_date] = s;
+            });
+
+            // Generate dates for next 60 days
+            for (let d = 0; d < 60; d++) {
+                const date = new Date(today);
+                date.setDate(date.getDate() + d);
+                const dateStr = date.toISOString().split('T')[0];
+                const dow = date.getDay();
+
+                // Check if date is specifically blocked
+                const specific = specificByDate[dateStr];
+                if (specific && specific.is_unavailable) continue;
+
+                // Check if there's specific availability or regular availability for this day
+                const hasSpecific = specific && !specific.is_unavailable;
+                const hasRegular = regSlots.some(s => s.day_of_week === dow);
+
+                if (hasSpecific || hasRegular) {
+                    const dayLabel = dayNames[dow];
+                    const dateLabel = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                    availableDates.push({ value: dateStr, label: `${dayLabel}, ${dateLabel}` });
+                }
+            }
+
+            dateSelect.innerHTML = '<option value="">Selecione uma data...</option>' +
+                availableDates.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
+        }
+
+        async function loadNewCallTimeSlots() {
+            const dateStr = document.getElementById('new-call-date').value;
+            const timeSelect = document.getElementById('new-call-time');
+
+            if (!dateStr) {
+                timeSelect.innerHTML = '<option value="">Selecione uma data primeiro...</option>';
+                return;
+            }
+
+            timeSelect.innerHTML = '<option value="">Carregando horarios...</option>';
+
+            const date = new Date(dateStr + 'T12:00:00');
+            const dow = date.getDay();
+
+            // Get specific availability for this date
+            const { data: specificData } = await WardApp.db
+                .from('mentor_availability_specific')
+                .select('*')
+                .eq('mentor_id', userData.id)
+                .eq('available_date', dateStr)
+                .not('is_unavailable', 'eq', true);
+
+            // Get regular availability for this day of week
+            const regSlots = regularAvailability.filter(s => s.day_of_week === dow);
+
+            // Generate all possible time slots
+            let allSlots = [];
+
+            // Specific availability overrides regular
+            if (specificData && specificData.length > 0) {
+                specificData.forEach(s => {
+                    const duration = s.duration_minutes || 30;
+                    const breakMin = s.break_minutes || 0;
+                    const slots = generateTimeSlots(s.start_time, s.end_time, duration, breakMin);
+                    allSlots.push(...slots);
+                });
+            } else {
+                regSlots.forEach(s => {
+                    const duration = s.duration_minutes || 30;
+                    const breakMin = s.break_minutes || 0;
+                    const slots = generateTimeSlots(s.start_time, s.end_time, duration, breakMin);
+                    allSlots.push(...slots);
+                });
+            }
+
+            // Get already booked slots for this date
+            const { data: booked } = await WardApp.db
+                .from('scheduled_calls')
+                .select('scheduled_time')
+                .eq('mentor_id', userData.id)
+                .eq('scheduled_date', dateStr)
+                .eq('status', 'scheduled');
+
+            const bookedTimes = (booked || []).map(b => b.scheduled_time.substring(0, 5));
+
+            // Filter out booked slots
+            const freeSlots = allSlots.filter(s => !bookedTimes.includes(s.start));
+
+            if (freeSlots.length === 0) {
+                timeSelect.innerHTML = '<option value="">Nenhum horario disponivel nesta data</option>';
+                return;
+            }
+
+            timeSelect.innerHTML = '<option value="">Selecione um horario...</option>' +
+                freeSlots.map(s => `<option value="${s.start}">${s.start} - ${s.end}</option>`).join('');
+        }
+
+        async function submitNewCall() {
+            const title = document.getElementById('new-call-title').value.trim();
+            const studentId = document.getElementById('new-call-student').value;
+            const dateStr = document.getElementById('new-call-date').value;
+            const time = document.getElementById('new-call-time').value;
+            const notes = document.getElementById('new-call-notes').value.trim();
+
+            if (!title || !studentId || !dateStr || !time) {
+                WardApp.showToast('Preencha todos os campos obrigatorios', 'warning');
+                return;
+            }
+
+            const btn = document.getElementById('new-call-submit-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Agendando...';
+
+            try {
+                // Double-booking check
+                const { data: existing } = await WardApp.db
+                    .from('scheduled_calls')
+                    .select('id')
+                    .eq('mentor_id', userData.id)
+                    .eq('scheduled_date', dateStr)
+                    .eq('scheduled_time', time)
+                    .eq('status', 'scheduled')
+                    .maybeSingle();
+
+                if (existing) {
+                    WardApp.showToast('Este horario ja foi reservado. Escolha outro.', 'error');
+                    await loadNewCallTimeSlots();
+                    return;
+                }
+
+                // Determine landmark_type based on mentor role
+                const mentorKey = (userData.role || '').replace('mentor_', '');
+                const landmarkType = `call_extra_${mentorKey}`;
+
+                // Create a landmark so the call shows on student's landmarks page
+                const { data: landmark, error: lmError } = await WardApp.db
+                    .from('landmarks')
+                    .insert({
+                        user_id: studentId,
+                        landmark_type: landmarkType,
+                        title: title,
+                        completed: false,
+                        is_urgent: false,
+                        order_position: 999,
+                        group_name: 'extras',
+                        notes: notes ? [{ text: notes, author: _dn(userData.full_name) || userData.email, date: new Date().toISOString() }] : [],
+                        created_at: new Date().toISOString()
+                    })
+                    .select('id')
+                    .single();
+
+                if (lmError) {
+                    console.error('Error creating landmark:', lmError);
+                    WardApp.showToast('Erro ao criar landmark: ' + (lmError.message || ''), 'error');
+                    return;
+                }
+
+                // Get student timezone
+                const student = allStudents.find(s => String(s.id) === String(studentId));
+                const studentTz = student?.timezone || 'America/Sao_Paulo';
+
+                // Create the scheduled call
+                const { error: callError } = await WardApp.db
+                    .from('scheduled_calls')
+                    .insert({
+                        landmark_id: landmark.id,
+                        student_id: studentId,
+                        mentor_id: userData.id,
+                        scheduled_date: dateStr,
+                        scheduled_time: time,
+                        status: 'scheduled',
+                        notes: notes || null,
+                        student_timezone: studentTz
+                    });
+
+                if (callError) {
+                    console.error('Error creating call:', callError);
+                    WardApp.showToast('Erro ao agendar chamada: ' + (callError.message || ''), 'error');
+                    return;
+                }
+
+                closeModal('new-call-modal');
+                WardApp.showToast('Chamada agendada com sucesso!', 'success');
+                await loadScheduledCalls();
+
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📞 Agendar';
             }
         }
 
