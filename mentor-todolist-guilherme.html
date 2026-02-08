@@ -254,6 +254,119 @@
             ]
         };
 
+        // ===== Recurring task helpers =====
+        function getBaseTaskKey(taskKey) {
+            return taskKey.replace(/_\d+$/, '');
+        }
+
+        function getTaskDef(taskKey) {
+            return TASK_TYPES.find(t => t.key === getBaseTaskKey(taskKey));
+        }
+
+        function getTaskRowsForStudent(studentId) {
+            const st = tasksMap[studentId] || {};
+            const rows = [];
+
+            TASK_TYPES.forEach(tt => {
+                rows.push({ ...tt, taskKey: tt.key, isBase: true });
+
+                if (tt.recurring) {
+                    const re = new RegExp('^' + tt.key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '_(\\d+)$');
+                    const extras = Object.keys(st)
+                        .filter(k => re.test(k))
+                        .sort((a, b) => {
+                            const numA = parseInt(a.match(/_(\d+)$/)[1]);
+                            const numB = parseInt(b.match(/_(\d+)$/)[1]);
+                            return numA - numB;
+                        });
+                    extras.forEach(extraKey => {
+                        rows.push({ ...tt, taskKey: extraKey, isBase: false });
+                    });
+                }
+            });
+
+            return rows;
+        }
+
+        async function suggestDatesFromFirstCall(studentId, firstCallDate) {
+            if (!firstCallDate) return;
+            const baseDate = new Date(firstCallDate + 'T12:00:00');
+            if (isNaN(baseDate.getTime())) return;
+
+            const recurringTypes = TASK_TYPES.filter(t => t.recurring);
+            let suggested = 0;
+
+            for (const tt of recurringTypes) {
+                const existing = tasksMap[studentId]?.[tt.key];
+                if (existing?.task_date) continue; // don't overwrite
+
+                const suggestedDate = new Date(baseDate);
+                suggestedDate.setDate(suggestedDate.getDate() + tt.intervalDays);
+                const dateStr = suggestedDate.toISOString().split('T')[0];
+
+                if (existing) {
+                    await WardApp.db.from('mentor_student_tasks')
+                        .update({ task_date: dateStr, dismissed: false, updated_at: new Date().toISOString() })
+                        .eq('id', existing.id);
+                    existing.task_date = dateStr;
+                    existing.dismissed = false;
+                } else {
+                    const newTask = {
+                        mentor_id: String(guilhermeData.id), student_id: String(studentId),
+                        task_type: tt.key, completed: false, task_date: dateStr, dismissed: false
+                    };
+                    const { data } = await WardApp.db.from('mentor_student_tasks').insert(newTask).select().single();
+                    if (data) {
+                        if (!tasksMap[studentId]) tasksMap[studentId] = {};
+                        tasksMap[studentId][tt.key] = data;
+                    }
+                }
+                suggested++;
+            }
+
+            if (suggested > 0) {
+                WardApp.showToast(`📅 ${suggested} data(s) sugerida(s) automaticamente a partir da primeira call`, 'success');
+            }
+        }
+
+        async function createNextOccurrence(studentId, completedTaskKey) {
+            const taskDef = getTaskDef(completedTaskKey);
+            if (!taskDef || !taskDef.recurring) return;
+
+            const completedTask = tasksMap[studentId]?.[completedTaskKey];
+            if (!completedTask?.task_date) return;
+
+            const baseKey = getBaseTaskKey(completedTaskKey);
+            const st = tasksMap[studentId] || {};
+            const re = new RegExp('^' + baseKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '_(\\d+)$');
+
+            // Find highest numbered occurrence
+            let maxNum = 1;
+            Object.keys(st).forEach(k => {
+                const m = k.match(re);
+                if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
+            });
+            const nextKey = `${baseKey}_${maxNum + 1}`;
+
+            // Don't create if already exists
+            if (st[nextKey]) return;
+
+            const nextDate = new Date(completedTask.task_date + 'T12:00:00');
+            nextDate.setDate(nextDate.getDate() + taskDef.intervalDays);
+            const dateStr = nextDate.toISOString().split('T')[0];
+
+            const newTask = {
+                mentor_id: String(guilhermeData.id), student_id: String(studentId),
+                task_type: nextKey, completed: false, task_date: dateStr, dismissed: false
+            };
+            const { data } = await WardApp.db.from('mentor_student_tasks').insert(newTask).select().single();
+            if (data) {
+                if (!tasksMap[studentId]) tasksMap[studentId] = {};
+                tasksMap[studentId][nextKey] = data;
+            }
+        }
+        // ===== End recurring task helpers =====
+
         const _dn = (v) => WardApp._prs ? WardApp._prs(v) : v;
 
         function sortUsersByName(users) {
@@ -418,22 +531,28 @@
                 const name = _dn(student.full_name) || student.email || 'Sem nome';
                 TASK_TYPES.forEach(tt => {
                     if (!tt.recurring) return;
-                    const task = st[tt.key];
-                    if (task?.dismissed) return;
-                    let nextDue = null;
-                    if (task?.task_date) {
-                        nextDue = new Date(task.task_date);
-                        nextDue.setDate(nextDue.getDate() + tt.intervalDays);
-                    } else {
-                        const fc = st['first_call'];
-                        if (fc?.task_date) {
-                            nextDue = new Date(fc.task_date);
-                            nextDue.setDate(nextDue.getDate() + tt.intervalDays);
+
+                    // Find all occurrences (base + numbered) for this task type
+                    const re = new RegExp('^' + tt.key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '_(\\d+)$');
+                    const allKeys = [tt.key, ...Object.keys(st).filter(k => re.test(k))];
+
+                    // Find the latest uncompleted occurrence with a date
+                    let latestUncompleted = null;
+                    let latestKey = null;
+                    for (const k of allKeys) {
+                        const task = st[k];
+                        if (task && !task.completed && !task.dismissed && task.task_date) {
+                            if (!latestUncompleted || task.task_date > latestUncompleted.task_date) {
+                                latestUncompleted = task;
+                                latestKey = k;
+                            }
                         }
                     }
-                    if (!nextDue) return;
-                    if (nextDue < now) overdue.push({ student, name, task: tt, nextDue });
-                    else if (nextDue <= oneWeek) upcoming.push({ student, name, task: tt, nextDue });
+
+                    if (!latestUncompleted) return;
+                    const dueDate = new Date(latestUncompleted.task_date + 'T12:00:00');
+                    if (dueDate < now) overdue.push({ student, name, task: tt, nextDue: dueDate, alertTaskKey: latestKey });
+                    else if (dueDate <= oneWeek) upcoming.push({ student, name, task: tt, nextDue: dueDate, alertTaskKey: latestKey });
                 });
             });
 
@@ -448,7 +567,7 @@
                         <div class="alert-item">
                             <div><strong style="color: #dc2626;">${item.name}</strong> <span style="color: #64748b;">- ${item.task.label}</span>
                             <span style="color: #ef4444; font-weight: 600;"> (${Math.ceil((now - item.nextDue) / 86400000)}d atrasado)</span></div>
-                            <button class="btn btn-xs btn-outline" onclick="dismissAlert('${item.student.id}','${item.task.key}')" title="Dispensar">✕</button>
+                            <button class="btn btn-xs btn-outline" onclick="dismissAlert('${item.student.id}','${item.alertTaskKey}')" title="Dispensar">✕</button>
                         </div>`).join('')}</div></div>`;
             }
             if (upcoming.length > 0) {
@@ -458,7 +577,7 @@
                         <div class="alert-item">
                             <div><strong>${item.name}</strong> <span style="color: #64748b;">- ${item.task.label}</span>
                             <span style="color: #d97706; font-weight: 600;"> (em ${Math.ceil((item.nextDue - now) / 86400000)}d)</span></div>
-                            <button class="btn btn-xs btn-outline" onclick="dismissAlert('${item.student.id}','${item.task.key}')" title="Dispensar">✕</button>
+                            <button class="btn btn-xs btn-outline" onclick="dismissAlert('${item.student.id}','${item.alertTaskKey}')" title="Dispensar">✕</button>
                         </div>`).join('')}</div></div>`;
             }
             section.innerHTML = html;
@@ -574,25 +693,34 @@
                                 <th style="width:100px;">Status</th>
                                 <th style="width:40px;">Msg</th>
                             </tr></thead>
-                            <tbody>${TASK_TYPES.map(tt => {
-                                const task = st[tt.key] || {};
+                            <tbody>${getTaskRowsForStudent(student.id).map(row => {
+                                const task = st[row.taskKey] || {};
                                 const checked = task.completed ? 'checked' : '';
-                                const dateVal = task.task_date || (tt.key === 'entry_date' && student.created_at ? student.created_at.split('T')[0] : '') || (tt.key === 'first_call' && firstCallDate ? firstCallDate : '');
+                                let dateVal = task.task_date || '';
+                                if (!dateVal && row.isBase) {
+                                    if (row.key === 'entry_date' && student.created_at) dateVal = student.created_at.split('T')[0];
+                                    else if (row.key === 'first_call' && firstCallDate) dateVal = firstCallDate;
+                                }
                                 let statusHtml = '';
-                                if (tt.recurring && task.task_date) {
-                                    const next = new Date(task.task_date); next.setDate(next.getDate() + tt.intervalDays);
-                                    const diff = Math.ceil((next - new Date()) / 86400000);
-                                    if (diff < 0) statusHtml = `<span style="color:#ef4444;font-weight:600;">🔴 ${Math.abs(diff)}d</span>`;
+                                if (task.completed) {
+                                    statusHtml = '<span style="color:#22c55e;">✅</span>';
+                                } else if (row.recurring && task.task_date) {
+                                    const due = new Date(task.task_date + 'T12:00:00');
+                                    const diff = Math.ceil((due - new Date()) / 86400000);
+                                    if (diff < 0) statusHtml = `<span style="color:#ef4444;font-weight:600;">🔴 ${Math.abs(diff)}d atraso</span>`;
                                     else if (diff <= 7) statusHtml = `<span style="color:#f59e0b;font-weight:600;">🟡 ${diff}d</span>`;
                                     else statusHtml = `<span style="color:#22c55e;">🟢 ${diff}d</span>`;
-                                } else if (task.completed) statusHtml = '<span style="color:#22c55e;">✅</span>';
-                                else statusHtml = '<span style="color:#94a3b8;">⏳</span>';
-                                return `<tr>
-                                    <td>${tt.label}</td>
-                                    <td><input type="checkbox" ${checked} onchange="updateTask('${student.id}','${tt.key}','completed',this.checked)"></td>
-                                    <td><input type="date" value="${dateVal}" onchange="updateTask('${student.id}','${tt.key}','task_date',this.value)"></td>
+                                } else {
+                                    statusHtml = '<span style="color:#94a3b8;">⏳</span>';
+                                }
+                                const rowStyle = !row.isBase ? ' style="background:#f0fdf4; border-left: 3px solid #22c55e;"' : '';
+                                const labelPrefix = !row.isBase ? '↳ ' : '';
+                                return `<tr${rowStyle}>
+                                    <td>${labelPrefix}${row.label}</td>
+                                    <td><input type="checkbox" ${checked} onchange="updateTask('${student.id}','${row.taskKey}','completed',this.checked)"></td>
+                                    <td><input type="date" value="${dateVal}" onchange="updateTask('${student.id}','${row.taskKey}','task_date',this.value)"></td>
                                     <td>${statusHtml}</td>
-                                    <td><button class="msg-btn" onclick="event.stopPropagation();openMsgModal('${student.id}','${tt.key}')" title="WhatsApp">💬</button></td>
+                                    <td><button class="msg-btn" onclick="event.stopPropagation();openMsgModal('${student.id}','${row.taskKey}')" title="WhatsApp">💬</button></td>
                                 </tr>`;
                             }).join('')}</tbody>
                         </table>
@@ -633,6 +761,20 @@
                 const { data } = await WardApp.db.from('mentor_student_tasks').insert(newTask).select().single();
                 if (data) { if (!tasksMap[studentId]) tasksMap[studentId] = {}; tasksMap[studentId][taskType] = data; }
             }
+
+            // Auto-suggest dates when first call date is set
+            if (taskType === 'first_call' && field === 'task_date' && value) {
+                await suggestDatesFromFirstCall(studentId, value);
+            }
+
+            // Create next occurrence when recurring task is completed
+            if (field === 'completed' && value === true) {
+                const taskDef = getTaskDef(taskType);
+                if (taskDef?.recurring) {
+                    await createNextOccurrence(studentId, taskType);
+                }
+            }
+
             renderAll();
         }
 
@@ -690,8 +832,9 @@
             if (!student) return;
             const name = _dn(student.full_name) || student.email || 'Aluno';
             const firstName = name.split(' ')[0];
-            const templates = MSG_TEMPLATES[taskKey] || [];
-            const taskLabel = TASK_TYPES.find(t => t.key === taskKey)?.label || taskKey;
+            const baseKey = getBaseTaskKey(taskKey);
+            const templates = MSG_TEMPLATES[baseKey] || MSG_TEMPLATES[taskKey] || [];
+            const taskLabel = TASK_TYPES.find(t => t.key === baseKey)?.label || taskKey;
 
             document.getElementById('msg-modal-title').textContent = '💬 ' + taskLabel;
             document.getElementById('msg-modal-body').innerHTML = templates.length === 0
