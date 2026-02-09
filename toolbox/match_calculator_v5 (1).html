@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Ward Academy — Match Probability Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,700;9..144,800;9..144,900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#050910;--bg2:#0B1221;--card:#0E1629;--bdr:#1A2744;--bdr2:#243356;
+  --a:#3B82F6;--a2:#2563EB;--aL:#60A5FA;--aG:rgba(59,130,246,.08);
+  --g:#10B981;--gB:rgba(16,185,129,.07);--y:#F59E0B;--yB:rgba(245,158,11,.06);
+  --r:#EF4444;--rB:rgba(239,68,68,.06);--o:#F97316;--p:#8B5CF6;
+  --t:#E2E8F0;--tm:#94A3B8;--td:#64748B;--tdd:#475569;
+  --f:'DM Sans',sans-serif;--m:'JetBrains Mono',monospace;--d:'Fraunces',serif;
+  --rad:12px;--rads:8px;
+}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{font-family:var(--f);background:var(--bg);color:var(--t);min-height:100vh;line-height:1.55;font-size:14px;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 15% 0%,rgba(59,130,246,.03),transparent 55%),radial-gradient(ellipse at 85% 100%,rgba(139,92,246,.02),transparent 55%);pointer-events:none;z-index:0}
+.W{max-width:760px;margin:0 auto;padding:0 16px;position:relative;z-index:1}
+
+/* ===== HEADER ===== */
+header{padding:28px 0 14px;text-align:center}
+.bdg{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;background:var(--aG);border:1px solid rgba(59,130,246,.15);border-radius:14px;font-size:9px;font-weight:700;color:var(--aL);text-transform:uppercase;letter-spacing:1.4px;margin-bottom:10px}
+.bdg i{width:5px;height:5px;background:var(--a);border-radius:50%;animation:pls 2s ease infinite}
+@keyframes pls{0%,100%{opacity:1}50%{opacity:.25}}
+h1{font-family:var(--d);font-size:clamp(24px,5vw,34px);font-weight:900;background:linear-gradient(135deg,#fff 20%,var(--aL) 70%,var(--a));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.2;margin-bottom:8px}
+.sub{color:var(--tm);font-size:12px;max-width:560px;margin:0 auto;line-height:1.5}
+.wb{margin:14px 0;padding:10px 14px;background:rgba(245,158,11,.04);border:1px solid rgba(245,158,11,.1);border-radius:var(--rads);font-size:11px;color:var(--y);line-height:1.55}
+.wb b{color:#FBBF24}
+
+/* ===== PROGRESS BAR ===== */
+.prog{position:sticky;top:0;z-index:50;background:var(--bg);padding:8px 0 6px;border-bottom:1px solid var(--bdr);margin:0 -16px;padding-left:16px;padding-right:16px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);background:rgba(5,9,16,.85)}
+.prog-label{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.prog-label span{font-size:10px;font-weight:600;color:var(--td);text-transform:uppercase;letter-spacing:.5px}
+.prog-label em{font-style:normal;font-family:var(--m);font-size:10px;color:var(--aL);font-weight:600}
+.prog-bar{height:3px;background:var(--bdr);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--a),var(--p));border-radius:2px;transition:width .4s ease;width:0%}
+
+/* ===== SECTION ACCORDION ===== */
+.sec{margin:12px 0;border:1px solid var(--bdr);border-radius:var(--rad);overflow:hidden;background:var(--card);transition:border-color .3s}
+.sec:hover{border-color:var(--bdr2)}
+.sec-head{display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .2s}
+.sec-head:hover{background:rgba(59,130,246,.03)}
+.sec-head:active{background:rgba(59,130,246,.06)}
+.sec-num{width:28px;height:28px;background:var(--aG);border:1px solid rgba(59,130,246,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--m);font-size:11px;font-weight:700;color:var(--aL);flex-shrink:0}
+.sec-num.done{background:var(--gB);border-color:rgba(16,185,129,.2);color:var(--g)}
+.sec-info{flex:1;min-width:0}
+.sec-title{font-size:13px;font-weight:700;color:var(--t);line-height:1.3}
+.sec-desc{font-size:10px;color:var(--td);margin-top:1px}
+.sec-arrow{width:20px;height:20px;color:var(--td);transition:transform .3s;flex-shrink:0}
+.sec-arrow svg{width:100%;height:100%}
+.sec.collapsed .sec-arrow{transform:rotate(-90deg)}
+.sec-body{padding:0 16px 16px}
+.sec.collapsed .sec-body{display:none}
+
+/* Inner grid */
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.sg{grid-template-columns:1fr;gap:10px}}
+
+/* ===== FIELDS ===== */
+.F{margin-bottom:12px}
+.F:last-child{margin-bottom:0}
+.F label{display:block;font-size:12px;font-weight:500;color:var(--tm);margin-bottom:5px;line-height:1.4}
+.F label .h{color:var(--tdd);font-weight:400;font-size:10px}
+.F label .sr{display:inline-block;color:var(--p);font-weight:600;font-size:9px;margin-left:3px;line-height:1.3}
+.F label .yl{display:inline-block;color:var(--o);font-weight:600;font-size:9px;margin-left:3px}
+input[type=number],select{
+  width:100%;padding:10px 12px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rads);
+  color:var(--t);font-family:var(--m);font-size:14px;outline:none;transition:.2s;
+  -webkit-appearance:none;min-height:44px; /* iOS touch target */
+}
+input[type=number]:focus,select:focus{border-color:var(--a);box-shadow:0 0 0 3px var(--aG)}
+select{
+  cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;
+}
+select option{background:var(--card);color:var(--t)}
+
+/* Range */
+.RW{display:flex;align-items:center;gap:10px}
+.RW input[type=range]{flex:1;-webkit-appearance:none;background:transparent;height:44px;margin:0}
+.RW input[type=range]::-webkit-slider-runnable-track{height:4px;background:var(--bdr);border-radius:2px}
+.RW input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;background:var(--a);border-radius:50%;margin-top:-9px;cursor:pointer;box-shadow:0 0 8px var(--aG)}
+.RV{font-family:var(--m);font-size:16px;font-weight:700;color:var(--aL);min-width:28px;text-align:center;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rads);padding:6px 8px}
+
+/* Toggles */
+.TR{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(26,39,68,.4);gap:12px}
+.TR:last-child{border-bottom:none}
+.TR span{font-size:12px;color:var(--tm);flex:1;line-height:1.4}
+.TG{position:relative;width:44px;height:24px;flex-shrink:0}
+.TG input{opacity:0;width:0;height:0;position:absolute}
+.TG-s{position:absolute;inset:0;background:var(--bdr);border-radius:12px;cursor:pointer;transition:.3s}
+.TG-s::before{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;background:var(--td);border-radius:50%;transition:.3s}
+.TG input:checked+.TG-s{background:rgba(59,130,246,.25)}
+.TG input:checked+.TG-s::before{transform:translateX(20px);background:var(--a)}
+
+/* ===== STICKY CTA ===== */
+.cta-dock{
+  position:sticky;bottom:0;z-index:50;
+  background:rgba(5,9,16,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-top:1px solid var(--bdr);
+  padding:12px 0;margin:0 -16px;padding-left:16px;padding-right:16px;
+  text-align:center;
+}
+.cta{
+  width:100%;max-width:400px;padding:14px 24px;
+  background:linear-gradient(135deg,var(--a),var(--a2));border:none;border-radius:var(--rad);
+  color:#fff;font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;
+  transition:.15s;box-shadow:0 4px 16px rgba(59,130,246,.25);
+  min-height:48px;
+}
+.cta:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(59,130,246,.4)}
+.cta:active{transform:translateY(0)}
+.cta-hint{font-size:9px;color:var(--td);margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
+
+/* ===== RESULTS ===== */
+#R{display:none;margin-bottom:36px;animation:fu .5s ease}
+@keyframes fu{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.rh{text-align:center;padding:20px 0 16px}
+.rh h2{font-family:var(--d);font-size:24px;font-weight:800;color:var(--t)}
+.bn{display:inline-flex;align-items:baseline;gap:3px;margin:10px 0}
+.bn .n{font-family:var(--m);font-size:56px;font-weight:700;line-height:1}
+.bn .p{font-family:var(--m);font-size:22px;color:var(--tm)}
+.rsl{font-size:12px;color:var(--td);max-width:400px;margin:0 auto}
+
+/* Tier cards */
+.TGR{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
+@media(max-width:500px){.TGR{grid-template-columns:1fr}}
+.TC{background:var(--card);border:1px solid var(--bdr);border-radius:var(--rad);padding:16px;text-align:center;position:relative;overflow:hidden}
+.TC::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.TC.t1::before{background:linear-gradient(90deg,var(--r),var(--o))}
+.TC.t2::before{background:linear-gradient(90deg,var(--p),var(--a))}
+.TC.t3::before{background:linear-gradient(90deg,var(--a),var(--g))}
+.TC.t4::before{background:linear-gradient(90deg,var(--g),#34d399)}
+.tc-n{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.TC.t1 .tc-n{color:var(--r)}.TC.t2 .tc-n{color:var(--p)}.TC.t3 .tc-n{color:var(--a)}.TC.t4 .tc-n{color:var(--g)}
+.tc-p{font-family:var(--m);font-size:32px;font-weight:700;line-height:1.1;margin-bottom:4px}
+.tc-b{height:4px;background:var(--bdr);border-radius:2px;margin:8px 0;overflow:hidden}
+.tc-b div{height:100%;border-radius:2px;transition:width .8s ease}
+.TC.t1 .tc-b div{background:var(--r)}.TC.t2 .tc-b div{background:var(--p)}.TC.t3 .tc-b div{background:var(--a)}.TC.t4 .tc-b div{background:var(--g)}
+.tc-d{font-size:10px;color:var(--tdd);line-height:1.35}
+
+/* Breakdown */
+.BK{background:var(--card);border:1px solid var(--bdr);border-radius:var(--rad);padding:16px;margin:14px 0}
+.BK h3{font-size:12px;font-weight:700;color:var(--aL);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.fr{display:grid;grid-template-columns:1fr 70px 50px;gap:6px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(26,39,68,.3);font-size:11px}
+@media(max-width:500px){.fr{grid-template-columns:1fr 60px 44px;font-size:10px}}
+.fr:last-child{border-bottom:none}
+.fn{color:var(--tm);line-height:1.35}
+.fn .yref{font-size:8px;color:var(--tdd);display:block;margin-top:1px}
+.fi{font-family:var(--m);font-size:9px;font-weight:600;text-align:center;padding:3px 6px;border-radius:4px;white-space:nowrap}
+.fi-h{color:var(--g);background:var(--gB)}.fi-m{color:var(--y);background:var(--yB)}.fi-l{color:var(--r);background:var(--rB)}.fi-n{color:var(--tdd);background:rgba(71,85,105,.12)}
+.fp{font-family:var(--m);font-size:11px;text-align:right;font-weight:600}
+
+/* Insights */
+.IN{background:var(--card);border:1px solid var(--bdr);border-radius:var(--rad);padding:16px;margin:14px 0}
+.IN h3{font-size:12px;font-weight:700;color:var(--aL);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.ii{padding:10px 12px;margin-bottom:6px;border-radius:var(--rads);font-size:12px;line-height:1.55;color:var(--tm)}
+.ii:last-child{margin-bottom:0}
+.ii-g{background:var(--gB);border-left:3px solid var(--g)}
+.ii-w{background:var(--yB);border-left:3px solid var(--y)}
+.ii-r{background:var(--rB);border-left:3px solid var(--r)}
+.ii-i{background:var(--aG);border-left:3px solid var(--a)}
+.ii-p{background:rgba(139,92,246,.05);border-left:3px solid var(--p)}
+
+/* Yale Formula */
+.YF{background:var(--card);border:1px solid var(--bdr);border-radius:var(--rad);padding:16px;margin:14px 0}
+.YF h3{font-size:12px;font-weight:700;color:var(--o);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.YF>p{font-size:11px;color:var(--tdd);line-height:1.5;margin-bottom:6px}
+.yff{font-family:var(--m);font-size:10px;color:var(--tm);background:var(--bg2);padding:10px;border-radius:var(--rads);overflow-x:auto;white-space:nowrap;margin:8px 0;border:1px solid var(--bdr);line-height:1.6;-webkit-overflow-scrolling:touch}
+.yfm{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;margin-top:10px}
+@media(max-width:500px){.yfm{grid-template-columns:1fr}}
+.yfm-i{font-size:10px;padding:6px 10px;background:var(--bg2);border-radius:var(--rads);border:1px solid var(--bdr);line-height:1.4}
+.yfm-i b{color:var(--aL);font-weight:600;font-size:9px}.yfm-i .v{color:var(--t);font-weight:600}
+
+/* Sources */
+.SRC{margin:16px 0;padding:14px;background:rgba(11,18,33,.6);border:1px solid var(--bdr);border-radius:var(--rads)}
+.SRC h4{font-size:10px;color:var(--td);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px}
+.SRC ul{list-style:none}.SRC li{font-size:10px;color:var(--tdd);padding:3px 0 3px 10px;position:relative;line-height:1.45}
+.SRC li::before{content:'';position:absolute;left:0;top:9px;width:3px;height:3px;background:var(--tdd);border-radius:50%}
+
+footer{text-align:center;padding:20px 0 40px;border-top:1px solid var(--bdr);font-size:10px;color:var(--tdd)}
+footer b{color:var(--aL)}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="W">
+
+<header>
+  <div class="bdg"><i></i> Ward Academy Tools</div>
+  <h1>Match Probability Calculator</h1>
+  <p class="sub">Estimativa para Non-US IMGs · NRMP 2024-2025 · PD Survey 2024 · Yale IM Formula (Sheriff of Sodium)</p>
+</header>
+
+<div class="wb"><b>⚠</b> Estimativa educacional. A entrevista sozinha explica <b>53% da variância</b> no ranking de Yale. Use para planejamento estratégico.</div>
+
+<!-- Progress bar -->
+<div class="prog">
+  <div class="prog-label"><span>Preencha as 6 seções abaixo ↓</span><em id="prog-txt">0/6</em></div>
+  <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
+</div>
+
+<!-- ===== SECTION 1: SCORES ===== -->
+<div class="sec" id="sec1" data-n="1">
+  <div class="sec-head" onclick="togSec(this)">
+    <div class="sec-num" id="sn1">1</div>
+    <div class="sec-info"><div class="sec-title">USMLE Scores</div><div class="sec-desc">Step 1, Step 2 CK, Step 3</div></div>
+    <div class="sec-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+  </div>
+  <div class="sec-body"><div class="sg">
+    <div>
+      <div class="F">
+        <label>Step 2 CK Score <span class="sr">Matched IMG mean IM = 248</span></label>
+        <input type="number" id="s2" min="190" max="300" value="248" oninput="trackProg()">
+      </div>
+      <div class="F">
+        <label>Step 1 Status <span class="yl">Yale top 29: 254-287</span></label>
+        <select id="s1" onchange="trackProg()">
+          <option value="pass" selected>Pass (P/F — após Jan 2022)</option>
+          <option value="260">Score numérico ≥ 260</option>
+          <option value="high">Score numérico 240-259</option>
+          <option value="mid">Score numérico 230-239</option>
+          <option value="low">Score numérico 220-229</option>
+          <option value="vlow">Score numérico < 220</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <div class="F">
+        <label>Step 3</label>
+        <select id="s3" onchange="trackProg()">
+          <option value="no">Ainda não prestei</option>
+          <option value="pass">Aprovado</option>
+        </select>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ===== SECTION 2: FAILS ===== -->
+<div class="sec" id="sec2" data-n="2">
+  <div class="sec-head" onclick="togSec(this)">
+    <div class="sec-num" id="sn2">2</div>
+    <div class="sec-info"><div class="sec-title">Reprovações & Histórico</div><div class="sec-desc">Tentativas de USMLE, ciclos anteriores de Match</div></div>
+    <div class="sec-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+  </div>
+  <div class="sec-body"><div class="sg">
+    <div>
+      <div class="F">
+        <label>Step 1 — Tentativas <span class="sr">PD Survey: 87% consideram</span></label>
+        <select id="s1a" onchange="trackProg()">
+          <option value="1" selected>1 tentativa (aprovado de primeira)</option>
+          <option value="2">2 tentativas (1 reprovação)</option>
+          <option value="3">3 tentativas (2 reprovações)</option>
+          <option value="4">4+ tentativas</option>
+        </select>
+      </div>
+      <div class="F">
+        <label>Step 2 CK — Tentativas</label>
+        <select id="s2a" onchange="trackProg()">
+          <option value="1" selected>1 tentativa (aprovado de primeira)</option>
+          <option value="2">2 tentativas (1 reprovação)</option>
+          <option value="3">3 tentativas (2 reprovações)</option>
+          <option value="4">4+ tentativas</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <div class="F">
+        <label>Ciclos de Match anteriores <span class="sr">Sheriff: "wisdom of the crowd"</span></label>
+        <select id="pm" onchange="trackProg()">
+          <option value="0" selected>Primeiro ciclo</option>
+          <option value="1">1 ciclo sem match</option>
+          <option value="2">2 ciclos sem match</option>
+          <option value="3">3+ ciclos sem match</option>
+        </select>
+      </div>
+      <div class="F">
+        <label>O que mudou desde o último ciclo?</label>
+        <select id="pmfix" onchange="trackProg()">
+          <option value="na" selected>N/A — primeiro ciclo</option>
+          <option value="nothing">Pouca mudança</option>
+          <option value="some">Melhorias: novo USCE, pubs, PS</option>
+          <option value="major">Mudanças significativas</option>
+        </select>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ===== SECTION 3: IMG PROFILE ===== -->
+<div class="sec" id="sec3" data-n="3">
+  <div class="sec-head" onclick="togSec(this)">
+    <div class="sec-num" id="sn3">3</div>
+    <div class="sec-info"><div class="sec-title">Perfil IMG & Logística</div><div class="sec-desc">YOG, ECFMG, visa, idioma</div></div>
+    <div class="sec-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+  </div>
+  <div class="sec-body"><div class="sg">
+    <div>
+      <div class="F">
+        <label>Tipo de IMG</label>
+        <select id="imgtype" onchange="trackProg()">
+          <option value="nonusimg" selected>Non-US IMG (cidadão brasileiro)</option>
+          <option value="usimg">US IMG (cidadão americano, graduou fora)</option>
+        </select>
+      </div>
+      <div class="F">
+        <label>Anos desde graduação (YOG) <span class="sr">Sheriff: "convenience metric"</span></label>
+        <div class="RW"><input type="range" id="yog" min="1" max="35" value="8" oninput="$('yog-v').textContent=this.value;trackProg()"><span class="RV" id="yog-v">8</span></div>
+      </div>
+      <div class="F">
+        <label>ECFMG Certification</label>
+        <select id="ecfmg" onchange="trackProg()">
+          <option value="yes" selected>Certificado</option>
+          <option value="pathway">Em processo</option>
+          <option value="no">Não certificado</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <div class="F">
+        <label>Visa Status <span class="sr">PD Survey: 39% consideram, 4.5/5</span></label>
+        <select id="visa" onchange="trackProg()">
+          <option value="j1" selected>Preciso de J-1</option>
+          <option value="h1b">Preciso de H-1B</option>
+          <option value="green">Green Card / Cidadão</option>
+        </select>
+      </div>
+      <div class="F">
+        <label>Inglês <span class="sr">Entrevista = conversação, 53% R²</span></label>
+        <select id="eng" onchange="trackProg()">
+          <option value="native">Nativo / Near-native</option>
+          <option value="fluent" selected>Fluente</option>
+          <option value="good">Bom mas notável non-native</option>
+          <option value="limited">Limitado</option>
+        </select>
+      </div>
+      <div class="F">
+        <label>Restrição geográfica</label>
+        <select id="geo" onchange="trackProg()">
+          <option value="flex" selected>Flexível — todo EUA</option>
+          <option value="region">Região específica</option>
+          <option value="state">Estado específico</option>
+          <option value="city">Cidade específica</option>
+        </select>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ===== SECTION 4: CLINICAL ===== -->
+<div class="sec" id="sec4" data-n="4">
+  <div class="sec-head" onclick="togSec(this)">
+    <div class="sec-num" id="sn4">4</div>
+    <div class="sec-info"><div class="sec-title">Experiência Clínica & LORs</div><div class="sec-desc">USCE, Letters of Recommendation</div></div>
+    <div class="sec-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+  </div>
+  <div class="sec-body"><div class="sg">
+    <div>
+      <div class="F">
+        <label>USCE total (meses) <span class="sr">PD Survey: 90% consideram avaliações clínicas</span></label>
+        <select id="usce" onchange="trackProg()">
+          <option value="0">Nenhuma</option>
+          <option value="0.5">< 1 mês</option>
+          <option value="2">1–2 meses</option>
+          <option value="4">3–5 meses</option>
+          <option value="8" selected>6–11 meses</option>
+          <option value="12">12+ meses</option>
+        </select>
+      </div>
+      <div class="F">
+        <label>Melhor tipo de USCE <span class="yl">Yale ClinPerf² × 50 = 15% R²</span></label>
+        <select id="uscet" onchange="trackProg()">
+          <option value="none">Nenhuma</option>
+          <option value="tele">Telemedicine / Virtual</option>
+          <option value="obs">Observership (sem patient contact)</option>
+          <option value="hands" selected>Hands-on / Externship</option>
+          <option value="sub">Sub-internship / Acting Internship</option>
+        </select>
+      </div>
+      <div class="F">
+        <label>Residência completada no Brasil</label>
+        <select id="brres" onchange="trackProg()">
+          <option value="no" selected>Não</option>
+          <option value="diff">Sim — outra especialidade</option>
+          <option value="same">Sim — mesma especialidade</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <div class="F">
+        <label>LORs americanas <span class="sr">PD Survey: 80% consideram</span></label>
+        <select id="lors" onchange="trackProg()">
+          <option value="0">0 — Nenhuma</option>
+          <option value="1">1 LOR americana</option>
+          <option value="2" selected>2 LORs americanas</option>
+          <option value="3">3 LORs americanas</option>
+          <option value="4">4+ LORs (incl. PD/Chair)</option>
+        </select>
+      </div>
+      <div class="F">
+        <label>Força das LORs</label>
+        <select id="lorq" onchange="trackProg()">
+          <option value="generic">Genéricas</option>
+          <option value="good" selected>Boas — elogiam habilidades clínicas</option>
+          <option value="strong">Fortes — "top 10%", detalhes específicos</option>
+          <option value="stellar">Excepcionais — Chair/PD, "outstanding"</option>
+        </select>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ===== SECTION 5: RESEARCH ===== -->
+<div class="sec" id="sec5" data-n="5">
+  <div class="sec-head" onclick="togSec(this)">
+    <div class="sec-num" id="sn5">5</div>
+    <div class="sec-info"><div class="sec-title">Pesquisa & Currículo</div><div class="sec-desc">Publicações, voluntariado, PS, Distance Traveled</div></div>
+    <div class="sec-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+  </div>
+  <div class="sec-body"><div class="sg">
+    <div>
+      <div class="F">
+        <label>Publicações peer-reviewed <span class="sr">Matched IMG mean ~4</span></label>
+        <div class="RW"><input type="range" id="pubs" min="0" max="25" value="2" oninput="$('pubs-v').textContent=this.value;trackProg()"><span class="RV" id="pubs-v">2</span></div>
+      </div>
+      <div class="F">
+        <label>Abstracts / Posters</label>
+        <div class="RW"><input type="range" id="abs" min="0" max="25" value="1" oninput="$('abs-v').textContent=this.value;trackProg()"><span class="RV" id="abs-v">1</span></div>
+      </div>
+      <div class="F">
+        <label>Research experiences (projetos)</label>
+        <div class="RW"><input type="range" id="rexp" min="0" max="10" value="1" oninput="$('rexp-v').textContent=this.value;trackProg()"><span class="RV" id="rexp-v">1</span></div>
+      </div>
+      <div class="F">
+        <label>US-based research?</label>
+        <select id="usres" onchange="trackProg()">
+          <option value="no" selected>Não</option>
+          <option value="remote">Colaboração remota com instituição US</option>
+          <option value="yes">Sim — presencial nos EUA</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <div class="F">
+        <label>Grau adicional <span class="yl">Yale: AD × 5pts</span></label>
+        <select id="deg" onchange="trackProg()">
+          <option value="none" selected>Apenas MD</option>
+          <option value="spec">Especialização (Brasil)</option>
+          <option value="masters">Mestrado</option>
+          <option value="mph">MPH</option>
+          <option value="phd">PhD / Doutorado</option>
+        </select>
+      </div>
+      <div class="F">
+        <label>Voluntariado <span class="yl">Yale: Vol^1.75 × 15 = Research!</span></label>
+        <div class="RW"><input type="range" id="vol" min="0" max="10" value="2" oninput="$('vol-v').textContent=this.value;trackProg()"><span class="RV" id="vol-v">2</span></div>
+      </div>
+      <div class="F">
+        <label>Personal Statement <span class="yl">Yale: PS^1.75 × 5</span></label>
+        <select id="ps" onchange="trackProg()">
+          <option value="1">1 — Fraco</option>
+          <option value="2">2 — Básico</option>
+          <option value="3" selected>3 — Bom</option>
+          <option value="4">4 — Forte</option>
+          <option value="5">5 — Excepcional</option>
+        </select>
+      </div>
+      <div class="F">
+        <label>"Distance Traveled" <span class="yl">Yale: × 100pts (!)</span></label>
+        <select id="dt" onchange="trackProg()">
+          <option value="0">Background convencional</option>
+          <option value="1" selected>Alguma adversidade superada</option>
+          <option value="2">Significativa adversidade + narrative</option>
+          <option value="3">Excepcional — jornada transformacional</option>
+        </select>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ===== SECTION 6: STRATEGY ===== -->
+<div class="sec" id="sec6" data-n="6">
+  <div class="sec-head" onclick="togSec(this)">
+    <div class="sec-num" id="sn6">6</div>
+    <div class="sec-info"><div class="sec-title">Estratégia de Aplicação</div><div class="sec-desc">Especialidade, signaling, entrevista</div></div>
+    <div class="sec-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+  </div>
+  <div class="sec-body"><div class="sg">
+    <div>
+      <div class="F">
+        <label>Especialidade principal</label>
+        <select id="spec" onchange="trackProg()">
+          <option value="im" selected>Internal Medicine (Cat.)</option>
+          <option value="im_p">Internal Medicine (Prelim)</option>
+          <option value="fm">Family Medicine</option>
+          <option value="peds">Pediatrics</option>
+          <option value="neuro">Neurology</option>
+          <option value="psych">Psychiatry</option>
+          <option value="path">Pathology</option>
+          <option value="em">Emergency Medicine</option>
+          <option value="pmr">PM&R</option>
+          <option value="anes">Anesthesiology</option>
+          <option value="surg">General Surgery</option>
+          <option value="obgyn">OB/GYN</option>
+          <option value="rads">Diagnostic Radiology</option>
+        </select>
+      </div>
+      <div class="F">
+        <label>Programas na ROL <span class="sr">Matched IMG median ~7</span></label>
+        <div class="RW"><input type="range" id="rnk" min="1" max="35" value="12" oninput="$('rnk-v').textContent=this.value;trackProg()"><span class="RV" id="rnk-v">12</span></div>
+      </div>
+      <div class="F">
+        <label>Signaling <span class="sr">IMG Gold=22%, No signal=1%</span></label>
+        <select id="sig" onchange="trackProg()">
+          <option value="both" selected>Gold + Silver estratégicos</option>
+          <option value="gold">Apenas Gold nos top choices</option>
+          <option value="silver">Apenas Silver</option>
+          <option value="none">Não pretendo sinalizar</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <div class="F">
+        <label>Prep de entrevista <span class="sr">Sheriff: "53% R² — is king"</span></label>
+        <select id="ivprep" onchange="trackProg()">
+          <option value="none">Sem preparação</option>
+          <option value="basic">Self-study / dicas online</option>
+          <option value="mock" selected>Mock interviews (1-3)</option>
+          <option value="intense">Intensiva (5+ mocks, coaching)</option>
+        </select>
+      </div>
+      <div class="TR"><span>Mais de 1 especialidade</span><label class="TG"><input type="checkbox" id="multi" onchange="trackProg()"><span class="TG-s"></span></label></div>
+      <div class="TR"><span>Conexões em programas alvo</span><label class="TG"><input type="checkbox" id="conn" onchange="trackProg()"><span class="TG-s"></span></label></div>
+      <div class="TR"><span>Away rotation realizada</span><label class="TG"><input type="checkbox" id="away" onchange="trackProg()"><span class="TG-s"></span></label></div>
+      <div class="TR"><span>Mentoria profissional</span><label class="TG"><input type="checkbox" id="ment" checked onchange="trackProg()"><span class="TG-s"></span></label></div>
+    </div>
+  </div></div>
+</div>
+
+<!-- STICKY CTA -->
+<div class="cta-dock">
+  <button class="cta" onclick="calc()">CALCULAR PROBABILIDADE</button>
+  <div class="cta-hint" id="cta-hint">Revise as 6 seções acima antes de calcular</div>
+</div>
+
+<!-- ===== RESULTS ===== -->
+<div id="R">
+  <div class="rh">
+    <h2>Resultado Estimado</h2>
+    <div class="bn"><span class="n" id="oP">—</span><span class="p">%</span></div>
+    <div class="rsl" id="oL"></div>
+  </div>
+  <div class="TGR">
+    <div class="TC t1"><div class="tc-n">Top 20 / Ivy League</div><div class="tc-p" id="z1">—%</div><div class="tc-b"><div id="b1" style="width:0"></div></div><div class="tc-d">Yale, MGH, Hopkins<br>~4k apps/programa</div></div>
+    <div class="TC t2"><div class="tc-n">University Academic</div><div class="tc-p" id="z2">—%</div><div class="tc-b"><div id="b2" style="width:0"></div></div><div class="tc-d">Programas universitários<br>Aceitam IMGs fortes</div></div>
+    <div class="TC t3"><div class="tc-n">Community Academic</div><div class="tc-p" id="z3">—%</div><div class="tc-b"><div id="b3" style="width:0"></div></div><div class="tc-d">Comunitários afiliados<br>Volume de IMGs</div></div>
+    <div class="TC t4"><div class="tc-n">IMG-Friendly</div><div class="tc-p" id="z4">—%</div><div class="tc-b"><div id="b4" style="width:0"></div></div><div class="tc-d">Recrutam IMGs ativamente<br>43% IM por IMGs (2024)</div></div>
+  </div>
+  <div class="BK" id="BK"></div>
+  <div class="IN" id="IN"></div>
+  <div class="YF">
+    <h3>🏛 Fórmula Yale IM — Mapeamento</h3>
+    <p>Ranking pós-entrevista. <b>Para IMGs, o desafio é conseguir a entrevista.</b></p>
+    <div class="yff">=SclScr×100 + ClinPerf²×50 + (Step2/2)^1.25 + Res^1.75×15 + Vol^1.75×15 + PS^1.75×5 + AD×5 + AOA×10 + GHHS×10 + AWRD×10 + Int^1.75×125 + DistTrav×100 + DISC×100</div>
+    <p style="font-size:10px;color:var(--p)">Monte Carlo n=20k: <b>Interview 53%</b> R² | ClinPerf 15% | Discretionary 8% | School 7% | Step 2 CK 0.2%</p>
+  </div>
+  <div class="SRC">
+    <h4>Fontes</h4>
+    <ul>
+      <li><b>Sheriff of Sodium</b> — "How to Match at an Ivy League Residency Program" — Monte Carlo n=20k</li>
+      <li><b>Siegel MD (Yale IM)</b> — "Recruitment is Everything" (Feb 2025); "A Ranking Reflection" (Mar 2024)</li>
+      <li><b>NRMP Results & Data 2024-2025</b> — Match rates, ROL length impact</li>
+      <li><b>NRMP Charting Outcomes IMG 2024</b> — Step 2 CK means, research, publications</li>
+      <li><b>NRMP PD Survey 2024</b> — MSPE 90%, LORs 80%, Step 2 CK 51%, attempts 87%</li>
+      <li><b>AAMC Signaling Data 2024</b> — Gold IMG 22%, Silver 12%, No signal 1%</li>
+      <li><b>ECFMG/Intealth 2024</b> — Non-US IMG rate 58.5%, US IMG 67%</li>
+    </ul>
+  </div>
+</div>
+
+</div>
+<footer><b>Ward Academy</b> — Match Probability Calculator v5 | NRMP 2024-2025 + Yale Formula | Uso educacional</footer>
+
+<script>
+function $(id){return document.getElementById(id)}
+function $v(id){return $(id).value}
+function $c(id){return $(id).checked}
+function $n(id){return parseInt($v(id))||0}
+
+// Accordion toggle
+function togSec(head){
+  const sec=head.closest('.sec');
+  sec.classList.toggle('collapsed');
+}
+
+// Progress tracking
+const touched=new Set();
+function trackProg(){
+  // Find which section contains the event target
+  const el=event?.target;
+  if(el){const sec=el.closest('.sec');if(sec){touched.add(sec.dataset.n)}}
+  const count=Math.min(touched.size,6);
+  $('prog-txt').textContent=count+'/6';
+  $('prog-fill').style.width=(count/6*100)+'%';
+  for(let i=1;i<=6;i++){
+    const sn=$('sn'+i);
+    if(touched.has(String(i))){sn.classList.add('done');sn.textContent='✓'}
+  }
+  if(count>=6) $('cta-hint').textContent='✓ Todas as seções revisadas';
+}
+
+// Mark section 1 as touched on load (defaults are set)
+setTimeout(()=>{touched.add('1');touched.add('2');trackProg()},500);
+
+// Specialty configs
+const SP={
+  im:   {n:'Internal Medicine (Cat.)',  br:.585,s2m:248},
+  im_p: {n:'Internal Medicine (Prelim)',br:.62, s2m:240},
+  fm:   {n:'Family Medicine',           br:.52, s2m:237},
+  peds: {n:'Pediatrics',                br:.48, s2m:243},
+  neuro:{n:'Neurology',                 br:.50, s2m:246},
+  psych:{n:'Psychiatry',                br:.45, s2m:240},
+  path: {n:'Pathology',                 br:.48, s2m:240},
+  em:   {n:'Emergency Medicine',        br:.32, s2m:245},
+  pmr:  {n:'PM&R',                      br:.42, s2m:238},
+  anes: {n:'Anesthesiology',            br:.30, s2m:248},
+  surg: {n:'General Surgery',           br:.28, s2m:248},
+  obgyn:{n:'OB/GYN',                    br:.22, s2m:245},
+  rads: {n:'Diagnostic Radiology',      br:.18, s2m:252},
+};
+
+function calc(){
+  const s2=$n('s2')||240,s1=$v('s1'),s3=$v('s3');
+  const s1a=$n('s1a'),s2a=$n('s2a'),pm=$n('pm'),pmfix=$v('pmfix');
+  const imgtype=$v('imgtype'),yog=$n('yog'),ecfmg=$v('ecfmg');
+  const visa=$v('visa'),eng=$v('eng'),geo=$v('geo');
+  const usce=parseFloat($v('usce')),uscet=$v('uscet'),brres=$v('brres');
+  const lors=$n('lors'),lorq=$v('lorq');
+  const pubs=$n('pubs'),abs=$n('abs'),rexp=$n('rexp'),usres=$v('usres');
+  const deg=$v('deg'),vol=$n('vol'),ps=$n('ps'),dt=$n('dt');
+  const specK=$v('spec'),rnk=$n('rnk'),sig=$v('sig'),ivprep=$v('ivprep');
+  const multi=$c('multi'),conn=$c('conn'),away=$c('away'),ment=$c('ment');
+
+  const sp=SP[specK];const F=[];
+  let base=imgtype==='usimg'?sp.br+.085:sp.br;
+  let lo=Math.log(base/(1-base));
+
+  // 1. Step 2 CK
+  const s2d=s2-sp.s2m,s2e=s2d*.052;lo+=s2e;
+  F.push({n:`Step 2 CK: ${s2}`,d:`matched IMG mean: ${sp.s2m}`,i:s2>=260?'h':s2>=sp.s2m?'m':s2>=230?'l':'l',l:s2>=260?'FORTE':s2>=sp.s2m?'ADEQUADO':s2>=230?'ABAIXO':'RISCO',p:s2e,y:'(Step2/2)^1.25 → R²=0.2%'});
+
+  // 2. Step 1
+  let s1e=0;
+  if(s1==='260') s1e=.15;else if(s1==='high') s1e=.08;else if(s1==='low') s1e=-.15;else if(s1==='vlow') s1e=-.4;
+  if(s1!=='pass'&&s1!=='mid'){lo+=s1e;F.push({n:`Step 1: ${s1==='260'?'≥260':s1==='high'?'240-259':s1==='low'?'220-229':'<220'}`,d:'',i:s1e>0?'h':s1e<-.2?'l':'m',l:s1e>0?'BÔNUS':s1e<-.2?'RISCO':'OK',p:s1e,y:'Screening'})}
+
+  // 3. Exam failures
+  let fails=0,ft=[];
+  if(s1a>=2){fails+=(s1a-1)*.45;ft.push(`S1:${s1a-1}fail`)}
+  if(s2a>=2){fails+=(s2a-1)*.5;ft.push(`S2:${s2a-1}fail`)}
+  if(fails>0){lo-=fails;F.push({n:`Reprovações: ${ft.join(', ')}`,d:'PD Survey: 87% consideram',i:'l',l:fails>.8?'RED FLAG':'ATENÇÃO',p:-fails,y:'ECFMG transcript'})}
+
+  // 4. Previous match
+  let pme=0;
+  if(pm===1) pme=pmfix==='major'?-.3:-.5;else if(pm===2) pme=pmfix==='major'?-.5:-.8;else if(pm>=3) pme=-1.1;
+  if(pme!==0){lo+=pme;F.push({n:`Match prévio: ${pm}× sem match`,d:'',i:'l',l:pm>=2?'HIGH RISK':'DESAFIO',p:pme,y:'"Wisdom of the crowd"'})}
+
+  // 5. YOG
+  let ye=0;
+  if(yog<=3) ye=.15;else if(yog<=5) ye=0;else if(yog<=7) ye=-.2;
+  else if(yog<=10) ye=-.4;else if(yog<=15) ye=-.7;else if(yog<=20) ye=-1;else ye=-1.3;
+  lo+=ye;F.push({n:`YOG: ${yog} anos`,d:'',i:ye>=0?'h':ye>=-.3?'m':'l',l:ye>=0?'OK':ye>=-.5?'OLD GRAD':'HIGH YOG',p:ye,y:'"Convenience metric"'});
+
+  // 6. USCE
+  let ue=0;
+  if(usce===0) ue=-.75;else if(usce<=.5) ue=-.25;else if(usce<=2) ue=.05;
+  else if(usce<=5) ue=.25;else if(usce<=11) ue=.45;else ue=.6;
+  if(uscet==='sub') ue+=.3;else if(uscet==='hands') ue+=.15;else if(uscet==='obs') ue+=.05;else if(uscet==='tele') ue-=.1;
+  lo+=ue;F.push({n:`USCE: ${usce}mo (${uscet==='sub'?'Sub-I':uscet==='hands'?'Hands-on':uscet==='obs'?'Observ.':uscet==='tele'?'Virtual':'—'})`,d:'',i:ue>=.4?'h':ue>=0?'m':'l',l:ue>=.4?'FORTE':ue>=0?'BÁSICO':'FRACO',p:ue,y:'ClinPerf²×50 → 15% R²'});
+
+  // 7. LORs
+  let le=0;
+  if(lors===0) le=-.65;else if(lors===1) le=-.1;else if(lors===2) le=.15;else if(lors===3) le=.35;else le=.5;
+  if(lorq==='stellar') le+=.25;else if(lorq==='strong') le+=.1;else if(lorq==='generic') le-=.2;
+  lo+=le;F.push({n:`LORs: ${lors} americanas (${lorq})`,d:'',i:le>=.3?'h':le>=0?'m':'l',l:le>=.3?'FORTE':le>=0?'OK':'FRACO',p:le,y:'Não na fórmula Yale — crucial upstream'});
+
+  // 8. Research
+  let re=0;re+=Math.min(pubs*.085,.65);re+=Math.min(abs*.03,.2);re+=Math.min(rexp*.045,.22);
+  if(usres==='yes') re+=.15;else if(usres==='remote') re+=.05;
+  lo+=re;F.push({n:`Research: ${pubs} pubs, ${abs} abs, ${rexp} proj`,d:'',i:re>=.35?'h':re>=.12?'m':'n',l:re>=.35?'FORTE':re>=.12?'BOM':'BÁSICO',p:re,y:'Res^1.75 × 15'});
+
+  // 9. Volunteering
+  let ve=Math.min(vol*.04,.25);
+  if(ve>0){lo+=ve;F.push({n:`Voluntariado: ${vol} exp`,d:'',i:ve>=.15?'m':'n',l:ve>=.15?'BOM':'BÁSICO',p:ve,y:'Vol^1.75 × 15 = Research'})}
+
+  // 10. Signaling
+  let se=0;
+  if(sig==='both') se=.5;else if(sig==='gold') se=.4;else if(sig==='silver') se=.25;else se=-.5;
+  lo+=se;F.push({n:`Signaling: ${sig==='both'?'Gold+Silver':sig==='gold'?'Gold':sig==='silver'?'Silver':'Nenhum'}`,d:'',i:se>=.3?'h':se>=0?'m':'l',l:se>=.3?'FORTE':se>=0?'OK':'RISCO',p:se,y:'IMG Gold=22%, No signal=1%'});
+
+  // 11. ROL
+  let rke=0;
+  if(rnk<=3) rke=-.55;else if(rnk<=6) rke=-.1;else if(rnk<=10) rke=.15;
+  else if(rnk<=15) rke=.3;else if(rnk<=20) rke=.45;else if(rnk<=25) rke=.55;else rke=.6;
+  lo+=rke;F.push({n:`ROL: ${rnk} programas`,d:'',i:rke>=.3?'h':rke>=0?'m':'l',l:rke>=.3?'BOM':rke>=0?'OK':'POUCOS',p:rke,y:'NRMP ROL length impact'});
+
+  // 12. Visa
+  let vie=0;if(visa==='green') vie=.3;else if(visa==='j1') vie=-.12;else if(visa==='h1b') vie=-.4;
+  lo+=vie;F.push({n:`Visa: ${visa==='green'?'Green Card':visa==='j1'?'J-1':'H-1B'}`,d:'',i:vie>0?'h':vie>=-.15?'n':'l',l:vie>0?'VANTAGEM':vie>=-.15?'PADRÃO':'RESTRINGE',p:vie,y:'PD Survey: 39%, 4.5/5'});
+
+  // 13-18: Other factors
+  if(ecfmg==='no'){lo-=2.5;F.push({n:'ECFMG: Não certificado',d:'',i:'l',l:'BLOQUEIO',p:-2.5,y:'Pré-requisito'})}
+  else if(ecfmg==='pathway'){lo-=.25;F.push({n:'ECFMG: Em processo',d:'',i:'m',l:'PENDENTE',p:-.25,y:''})}
+
+  let ene=0;if(eng==='native') ene=.1;else if(eng==='good') ene=-.15;else if(eng==='limited') ene=-.6;
+  if(ene!==0){lo+=ene;F.push({n:`Inglês: ${eng}`,d:'',i:ene>0?'h':ene<-.3?'l':'m',l:ene>0?'FORTE':ene<-.3?'BARREIRA':'ATENÇÃO',p:ene,y:'Interview is conversational'})}
+
+  let ge=0;if(geo==='state') ge=-.3;else if(geo==='city') ge=-.55;else if(geo==='region') ge=-.08;
+  if(ge!==0){lo+=ge;F.push({n:`Restrição geográfica`,d:'',i:'l',l:ge<-.3?'RISCO':'LIMITA',p:ge,y:''})}
+
+  let de=0;if(deg==='phd') de=.2;else if(deg==='mph') de=.15;else if(deg==='masters') de=.08;else if(deg==='spec') de=.1;
+  if(de>0){lo+=de;F.push({n:`Grau: ${deg.toUpperCase()}`,d:'',i:'m',l:'BÔNUS',p:de,y:'AD × 5pts'})}
+
+  let pse=(ps-3)*.08;
+  if(pse!==0){lo+=pse;F.push({n:`Personal Statement: ${ps}/5`,d:'',i:pse>0?'m':pse<0?'l':'n',l:pse>0?'FORTE':'FRACO',p:pse,y:'PS^1.75 × 5'})}
+
+  let dte=dt*.06;
+  if(dte>0){lo+=dte;F.push({n:`Distance Traveled: ${dt}/3`,d:'',i:dt>=2?'h':'m',l:dt>=2?'FORTE':'BÔNUS',p:dte,y:'×100pts > AOA+GHHS+AD+Awards'})}
+
+  let ipe=0;if(ivprep==='intense') ipe=.2;else if(ivprep==='mock') ipe=.1;else if(ivprep==='none') ipe=-.15;
+  if(ipe!==0){lo+=ipe;F.push({n:`Prep entrevista: ${ivprep}`,d:'',i:ipe>0?'h':ipe<0?'l':'n',l:ipe>0?'BÔNUS':'RISCO',p:ipe,y:'Int^1.75×125 → 53% R²'})}
+
+  if(s3==='pass'){lo+=.12;F.push({n:'Step 3: Aprovado',d:'',i:'m',l:'BÔNUS',p:.12,y:''})}
+  if(brres==='same'){lo+=.15;F.push({n:'Residência BR (mesma espec.)',d:'',i:'m',l:'BÔNUS',p:.15,y:''})}
+  else if(brres==='diff'){lo+=.08;F.push({n:'Residência BR (outra espec.)',d:'',i:'n',l:'MINOR',p:.08,y:''})}
+  if(conn){lo+=.2;F.push({n:'Conexões em programas',d:'',i:'m',l:'BÔNUS',p:.2,y:'DISC × 100'})}
+  if(away){lo+=.25;F.push({n:'Away rotation',d:'',i:'h',l:'FORTE',p:.25,y:'Abre portas, não no ranking'})}
+  if(multi){lo+=.15;F.push({n:'Multi-specialty',d:'',i:'m',l:'BÔNUS',p:.15,y:''})}
+  if(ment){lo+=.08;F.push({n:'Mentoria profissional',d:'',i:'n',l:'BÔNUS',p:.08,y:''})}
+  if(imgtype==='usimg'){lo+=.15;F.push({n:'US IMG',d:'',i:'h',l:'VANTAGEM',p:.15,y:'67% vs 58.5%'})}
+
+  // Convert
+  const ov=Math.min(.97,Math.max(.01,1/(1+Math.exp(-lo))));
+
+  // Tiers
+  const noF=fails===0&&pm===0;
+  const t1=Math.min(18,Math.max(.002,ov*.025*(s2>=265?3:s2>=255?1.5:s2>=245?.5:.15)*(pubs>=5?2.5:pubs>=2?1.1:.5)*(sig!=='none'?1.5:.15)*(noF?1:.1)*(yog<=5?1.5:yog<=8?.6:.15))*100);
+  const t2=Math.min(65,Math.max(.005,ov*.28*(s2>=250?1.4:s2>=240?1:.55)*(usce>=4?1.3:.65)*(noF?1:.25)*(yog<=8?1:.5))*100);
+  const t3=Math.min(92,Math.max(.02,ov*.8*(noF?1:.45))*100);
+  const t4=Math.min(97,Math.max(.03,ov*1.1*(noF?1:.55))*100);
+
+  // Display
+  $('R').style.display='block';
+  const pct=Math.round(ov*100);
+  const ne=$('oP');ne.textContent=pct;
+  ne.style.color=pct>=65?'var(--g)':pct>=40?'var(--y)':'var(--r)';
+  $('oL').textContent=`Probabilidade estimada de match — ${sp.n}`;
+
+  [{id:'1',v:t1},{id:'2',v:t2},{id:'3',v:t3},{id:'4',v:t4}].forEach(t=>{
+    const val=Math.round(t.v*10)/10;
+    $('z'+t.id).textContent=val+'%';
+    $('z'+t.id).style.color=val>=40?'var(--g)':val>=12?'var(--y)':'var(--r)';
+    setTimeout(()=>$('b'+t.id).style.width=Math.min(val,100)+'%',60);
+  });
+
+  // Breakdown
+  let bh='<h3>Breakdown</h3>';
+  F.forEach(f=>{
+    const pv=typeof f.p==='number'?f.p:parseFloat(f.p);
+    const ps2=(pv>=0?'+':'')+pv.toFixed(2);
+    bh+=`<div class="fr"><span class="fn">${f.n}${f.y?`<span class="yref">${f.y}</span>`:''}</span><span class="fi fi-${f.i}">${f.l}</span><span class="fp" style="color:${pv>=0?'var(--g)':'var(--r)'}">${ps2}</span></div>`;
+  });
+  $('BK').innerHTML=bh;
+
+  // Insights
+  let ih='<h3>Recomendações</h3>';const I=[];
+
+  if(ecfmg==='no') I.push({t:'r',x:'<b>ECFMG Certification é pré-requisito absoluto.</b>'});
+  if(fails>0) I.push({t:'r',x:`<b>Reprovações USMLE — red flag sério.</b> PD Survey: 87% consideram. Cada attempt fica no transcript permanentemente. ${fails>.8?'Foque em IMG-friendly que avaliam holisticamente.':'Score alto na tentativa seguinte demonstra resiliência.'}`});
+  if(pm>=1) I.push({t:'r',x:`<b>${pm}× sem match.</b> Sheriff: PDs usam como "convenience metric" — assumem que existe uma razão.`});
+  if(s2<230) I.push({t:'r',x:`<b>Step 2 CK ${s2} abaixo da média IMG (${sp.s2m}).</b> Screen out automático em muitos programas.`});
+  else if(s2>=260) I.push({t:'g',x:`<b>Step 2 CK ${s2} — excelente!</b> Na Yale: "1 discretionary point do PD = tirar 300 perfeito no Step 2." Invista agora em entrevista (53% R²).`});
+  if(yog>10) I.push({t:'w',x:`<b>YOG ${yog} — desafio.</b> Sheriff: PDs pensam "if they haven't matched, there's a reason." Compense com USCE, LORs, Step 2 alto.`});
+  if(usce===0) I.push({t:'r',x:'<b>Zero USCE — obstáculo crítico.</b> ClinPerf = 2º fator Yale (15% R²). Sem USCE: sem avaliações, sem LORs americanas.'});
+  if(lors===0) I.push({t:'r',x:'<b>Zero LORs americanas — quase eliminatório.</b> 80% dos PDs consideram.'});
+  if(sig==='none') I.push({t:'r',x:'<b>Sem signaling desperdiça a ferramenta mais impactante.</b> IMG Gold=22% vs No signal=1% chance de entrevista.'});
+  else if(sig==='both') I.push({t:'g',x:'<b>Gold+Silver — estratégia ótima.</b> Yale: 37% dos ~4k applicants sinalizam. Quem não sinaliza "wasted their money."'});
+  if(rnk<8) I.push({t:'w',x:`<b>${rnk} programas na ROL é arriscado.</b> NRMP: matched IMGs median 7+. Mais = mais chance.`});
+  if(ivprep==='none'&&pct<70) I.push({t:'w',x:'<b>Zero prep de entrevista é o erro mais comum.</b> Sheriff: "1000s hours on USMLE, zero on interview prep — the thing that determines 53% of ranking."'});
+  if(pct>=65) I.push({t:'i',x:`<b>Perfil competitivo (${pct}%).</b> "If you got an interview, you got a shot" — top 2/3 dos entrevistados matcham.`});
+  else if(pct>=40) I.push({t:'i',x:`<b>Perfil intermediário (${pct}%).</b> Foque nos itens RISCO/FRACO. Gap entre ranks em Yale = 12 pts em 4,400 — tudo pode mover.`});
+  else I.push({t:'i',x:`<b>Perfil desafiador (${pct}%).</b> Sheriff a um IMG: "Not doomed. Honestly assess your competitiveness and signal the right programs."`});
+
+  I.forEach(i=>ih+=`<div class="ii ii-${i.t}">${i.x}</div>`);
+  $('IN').innerHTML=ih;
+
+  $('R').scrollIntoView({behavior:'smooth',block:'start'});
+}
+</script>
+</body>
+</html>
