@@ -56,7 +56,10 @@ const ALLOWED_TABLES = [
   'self_assessment_attempts', 'self_assessment_events',
   'self_assessment_question_stats', 'self_assessments',
   'user_tutorials', 'uworld_options', 'flash_question_stats',
-  'mentor_student_tasks'
+  'mentor_student_tasks',
+  'wardpedia_articles', 'wardpedia_comments', 'wardpedia_favorites',
+  'wardpedia_views', 'wardpedia_subjects', 'wardpedia_systems',
+  'wardpedia_categories'
 ];
 
 // RPCs allowed through the proxy

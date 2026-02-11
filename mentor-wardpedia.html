@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Gerenciar Wardpedia</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .mwp-header {
+            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            color: #fff;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .mwp-header h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .mwp-stats {
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .mwp-stat {
+            text-align: center;
+        }
+
+        .mwp-stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .mwp-stat-label {
+            font-size: 0.7rem;
+            opacity: 0.8;
+        }
+
+        /* Articles list */
+        .mwp-articles-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .mwp-articles-table th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            font-size: 0.8rem;
+            color: #6b7280;
+            border-bottom: 2px solid #e5e7eb;
+            font-weight: 600;
+        }
+
+        .mwp-articles-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 0.9rem;
+        }
+
+        .mwp-articles-table tr:hover {
+            background: #f9fafb;
+        }
+
+        .mwp-status-badge {
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .mwp-status-published {
+            background: #d1fae5;
+            color: #047857;
+        }
+
+        .mwp-status-draft {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .mwp-tag-small {
+            display: inline-block;
+            padding: 0.1rem 0.4rem;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            margin: 0.1rem;
+        }
+
+        .mwp-tag-subject { background: #ede9fe; color: #6d28d9; }
+        .mwp-tag-system { background: #dbeafe; color: #1d4ed8; }
+
+        /* Article editor */
+        .mwp-editor-container {
+            display: none;
+        }
+
+        .mwp-editor-container.active {
+            display: block;
+        }
+
+        .mwp-editor-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            padding: 0.5rem;
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .mwp-toolbar-btn {
+            padding: 0.4rem 0.6rem;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .mwp-toolbar-btn:hover {
+            background: #7c3aed;
+            color: #fff;
+            border-color: #7c3aed;
+        }
+
+        .mwp-toolbar-divider {
+            width: 1px;
+            background: #d1d5db;
+            margin: 0 0.25rem;
+        }
+
+        .mwp-content-editor {
+            min-height: 400px;
+            max-height: 600px;
+            padding: 1.5rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 0 0 8px 8px;
+            background: #fff;
+            overflow-y: auto;
+            line-height: 1.8;
+            font-size: 1rem;
+        }
+
+        .mwp-content-editor:focus {
+            outline: none;
+            border-color: #7c3aed;
+        }
+
+        .mwp-content-editor:empty:before {
+            content: attr(data-placeholder);
+            color: #9ca3af;
+        }
+
+        .mwp-content-editor img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* Tag selector */
+        .mwp-tag-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.3rem;
+            padding: 0.5rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            min-height: 40px;
+            background: #fff;
+        }
+
+        .mwp-tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            transition: all 0.2s;
+        }
+
+        .mwp-tag-chip:hover {
+            border-color: #7c3aed;
+        }
+
+        .mwp-tag-chip.selected {
+            background: #7c3aed;
+            color: #fff;
+            border-color: #7c3aed;
+        }
+
+        .mwp-tag-chip.cat-chip.selected {
+            background: #059669;
+            color: #fff;
+            border-color: #059669;
+        }
+
+        /* Tag management section */
+        .mwp-tag-manager {
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .mwp-add-tag-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .mwp-add-tag-row input {
+            flex: 1;
+            padding: 0.4rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .mwp-add-tag-row button {
+            padding: 0.4rem 0.75rem;
+            background: #7c3aed;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </a>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="/mentor-dashboard-marcos" class="nav-link">Dashboard</a>
+                <a href="/mentor-cronograma" class="nav-link">Cronograma</a>
+                <a href="/mentor-chamadas" class="nav-link">Chamadas</a>
+                <a href="/admin-members" class="nav-link">Membros</a>
+                <a href="/mentor-wardpedia" class="nav-link active">Wardpedia</a>
+                <a href="/links" class="nav-link">Links</a>
+                <a href="/blog" class="nav-link">Blog</a>
+                <a href="/pesquisa" class="nav-link">Pesquisa</a>
+            </nav>
+            <div class="nav-user">
+                <span class="user-name">Marcos</span>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <!-- Header -->
+        <div class="mwp-header">
+            <div>
+                <h1>📖 Gerenciar Wardpedia</h1>
+            </div>
+            <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                <div class="mwp-stats">
+                    <div class="mwp-stat">
+                        <div class="mwp-stat-value" id="stat-total">0</div>
+                        <div class="mwp-stat-label">Total</div>
+                    </div>
+                    <div class="mwp-stat">
+                        <div class="mwp-stat-value" id="stat-published">0</div>
+                        <div class="mwp-stat-label">Publicados</div>
+                    </div>
+                    <div class="mwp-stat">
+                        <div class="mwp-stat-value" id="stat-drafts">0</div>
+                        <div class="mwp-stat-label">Rascunhos</div>
+                    </div>
+                </div>
+                <button class="btn" style="background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.4);" onclick="showEditor(null)">
+                    + Novo Artigo
+                </button>
+                <a href="/wardpedia" class="btn" style="background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.4); text-decoration: none;">
+                    👁️ Ver Wardpedia
+                </a>
+            </div>
+        </div>
+
+        <!-- Articles List -->
+        <div class="card mb-4" id="articles-list-section">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>📄 Artigos</span>
+                <div style="display: flex; gap: 0.5rem;">
+                    <select id="filter-status" class="form-input" style="width: auto; padding: 0.25rem 0.5rem; font-size: 0.85rem;" onchange="filterArticles()">
+                        <option value="">Todos</option>
+                        <option value="published">Publicados</option>
+                        <option value="draft">Rascunhos</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline" onclick="showTagManager()">🏷️ Gerenciar Tags</button>
+                </div>
+            </div>
+            <div class="card-body" style="overflow-x: auto;">
+                <table class="mwp-articles-table">
+                    <thead>
+                        <tr>
+                            <th>Titulo</th>
+                            <th>Tags</th>
+                            <th>Status</th>
+                            <th>Views</th>
+                            <th>Favs</th>
+                            <th>Data</th>
+                            <th>Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="articles-table-body">
+                        <!-- Filled by JS -->
+                    </tbody>
+                </table>
+                <div id="no-articles" style="display: none; text-align: center; padding: 2rem; color: #9ca3af;">
+                    Nenhum artigo encontrado. Clique em "+ Novo Artigo" para criar.
+                </div>
+            </div>
+        </div>
+
+        <!-- Article Editor -->
+        <div class="mwp-editor-container" id="editor-section">
+            <div class="card">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span id="editor-title">📝 Novo Artigo</span>
+                    <button class="btn btn-sm btn-outline" onclick="hideEditor()">← Voltar para Lista</button>
+                </div>
+                <div class="card-body">
+                    <input type="hidden" id="edit-article-id">
+
+                    <!-- Title -->
+                    <div class="form-group">
+                        <label class="form-label">Titulo do Artigo *</label>
+                        <input type="text" id="edit-title" class="form-input" placeholder="Ex: Heart Failure - Diagnostico e Tratamento">
+                    </div>
+
+                    <!-- Summary -->
+                    <div class="form-group">
+                        <label class="form-label">Resumo (aparece no card)</label>
+                        <textarea id="edit-summary" class="form-textarea" rows="2" placeholder="Breve descricao do conteudo do artigo..." maxlength="300"></textarea>
+                    </div>
+
+                    <!-- Content Editor -->
+                    <div class="form-group">
+                        <label class="form-label">Conteudo do Artigo * <span style="font-weight: normal; color: #6b7280; font-size: 0.8rem;">(cole texto formatado com imagens)</span></label>
+
+                        <!-- Toolbar -->
+                        <div class="mwp-editor-toolbar">
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('bold')" title="Negrito"><b>B</b></button>
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('italic')" title="Italico"><i>I</i></button>
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('underline')" title="Sublinhado"><u>U</u></button>
+                            <div class="mwp-toolbar-divider"></div>
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('formatBlock', 'h2')" title="Titulo">H2</button>
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('formatBlock', 'h3')" title="Subtitulo">H3</button>
+                            <div class="mwp-toolbar-divider"></div>
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('insertUnorderedList')" title="Lista">• ―</button>
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('insertOrderedList')" title="Lista numerada">1.</button>
+                            <div class="mwp-toolbar-divider"></div>
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('formatBlock', 'blockquote')" title="Citacao">""</button>
+                            <button type="button" class="mwp-toolbar-btn" onclick="insertTable()" title="Tabela">▦</button>
+                            <div class="mwp-toolbar-divider"></div>
+                            <button type="button" class="mwp-toolbar-btn" onclick="document.getElementById('article-image-upload').click()" title="Inserir Imagem">🖼️</button>
+                            <input type="file" id="article-image-upload" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
+                        </div>
+
+                        <!-- Content editable -->
+                        <div id="edit-content"
+                             class="mwp-content-editor"
+                             contenteditable="true"
+                             data-placeholder="Cole ou escreva o conteudo do artigo aqui. Voce pode colar texto formatado com imagens diretamente...">
+                        </div>
+                    </div>
+
+                    <!-- Tags Section -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <!-- Subjects -->
+                        <div class="form-group">
+                            <label class="form-label">📚 Subjects (selecione um ou mais)</label>
+                            <div class="mwp-tag-selector" id="subjects-selector">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Systems -->
+                        <div class="form-group">
+                            <label class="form-label">🫀 Systems (selecione um ou mais)</label>
+                            <div class="mwp-tag-selector" id="systems-selector">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Categories (appears based on selected systems) -->
+                    <div class="form-group" id="categories-section" style="display: none;">
+                        <label class="form-label">📂 Categories (baseado nos Systems selecionados)</label>
+                        <div class="mwp-tag-selector" id="categories-selector">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 2px solid #e5e7eb;">
+                        <button class="btn btn-primary" onclick="saveArticle(true)">📤 Publicar</button>
+                        <button class="btn btn-outline" onclick="saveArticle(false)">💾 Salvar Rascunho</button>
+                        <button class="btn btn-secondary" onclick="hideEditor()">Cancelar</button>
+                        <button class="btn" style="background: #dc2626; color: #fff; margin-left: auto;" id="delete-article-btn" onclick="deleteArticle()" style="display: none;">🗑️ Excluir</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tag Manager Modal -->
+        <div id="tag-manager-modal" class="modal-overlay">
+            <div class="modal modal-lg">
+                <div class="modal-header">
+                    <h3 class="modal-title">🏷️ Gerenciar Tags da Wardpedia</h3>
+                    <button class="modal-close" onclick="closeModal('tag-manager-modal')">&times;</button>
+                </div>
+                <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                        <!-- Subjects -->
+                        <div>
+                            <h4 style="margin: 0 0 0.75rem;">📚 Subjects</h4>
+                            <div id="tag-mgr-subjects"></div>
+                            <div class="mwp-add-tag-row">
+                                <input type="text" id="new-subject-name" placeholder="Novo subject...">
+                                <button onclick="addSubjectTag()">Adicionar</button>
+                            </div>
+                        </div>
+
+                        <!-- Systems -->
+                        <div>
+                            <h4 style="margin: 0 0 0.75rem;">🫀 Systems</h4>
+                            <div id="tag-mgr-systems"></div>
+                            <div class="mwp-add-tag-row">
+                                <input type="text" id="new-system-name" placeholder="Novo system...">
+                                <button onclick="addSystemTag()">Adicionar</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Categories per System -->
+                    <div style="margin-top: 1.5rem;">
+                        <h4 style="margin: 0 0 0.75rem;">📂 Categories por System</h4>
+                        <div class="form-group">
+                            <select id="cat-system-select" class="form-input" style="width: auto;" onchange="loadCategoriesForSystem()">
+                                <option value="">Selecione um System...</option>
+                            </select>
+                        </div>
+                        <div id="tag-mgr-categories"></div>
+                        <div class="mwp-add-tag-row" id="add-category-row" style="display: none;">
+                            <input type="text" id="new-category-name" placeholder="Nova category...">
+                            <button onclick="addCategoryTag()">Adicionar</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal('tag-manager-modal')">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let allArticles = [];
+        let allSubjects = [];
+        let allSystems = [];
+        let allCategories = [];
+
+        // Editor state
+        let editingArticleId = null;
+        let selectedEditorSubjects = [];
+        let selectedEditorSystems = [];
+        let selectedEditorCategories = [];
+
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyoUKUw5etvmheffSAU7LflDrUDOElLb-nCTFEial7en78J04tJWWe4SB8KwojGrvVqOg/exec';
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Only mentors can access
+            if (!userData.role || !userData.role.startsWith('mentor_')) {
+                alert('Acesso restrito a mentores.');
+                window.location.href = '/dashboard';
+                return;
+            }
+
+            await Promise.all([
+                loadAllArticles(),
+                loadSubjects(),
+                loadSystems(),
+                loadCategories()
+            ]);
+
+            renderArticlesList();
+            updateStats();
+
+            // Setup paste handler for editor
+            setupEditorPaste();
+        });
+
+        // =============================================
+        // DATA LOADING
+        // =============================================
+
+        async function loadAllArticles() {
+            const { data } = await WardApp.db
+                .from('wardpedia_articles')
+                .select('*')
+                .order('created_at', { ascending: false });
+            allArticles = data || [];
+        }
+
+        async function loadSubjects() {
+            const { data } = await WardApp.db
+                .from('wardpedia_subjects')
+                .select('*')
+                .order('order_position', { ascending: true });
+            allSubjects = data || [];
+        }
+
+        async function loadSystems() {
+            const { data } = await WardApp.db
+                .from('wardpedia_systems')
+                .select('*')
+                .order('order_position', { ascending: true });
+            allSystems = data || [];
+        }
+
+        async function loadCategories() {
+            const { data } = await WardApp.db
+                .from('wardpedia_categories')
+                .select('*')
+                .order('order_position', { ascending: true });
+            allCategories = data || [];
+        }
+
+        // =============================================
+        // ARTICLES LIST
+        // =============================================
+
+        function updateStats() {
+            const published = allArticles.filter(a => a.is_published).length;
+            document.getElementById('stat-total').textContent = allArticles.length;
+            document.getElementById('stat-published').textContent = published;
+            document.getElementById('stat-drafts').textContent = allArticles.length - published;
+        }
+
+        function filterArticles() {
+            renderArticlesList();
+        }
+
+        function renderArticlesList() {
+            const statusFilter = document.getElementById('filter-status').value;
+            let articles = [...allArticles];
+
+            if (statusFilter === 'published') articles = articles.filter(a => a.is_published);
+            if (statusFilter === 'draft') articles = articles.filter(a => !a.is_published);
+
+            const tbody = document.getElementById('articles-table-body');
+            const noArticles = document.getElementById('no-articles');
+
+            if (articles.length === 0) {
+                tbody.innerHTML = '';
+                noArticles.style.display = 'block';
+                return;
+            }
+
+            noArticles.style.display = 'none';
+            tbody.innerHTML = articles.map(a => {
+                const date = new Date(a.created_at).toLocaleDateString('pt-BR');
+                const status = a.is_published
+                    ? '<span class="mwp-status-badge mwp-status-published">Publicado</span>'
+                    : '<span class="mwp-status-badge mwp-status-draft">Rascunho</span>';
+
+                let tags = '';
+                if (a.subjects) tags += a.subjects.slice(0, 2).map(s => `<span class="mwp-tag-small mwp-tag-subject">${s}</span>`).join('');
+                if (a.systems) tags += a.systems.slice(0, 2).map(s => `<span class="mwp-tag-small mwp-tag-system">${s}</span>`).join('');
+
+                return `
+                    <tr>
+                        <td style="max-width: 300px;">
+                            <div style="font-weight: 500;">${escapeHtml(a.title)}</div>
+                            ${a.summary ? `<div style="font-size: 0.8rem; color: #9ca3af; margin-top: 0.25rem;">${escapeHtml(a.summary).substring(0, 80)}...</div>` : ''}
+                        </td>
+                        <td>${tags || '<span style="color: #d1d5db;">-</span>'}</td>
+                        <td>${status}</td>
+                        <td>${a.view_count || 0}</td>
+                        <td>${a.favorite_count || 0}</td>
+                        <td>${date}</td>
+                        <td>
+                            <div style="display: flex; gap: 0.25rem;">
+                                <button class="btn btn-sm btn-outline" onclick="showEditor('${a.id}')" title="Editar">✏️</button>
+                                <button class="btn btn-sm btn-outline" onclick="window.open('/wardpedia-article?id=${a.id}', '_blank')" title="Visualizar">👁️</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // =============================================
+        // EDITOR
+        // =============================================
+
+        function showEditor(articleId) {
+            editingArticleId = articleId;
+            const editorSection = document.getElementById('editor-section');
+            const listSection = document.getElementById('articles-list-section');
+
+            listSection.style.display = 'none';
+            editorSection.classList.add('active');
+
+            if (articleId) {
+                // Editing existing article
+                const article = allArticles.find(a => a.id === articleId);
+                if (!article) return;
+
+                document.getElementById('editor-title').textContent = '✏️ Editar Artigo';
+                document.getElementById('edit-article-id').value = articleId;
+                document.getElementById('edit-title').value = article.title;
+                document.getElementById('edit-summary').value = article.summary || '';
+                document.getElementById('edit-content').innerHTML = article.content || '';
+
+                selectedEditorSubjects = [...(article.subjects || [])];
+                selectedEditorSystems = [...(article.systems || [])];
+                selectedEditorCategories = [...(article.categories || [])];
+
+                document.getElementById('delete-article-btn').style.display = 'inline-block';
+            } else {
+                // New article
+                document.getElementById('editor-title').textContent = '📝 Novo Artigo';
+                document.getElementById('edit-article-id').value = '';
+                document.getElementById('edit-title').value = '';
+                document.getElementById('edit-summary').value = '';
+                document.getElementById('edit-content').innerHTML = '';
+
+                selectedEditorSubjects = [];
+                selectedEditorSystems = [];
+                selectedEditorCategories = [];
+
+                document.getElementById('delete-article-btn').style.display = 'none';
+            }
+
+            renderEditorTags();
+            window.scrollTo(0, 0);
+        }
+
+        function hideEditor() {
+            const editorSection = document.getElementById('editor-section');
+            const listSection = document.getElementById('articles-list-section');
+
+            editorSection.classList.remove('active');
+            listSection.style.display = 'block';
+            editingArticleId = null;
+        }
+
+        function renderEditorTags() {
+            // Subjects
+            const subjectsSelector = document.getElementById('subjects-selector');
+            subjectsSelector.innerHTML = allSubjects.map(s => {
+                const isSelected = selectedEditorSubjects.includes(s.name);
+                return `<button class="mwp-tag-chip ${isSelected ? 'selected' : ''}"
+                    onclick="toggleEditorSubject('${s.name}')">${s.name}</button>`;
+            }).join('');
+
+            // Systems
+            const systemsSelector = document.getElementById('systems-selector');
+            systemsSelector.innerHTML = allSystems.map(s => {
+                const isSelected = selectedEditorSystems.includes(s.name);
+                return `<button class="mwp-tag-chip ${isSelected ? 'selected' : ''}"
+                    onclick="toggleEditorSystem('${s.name}')">${s.name}</button>`;
+            }).join('');
+
+            // Categories (based on selected systems)
+            const categoriesSection = document.getElementById('categories-section');
+            const categoriesSelector = document.getElementById('categories-selector');
+
+            if (selectedEditorSystems.length === 0) {
+                categoriesSection.style.display = 'none';
+                return;
+            }
+
+            categoriesSection.style.display = 'block';
+            const relevantSystemIds = allSystems
+                .filter(s => selectedEditorSystems.includes(s.name))
+                .map(s => s.id);
+
+            const relevantCategories = allCategories.filter(c => relevantSystemIds.includes(c.system_id));
+
+            if (relevantCategories.length === 0) {
+                categoriesSelector.innerHTML = '<span style="color: #9ca3af; font-size: 0.85rem;">Nenhuma category para os systems selecionados</span>';
+                return;
+            }
+
+            // Group by system
+            let html = '';
+            selectedEditorSystems.forEach(sysName => {
+                const sys = allSystems.find(s => s.name === sysName);
+                if (!sys) return;
+                const cats = allCategories.filter(c => c.system_id === sys.id);
+                if (cats.length === 0) return;
+
+                html += `<div style="width: 100%; font-size: 0.75rem; color: #6b7280; font-weight: 600; margin-top: 0.25rem;">${sysName}:</div>`;
+                cats.forEach(c => {
+                    const catKey = sysName + '::' + c.name;
+                    const isSelected = selectedEditorCategories.includes(catKey);
+                    html += `<button class="mwp-tag-chip cat-chip ${isSelected ? 'selected' : ''}"
+                        onclick="toggleEditorCategory('${sysName}', '${c.name}')">${c.name}</button>`;
+                });
+            });
+
+            categoriesSelector.innerHTML = html;
+        }
+
+        function toggleEditorSubject(name) {
+            const idx = selectedEditorSubjects.indexOf(name);
+            if (idx >= 0) selectedEditorSubjects.splice(idx, 1);
+            else selectedEditorSubjects.push(name);
+            renderEditorTags();
+        }
+
+        function toggleEditorSystem(name) {
+            const idx = selectedEditorSystems.indexOf(name);
+            if (idx >= 0) {
+                selectedEditorSystems.splice(idx, 1);
+                // Remove categories for this system
+                selectedEditorCategories = selectedEditorCategories.filter(c => !c.startsWith(name + '::'));
+            } else {
+                selectedEditorSystems.push(name);
+            }
+            renderEditorTags();
+        }
+
+        function toggleEditorCategory(systemName, categoryName) {
+            const key = systemName + '::' + categoryName;
+            const idx = selectedEditorCategories.indexOf(key);
+            if (idx >= 0) selectedEditorCategories.splice(idx, 1);
+            else selectedEditorCategories.push(key);
+            renderEditorTags();
+        }
+
+        // =============================================
+        // SAVE / DELETE ARTICLE
+        // =============================================
+
+        async function saveArticle(publish) {
+            const title = document.getElementById('edit-title').value.trim();
+            const summary = document.getElementById('edit-summary').value.trim();
+            const content = document.getElementById('edit-content').innerHTML.trim();
+
+            if (!title) {
+                WardApp.showToast('Titulo e obrigatorio', 'error');
+                return;
+            }
+
+            if (!content || content === '<br>') {
+                WardApp.showToast('Conteudo e obrigatorio', 'error');
+                return;
+            }
+
+            const articleData = {
+                title,
+                summary,
+                content,
+                subjects: selectedEditorSubjects,
+                systems: selectedEditorSystems,
+                categories: selectedEditorCategories,
+                is_published: publish,
+                updated_at: new Date().toISOString()
+            };
+
+            let result;
+
+            if (editingArticleId) {
+                // Update
+                result = await WardApp.db
+                    .from('wardpedia_articles')
+                    .update(articleData)
+                    .eq('id', editingArticleId)
+                    .select();
+            } else {
+                // Insert
+                articleData.author_id = userData.id;
+                articleData.created_at = new Date().toISOString();
+                result = await WardApp.db
+                    .from('wardpedia_articles')
+                    .insert(articleData)
+                    .select();
+            }
+
+            if (result.error) {
+                console.error('Save error:', result.error);
+                WardApp.showToast('Erro ao salvar artigo', 'error');
+                return;
+            }
+
+            WardApp.showToast(publish ? 'Artigo publicado!' : 'Rascunho salvo!', 'success');
+
+            // Reload and go back to list
+            await loadAllArticles();
+            renderArticlesList();
+            updateStats();
+            hideEditor();
+        }
+
+        async function deleteArticle() {
+            if (!editingArticleId) return;
+            if (!confirm('Tem certeza que deseja excluir este artigo? Esta acao nao pode ser desfeita.')) return;
+
+            const { error } = await WardApp.db
+                .from('wardpedia_articles')
+                .delete()
+                .eq('id', editingArticleId);
+
+            if (error) {
+                WardApp.showToast('Erro ao excluir artigo', 'error');
+                return;
+            }
+
+            WardApp.showToast('Artigo excluido', 'info');
+            await loadAllArticles();
+            renderArticlesList();
+            updateStats();
+            hideEditor();
+        }
+
+        // =============================================
+        // EDITOR UTILITIES
+        // =============================================
+
+        function formatDoc(command, value) {
+            document.execCommand(command, false, value || null);
+            document.getElementById('edit-content').focus();
+        }
+
+        function insertTable() {
+            const html = `
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                    <tr>
+                        <th style="border: 1px solid #e5e7eb; padding: 0.5rem; background: #f9fafb;">Header 1</th>
+                        <th style="border: 1px solid #e5e7eb; padding: 0.5rem; background: #f9fafb;">Header 2</th>
+                        <th style="border: 1px solid #e5e7eb; padding: 0.5rem; background: #f9fafb;">Header 3</th>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #e5e7eb; padding: 0.5rem;">Cell 1</td>
+                        <td style="border: 1px solid #e5e7eb; padding: 0.5rem;">Cell 2</td>
+                        <td style="border: 1px solid #e5e7eb; padding: 0.5rem;">Cell 3</td>
+                    </tr>
+                </table>
+            `;
+            document.execCommand('insertHTML', false, html);
+        }
+
+        function setupEditorPaste() {
+            const editor = document.getElementById('edit-content');
+            editor.addEventListener('paste', function(e) {
+                e.preventDefault();
+                const html = e.clipboardData.getData('text/html');
+                const text = e.clipboardData.getData('text/plain');
+
+                if (html) {
+                    const temp = document.createElement('div');
+                    temp.innerHTML = html;
+
+                    // Clean up pasted HTML - remove colors but keep structure
+                    const allElements = temp.querySelectorAll('*');
+                    allElements.forEach(el => {
+                        el.style.color = '';
+                        el.style.backgroundColor = '';
+                        el.style.background = '';
+                        el.style.fontFamily = '';
+
+                        if (el.getAttribute('style')) {
+                            let style = el.getAttribute('style');
+                            style = style.replace(/color\s*:\s*[^;]+;?/gi, '');
+                            style = style.replace(/background(-color)?\s*:\s*[^;]+;?/gi, '');
+                            style = style.replace(/font-family\s*:\s*[^;]+;?/gi, '');
+                            el.setAttribute('style', style.trim() || '');
+                            if (!el.getAttribute('style')) el.removeAttribute('style');
+                        }
+                    });
+
+                    document.execCommand('insertHTML', false, temp.innerHTML);
+                } else if (text) {
+                    document.execCommand('insertText', false, text);
+                }
+            });
+        }
+
+        async function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                WardApp.showToast('Selecione uma imagem valida', 'error');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                WardApp.showToast('Imagem muito grande (max 5MB)', 'error');
+                return;
+            }
+
+            WardApp.showToast('Enviando imagem...', 'info');
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('folder', 'wardpedia');
+
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.url) {
+                    const imgHtml = `<img src="${result.url}" alt="${escapeHtml(file.name)}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 0.5rem 0;">`;
+                    document.execCommand('insertHTML', false, imgHtml);
+                    WardApp.showToast('Imagem inserida!', 'success');
+                } else {
+                    WardApp.showToast('Erro ao enviar imagem', 'error');
+                }
+            } catch (err) {
+                console.error('Image upload error:', err);
+                WardApp.showToast('Erro ao enviar imagem', 'error');
+            }
+
+            // Reset input
+            event.target.value = '';
+        }
+
+        // =============================================
+        // TAG MANAGER
+        // =============================================
+
+        function showTagManager() {
+            renderTagManager();
+            openModal('tag-manager-modal');
+        }
+
+        function renderTagManager() {
+            // Subjects
+            const subjectsList = document.getElementById('tag-mgr-subjects');
+            subjectsList.innerHTML = allSubjects.map(s => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid #f3f4f6;">
+                    <span style="font-size: 0.9rem;">${s.name}</span>
+                    <button class="btn btn-sm" style="color: #dc2626; background: none; border: none; font-size: 0.8rem; cursor: pointer;" onclick="deleteSubjectTag(${s.id})">x</button>
+                </div>
+            `).join('');
+
+            // Systems
+            const systemsList = document.getElementById('tag-mgr-systems');
+            systemsList.innerHTML = allSystems.map(s => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid #f3f4f6;">
+                    <span style="font-size: 0.9rem;">${s.name}</span>
+                    <button class="btn btn-sm" style="color: #dc2626; background: none; border: none; font-size: 0.8rem; cursor: pointer;" onclick="deleteSystemTag(${s.id})">x</button>
+                </div>
+            `).join('');
+
+            // System dropdown for categories
+            const catSelect = document.getElementById('cat-system-select');
+            catSelect.innerHTML = '<option value="">Selecione um System...</option>' +
+                allSystems.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        }
+
+        function loadCategoriesForSystem() {
+            const systemId = parseInt(document.getElementById('cat-system-select').value);
+            const catList = document.getElementById('tag-mgr-categories');
+            const addRow = document.getElementById('add-category-row');
+
+            if (!systemId) {
+                catList.innerHTML = '';
+                addRow.style.display = 'none';
+                return;
+            }
+
+            addRow.style.display = 'flex';
+            const cats = allCategories.filter(c => c.system_id === systemId);
+
+            catList.innerHTML = cats.map(c => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid #f3f4f6;">
+                    <span style="font-size: 0.9rem;">${c.name}</span>
+                    <button class="btn btn-sm" style="color: #dc2626; background: none; border: none; font-size: 0.8rem; cursor: pointer;" onclick="deleteCategoryTag(${c.id})">x</button>
+                </div>
+            `).join('') || '<div style="color: #9ca3af; font-size: 0.85rem; padding: 0.5rem;">Nenhuma category</div>';
+        }
+
+        async function addSubjectTag() {
+            const input = document.getElementById('new-subject-name');
+            const name = input.value.trim();
+            if (!name) return;
+
+            const { error } = await WardApp.db
+                .from('wardpedia_subjects')
+                .insert({ name, order_position: allSubjects.length + 1 });
+
+            if (error) {
+                WardApp.showToast('Erro ao adicionar subject', 'error');
+                return;
+            }
+
+            input.value = '';
+            await loadSubjects();
+            renderTagManager();
+            WardApp.showToast('Subject adicionado!', 'success');
+        }
+
+        async function addSystemTag() {
+            const input = document.getElementById('new-system-name');
+            const name = input.value.trim();
+            if (!name) return;
+
+            const { error } = await WardApp.db
+                .from('wardpedia_systems')
+                .insert({ name, order_position: allSystems.length + 1 });
+
+            if (error) {
+                WardApp.showToast('Erro ao adicionar system', 'error');
+                return;
+            }
+
+            input.value = '';
+            await loadSystems();
+            renderTagManager();
+            WardApp.showToast('System adicionado!', 'success');
+        }
+
+        async function addCategoryTag() {
+            const systemId = parseInt(document.getElementById('cat-system-select').value);
+            const input = document.getElementById('new-category-name');
+            const name = input.value.trim();
+            if (!name || !systemId) return;
+
+            const { error } = await WardApp.db
+                .from('wardpedia_categories')
+                .insert({ system_id: systemId, name, order_position: 0 });
+
+            if (error) {
+                WardApp.showToast('Erro ao adicionar category', 'error');
+                return;
+            }
+
+            input.value = '';
+            await loadCategories();
+            loadCategoriesForSystem();
+            WardApp.showToast('Category adicionada!', 'success');
+        }
+
+        async function deleteSubjectTag(id) {
+            if (!confirm('Remover este subject?')) return;
+            await WardApp.db.from('wardpedia_subjects').delete().eq('id', id);
+            await loadSubjects();
+            renderTagManager();
+        }
+
+        async function deleteSystemTag(id) {
+            if (!confirm('Remover este system e todas suas categories?')) return;
+            await WardApp.db.from('wardpedia_systems').delete().eq('id', id);
+            await Promise.all([loadSystems(), loadCategories()]);
+            renderTagManager();
+        }
+
+        async function deleteCategoryTag(id) {
+            if (!confirm('Remover esta category?')) return;
+            await WardApp.db.from('wardpedia_categories').delete().eq('id', id);
+            await loadCategories();
+            loadCategoriesForSystem();
+        }
+
+        // =============================================
+        // MODAL UTILITIES
+        // =============================================
+
+        function openModal(id) {
+            document.getElementById(id).style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+            document.body.style.overflow = '';
+        }
+
+        // Close modals on overlay click
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal-overlay')) {
+                e.target.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+        });
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

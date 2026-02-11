@@ -16,7 +16,9 @@ const ADMIN_WRITE_TABLES = [
   'users', 'mentor_settings', 'mentor_availability_regular',
   'mentor_availability_specific', 'course_videos', 'course_audios',
   'assessments', 'self_assessments', 'self_assessment_questions',
-  'self_assessment_tests', 'self_assessment_events'
+  'self_assessment_tests', 'self_assessment_events',
+  'wardpedia_articles', 'wardpedia_subjects', 'wardpedia_systems',
+  'wardpedia_categories'
 ];
 
 // =============================================
@@ -43,7 +45,8 @@ const USER_SCOPED_TABLES = [
   'self_assessment_attempts',
   'assessment_enrollments', 'watched_lessons',
   'user_tutorials', 'mentor_student_tasks',
-  'wasa_schedules', 'study_difficulties'
+  'wasa_schedules', 'study_difficulties',
+  'wardpedia_comments', 'wardpedia_favorites', 'wardpedia_views'
 ];
 
 // =============================================
