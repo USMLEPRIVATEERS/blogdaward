@@ -1037,7 +1037,67 @@
 
         function setupEditorPaste() {
             const editor = document.getElementById('edit-content');
-            editor.addEventListener('paste', function(e) {
+            editor.addEventListener('paste', async function(e) {
+                // Check for pasted images first (screenshots, copied images)
+                const items = e.clipboardData.items;
+                let imageFile = null;
+
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.startsWith('image/')) {
+                        imageFile = items[i].getAsFile();
+                        break;
+                    }
+                }
+
+                if (imageFile) {
+                    e.preventDefault();
+
+                    if (imageFile.size > 5 * 1024 * 1024) {
+                        WardApp.showToast('Imagem muito grande (max 5MB)', 'error');
+                        return;
+                    }
+
+                    // Insert a placeholder while uploading
+                    const placeholderId = 'img-upload-' + Date.now();
+                    document.execCommand('insertHTML', false,
+                        `<span id="${placeholderId}" style="display:inline-block;padding:0.5rem 1rem;background:#f3f4f6;border-radius:8px;color:#6b7280;font-size:0.85rem;">📤 Enviando imagem...</span>`
+                    );
+
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', imageFile);
+                        formData.append('folder', 'wardpedia');
+
+                        const response = await fetch(GOOGLE_SCRIPT_URL, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const result = await response.json();
+                        const placeholder = document.getElementById(placeholderId);
+
+                        if (result.url && placeholder) {
+                            const img = document.createElement('img');
+                            img.src = result.url;
+                            img.alt = 'Imagem colada';
+                            img.style.cssText = 'max-width: 100%; height: auto; border-radius: 8px; margin: 0.5rem 0;';
+                            placeholder.replaceWith(img);
+                            WardApp.showToast('Imagem inserida!', 'success');
+                        } else if (placeholder) {
+                            placeholder.remove();
+                            WardApp.showToast('Erro ao enviar imagem', 'error');
+                        }
+                    } catch (err) {
+                        console.error('Paste image upload error:', err);
+                        const placeholder = document.getElementById(placeholderId);
+                        if (placeholder) placeholder.remove();
+                        WardApp.showToast('Erro ao enviar imagem', 'error');
+                    }
+
+                    return;
+                }
+
+                // Handle HTML / text paste
                 e.preventDefault();
                 const html = e.clipboardData.getData('text/html');
                 const text = e.clipboardData.getData('text/plain');
