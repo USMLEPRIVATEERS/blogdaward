@@ -70,7 +70,9 @@
         }
 
         .wp-filter-chip {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
             padding: 0.3rem 0.7rem;
             margin: 0.2rem;
             border-radius: 20px;
@@ -80,6 +82,25 @@
             background: #fff;
             color: #374151;
             transition: all 0.2s;
+        }
+
+        .wp-chip-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 4px;
+            border-radius: 9px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            background: #e5e7eb;
+            color: #6b7280;
+        }
+
+        .wp-filter-chip.active .wp-chip-count {
+            background: rgba(255, 255, 255, 0.3);
+            color: #fff;
         }
 
         .wp-filter-chip:hover {
@@ -763,46 +784,101 @@
         }
 
         // =============================================
-        // SIDEBAR RENDERING
+        // SIDEBAR RENDERING (dynamic cross-filtering)
         // =============================================
 
-        function renderSidebar() {
-            // Compute which tags are actually used by published articles
-            const usedSteps = new Set();
-            const usedSubjects = new Set();
-            const usedSystems = new Set();
-            const usedCategoryKeys = new Set();
+        // Filter articles by all dimensions EXCEPT the one specified
+        function filterArticlesExcluding(excludeDimension) {
+            let articles = [...allArticles];
 
-            allArticles.forEach(a => {
-                (a.steps || []).forEach(s => usedSteps.add(s));
-                (a.subjects || []).forEach(s => usedSubjects.add(s));
-                (a.systems || []).forEach(s => usedSystems.add(s));
-                (a.categories || []).forEach(c => usedCategoryKeys.add(c));
+            if (excludeDimension !== 'steps' && selectedSteps.length > 0) {
+                articles = articles.filter(a =>
+                    a.steps && selectedSteps.some(s => a.steps.includes(s))
+                );
+            }
+            if (excludeDimension !== 'subjects' && selectedSubjects.length > 0) {
+                articles = articles.filter(a =>
+                    a.subjects && selectedSubjects.some(s => a.subjects.includes(s))
+                );
+            }
+            if (excludeDimension !== 'systems' && selectedSystems.length > 0) {
+                articles = articles.filter(a =>
+                    a.systems && selectedSystems.some(s => a.systems.includes(s))
+                );
+            }
+            if (excludeDimension !== 'categories' && selectedCategories.length > 0) {
+                articles = articles.filter(a =>
+                    a.categories && selectedCategories.some(c => a.categories.includes(c))
+                );
+            }
+
+            if (searchQuery) {
+                articles = articles.filter(a =>
+                    (a.title && a.title.toLowerCase().includes(searchQuery)) ||
+                    (a.summary && a.summary.toLowerCase().includes(searchQuery))
+                );
+            }
+
+            return articles;
+        }
+
+        function renderSidebar() {
+            // For each dimension, compute visible tags from articles filtered by ALL OTHER dimensions
+            const articlesForSteps = filterArticlesExcluding('steps');
+            const articlesForSubjects = filterArticlesExcluding('subjects');
+            const articlesForSystems = filterArticlesExcluding('systems');
+            const articlesForCategories = filterArticlesExcluding('categories');
+
+            // Collect used tags with counts from each filtered article set
+            const usedSteps = new Map();
+            articlesForSteps.forEach(a => {
+                (a.steps || []).forEach(s => usedSteps.set(s, (usedSteps.get(s) || 0) + 1));
             });
 
-            // Steps chips - only show used ones
+            const usedSubjects = new Map();
+            articlesForSubjects.forEach(a => {
+                (a.subjects || []).forEach(s => usedSubjects.set(s, (usedSubjects.get(s) || 0) + 1));
+            });
+
+            const usedSystems = new Map();
+            articlesForSystems.forEach(a => {
+                (a.systems || []).forEach(s => usedSystems.set(s, (usedSystems.get(s) || 0) + 1));
+            });
+
+            const usedCategoryKeys = new Map();
+            articlesForCategories.forEach(a => {
+                (a.categories || []).forEach(c => usedCategoryKeys.set(c, (usedCategoryKeys.get(c) || 0) + 1));
+            });
+
+            // Steps chips
             const stepsContainer = document.getElementById('steps-filter');
-            const visibleSteps = allSteps.filter(s => usedSteps.has(s.name));
-            stepsContainer.innerHTML = visibleSteps.length > 0 ? visibleSteps.map(s =>
-                `<button class="wp-filter-chip step-chip ${selectedSteps.includes(s.name) ? 'active' : ''}"
-                    onclick="toggleStep('${s.name}')">${s.name}</button>`
-            ).join('') : '<span style="padding: 0.5rem; color: #9ca3af; font-size: 0.8rem;">Nenhum step com artigos</span>';
+            const visibleSteps = allSteps.filter(s => usedSteps.has(s.name) || selectedSteps.includes(s.name));
+            stepsContainer.innerHTML = visibleSteps.length > 0 ? visibleSteps.map(s => {
+                const count = usedSteps.get(s.name) || 0;
+                const isActive = selectedSteps.includes(s.name);
+                return `<button class="wp-filter-chip step-chip ${isActive ? 'active' : ''}"
+                    onclick="toggleStep('${s.name}')">${s.name}<span class="wp-chip-count">${count}</span></button>`;
+            }).join('') : '<span style="padding: 0.5rem; color: #9ca3af; font-size: 0.8rem;">Nenhum step com artigos</span>';
 
-            // Subjects chips - only show used ones
+            // Subjects chips
             const subjectsContainer = document.getElementById('subjects-filter');
-            const visibleSubjects = allSubjects.filter(s => usedSubjects.has(s.name));
-            subjectsContainer.innerHTML = visibleSubjects.length > 0 ? visibleSubjects.map(s =>
-                `<button class="wp-filter-chip ${selectedSubjects.includes(s.name) ? 'active' : ''}"
-                    onclick="toggleSubject('${s.name}')">${s.name}</button>`
-            ).join('') : '<span style="padding: 0.5rem; color: #9ca3af; font-size: 0.8rem;">Nenhum subject com artigos</span>';
+            const visibleSubjects = allSubjects.filter(s => usedSubjects.has(s.name) || selectedSubjects.includes(s.name));
+            subjectsContainer.innerHTML = visibleSubjects.length > 0 ? visibleSubjects.map(s => {
+                const count = usedSubjects.get(s.name) || 0;
+                const isActive = selectedSubjects.includes(s.name);
+                return `<button class="wp-filter-chip ${isActive ? 'active' : ''}"
+                    onclick="toggleSubject('${s.name}')">${s.name}<span class="wp-chip-count">${count}</span></button>`;
+            }).join('') : '<span style="padding: 0.5rem; color: #9ca3af; font-size: 0.8rem;">Nenhum subject com artigos</span>';
 
-            // Systems chips - multi-select, only show used ones
+            // Systems chips
             const systemsContainer = document.getElementById('systems-filter');
-            const visibleSystems = allSystems.filter(s => usedSystems.has(s.name));
-            systemsContainer.innerHTML = visibleSystems.length > 0 ? visibleSystems.map(s =>
-                `<button class="wp-filter-chip system-chip ${selectedSystems.includes(s.name) ? 'active' : ''}"
-                    onclick="toggleSystem('${s.name}')">${s.name}</button>`
-            ).join('') : '<span style="padding: 0.5rem; color: #9ca3af; font-size: 0.8rem;">Nenhum system com artigos</span>';
+            const visibleSystems = allSystems.filter(s => usedSystems.has(s.name) || selectedSystems.includes(s.name));
+            systemsContainer.innerHTML = visibleSystems.length > 0 ? visibleSystems.map(s => {
+                const count = usedSystems.get(s.name) || 0;
+                const isActive = selectedSystems.includes(s.name);
+                return `<button class="wp-filter-chip system-chip ${isActive ? 'active' : ''}"
+                    onclick="toggleSystem('${s.name}')">${s.name}<span class="wp-chip-count">${count}</span></button>`;
+            }).join('') : '<span style="padding: 0.5rem; color: #9ca3af; font-size: 0.8rem;">Nenhum system com artigos</span>';
 
             // Categories chips - only show when systems are selected
             const categoriesCard = document.getElementById('categories-card');
@@ -821,7 +897,10 @@
                 const sys = allSystems.find(s => s.name === sysName);
                 if (!sys) return;
                 const cats = allCategories.filter(c => c.system_id === sys.id);
-                const visibleCats = cats.filter(c => usedCategoryKeys.has(sysName + '::' + c.name));
+                const visibleCats = cats.filter(c =>
+                    usedCategoryKeys.has(sysName + '::' + c.name) ||
+                    selectedCategories.includes(sysName + '::' + c.name)
+                );
                 if (visibleCats.length === 0) return;
                 hasVisibleCats = true;
 
@@ -830,8 +909,9 @@
                 }
                 catHtml += visibleCats.map(c => {
                     const catKey = sysName + '::' + c.name;
+                    const count = usedCategoryKeys.get(catKey) || 0;
                     return `<button class="wp-filter-chip cat-chip ${selectedCategories.includes(catKey) ? 'active' : ''}"
-                        onclick="toggleCategory('${sysName}', '${c.name}')">${c.name}</button>`;
+                        onclick="toggleCategory('${sysName}', '${c.name}')">${c.name}<span class="wp-chip-count">${count}</span></button>`;
                 }).join('');
             });
 
@@ -967,6 +1047,7 @@
 
         function handleSearch(event) {
             searchQuery = event.target.value.trim().toLowerCase();
+            renderSidebar();
             renderArticles();
             updateActiveFilters();
         }
