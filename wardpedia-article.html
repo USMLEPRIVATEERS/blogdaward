@@ -571,6 +571,7 @@
 
         async function trackView() {
             // Upsert view (one per user per article)
+            // DB trigger auto-updates view_count on wardpedia_articles
             await WardApp.db
                 .from('wardpedia_views')
                 .upsert({
@@ -579,12 +580,8 @@
                     viewed_at: new Date().toISOString()
                 }, { onConflict: 'article_id,user_id' });
 
-            // Increment view count on article
-            const newCount = (article.view_count || 0) + 1;
-            await WardApp.db
-                .from('wardpedia_articles')
-                .update({ view_count: newCount })
-                .eq('id', articleId);
+            // Update local count for display
+            article.view_count = (article.view_count || 0) + 1;
         }
 
         // =============================================
@@ -651,6 +648,7 @@
         }
 
         async function toggleFavorite() {
+            // DB triggers auto-update favorite_count on wardpedia_articles
             if (isFavorited) {
                 // Remove favorite
                 await WardApp.db
@@ -659,13 +657,7 @@
                     .eq('article_id', articleId)
                     .eq('user_id', userData.id);
 
-                const newCount = Math.max(0, (article.favorite_count || 0) - 1);
-                await WardApp.db
-                    .from('wardpedia_articles')
-                    .update({ favorite_count: newCount })
-                    .eq('id', articleId);
-
-                article.favorite_count = newCount;
+                article.favorite_count = Math.max(0, (article.favorite_count || 0) - 1);
                 isFavorited = false;
                 WardApp.showToast('Removido dos favoritos', 'info');
             } else {
@@ -677,13 +669,7 @@
                         user_id: userData.id
                     });
 
-                const newCount = (article.favorite_count || 0) + 1;
-                await WardApp.db
-                    .from('wardpedia_articles')
-                    .update({ favorite_count: newCount })
-                    .eq('id', articleId);
-
-                article.favorite_count = newCount;
+                article.favorite_count = (article.favorite_count || 0) + 1;
                 isFavorited = true;
                 WardApp.showToast('Adicionado aos favoritos!', 'success');
             }

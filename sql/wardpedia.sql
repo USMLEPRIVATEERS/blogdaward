@@ -30,11 +30,11 @@ CREATE TABLE IF NOT EXISTS wardpedia_categories (
 
 -- Main articles table
 CREATE TABLE IF NOT EXISTS wardpedia_articles (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     summary TEXT,
-    author_id UUID REFERENCES users(id),
+    author_id BIGINT REFERENCES users(id),
     subjects TEXT[] DEFAULT '{}',
     systems TEXT[] DEFAULT '{}',
     categories TEXT[] DEFAULT '{}',
@@ -47,9 +47,9 @@ CREATE TABLE IF NOT EXISTS wardpedia_articles (
 
 -- Comments on articles
 CREATE TABLE IF NOT EXISTS wardpedia_comments (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    article_id UUID REFERENCES wardpedia_articles(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id),
+    id BIGSERIAL PRIMARY KEY,
+    article_id BIGINT REFERENCES wardpedia_articles(id) ON DELETE CASCADE,
+    user_id BIGINT REFERENCES users(id),
     content TEXT NOT NULL,
     is_deleted BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -58,18 +58,18 @@ CREATE TABLE IF NOT EXISTS wardpedia_comments (
 
 -- User favorites
 CREATE TABLE IF NOT EXISTS wardpedia_favorites (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    article_id UUID REFERENCES wardpedia_articles(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id),
+    id BIGSERIAL PRIMARY KEY,
+    article_id BIGINT REFERENCES wardpedia_articles(id) ON DELETE CASCADE,
+    user_id BIGINT REFERENCES users(id),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(article_id, user_id)
 );
 
 -- View tracking (one per user per article)
 CREATE TABLE IF NOT EXISTS wardpedia_views (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    article_id UUID REFERENCES wardpedia_articles(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id),
+    id BIGSERIAL PRIMARY KEY,
+    article_id BIGINT REFERENCES wardpedia_articles(id) ON DELETE CASCADE,
+    user_id BIGINT REFERENCES users(id),
     viewed_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(article_id, user_id)
 );
@@ -120,9 +120,10 @@ CREATE POLICY wardpedia_favorites_select ON wardpedia_favorites FOR SELECT USING
 CREATE POLICY wardpedia_favorites_insert ON wardpedia_favorites FOR INSERT WITH CHECK (true);
 CREATE POLICY wardpedia_favorites_delete ON wardpedia_favorites FOR DELETE USING (true);
 
--- Views: anyone can read/write
+-- Views: anyone can read/write (upsert needs UPDATE policy too)
 CREATE POLICY wardpedia_views_select ON wardpedia_views FOR SELECT USING (true);
 CREATE POLICY wardpedia_views_insert ON wardpedia_views FOR INSERT WITH CHECK (true);
+CREATE POLICY wardpedia_views_update ON wardpedia_views FOR UPDATE USING (true);
 
 -- Reference tables: anyone can read, service role can write
 CREATE POLICY wardpedia_subjects_select ON wardpedia_subjects FOR SELECT USING (true);
@@ -139,6 +140,58 @@ CREATE POLICY wardpedia_categories_select ON wardpedia_categories FOR SELECT USI
 CREATE POLICY wardpedia_categories_insert ON wardpedia_categories FOR INSERT WITH CHECK (true);
 CREATE POLICY wardpedia_categories_update ON wardpedia_categories FOR UPDATE USING (true);
 CREATE POLICY wardpedia_categories_delete ON wardpedia_categories FOR DELETE USING (true);
+
+-- =============================================
+-- TRIGGERS: Auto-update view_count and favorite_count
+-- These run at the DB level so students don't need
+-- to write directly to wardpedia_articles (ADMIN_WRITE_TABLES)
+-- =============================================
+
+-- View count trigger
+CREATE OR REPLACE FUNCTION update_wardpedia_view_count()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        UPDATE wardpedia_articles SET view_count = (
+            SELECT COUNT(*) FROM wardpedia_views WHERE article_id = NEW.article_id
+        ) WHERE id = NEW.article_id;
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE wardpedia_articles SET view_count = (
+            SELECT COUNT(*) FROM wardpedia_views WHERE article_id = OLD.article_id
+        ) WHERE id = OLD.article_id;
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER wardpedia_views_count_trigger
+AFTER INSERT OR DELETE ON wardpedia_views
+FOR EACH ROW EXECUTE FUNCTION update_wardpedia_view_count();
+
+-- Favorite count trigger
+CREATE OR REPLACE FUNCTION update_wardpedia_favorite_count()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        UPDATE wardpedia_articles SET favorite_count = (
+            SELECT COUNT(*) FROM wardpedia_favorites WHERE article_id = NEW.article_id
+        ) WHERE id = NEW.article_id;
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE wardpedia_articles SET favorite_count = (
+            SELECT COUNT(*) FROM wardpedia_favorites WHERE article_id = OLD.article_id
+        ) WHERE id = OLD.article_id;
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER wardpedia_favorites_count_trigger
+AFTER INSERT OR DELETE ON wardpedia_favorites
+FOR EACH ROW EXECUTE FUNCTION update_wardpedia_favorite_count();
 
 -- =============================================
 -- SEED DATA: Common USMLE Subjects
