@@ -554,7 +554,7 @@
 
                 <!-- Systems Hierarchy -->
                 <div class="wp-sidebar-card">
-                    <div class="wp-sidebar-header">🫀 Systems & Categories</div>
+                    <div class="wp-sidebar-header">🔬 Systems & Categories</div>
                     <div id="systems-nav">
                         <!-- Filled by JS -->
                     </div>
@@ -741,35 +741,53 @@
         // =============================================
 
         function renderSidebar() {
-            // Steps chips
+            // Compute which tags are actually used by published articles
+            const usedSteps = new Set();
+            const usedSubjects = new Set();
+            const usedSystems = new Set();
+            const usedCategoryKeys = new Set();
+
+            allArticles.forEach(a => {
+                (a.steps || []).forEach(s => usedSteps.add(s));
+                (a.subjects || []).forEach(s => usedSubjects.add(s));
+                (a.systems || []).forEach(s => usedSystems.add(s));
+                (a.categories || []).forEach(c => usedCategoryKeys.add(c));
+            });
+
+            // Steps chips - only show used ones
             const stepsContainer = document.getElementById('steps-filter');
-            stepsContainer.innerHTML = allSteps.map(s =>
+            const visibleSteps = allSteps.filter(s => usedSteps.has(s.name));
+            stepsContainer.innerHTML = visibleSteps.length > 0 ? visibleSteps.map(s =>
                 `<button class="wp-filter-chip step-chip ${selectedSteps.includes(s.name) ? 'active' : ''}"
                     onclick="toggleStep('${s.name}')">${s.name}</button>`
-            ).join('');
+            ).join('') : '<span style="padding: 0.5rem; color: #9ca3af; font-size: 0.8rem;">Nenhum step com artigos</span>';
 
-            // Subjects chips
+            // Subjects chips - only show used ones
             const subjectsContainer = document.getElementById('subjects-filter');
-            subjectsContainer.innerHTML = allSubjects.map(s =>
+            const visibleSubjects = allSubjects.filter(s => usedSubjects.has(s.name));
+            subjectsContainer.innerHTML = visibleSubjects.length > 0 ? visibleSubjects.map(s =>
                 `<button class="wp-filter-chip ${selectedSubjects.includes(s.name) ? 'active' : ''}"
                     onclick="toggleSubject('${s.name}')">${s.name}</button>`
-            ).join('');
+            ).join('') : '<span style="padding: 0.5rem; color: #9ca3af; font-size: 0.8rem;">Nenhum subject com artigos</span>';
 
-            // Systems hierarchy
+            // Systems hierarchy - only show used ones
             const systemsContainer = document.getElementById('systems-nav');
-            systemsContainer.innerHTML = allSystems.map(sys => {
+            const visibleSystems = allSystems.filter(s => usedSystems.has(s.name));
+            systemsContainer.innerHTML = visibleSystems.length > 0 ? visibleSystems.map(sys => {
                 const cats = allCategories.filter(c => c.system_id === sys.id);
+                // Only show categories that have articles
+                const visibleCats = cats.filter(c => usedCategoryKeys.has(sys.name + '::' + c.name));
                 const isActive = selectedSystem === sys.name;
                 return `
                     <div class="wp-system-item">
                         <button class="wp-system-toggle ${isActive ? 'active' : ''}"
                             onclick="toggleSystem('${sys.name}', ${sys.id})">
                             <span>${sys.name}</span>
-                            ${cats.length > 0 ? `<span class="wp-system-arrow ${isActive ? 'open' : ''}">▶</span>` : ''}
+                            ${visibleCats.length > 0 ? `<span class="wp-system-arrow ${isActive ? 'open' : ''}">▶</span>` : ''}
                         </button>
-                        ${cats.length > 0 ? `
+                        ${visibleCats.length > 0 ? `
                             <div class="wp-categories-list ${isActive ? 'open' : ''}" id="cats-${sys.id}">
-                                ${cats.map(c => `
+                                ${visibleCats.map(c => `
                                     <button class="wp-category-item ${selectedCategory === c.name && selectedSystem === sys.name ? 'active' : ''}"
                                         onclick="selectCategory('${sys.name}', '${c.name}')">
                                         ${c.name}
@@ -779,7 +797,7 @@
                         ` : ''}
                     </div>
                 `;
-            }).join('');
+            }).join('') : '<div style="padding: 0.75rem; color: #9ca3af; font-size: 0.8rem;">Nenhum system com artigos</div>';
         }
 
         // =============================================
