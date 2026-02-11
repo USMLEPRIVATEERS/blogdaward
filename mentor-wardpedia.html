@@ -96,6 +96,7 @@
             margin: 0.1rem;
         }
 
+        .mwp-tag-step { background: #fee2e2; color: #dc2626; }
         .mwp-tag-subject { background: #ede9fe; color: #6d28d9; }
         .mwp-tag-system { background: #dbeafe; color: #1d4ed8; }
 
@@ -207,6 +208,12 @@
             background: #059669;
             color: #fff;
             border-color: #059669;
+        }
+
+        .mwp-tag-chip.step-chip.selected {
+            background: #dc2626;
+            color: #fff;
+            border-color: #dc2626;
         }
 
         /* Tag management section */
@@ -388,6 +395,14 @@
                     </div>
 
                     <!-- Tags Section -->
+                    <!-- Steps -->
+                    <div class="form-group">
+                        <label class="form-label">🎯 Step / Exam (selecione um ou mais)</label>
+                        <div class="mwp-tag-selector" id="steps-selector">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <!-- Subjects -->
                         <div class="form-group">
@@ -433,6 +448,16 @@
                     <button class="modal-close" onclick="closeModal('tag-manager-modal')">&times;</button>
                 </div>
                 <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                    <!-- Steps -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 0.75rem;">🎯 Steps / Exams</h4>
+                        <div id="tag-mgr-steps"></div>
+                        <div class="mwp-add-tag-row">
+                            <input type="text" id="new-step-name" placeholder="Novo step/exam...">
+                            <button onclick="addStepTag()">Adicionar</button>
+                        </div>
+                    </div>
+
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
                         <!-- Subjects -->
                         <div>
@@ -484,12 +509,14 @@
     <script>
         let userData = null;
         let allArticles = [];
+        let allSteps = [];
         let allSubjects = [];
         let allSystems = [];
         let allCategories = [];
 
         // Editor state
         let editingArticleId = null;
+        let selectedEditorSteps = [];
         let selectedEditorSubjects = [];
         let selectedEditorSystems = [];
         let selectedEditorCategories = [];
@@ -509,6 +536,7 @@
 
             await Promise.all([
                 loadAllArticles(),
+                loadSteps(),
                 loadSubjects(),
                 loadSystems(),
                 loadCategories()
@@ -531,6 +559,14 @@
                 .select('*')
                 .order('created_at', { ascending: false });
             allArticles = data || [];
+        }
+
+        async function loadSteps() {
+            const { data } = await WardApp.db
+                .from('wardpedia_steps')
+                .select('*')
+                .order('order_position', { ascending: true });
+            allSteps = data || [];
         }
 
         async function loadSubjects() {
@@ -596,6 +632,7 @@
                     : '<span class="mwp-status-badge mwp-status-draft">Rascunho</span>';
 
                 let tags = '';
+                if (a.steps) tags += a.steps.map(s => `<span class="mwp-tag-small mwp-tag-step">${s}</span>`).join('');
                 if (a.subjects) tags += a.subjects.slice(0, 2).map(s => `<span class="mwp-tag-small mwp-tag-subject">${s}</span>`).join('');
                 if (a.systems) tags += a.systems.slice(0, 2).map(s => `<span class="mwp-tag-small mwp-tag-system">${s}</span>`).join('');
 
@@ -644,6 +681,7 @@
                 document.getElementById('edit-summary').value = article.summary || '';
                 document.getElementById('edit-content').innerHTML = article.content || '';
 
+                selectedEditorSteps = [...(article.steps || [])];
                 selectedEditorSubjects = [...(article.subjects || [])];
                 selectedEditorSystems = [...(article.systems || [])];
                 selectedEditorCategories = [...(article.categories || [])];
@@ -657,6 +695,7 @@
                 document.getElementById('edit-summary').value = '';
                 document.getElementById('edit-content').innerHTML = '';
 
+                selectedEditorSteps = [];
                 selectedEditorSubjects = [];
                 selectedEditorSystems = [];
                 selectedEditorCategories = [];
@@ -678,6 +717,14 @@
         }
 
         function renderEditorTags() {
+            // Steps
+            const stepsSelector = document.getElementById('steps-selector');
+            stepsSelector.innerHTML = allSteps.map(s => {
+                const isSelected = selectedEditorSteps.includes(s.name);
+                return `<button class="mwp-tag-chip step-chip ${isSelected ? 'selected' : ''}"
+                    onclick="toggleEditorStep('${s.name}')">${s.name}</button>`;
+            }).join('');
+
             // Subjects
             const subjectsSelector = document.getElementById('subjects-selector');
             subjectsSelector.innerHTML = allSubjects.map(s => {
@@ -735,6 +782,13 @@
             categoriesSelector.innerHTML = html;
         }
 
+        function toggleEditorStep(name) {
+            const idx = selectedEditorSteps.indexOf(name);
+            if (idx >= 0) selectedEditorSteps.splice(idx, 1);
+            else selectedEditorSteps.push(name);
+            renderEditorTags();
+        }
+
         function toggleEditorSubject(name) {
             const idx = selectedEditorSubjects.indexOf(name);
             if (idx >= 0) selectedEditorSubjects.splice(idx, 1);
@@ -785,6 +839,7 @@
                 title,
                 summary,
                 content,
+                steps: selectedEditorSteps,
                 subjects: selectedEditorSubjects,
                 systems: selectedEditorSystems,
                 categories: selectedEditorCategories,
@@ -964,6 +1019,15 @@
         }
 
         function renderTagManager() {
+            // Steps
+            const stepsList = document.getElementById('tag-mgr-steps');
+            stepsList.innerHTML = allSteps.map(s => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid #f3f4f6;">
+                    <span style="font-size: 0.9rem;">${s.name}</span>
+                    <button class="btn btn-sm" style="color: #dc2626; background: none; border: none; font-size: 0.8rem; cursor: pointer;" onclick="deleteStepTag(${s.id})">x</button>
+                </div>
+            `).join('');
+
             // Subjects
             const subjectsList = document.getElementById('tag-mgr-subjects');
             subjectsList.innerHTML = allSubjects.map(s => `
@@ -1008,6 +1072,33 @@
                     <button class="btn btn-sm" style="color: #dc2626; background: none; border: none; font-size: 0.8rem; cursor: pointer;" onclick="deleteCategoryTag(${c.id})">x</button>
                 </div>
             `).join('') || '<div style="color: #9ca3af; font-size: 0.85rem; padding: 0.5rem;">Nenhuma category</div>';
+        }
+
+        async function addStepTag() {
+            const input = document.getElementById('new-step-name');
+            const name = input.value.trim();
+            if (!name) return;
+
+            const { error } = await WardApp.db
+                .from('wardpedia_steps')
+                .insert({ name, order_position: allSteps.length + 1 });
+
+            if (error) {
+                WardApp.showToast('Erro ao adicionar step', 'error');
+                return;
+            }
+
+            input.value = '';
+            await loadSteps();
+            renderTagManager();
+            WardApp.showToast('Step adicionado!', 'success');
+        }
+
+        async function deleteStepTag(id) {
+            if (!confirm('Remover este step?')) return;
+            await WardApp.db.from('wardpedia_steps').delete().eq('id', id);
+            await loadSteps();
+            renderTagManager();
         }
 
         async function addSubjectTag() {

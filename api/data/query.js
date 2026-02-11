@@ -17,8 +17,8 @@ const ADMIN_WRITE_TABLES = [
   'mentor_availability_specific', 'course_videos', 'course_audios',
   'assessments', 'self_assessments', 'self_assessment_questions',
   'self_assessment_tests', 'self_assessment_events',
-  'wardpedia_articles', 'wardpedia_subjects', 'wardpedia_systems',
-  'wardpedia_categories'
+  'wardpedia_articles', 'wardpedia_steps', 'wardpedia_subjects',
+  'wardpedia_systems', 'wardpedia_categories'
 ];
 
 // =============================================

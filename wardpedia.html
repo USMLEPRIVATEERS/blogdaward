@@ -93,6 +93,17 @@
             border-color: #7c3aed;
         }
 
+        .wp-filter-chip.step-chip.active {
+            background: #dc2626;
+            color: #fff;
+            border-color: #dc2626;
+        }
+
+        .wp-filter-chip.step-chip:hover {
+            border-color: #dc2626;
+            color: #dc2626;
+        }
+
         .wp-system-item {
             border-bottom: 1px solid #f3f4f6;
         }
@@ -357,6 +368,11 @@
             font-weight: 500;
         }
 
+        .wp-tag-step {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
         .wp-tag-subject {
             background: #ede9fe;
             color: #6d28d9;
@@ -520,6 +536,14 @@
         <div class="wp-layout">
             <!-- Sidebar -->
             <aside class="wp-sidebar" id="wp-sidebar">
+                <!-- Steps Filter -->
+                <div class="wp-sidebar-card">
+                    <div class="wp-sidebar-header">🎯 Step / Exam</div>
+                    <div class="wp-filter-section" id="steps-filter">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
                 <!-- Subjects Filter -->
                 <div class="wp-sidebar-card">
                     <div class="wp-sidebar-header">📚 Subjects</div>
@@ -599,6 +623,7 @@
         let userData = null;
         let isMentor = false;
         let allArticles = [];
+        let allSteps = [];
         let allSubjects = [];
         let allSystems = [];
         let allCategories = [];
@@ -606,6 +631,7 @@
         let recentViews = [];
 
         // Filter state
+        let selectedSteps = [];
         let selectedSubjects = [];
         let selectedSystem = null;
         let selectedCategory = null;
@@ -629,6 +655,7 @@
             if (diaryLink && diariesEnabled) diaryLink.style.display = 'block';
 
             await Promise.all([
+                loadSteps(),
                 loadSubjects(),
                 loadSystems(),
                 loadCategories(),
@@ -644,6 +671,14 @@
         // =============================================
         // DATA LOADING
         // =============================================
+
+        async function loadSteps() {
+            const { data } = await WardApp.db
+                .from('wardpedia_steps')
+                .select('*')
+                .order('order_position', { ascending: true });
+            allSteps = data || [];
+        }
 
         async function loadSubjects() {
             const { data } = await WardApp.db
@@ -706,6 +741,13 @@
         // =============================================
 
         function renderSidebar() {
+            // Steps chips
+            const stepsContainer = document.getElementById('steps-filter');
+            stepsContainer.innerHTML = allSteps.map(s =>
+                `<button class="wp-filter-chip step-chip ${selectedSteps.includes(s.name) ? 'active' : ''}"
+                    onclick="toggleStep('${s.name}')">${s.name}</button>`
+            ).join('');
+
             // Subjects chips
             const subjectsContainer = document.getElementById('subjects-filter');
             subjectsContainer.innerHTML = allSubjects.map(s =>
@@ -743,6 +785,18 @@
         // =============================================
         // FILTER FUNCTIONS
         // =============================================
+
+        function toggleStep(name) {
+            const idx = selectedSteps.indexOf(name);
+            if (idx >= 0) {
+                selectedSteps.splice(idx, 1);
+            } else {
+                selectedSteps.push(name);
+            }
+            renderSidebar();
+            renderArticles();
+            updateActiveFilters();
+        }
 
         function toggleSubject(name) {
             const idx = selectedSubjects.indexOf(name);
@@ -782,6 +836,7 @@
         }
 
         function clearAllFilters() {
+            selectedSteps = [];
             selectedSubjects = [];
             selectedSystem = null;
             selectedCategory = null;
@@ -793,7 +848,9 @@
         }
 
         function removeFilter(type, value) {
-            if (type === 'subject') {
+            if (type === 'step') {
+                selectedSteps = selectedSteps.filter(s => s !== value);
+            } else if (type === 'subject') {
                 selectedSubjects = selectedSubjects.filter(s => s !== value);
             } else if (type === 'system') {
                 selectedSystem = null;
@@ -812,7 +869,7 @@
         function updateActiveFilters() {
             const container = document.getElementById('active-filters');
             const tagsContainer = document.getElementById('active-filter-tags');
-            const hasFilters = selectedSubjects.length > 0 || selectedSystem || searchQuery;
+            const hasFilters = selectedSteps.length > 0 || selectedSubjects.length > 0 || selectedSystem || searchQuery;
 
             if (!hasFilters) {
                 container.style.display = 'none';
@@ -821,6 +878,10 @@
 
             container.style.display = 'flex';
             let tags = '';
+
+            selectedSteps.forEach(s => {
+                tags += `<span class="wp-active-filter-tag" style="background: #dc2626;">${s}<button onclick="removeFilter('step','${s}')">&times;</button></span>`;
+            });
 
             selectedSubjects.forEach(s => {
                 tags += `<span class="wp-active-filter-tag">${s}<button onclick="removeFilter('subject','${s}')">&times;</button></span>`;
@@ -864,6 +925,13 @@
 
         function getFilteredArticles() {
             let articles = [...allArticles];
+
+            // Filter by steps (additive)
+            if (selectedSteps.length > 0) {
+                articles = articles.filter(a =>
+                    a.steps && selectedSteps.some(s => a.steps.includes(s))
+                );
+            }
 
             // Filter by subjects (additive)
             if (selectedSubjects.length > 0) {
@@ -951,6 +1019,11 @@
             const date = new Date(article.created_at).toLocaleDateString('pt-BR');
 
             let tagsHtml = '';
+            if (article.steps) {
+                tagsHtml += article.steps.map(s =>
+                    `<span class="wp-tag wp-tag-step">${s}</span>`
+                ).join('');
+            }
             if (article.subjects) {
                 tagsHtml += article.subjects.slice(0, 2).map(s =>
                     `<span class="wp-tag wp-tag-subject">${s}</span>`

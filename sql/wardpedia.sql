@@ -2,6 +2,14 @@
 -- WARDPEDIA - Wikipedia System for Ward Academy
 -- =============================================
 
+-- Reference table: Steps (USMLE Step 1, Step 2 CK, Step 3, OET)
+CREATE TABLE IF NOT EXISTS wardpedia_steps (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    order_position INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Reference table: Subjects (disciplines like Pathology, Pharmacology, etc.)
 CREATE TABLE IF NOT EXISTS wardpedia_subjects (
     id SERIAL PRIMARY KEY,
@@ -35,6 +43,7 @@ CREATE TABLE IF NOT EXISTS wardpedia_articles (
     content TEXT NOT NULL,
     summary TEXT,
     author_id BIGINT REFERENCES users(id),
+    steps TEXT[] DEFAULT '{}',
     subjects TEXT[] DEFAULT '{}',
     systems TEXT[] DEFAULT '{}',
     categories TEXT[] DEFAULT '{}',
@@ -78,6 +87,7 @@ CREATE TABLE IF NOT EXISTS wardpedia_views (
 -- INDEXES
 -- =============================================
 CREATE INDEX IF NOT EXISTS idx_wardpedia_articles_published ON wardpedia_articles(is_published) WHERE is_published = true;
+CREATE INDEX IF NOT EXISTS idx_wardpedia_articles_steps ON wardpedia_articles USING GIN(steps);
 CREATE INDEX IF NOT EXISTS idx_wardpedia_articles_subjects ON wardpedia_articles USING GIN(subjects);
 CREATE INDEX IF NOT EXISTS idx_wardpedia_articles_systems ON wardpedia_articles USING GIN(systems);
 CREATE INDEX IF NOT EXISTS idx_wardpedia_articles_categories ON wardpedia_articles USING GIN(categories);
@@ -99,6 +109,7 @@ ALTER TABLE wardpedia_articles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wardpedia_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wardpedia_favorites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wardpedia_views ENABLE ROW LEVEL SECURITY;
+ALTER TABLE wardpedia_steps ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wardpedia_subjects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wardpedia_systems ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wardpedia_categories ENABLE ROW LEVEL SECURITY;
@@ -124,6 +135,12 @@ CREATE POLICY wardpedia_favorites_delete ON wardpedia_favorites FOR DELETE USING
 CREATE POLICY wardpedia_views_select ON wardpedia_views FOR SELECT USING (true);
 CREATE POLICY wardpedia_views_insert ON wardpedia_views FOR INSERT WITH CHECK (true);
 CREATE POLICY wardpedia_views_update ON wardpedia_views FOR UPDATE USING (true);
+
+-- Steps: anyone can read, service role can write
+CREATE POLICY wardpedia_steps_select ON wardpedia_steps FOR SELECT USING (true);
+CREATE POLICY wardpedia_steps_insert ON wardpedia_steps FOR INSERT WITH CHECK (true);
+CREATE POLICY wardpedia_steps_update ON wardpedia_steps FOR UPDATE USING (true);
+CREATE POLICY wardpedia_steps_delete ON wardpedia_steps FOR DELETE USING (true);
 
 -- Reference tables: anyone can read, service role can write
 CREATE POLICY wardpedia_subjects_select ON wardpedia_subjects FOR SELECT USING (true);
@@ -192,6 +209,16 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER wardpedia_favorites_count_trigger
 AFTER INSERT OR DELETE ON wardpedia_favorites
 FOR EACH ROW EXECUTE FUNCTION update_wardpedia_favorite_count();
+
+-- =============================================
+-- SEED DATA: Steps / Exams
+-- =============================================
+INSERT INTO wardpedia_steps (name, order_position) VALUES
+    ('Step 1', 1),
+    ('Step 2 CK', 2),
+    ('Step 3', 3),
+    ('OET', 4)
+ON CONFLICT (name) DO NOTHING;
 
 -- =============================================
 -- SEED DATA: Common USMLE Subjects
