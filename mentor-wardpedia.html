@@ -347,8 +347,9 @@
                 padding: 0.2rem 0.5rem;
             }
 
-            /* Stack tag grid on mobile */
-            div[style*="grid-template-columns: 1fr 1fr"] {
+            /* Stack tag grid and author+title on mobile */
+            div[style*="grid-template-columns: 1fr 1fr"],
+            div[style*="grid-template-columns: 1fr 2fr"] {
                 display: flex !important;
                 flex-direction: column !important;
             }
@@ -429,6 +430,7 @@
                     <thead>
                         <tr>
                             <th>Titulo</th>
+                            <th>Autor</th>
                             <th>Tags</th>
                             <th>Status</th>
                             <th>Views</th>
@@ -457,10 +459,21 @@
                 <div class="card-body">
                     <input type="hidden" id="edit-article-id">
 
-                    <!-- Title -->
-                    <div class="form-group">
-                        <label class="form-label">Titulo do Artigo *</label>
-                        <input type="text" id="edit-title" class="form-input" placeholder="Ex: Heart Failure - Diagnostico e Tratamento">
+                    <!-- Author + Title row -->
+                    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem;">
+                        <!-- Author -->
+                        <div class="form-group">
+                            <label class="form-label">Autor do Artigo</label>
+                            <select id="edit-author" class="form-input">
+                                <!-- Filled by JS (loadMentors) -->
+                            </select>
+                        </div>
+
+                        <!-- Title -->
+                        <div class="form-group">
+                            <label class="form-label">Titulo do Artigo *</label>
+                            <input type="text" id="edit-title" class="form-input" placeholder="Ex: Heart Failure - Diagnostico e Tratamento">
+                        </div>
                     </div>
 
                     <!-- Summary -->
@@ -619,6 +632,7 @@
         let allSubjects = [];
         let allSystems = [];
         let allCategories = [];
+        let allMentors = [];
 
         // Editor state
         let editingArticleId = null;
@@ -645,7 +659,8 @@
                 loadSteps(),
                 loadSubjects(),
                 loadSystems(),
-                loadCategories()
+                loadCategories(),
+                loadMentors()
             ]);
 
             renderArticlesList();
@@ -699,6 +714,29 @@
             allCategories = data || [];
         }
 
+        async function loadMentors() {
+            const { data } = await WardApp.db
+                .from('users')
+                .select('id, name, full_name, role')
+                .like('role', 'mentor_%');
+            allMentors = data || [];
+            renderAuthorSelect();
+        }
+
+        function renderAuthorSelect() {
+            const select = document.getElementById('edit-author');
+            if (!select) return;
+
+            // Find mentor_iria to use as default
+            const iriaId = allMentors.find(m => m.role === 'mentor_iria')?.id || '';
+
+            select.innerHTML = allMentors.map(m => {
+                const displayName = m.full_name || m.name || m.role;
+                const isDefault = m.role === 'mentor_iria';
+                return `<option value="${m.id}" ${isDefault ? 'selected' : ''}>${displayName}</option>`;
+            }).join('');
+        }
+
         // =============================================
         // ARTICLES LIST
         // =============================================
@@ -742,12 +780,16 @@
                 if (a.subjects) tags += a.subjects.slice(0, 2).map(s => `<span class="mwp-tag-small mwp-tag-subject">${s}</span>`).join('');
                 if (a.systems) tags += a.systems.slice(0, 2).map(s => `<span class="mwp-tag-small mwp-tag-system">${s}</span>`).join('');
 
+                const mentor = allMentors.find(m => String(m.id) === String(a.author_id));
+                const authorName = mentor ? (mentor.full_name || mentor.name || mentor.role) : '-';
+
                 return `
                     <tr>
                         <td style="max-width: 300px;">
                             <div style="font-weight: 500;">${escapeHtml(a.title)}</div>
                             ${a.summary ? `<div style="font-size: 0.8rem; color: #9ca3af; margin-top: 0.25rem;">${escapeHtml(a.summary).substring(0, 80)}...</div>` : ''}
                         </td>
+                        <td style="font-size: 0.8rem; white-space: nowrap;">${escapeHtml(authorName)}</td>
                         <td>${tags || '<span style="color: #d1d5db;">-</span>'}</td>
                         <td>${status}</td>
                         <td>${a.view_count || 0}</td>
@@ -776,6 +818,8 @@
             listSection.style.display = 'none';
             editorSection.classList.add('active');
 
+            const authorSelect = document.getElementById('edit-author');
+
             if (articleId) {
                 // Editing existing article
                 const article = allArticles.find(a => String(a.id) === String(articleId));
@@ -787,6 +831,11 @@
                 document.getElementById('edit-summary').value = article.summary || '';
                 document.getElementById('edit-content').innerHTML = article.content || '';
 
+                // Set author select to article's author
+                if (article.author_id) {
+                    authorSelect.value = String(article.author_id);
+                }
+
                 selectedEditorSteps = [...(article.steps || [])];
                 selectedEditorSubjects = [...(article.subjects || [])];
                 selectedEditorSystems = [...(article.systems || [])];
@@ -794,12 +843,15 @@
 
                 document.getElementById('delete-article-btn').style.display = 'inline-block';
             } else {
-                // New article
+                // New article - default to Dra. Iria
                 document.getElementById('editor-title').textContent = '📝 Novo Artigo';
                 document.getElementById('edit-article-id').value = '';
                 document.getElementById('edit-title').value = '';
                 document.getElementById('edit-summary').value = '';
                 document.getElementById('edit-content').innerHTML = '';
+
+                const iria = allMentors.find(m => m.role === 'mentor_iria');
+                if (iria) authorSelect.value = String(iria.id);
 
                 selectedEditorSteps = [];
                 selectedEditorSubjects = [];
@@ -941,10 +993,13 @@
                 return;
             }
 
+            const selectedAuthorId = parseInt(document.getElementById('edit-author').value);
+
             const articleData = {
                 title,
                 summary,
                 content,
+                author_id: selectedAuthorId || userData.id,
                 steps: selectedEditorSteps,
                 subjects: selectedEditorSubjects,
                 systems: selectedEditorSystems,
@@ -964,7 +1019,6 @@
                     .select();
             } else {
                 // Insert
-                articleData.author_id = userData.id;
                 articleData.created_at = new Date().toISOString();
                 result = await WardApp.db
                     .from('wardpedia_articles')
