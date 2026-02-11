@@ -104,75 +104,34 @@
             color: #dc2626;
         }
 
-        .wp-system-item {
-            border-bottom: 1px solid #f3f4f6;
+        .wp-filter-chip.system-chip.active {
+            background: #1d4ed8;
+            color: #fff;
+            border-color: #1d4ed8;
         }
 
-        .wp-system-toggle {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0.6rem 1rem;
-            cursor: pointer;
-            font-size: 0.9rem;
-            color: #374151;
-            transition: background 0.2s;
-            border: none;
-            background: none;
-            width: 100%;
-            text-align: left;
+        .wp-filter-chip.system-chip:hover {
+            border-color: #1d4ed8;
+            color: #1d4ed8;
         }
 
-        .wp-system-toggle:hover {
-            background: #f9fafb;
+        .wp-filter-chip.cat-chip.active {
+            background: #059669;
+            color: #fff;
+            border-color: #059669;
         }
 
-        .wp-system-toggle.active {
-            color: #7c3aed;
+        .wp-filter-chip.cat-chip:hover {
+            border-color: #059669;
+            color: #059669;
+        }
+
+        .wp-cat-group-label {
+            display: block;
+            font-size: 0.7rem;
             font-weight: 600;
-            background: rgba(124, 58, 237, 0.05);
-        }
-
-        .wp-system-arrow {
-            transition: transform 0.2s;
-            font-size: 0.75rem;
-            color: #9ca3af;
-        }
-
-        .wp-system-arrow.open {
-            transform: rotate(90deg);
-        }
-
-        .wp-categories-list {
-            display: none;
-            padding-left: 1rem;
-        }
-
-        .wp-categories-list.open {
-            display: block;
-        }
-
-        .wp-category-item {
-            display: block;
-            padding: 0.4rem 1rem;
-            font-size: 0.85rem;
             color: #6b7280;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: none;
-            background: none;
-            width: 100%;
-            text-align: left;
-        }
-
-        .wp-category-item:hover {
-            color: #7c3aed;
-            background: rgba(124, 58, 237, 0.05);
-        }
-
-        .wp-category-item.active {
-            color: #7c3aed;
-            font-weight: 600;
+            margin: 0.4rem 0.2rem 0.15rem;
         }
 
         /* Header banner */
@@ -552,10 +511,18 @@
                     </div>
                 </div>
 
-                <!-- Systems Hierarchy -->
+                <!-- Systems Filter -->
                 <div class="wp-sidebar-card">
-                    <div class="wp-sidebar-header">🔬 Systems & Categories</div>
-                    <div id="systems-nav">
+                    <div class="wp-sidebar-header">🔬 Systems</div>
+                    <div class="wp-filter-section" id="systems-filter">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <!-- Categories Filter (visible when systems selected) -->
+                <div class="wp-sidebar-card" id="categories-card" style="display: none;">
+                    <div class="wp-sidebar-header">📂 Categories</div>
+                    <div class="wp-filter-section" id="categories-filter">
                         <!-- Filled by JS -->
                     </div>
                 </div>
@@ -633,8 +600,8 @@
         // Filter state
         let selectedSteps = [];
         let selectedSubjects = [];
-        let selectedSystem = null;
-        let selectedCategory = null;
+        let selectedSystems = [];
+        let selectedCategories = [];
         let searchQuery = '';
         let currentTab = 'trending';
 
@@ -770,34 +737,50 @@
                     onclick="toggleSubject('${s.name}')">${s.name}</button>`
             ).join('') : '<span style="padding: 0.5rem; color: #9ca3af; font-size: 0.8rem;">Nenhum subject com artigos</span>';
 
-            // Systems hierarchy - only show used ones
-            const systemsContainer = document.getElementById('systems-nav');
+            // Systems chips - multi-select, only show used ones
+            const systemsContainer = document.getElementById('systems-filter');
             const visibleSystems = allSystems.filter(s => usedSystems.has(s.name));
-            systemsContainer.innerHTML = visibleSystems.length > 0 ? visibleSystems.map(sys => {
+            systemsContainer.innerHTML = visibleSystems.length > 0 ? visibleSystems.map(s =>
+                `<button class="wp-filter-chip system-chip ${selectedSystems.includes(s.name) ? 'active' : ''}"
+                    onclick="toggleSystem('${s.name}')">${s.name}</button>`
+            ).join('') : '<span style="padding: 0.5rem; color: #9ca3af; font-size: 0.8rem;">Nenhum system com artigos</span>';
+
+            // Categories chips - only show when systems are selected
+            const categoriesCard = document.getElementById('categories-card');
+            const categoriesContainer = document.getElementById('categories-filter');
+
+            if (selectedSystems.length === 0) {
+                categoriesCard.style.display = 'none';
+                return;
+            }
+
+            categoriesCard.style.display = 'block';
+            let catHtml = '';
+            let hasVisibleCats = false;
+
+            selectedSystems.forEach(sysName => {
+                const sys = allSystems.find(s => s.name === sysName);
+                if (!sys) return;
                 const cats = allCategories.filter(c => c.system_id === sys.id);
-                // Only show categories that have articles
-                const visibleCats = cats.filter(c => usedCategoryKeys.has(sys.name + '::' + c.name));
-                const isActive = selectedSystem === sys.name;
-                return `
-                    <div class="wp-system-item">
-                        <button class="wp-system-toggle ${isActive ? 'active' : ''}"
-                            onclick="toggleSystem('${sys.name}', ${sys.id})">
-                            <span>${sys.name}</span>
-                            ${visibleCats.length > 0 ? `<span class="wp-system-arrow ${isActive ? 'open' : ''}">▶</span>` : ''}
-                        </button>
-                        ${visibleCats.length > 0 ? `
-                            <div class="wp-categories-list ${isActive ? 'open' : ''}" id="cats-${sys.id}">
-                                ${visibleCats.map(c => `
-                                    <button class="wp-category-item ${selectedCategory === c.name && selectedSystem === sys.name ? 'active' : ''}"
-                                        onclick="selectCategory('${sys.name}', '${c.name}')">
-                                        ${c.name}
-                                    </button>
-                                `).join('')}
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-            }).join('') : '<div style="padding: 0.75rem; color: #9ca3af; font-size: 0.8rem;">Nenhum system com artigos</div>';
+                const visibleCats = cats.filter(c => usedCategoryKeys.has(sysName + '::' + c.name));
+                if (visibleCats.length === 0) return;
+                hasVisibleCats = true;
+
+                if (selectedSystems.length > 1) {
+                    catHtml += `<span class="wp-cat-group-label">${sysName}:</span>`;
+                }
+                catHtml += visibleCats.map(c => {
+                    const catKey = sysName + '::' + c.name;
+                    return `<button class="wp-filter-chip cat-chip ${selectedCategories.includes(catKey) ? 'active' : ''}"
+                        onclick="toggleCategory('${sysName}', '${c.name}')">${c.name}</button>`;
+                }).join('');
+            });
+
+            if (!hasVisibleCats) {
+                categoriesCard.style.display = 'none';
+            } else {
+                categoriesContainer.innerHTML = catHtml;
+            }
         }
 
         // =============================================
@@ -828,25 +811,27 @@
             updateActiveFilters();
         }
 
-        function toggleSystem(name, systemId) {
-            if (selectedSystem === name) {
-                selectedSystem = null;
-                selectedCategory = null;
+        function toggleSystem(name) {
+            const idx = selectedSystems.indexOf(name);
+            if (idx >= 0) {
+                selectedSystems.splice(idx, 1);
+                // Remove categories of this system
+                selectedCategories = selectedCategories.filter(c => !c.startsWith(name + '::'));
             } else {
-                selectedSystem = name;
-                selectedCategory = null;
+                selectedSystems.push(name);
             }
             renderSidebar();
             renderArticles();
             updateActiveFilters();
         }
 
-        function selectCategory(systemName, categoryName) {
-            if (selectedSystem === systemName && selectedCategory === categoryName) {
-                selectedCategory = null;
+        function toggleCategory(systemName, categoryName) {
+            const catKey = systemName + '::' + categoryName;
+            const idx = selectedCategories.indexOf(catKey);
+            if (idx >= 0) {
+                selectedCategories.splice(idx, 1);
             } else {
-                selectedSystem = systemName;
-                selectedCategory = categoryName;
+                selectedCategories.push(catKey);
             }
             renderSidebar();
             renderArticles();
@@ -856,8 +841,8 @@
         function clearAllFilters() {
             selectedSteps = [];
             selectedSubjects = [];
-            selectedSystem = null;
-            selectedCategory = null;
+            selectedSystems = [];
+            selectedCategories = [];
             searchQuery = '';
             document.getElementById('wp-search').value = '';
             renderSidebar();
@@ -871,10 +856,10 @@
             } else if (type === 'subject') {
                 selectedSubjects = selectedSubjects.filter(s => s !== value);
             } else if (type === 'system') {
-                selectedSystem = null;
-                selectedCategory = null;
+                selectedSystems = selectedSystems.filter(s => s !== value);
+                selectedCategories = selectedCategories.filter(c => !c.startsWith(value + '::'));
             } else if (type === 'category') {
-                selectedCategory = null;
+                selectedCategories = selectedCategories.filter(c => c !== value);
             } else if (type === 'search') {
                 searchQuery = '';
                 document.getElementById('wp-search').value = '';
@@ -887,7 +872,7 @@
         function updateActiveFilters() {
             const container = document.getElementById('active-filters');
             const tagsContainer = document.getElementById('active-filter-tags');
-            const hasFilters = selectedSteps.length > 0 || selectedSubjects.length > 0 || selectedSystem || searchQuery;
+            const hasFilters = selectedSteps.length > 0 || selectedSubjects.length > 0 || selectedSystems.length > 0 || selectedCategories.length > 0 || searchQuery;
 
             if (!hasFilters) {
                 container.style.display = 'none';
@@ -905,13 +890,14 @@
                 tags += `<span class="wp-active-filter-tag">${s}<button onclick="removeFilter('subject','${s}')">&times;</button></span>`;
             });
 
-            if (selectedSystem) {
-                tags += `<span class="wp-active-filter-tag">${selectedSystem}<button onclick="removeFilter('system','${selectedSystem}')">&times;</button></span>`;
-            }
+            selectedSystems.forEach(s => {
+                tags += `<span class="wp-active-filter-tag" style="background: #1d4ed8;">${s}<button onclick="removeFilter('system','${s}')">&times;</button></span>`;
+            });
 
-            if (selectedCategory) {
-                tags += `<span class="wp-active-filter-tag">${selectedCategory}<button onclick="removeFilter('category','${selectedCategory}')">&times;</button></span>`;
-            }
+            selectedCategories.forEach(c => {
+                const catName = c.split('::')[1] || c;
+                tags += `<span class="wp-active-filter-tag" style="background: #059669;">${catName}<button onclick="removeFilter('category','${c}')">&times;</button></span>`;
+            });
 
             if (searchQuery) {
                 tags += `<span class="wp-active-filter-tag">"${searchQuery}"<button onclick="removeFilter('search','')">&times;</button></span>`;
@@ -958,18 +944,17 @@
                 );
             }
 
-            // Filter by system
-            if (selectedSystem) {
+            // Filter by systems (additive)
+            if (selectedSystems.length > 0) {
                 articles = articles.filter(a =>
-                    a.systems && a.systems.includes(selectedSystem)
+                    a.systems && selectedSystems.some(s => a.systems.includes(s))
                 );
             }
 
-            // Filter by category (hierarchical under system)
-            if (selectedCategory && selectedSystem) {
-                const catKey = selectedSystem + '::' + selectedCategory;
+            // Filter by categories (additive)
+            if (selectedCategories.length > 0) {
                 articles = articles.filter(a =>
-                    a.categories && a.categories.includes(catKey)
+                    a.categories && selectedCategories.some(c => a.categories.includes(c))
                 );
             }
 
