@@ -247,6 +247,65 @@
             font-size: 0.85rem;
             cursor: pointer;
         }
+
+        /* Modal lg variant */
+        .modal.modal-lg {
+            max-width: 700px;
+        }
+
+        /* Inline tag add button in editor */
+        .mwp-tag-add-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.2rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border: 2px dashed #d1d5db;
+            background: #fff;
+            color: #6b7280;
+            transition: all 0.2s;
+        }
+
+        .mwp-tag-add-btn:hover {
+            border-color: #7c3aed;
+            color: #7c3aed;
+        }
+
+        .mwp-inline-tag-input {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .mwp-inline-tag-input input {
+            width: 140px;
+            padding: 0.2rem 0.5rem;
+            border: 2px solid #7c3aed;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            outline: none;
+        }
+
+        .mwp-inline-tag-input button {
+            padding: 0.2rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            border: none;
+        }
+
+        .mwp-inline-tag-input .mwp-inline-confirm {
+            background: #7c3aed;
+            color: #fff;
+        }
+
+        .mwp-inline-tag-input .mwp-inline-cancel {
+            background: #e5e7eb;
+            color: #6b7280;
+        }
+
         /* Mobile responsive */
         @media (max-width: 768px) {
             .mwp-header {
@@ -770,7 +829,7 @@
                 const isSelected = selectedEditorSteps.includes(s.name);
                 return `<button class="mwp-tag-chip step-chip ${isSelected ? 'selected' : ''}"
                     onclick="toggleEditorStep('${s.name}')">${s.name}</button>`;
-            }).join('');
+            }).join('') + `<button class="mwp-tag-add-btn" onclick="showInlineTagInput(this, 'step')">+ Novo</button>`;
 
             // Subjects
             const subjectsSelector = document.getElementById('subjects-selector');
@@ -778,7 +837,7 @@
                 const isSelected = selectedEditorSubjects.includes(s.name);
                 return `<button class="mwp-tag-chip ${isSelected ? 'selected' : ''}"
                     onclick="toggleEditorSubject('${s.name}')">${s.name}</button>`;
-            }).join('');
+            }).join('') + `<button class="mwp-tag-add-btn" onclick="showInlineTagInput(this, 'subject')">+ Novo</button>`;
 
             // Systems
             const systemsSelector = document.getElementById('systems-selector');
@@ -786,7 +845,7 @@
                 const isSelected = selectedEditorSystems.includes(s.name);
                 return `<button class="mwp-tag-chip ${isSelected ? 'selected' : ''}"
                     onclick="toggleEditorSystem('${s.name}')">${s.name}</button>`;
-            }).join('');
+            }).join('') + `<button class="mwp-tag-add-btn" onclick="showInlineTagInput(this, 'system')">+ Novo</button>`;
 
             // Categories (based on selected systems)
             const categoriesSection = document.getElementById('categories-section');
@@ -804,18 +863,12 @@
 
             const relevantCategories = allCategories.filter(c => relevantSystemIds.includes(c.system_id));
 
-            if (relevantCategories.length === 0) {
-                categoriesSelector.innerHTML = '<span style="color: #9ca3af; font-size: 0.85rem;">Nenhuma category para os systems selecionados</span>';
-                return;
-            }
-
             // Group by system
             let html = '';
             selectedEditorSystems.forEach(sysName => {
                 const sys = allSystems.find(s => s.name === sysName);
                 if (!sys) return;
                 const cats = allCategories.filter(c => c.system_id === sys.id);
-                if (cats.length === 0) return;
 
                 html += `<div style="width: 100%; font-size: 0.75rem; color: #6b7280; font-weight: 600; margin-top: 0.25rem;">${sysName}:</div>`;
                 cats.forEach(c => {
@@ -824,7 +877,13 @@
                     html += `<button class="mwp-tag-chip cat-chip ${isSelected ? 'selected' : ''}"
                         onclick="toggleEditorCategory('${sysName}', '${c.name}')">${c.name}</button>`;
                 });
+                html += `<button class="mwp-tag-add-btn" onclick="showInlineTagInput(this, 'category', ${sys.id})">+ Novo</button>`;
             });
+
+            if (!html) {
+                categoriesSelector.innerHTML = '<span style="color: #9ca3af; font-size: 0.85rem;">Nenhuma category para os systems selecionados</span>';
+                return;
+            }
 
             categoriesSelector.innerHTML = html;
         }
@@ -1057,6 +1116,84 @@
         }
 
         // =============================================
+        // INLINE TAG CREATION (+ button in editor)
+        // =============================================
+
+        function showInlineTagInput(btn, type, systemId) {
+            // Replace the + button with an input field
+            const wrapper = document.createElement('span');
+            wrapper.className = 'mwp-inline-tag-input';
+            wrapper.innerHTML = `
+                <input type="text" placeholder="Nome da tag..." autofocus
+                    onkeydown="if(event.key==='Enter')confirmInlineTag(this,'${type}',${systemId || 'null'});if(event.key==='Escape')renderEditorTags();">
+                <button class="mwp-inline-confirm" onclick="confirmInlineTag(this.previousElementSibling,'${type}',${systemId || 'null'})">OK</button>
+                <button class="mwp-inline-cancel" onclick="renderEditorTags()">x</button>
+            `;
+            btn.replaceWith(wrapper);
+            wrapper.querySelector('input').focus();
+        }
+
+        async function confirmInlineTag(input, type, systemId) {
+            const name = input.value.trim();
+            if (!name) {
+                renderEditorTags();
+                return;
+            }
+
+            let error = null;
+
+            if (type === 'step') {
+                const result = await WardApp.db
+                    .from('wardpedia_steps')
+                    .insert({ name, order_position: allSteps.length + 1 });
+                error = result.error;
+                if (!error) {
+                    await loadSteps();
+                    selectedEditorSteps.push(name);
+                }
+            } else if (type === 'subject') {
+                const result = await WardApp.db
+                    .from('wardpedia_subjects')
+                    .insert({ name, order_position: allSubjects.length + 1 });
+                error = result.error;
+                if (!error) {
+                    await loadSubjects();
+                    selectedEditorSubjects.push(name);
+                }
+            } else if (type === 'system') {
+                const result = await WardApp.db
+                    .from('wardpedia_systems')
+                    .insert({ name, order_position: allSystems.length + 1 });
+                error = result.error;
+                if (!error) {
+                    await loadSystems();
+                    selectedEditorSystems.push(name);
+                }
+            } else if (type === 'category' && systemId) {
+                const result = await WardApp.db
+                    .from('wardpedia_categories')
+                    .insert({ system_id: systemId, name, order_position: 0 });
+                error = result.error;
+                if (!error) {
+                    await loadCategories();
+                    const sys = allSystems.find(s => s.id === systemId);
+                    if (sys) {
+                        selectedEditorCategories.push(sys.name + '::' + name);
+                    }
+                }
+            }
+
+            if (error) {
+                WardApp.showToast('Erro ao adicionar tag', 'error');
+                console.error('Inline tag error:', error);
+            } else {
+                WardApp.showToast('Tag adicionada!', 'success');
+            }
+
+            renderEditorTags();
+        }
+
+        // =============================================
         // TAG MANAGER
         // =============================================
 
@@ -1235,19 +1372,19 @@
         // =============================================
 
         function openModal(id) {
-            document.getElementById(id).style.display = 'flex';
+            document.getElementById(id).classList.add('active');
             document.body.style.overflow = 'hidden';
         }
 
         function closeModal(id) {
-            document.getElementById(id).style.display = 'none';
+            document.getElementById(id).classList.remove('active');
             document.body.style.overflow = '';
         }
 
         // Close modals on overlay click
         document.addEventListener('click', function(e) {
             if (e.target.classList.contains('modal-overlay')) {
-                e.target.style.display = 'none';
+                e.target.classList.remove('active');
                 document.body.style.overflow = '';
             }
         });
