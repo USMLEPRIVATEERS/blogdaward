@@ -7,6 +7,7 @@
     <title>Ward Academy - Gerenciar Wardpedia</title>
     <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
     <style>
         .mwp-header {
             background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
@@ -306,6 +307,20 @@
             color: #6b7280;
         }
 
+        /* Math preview */
+        #math-preview-content .katex-display {
+            margin: 1.2rem 0;
+            padding: 0.75rem 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #7c3aed;
+            overflow-x: auto;
+        }
+
+        #math-preview-content .katex {
+            font-size: 1.1em;
+        }
+
         /* Mobile responsive */
         @media (max-width: 768px) {
             .mwp-header {
@@ -503,6 +518,9 @@
                             <div class="mwp-toolbar-divider"></div>
                             <button type="button" class="mwp-toolbar-btn" onclick="document.getElementById('article-image-upload').click()" title="Inserir Imagem">🖼️</button>
                             <input type="file" id="article-image-upload" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
+                            <div class="mwp-toolbar-divider"></div>
+                            <button type="button" class="mwp-toolbar-btn" onclick="insertFormula()" title="Inserir Formula" style="font-size: 0.75rem;">∑ fx</button>
+                            <button type="button" class="mwp-toolbar-btn" onclick="previewMath()" title="Preview Formulas" style="font-size: 0.75rem;">👁 Math</button>
                         </div>
 
                         <!-- Content editable -->
@@ -624,6 +642,8 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -1087,6 +1107,72 @@
                 </table>
             `;
             document.execCommand('insertHTML', false, html);
+        }
+
+        function insertFormula() {
+            const formula = prompt(
+                'Digite a formula LaTeX:\n\n' +
+                'Exemplos:\n' +
+                '  Fracao: \\frac{a}{b}\n' +
+                '  Subscrito: t_{1/2}\n' +
+                '  Raiz: \\sqrt{x}\n' +
+                '  Somatorio: \\sum_{i=1}^{n} x_i\n' +
+                '  Grego: \\alpha, \\beta, \\Delta\n' +
+                '  Vezes: \\times   Dividido: \\div',
+                '\\frac{0.693 \\times Vd}{CL}'
+            );
+
+            if (formula) {
+                document.execCommand('insertHTML', false, ` $$${formula}$$ `);
+            }
+        }
+
+        function previewMath() {
+            if (typeof renderMathInElement === 'undefined') {
+                WardApp.showToast('KaTeX ainda carregando, tente novamente...', 'info');
+                return;
+            }
+
+            const editor = document.getElementById('edit-content');
+
+            // KaTeX auto-render modifies DOM in place - we need to work on a clone
+            // to not break contenteditable. Instead, open a preview modal.
+            let previewModal = document.getElementById('math-preview-modal');
+            if (!previewModal) {
+                previewModal = document.createElement('div');
+                previewModal.id = 'math-preview-modal';
+                previewModal.className = 'modal-overlay';
+                previewModal.innerHTML = `
+                    <div class="modal modal-lg">
+                        <div class="modal-header">
+                            <h3 class="modal-title">Preview de Formulas</h3>
+                            <button class="modal-close" onclick="closeModal('math-preview-modal')">&times;</button>
+                        </div>
+                        <div class="modal-body" id="math-preview-content" style="max-height: 70vh; overflow-y: auto; line-height: 1.8; padding: 1.5rem;">
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" onclick="closeModal('math-preview-modal')">Fechar</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(previewModal);
+            }
+
+            const previewContent = document.getElementById('math-preview-content');
+            previewContent.innerHTML = editor.innerHTML;
+
+            renderMathInElement(previewContent, {
+                delimiters: [
+                    { left: '$$', right: '$$', display: true },
+                    { left: '$', right: '$', display: false },
+                    { left: '\\[', right: '\\]', display: true },
+                    { left: '\\(', right: '\\)', display: false }
+                ],
+                throwOnError: false,
+                trust: true
+            });
+
+            openModal('math-preview-modal');
         }
 
         function setupEditorPaste() {
