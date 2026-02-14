@@ -2156,36 +2156,108 @@
             WardApp.showToast('Gerando PDF...', 'info');
 
             try {
-                const result = await generateReportCanvas();
-                if (!result) return;
+                if (!currentReportId) return;
+                const report = allReports.find(r => r.id === currentReportId);
+                if (!report) return;
 
-                const { canvas, container, studentName, report } = result;
+                const date = new Date(report.call_date + 'T12:00:00');
+                const formattedDate = date.toLocaleDateString('pt-BR');
+                const mentorName = _dn(report.mentor?.full_name) || 'Mentor';
+                const studentName = _dn(selectedStudent?.full_name) || 'Aluno';
+
                 const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                const pageWidth = 210;
+                const margin = 20;
+                const contentWidth = pageWidth - (margin * 2);
+                let y = margin;
 
-                const imgData = canvas.toDataURL('image/png');
-                const imgWidth = canvas.width;
-                const imgHeight = canvas.height;
+                // Header background
+                pdf.setFillColor(30, 41, 59);
+                pdf.roundedRect(margin, y, contentWidth, 28, 3, 3, 'F');
 
-                // A4 dimensions in mm
-                const pdfWidth = 210;
-                const margin = 15;
-                const contentWidth = pdfWidth - (margin * 2);
-                const contentHeight = (imgHeight * contentWidth) / imgWidth;
+                // Header icon accent
+                pdf.setFillColor(217, 119, 6);
+                pdf.roundedRect(margin + 8, y + 6, 16, 16, 2, 2, 'F');
+                pdf.setFontSize(12);
+                pdf.text('📝', margin + 11.5, y + 16.5);
 
-                const pdfHeight = Math.max(297, contentHeight + (margin * 2));
-                const pdf = new jsPDF({
-                    orientation: contentHeight > 250 ? 'portrait' : 'portrait',
-                    unit: 'mm',
-                    format: [pdfWidth, pdfHeight]
-                });
+                // Header text
+                pdf.setTextColor(180, 190, 210);
+                pdf.setFontSize(9);
+                pdf.text('Ward Academy - Relatório de Chamada', margin + 30, y + 11);
+                pdf.setTextColor(255, 255, 255);
+                pdf.setFontSize(14);
+                pdf.setFont(undefined, 'bold');
+                const titleLines = pdf.splitTextToSize(report.title, contentWidth - 36);
+                pdf.text(titleLines, margin + 30, y + 19);
 
-                pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, contentHeight);
+                y += 34;
+
+                // Info row
+                pdf.setFillColor(249, 250, 251);
+                pdf.roundedRect(margin, y, contentWidth, 18, 2, 2, 'F');
+
+                pdf.setFontSize(8);
+                pdf.setTextColor(107, 114, 128);
+                pdf.setFont(undefined, 'normal');
+                const col1 = margin + 8;
+                const col2 = margin + 62;
+                const col3 = margin + 124;
+
+                pdf.text('ALUNO', col1, y + 7);
+                pdf.text('MENTOR', col2, y + 7);
+                pdf.text('DATA', col3, y + 7);
+
+                pdf.setFontSize(10);
+                pdf.setTextColor(17, 24, 39);
+                pdf.setFont(undefined, 'bold');
+                pdf.text(studentName, col1, y + 13);
+                pdf.text(mentorName, col2, y + 13);
+                pdf.text(formattedDate, col3, y + 13);
+
+                y += 24;
+
+                // Report content
+                pdf.setFont(undefined, 'normal');
+                pdf.setFontSize(10);
+                pdf.setTextColor(55, 65, 81);
+
+                // Strip HTML tags and decode entities
+                const temp = document.createElement('div');
+                temp.innerHTML = report.report_text;
+                const plainText = temp.textContent || temp.innerText || '';
+
+                const lines = pdf.splitTextToSize(plainText, contentWidth - 4);
+                const lineHeight = 5;
+                const pageHeight = 297;
+
+                for (let i = 0; i < lines.length; i++) {
+                    if (y + lineHeight > pageHeight - margin) {
+                        pdf.addPage();
+                        y = margin;
+                    }
+                    pdf.text(lines[i], margin + 2, y);
+                    y += lineHeight;
+                }
+
+                // Footer
+                if (y + 15 > pageHeight - margin) {
+                    pdf.addPage();
+                    y = margin;
+                }
+                y += 8;
+                pdf.setDrawColor(229, 231, 235);
+                pdf.line(margin, y, margin + contentWidth, y);
+                y += 6;
+                pdf.setFontSize(8);
+                pdf.setTextColor(156, 163, 175);
+                pdf.text('🎓 Ward Academy • wardacademy.org', pageWidth / 2, y, { align: 'center' });
 
                 const filename = `relatorio-${studentName.replace(/\s+/g, '-').toLowerCase()}-${report.call_date}.pdf`;
                 pdf.save(filename);
 
                 WardApp.showToast('PDF salvo com sucesso!', 'success');
-                document.body.removeChild(container);
 
             } catch (error) {
                 console.error('Error generating PDF:', error);
