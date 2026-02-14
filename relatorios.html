@@ -968,6 +968,26 @@
             transform: rotate(180deg);
         }
 
+        .image-action-group.pdf-mode .btn-image-action {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        }
+
+        .image-action-group.pdf-mode .btn-toggle-mode {
+            background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+        }
+
+        .image-action-group.pdf-mode .btn-toggle-mode:hover {
+            background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
+        }
+
+        .image-action-group.pdf-mode .btn-toggle-mode svg {
+            transform: rotate(180deg);
+        }
+
+        .image-action-group.pdf-mode {
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+        }
+
         /* Recent reports toggle */
         .recent-limit-btn {
             padding: 0.3rem 0.75rem; border: 1px solid var(--gray-200); border-radius: 8px;
@@ -1499,6 +1519,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -1508,7 +1529,7 @@
         let currentReportId = null;
         let currentMentorFilter = 'all';
         let mentorsMap = {};
-        let imageActionMode = 'copy'; // 'copy' or 'download'
+        let imageActionMode = 'copy'; // 'copy', 'download' or 'pdf'
         let recentLimit = 10;
 
         // Helper to decrypt user data if encrypted
@@ -1970,24 +1991,32 @@
             const icon = document.getElementById('image-action-icon');
             const text = document.getElementById('image-action-text');
 
+            group.classList.remove('download-mode', 'pdf-mode');
+
             if (imageActionMode === 'copy') {
                 imageActionMode = 'download';
                 icon.textContent = '📥';
                 text.textContent = 'Baixar Imagem';
                 group.classList.add('download-mode');
+            } else if (imageActionMode === 'download') {
+                imageActionMode = 'pdf';
+                icon.textContent = '📄';
+                text.textContent = 'Salvar como PDF';
+                group.classList.add('pdf-mode');
             } else {
                 imageActionMode = 'copy';
                 icon.textContent = '📋';
                 text.textContent = 'Copiar Imagem';
-                group.classList.remove('download-mode');
             }
         }
 
         function executeImageAction() {
             if (imageActionMode === 'copy') {
                 copyReportAsImage();
-            } else {
+            } else if (imageActionMode === 'download') {
                 downloadReportAsImage();
+            } else {
+                downloadReportAsPdf();
             }
         }
 
@@ -2120,6 +2149,47 @@
             } catch (error) {
                 console.error('Error generating image:', error);
                 WardApp.showToast('Erro ao gerar imagem', 'error');
+            }
+        }
+
+        async function downloadReportAsPdf() {
+            WardApp.showToast('Gerando PDF...', 'info');
+
+            try {
+                const result = await generateReportCanvas();
+                if (!result) return;
+
+                const { canvas, container, studentName, report } = result;
+                const { jsPDF } = window.jspdf;
+
+                const imgData = canvas.toDataURL('image/png');
+                const imgWidth = canvas.width;
+                const imgHeight = canvas.height;
+
+                // A4 dimensions in mm
+                const pdfWidth = 210;
+                const margin = 15;
+                const contentWidth = pdfWidth - (margin * 2);
+                const contentHeight = (imgHeight * contentWidth) / imgWidth;
+
+                const pdfHeight = Math.max(297, contentHeight + (margin * 2));
+                const pdf = new jsPDF({
+                    orientation: contentHeight > 250 ? 'portrait' : 'portrait',
+                    unit: 'mm',
+                    format: [pdfWidth, pdfHeight]
+                });
+
+                pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, contentHeight);
+
+                const filename = `relatorio-${studentName.replace(/\s+/g, '-').toLowerCase()}-${report.call_date}.pdf`;
+                pdf.save(filename);
+
+                WardApp.showToast('PDF salvo com sucesso!', 'success');
+                document.body.removeChild(container);
+
+            } catch (error) {
+                console.error('Error generating PDF:', error);
+                WardApp.showToast('Erro ao gerar PDF', 'error');
             }
         }
 
