@@ -1071,7 +1071,20 @@
             if (!landmarks || landmarks.length === 0) {
                 if (landmarkCreateAttempted) {
                     console.error('Default landmarks creation failed - already attempted');
-                    WardApp.showToast('Erro ao criar landmarks padrão. Recarregue a página ou contate o suporte.', 'error');
+                    // Show retry button instead of just a toast
+                    const setupContainer = document.querySelector('.landmark-list[data-group="setup"]');
+                    if (setupContainer) {
+                        setupContainer.innerHTML = `
+                            <div style="padding: 1.5rem; text-align: center; background: #fef3c7; border-radius: 12px; margin: 1rem 0;">
+                                <p style="margin-bottom: 1rem; color: #92400e; font-weight: 600;">
+                                    ⚠️ Não foi possível criar os landmarks padrão automaticamente.
+                                </p>
+                                <button class="btn btn-primary" onclick="retryCreateLandmarks()" style="margin-right: 0.5rem;">
+                                    🔄 Tentar novamente
+                                </button>
+                            </div>
+                        `;
+                    }
                     return;
                 }
                 landmarkCreateAttempted = true;
@@ -1111,10 +1124,30 @@
         }
 
         async function createDefaultLandmarks() {
-            const landmarksToCreate = defaultLandmarks
-                .filter(lm => !lm.conditional || wantsResearch)
-                .map((lm, index) => {
-                    // "Entrada na Ward Academy" is completed by default
+            const filtered = defaultLandmarks.filter(lm => !lm.conditional || wantsResearch);
+
+            // Try with group_name first
+            const landmarksWithGroup = filtered.map((lm, index) => {
+                const isEntrada = lm.title === 'Entrada na Ward Academy';
+                return {
+                    user_id: targetUserId,
+                    landmark_type: lm.type,
+                    title: lm.title,
+                    completed: isEntrada,
+                    completion_date: isEntrada ? new Date().toISOString() : null,
+                    is_urgent: false,
+                    notes: [],
+                    order_position: index,
+                    group_name: lm.group
+                };
+            });
+
+            let { error } = await WardApp.db.from('landmarks').insert(landmarksWithGroup);
+
+            // If insert failed (likely group_name column missing), retry without it
+            if (error) {
+                console.warn('Insert with group_name failed, retrying without:', error.message || error);
+                const landmarksWithoutGroup = filtered.map((lm, index) => {
                     const isEntrada = lm.title === 'Entrada na Ward Academy';
                     return {
                         user_id: targetUserId,
@@ -1124,18 +1157,31 @@
                         completion_date: isEntrada ? new Date().toISOString() : null,
                         is_urgent: false,
                         notes: [],
-                        order_position: index,
-                        group_name: lm.group
+                        order_position: index
                     };
                 });
+                const retry = await WardApp.db.from('landmarks').insert(landmarksWithoutGroup);
+                error = retry.error;
+            }
 
-            const { error } = await WardApp.db.from('landmarks').insert(landmarksToCreate);
             if (error) {
                 console.error('Error creating default landmarks:', error);
-                WardApp.showToast('Erro ao criar landmarks: ' + (error.message || 'erro desconhecido'), 'error');
+                WardApp.showToast('Erro ao criar landmarks: ' + (error.message || JSON.stringify(error)), 'error');
                 return false;
             }
             return true;
+        }
+
+        async function retryCreateLandmarks() {
+            landmarkCreateAttempted = false;
+            WardApp.showToast('Criando landmarks padrão...', 'success');
+            const success = await createDefaultLandmarks();
+            if (success) {
+                WardApp.showToast('Landmarks criados com sucesso!', 'success');
+                await loadLandmarks();
+            } else {
+                WardApp.showToast('Falha ao criar landmarks. Verifique o console para detalhes.', 'error');
+            }
         }
 
         function renderLandmarks(landmarks) {
