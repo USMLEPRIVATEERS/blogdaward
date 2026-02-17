@@ -1735,12 +1735,13 @@ function initNavOverflow() {
     overflowContainer.appendChild(overflowBtn);
     overflowContainer.appendChild(dropdown);
 
-    // Move nav-links into wrapper
+    // Move nav-links into wrapper (wrapper clips overflow)
     navLinks.forEach(link => wrapper.appendChild(link));
-    wrapper.appendChild(overflowContainer);
 
-    // Insert wrapper into nav-menu
+    // Insert wrapper and overflow container as siblings inside nav-menu
+    // Container is OUTSIDE wrapper so it's not clipped by overflow:hidden
     navMenu.prepend(wrapper);
+    navMenu.appendChild(overflowContainer);
 
     // Toggle dropdown on click
     overflowBtn.addEventListener('click', (e) => {
@@ -1761,19 +1762,21 @@ function initNavOverflow() {
     function distributeItems() {
         // On mobile, bail out — hamburger menu handles everything
         if (mobileToggle && window.getComputedStyle(mobileToggle).display !== 'none') {
-            // Move all links back to wrapper (visible)
             const dropdownLinks = Array.from(dropdown.querySelectorAll('.nav-link'));
-            dropdownLinks.forEach(link => wrapper.insertBefore(link, overflowContainer));
+            dropdownLinks.forEach(link => wrapper.appendChild(link));
             overflowBtn.style.display = 'none';
+            overflowContainer.style.display = 'none';
             navMenu.classList.remove('has-overflow');
             return;
         }
 
+        overflowContainer.style.display = '';
+
         // Move all links back to wrapper first
         const allLinks = Array.from(dropdown.querySelectorAll('.nav-link'));
-        allLinks.forEach(link => wrapper.insertBefore(link, overflowContainer));
+        allLinks.forEach(link => wrapper.appendChild(link));
 
-        // Temporarily show all items and measure
+        // Temporarily hide button and measure
         overflowBtn.style.display = 'none';
         navMenu.classList.remove('has-overflow');
 
@@ -1785,7 +1788,7 @@ function initNavOverflow() {
         const visibleLinks = Array.from(wrapper.querySelectorAll(':scope > .nav-link'));
         const overflowLinks = [];
 
-        // Check which items exceed available space
+        // Check from right to left which items exceed available space
         let needsOverflow = false;
         for (let i = visibleLinks.length - 1; i >= 0; i--) {
             const link = visibleLinks[i];
@@ -1816,7 +1819,7 @@ function initNavOverflow() {
                 }
             }
 
-            // Check if any overflow item is .active
+            // Highlight button if active page is hidden in dropdown
             const hasActive = dropdown.querySelector('.nav-link.active');
             overflowBtn.classList.toggle('has-active', !!hasActive);
         } else {
