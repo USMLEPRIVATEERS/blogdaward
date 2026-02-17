@@ -1114,10 +1114,19 @@
                 });
             }
 
-            // Add scheduled calls to landmarks
+            // Add scheduled calls to landmarks + fix missing group_name
             landmarks.forEach(lm => {
                 lm.scheduled_calls = callsMap[lm.id] || [];
             });
+
+            // Auto-fix landmarks with missing group_name (background, non-blocking)
+            const missingGroup = landmarks.filter(lm => !lm.group_name);
+            if (missingGroup.length > 0) {
+                missingGroup.forEach(lm => {
+                    const inferred = inferGroupFromType(lm.landmark_type);
+                    WardApp.db.from('landmarks').update({ group_name: inferred }).eq('id', lm.id);
+                });
+            }
 
             // Render landmarks
             renderLandmarks(landmarks);
@@ -1184,6 +1193,20 @@
             }
         }
 
+        // Infer group from landmark_type when group_name is missing
+        function inferGroupFromType(type) {
+            if (!type) return 'extras';
+            if (type === 'entry') return 'setup';
+            if (/^call_(iria|guilherme|marcos)_1$/.test(type)) return 'first-round';
+            if (/^call_(iria|guilherme)_(2|3|4)$/.test(type)) return 'second-round';
+            if (/^call_marcos_research/.test(type)) return 'research';
+            if (type === 'call_iria_second_pass' || type === 'call_iria_nbmes') return 'second-pass';
+            if (/^call_iria_(dedicated|schedule|pre_exam|post_exam)$/.test(type)) return 'dedicated';
+            if (/^call_system_/.test(type)) return 'system-calls';
+            if (/^call_extra_/.test(type)) return 'extras';
+            return 'extras';
+        }
+
         function renderLandmarks(landmarks) {
             // Group landmarks
             const groups = {
@@ -1198,7 +1221,7 @@
             };
 
             landmarks.forEach(lm => {
-                const group = lm.group_name || 'extras';
+                const group = lm.group_name || inferGroupFromType(lm.landmark_type);
                 if (groups[group]) {
                     groups[group].push(lm);
                 }
