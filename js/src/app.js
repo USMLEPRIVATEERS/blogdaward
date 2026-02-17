@@ -1707,6 +1707,134 @@ function initMobileMenu() {
 }
 
 
+function initNavOverflow() {
+    const navMenu = document.querySelector('.nav-menu');
+    if (!navMenu) return;
+
+    const mobileToggle = document.querySelector('.mobile-menu-toggle');
+    const navLinks = Array.from(navMenu.querySelectorAll(':scope > .nav-link'));
+    if (navLinks.length <= 2) return;
+
+    // Create wrapper for visible items
+    const wrapper = document.createElement('div');
+    wrapper.className = 'nav-overflow-wrapper';
+
+    // Create overflow container (holds the button + dropdown)
+    const overflowContainer = document.createElement('div');
+    overflowContainer.className = 'nav-overflow-container';
+
+    const overflowBtn = document.createElement('button');
+    overflowBtn.className = 'nav-overflow-btn';
+    overflowBtn.innerHTML = '⋯';
+    overflowBtn.title = 'Mais opções';
+    overflowBtn.setAttribute('aria-label', 'Mais opções de navegação');
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'nav-overflow-dropdown';
+
+    overflowContainer.appendChild(overflowBtn);
+    overflowContainer.appendChild(dropdown);
+
+    // Move nav-links into wrapper
+    navLinks.forEach(link => wrapper.appendChild(link));
+    wrapper.appendChild(overflowContainer);
+
+    // Insert wrapper into nav-menu
+    navMenu.prepend(wrapper);
+
+    // Toggle dropdown on click
+    overflowBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('open');
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', () => {
+        dropdown.classList.remove('open');
+    });
+
+    dropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+
+    // Distribute items between visible and overflow
+    function distributeItems() {
+        // On mobile, bail out — hamburger menu handles everything
+        if (mobileToggle && window.getComputedStyle(mobileToggle).display !== 'none') {
+            // Move all links back to wrapper (visible)
+            const dropdownLinks = Array.from(dropdown.querySelectorAll('.nav-link'));
+            dropdownLinks.forEach(link => wrapper.insertBefore(link, overflowContainer));
+            overflowBtn.style.display = 'none';
+            navMenu.classList.remove('has-overflow');
+            return;
+        }
+
+        // Move all links back to wrapper first
+        const allLinks = Array.from(dropdown.querySelectorAll('.nav-link'));
+        allLinks.forEach(link => wrapper.insertBefore(link, overflowContainer));
+
+        // Temporarily show all items and measure
+        overflowBtn.style.display = 'none';
+        navMenu.classList.remove('has-overflow');
+
+        const wrapperRect = wrapper.getBoundingClientRect();
+        const availableWidth = wrapperRect.width;
+        const btnWidth = 44; // approximate width of ⋯ button + gap
+
+        // Measure each link's position
+        const visibleLinks = Array.from(wrapper.querySelectorAll(':scope > .nav-link'));
+        const overflowLinks = [];
+
+        // Check which items exceed available space
+        let needsOverflow = false;
+        for (let i = visibleLinks.length - 1; i >= 0; i--) {
+            const link = visibleLinks[i];
+            const linkRect = link.getBoundingClientRect();
+            const linkEnd = linkRect.right - wrapperRect.left;
+
+            if (linkEnd > availableWidth - (needsOverflow ? btnWidth : 0)) {
+                needsOverflow = true;
+                overflowLinks.unshift(link);
+            }
+        }
+
+        if (overflowLinks.length > 0) {
+            overflowBtn.style.display = 'flex';
+            navMenu.classList.add('has-overflow');
+
+            // Move overflow items to dropdown
+            overflowLinks.forEach(link => dropdown.appendChild(link));
+
+            // Re-check: after moving items and showing button, do remaining items still fit?
+            const remainingLinks = Array.from(wrapper.querySelectorAll(':scope > .nav-link'));
+            for (let i = remainingLinks.length - 1; i >= 0; i--) {
+                const link = remainingLinks[i];
+                const linkRect = link.getBoundingClientRect();
+                const linkEnd = linkRect.right - wrapperRect.left;
+                if (linkEnd > availableWidth - btnWidth) {
+                    dropdown.insertBefore(link, dropdown.firstChild);
+                }
+            }
+
+            // Check if any overflow item is .active
+            const hasActive = dropdown.querySelector('.nav-link.active');
+            overflowBtn.classList.toggle('has-active', !!hasActive);
+        } else {
+            overflowBtn.style.display = 'none';
+            navMenu.classList.remove('has-overflow');
+        }
+    }
+
+    // Run on load and resize
+    distributeItems();
+
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(distributeItems, 100);
+    });
+}
+
 function updateHeaderUserInfo() {
     const user = JSON.parse(localStorage.getItem('ward_user'));
     if (user) {
@@ -1775,6 +1903,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initMobileMenu();
     updateHeaderUserInfo();
     updateNavbarForRole();
+    initNavOverflow();
 
     // OLD CODE: Check-in modal is now handled in dashboard.html with database logic
     // const user = JSON.parse(localStorage.getItem('ward_user'));
