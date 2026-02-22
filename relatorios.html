@@ -1560,51 +1560,74 @@
             const fullName = _dn(userData.full_name) || userData.email;
             document.getElementById('user-name').textContent = fullName ? fullName.split(' ')[0] : fullName;
 
-            await loadMentors();
-            await loadStudents();
-            await loadAllReports();
+            // Run loads in parallel so one failure doesn't block the others
+            const results = await Promise.allSettled([
+                loadMentors(),
+                loadStudents(),
+                loadAllReports()
+            ]);
+
+            // Log and show any errors
+            const failed = results.filter(r => r.status === 'rejected');
+            if (failed.length > 0) {
+                console.error('Relatorios load errors:', failed.map(r => r.reason));
+                WardApp.showToast('Erro ao carregar alguns dados. Tente recarregar a página.', 'error');
+            }
+
             checkSharedReportLink();
         });
 
         async function loadMentors() {
-            const { data: mentors } = await WardApp.db
-                .from('users')
-                .select('id, full_name, email, role')
-                .in('role', ['mentor', 'admin', 'mentor_marcos', 'mentor_iria', 'mentor_guilherme']);
+            try {
+                const { data: mentors, error } = await WardApp.db
+                    .from('users')
+                    .select('id, full_name, email, role')
+                    .in('role', ['mentor', 'admin', 'mentor_marcos', 'mentor_iria', 'mentor_guilherme', 'mentor_romulo']);
 
-            const select = document.getElementById('edit-report-mentor');
-            select.innerHTML = '<option value="">Selecione o mentor...</option>';
+                if (error) { console.error('loadMentors error:', error); return; }
 
-            (mentors || []).forEach(m => {
-                mentorsMap[m.id] = m;
-                const option = document.createElement('option');
-                option.value = m.id;
-                option.textContent = _dn(m.full_name) || m.email;
-                select.appendChild(option);
-            });
+                const select = document.getElementById('edit-report-mentor');
+                select.innerHTML = '<option value="">Selecione o mentor...</option>';
+
+                (mentors || []).forEach(m => {
+                    mentorsMap[m.id] = m;
+                    const option = document.createElement('option');
+                    option.value = m.id;
+                    option.textContent = _dn(m.full_name) || m.email;
+                    select.appendChild(option);
+                });
+            } catch (err) { console.error('loadMentors exception:', err); }
         }
 
         async function loadStudents() {
-            const { data: students } = await WardApp.db
-                .from('users')
-                .select('id, full_name, email, role')
-                .in('role', ['aluno', 'assessoria']);
+            try {
+                const { data: students, error } = await WardApp.db
+                    .from('users')
+                    .select('id, full_name, email, role')
+                    .in('role', ['aluno', 'assessoria', 'externo']);
 
-            allStudents = sortUsersByName(students || []);
-            document.getElementById('total-students-count').textContent = allStudents.length;
-            renderStudentsList();
+                if (error) { console.error('loadStudents error:', error); return; }
+
+                allStudents = sortUsersByName(students || []);
+                document.getElementById('total-students-count').textContent = allStudents.length;
+                renderStudentsList();
+            } catch (err) { console.error('loadStudents exception:', err); }
         }
 
         async function loadAllReports() {
-            const { data: reports } = await WardApp.db
-                .from('call_reports')
-                .select('*, student:student_id(full_name, email), mentor:mentor_id(full_name, email)')
-                .order('call_date', { ascending: false });
+            try {
+                const { data: reports, error } = await WardApp.db
+                    .from('call_reports')
+                    .select('*, student:student_id(full_name, email), mentor:mentor_id(full_name, email)')
+                    .order('call_date', { ascending: false });
 
-            allReports = reports || [];
-            document.getElementById('total-reports').textContent = allReports.length;
-            updateReportCounts();
-            if (!selectedStudent) renderRecentReports();
+                if (error) { console.error('loadAllReports error:', error); return; }
+
+                allReports = reports || [];
+                document.getElementById('total-reports').textContent = allReports.length;
+                updateReportCounts();
+                if (!selectedStudent) renderRecentReports();
+            } catch (err) { console.error('loadAllReports exception:', err); }
         }
 
         function updateReportCounts() {
