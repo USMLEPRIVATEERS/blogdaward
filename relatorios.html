@@ -173,6 +173,37 @@
             box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
         }
 
+        .role-filters {
+            display: flex;
+            gap: 0.35rem;
+            margin-top: 0.6rem;
+        }
+
+        .role-filter-btn {
+            flex: 1;
+            padding: 0.35rem 0.5rem;
+            border: 1.5px solid var(--gray-300);
+            border-radius: 8px;
+            background: white;
+            color: var(--gray-600);
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .role-filter-btn:hover {
+            border-color: var(--secondary);
+            color: var(--secondary);
+        }
+
+        .role-filter-btn.active {
+            background: var(--secondary);
+            border-color: var(--secondary);
+            color: white;
+        }
+
         .students-list {
             flex: 1;
             overflow-y: auto;
@@ -732,6 +763,83 @@
         .report-content a {
             color: var(--secondary) !important;
             text-decoration: underline;
+        }
+
+        /* Tables in report content */
+        .report-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.88rem;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--gray-200) !important;
+        }
+
+        .report-content thead tr {
+            background: var(--gray-100) !important;
+        }
+
+        .report-content th {
+            background: var(--gray-100) !important;
+            font-weight: 700 !important;
+            text-align: left;
+            padding: 0.65rem 0.85rem;
+            border-bottom: 2px solid var(--gray-300) !important;
+            border-right: 1px solid var(--gray-200) !important;
+            white-space: normal;
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .report-content th:last-child {
+            border-right: none !important;
+        }
+
+        .report-content td {
+            padding: 0.55rem 0.85rem;
+            border-bottom: 1px solid var(--gray-100) !important;
+            border-right: 1px solid var(--gray-100) !important;
+            white-space: normal;
+            vertical-align: top;
+            line-height: 1.5;
+        }
+
+        .report-content td:last-child {
+            border-right: none !important;
+        }
+
+        .report-content tbody tr:nth-child(even) {
+            background: var(--gray-50) !important;
+        }
+
+        .report-content tbody tr:hover {
+            background: #fef9c3 !important;
+        }
+
+        .report-content tbody tr:last-child td {
+            border-bottom: none !important;
+        }
+
+        /* Rich text editor tables */
+        .rich-text-editor table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0.75rem 0;
+            border: 1px solid var(--gray-300);
+        }
+
+        .rich-text-editor th,
+        .rich-text-editor td {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--gray-300);
+            white-space: normal;
+        }
+
+        .rich-text-editor th {
+            background: var(--gray-100) !important;
+            font-weight: 600;
         }
 
         /* Rich Text Editor */
@@ -1349,6 +1457,11 @@
                 </div>
                 <div class="sidebar-search">
                     <input type="text" id="student-search" placeholder="Buscar aluno..." oninput="filterStudents()">
+                    <div class="role-filters">
+                        <button class="role-filter-btn active" data-role="aluno" onclick="toggleRoleFilter('aluno', this)">Alunos</button>
+                        <button class="role-filter-btn" data-role="assessoria" onclick="toggleRoleFilter('assessoria', this)">Assessoria</button>
+                        <button class="role-filter-btn" data-role="externo" onclick="toggleRoleFilter('externo', this)">Externo</button>
+                    </div>
                 </div>
                 <div class="students-list" id="students-list">
                     <!-- Filled by JS -->
@@ -1531,6 +1644,7 @@
         let mentorsMap = {};
         let imageActionMode = 'copy'; // 'copy', 'download' or 'pdf'
         let recentLimit = 10;
+        let activeRoleFilters = new Set(['aluno']);
 
         // Helper to decrypt user data if encrypted
         function _dn(val) {
@@ -1650,14 +1764,27 @@
             return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
         }
 
+        function toggleRoleFilter(role, btn) {
+            if (activeRoleFilters.has(role)) {
+                if (activeRoleFilters.size <= 1) return; // keep at least one active
+                activeRoleFilters.delete(role);
+                btn.classList.remove('active');
+            } else {
+                activeRoleFilters.add(role);
+                btn.classList.add('active');
+            }
+            renderStudentsList();
+        }
+
         function renderStudentsList() {
             const container = document.getElementById('students-list');
             const searchTerm = document.getElementById('student-search').value.toLowerCase();
 
-            const filtered = allStudents.filter(s =>
-                (_dn(s.full_name) || '').toLowerCase().includes(searchTerm) ||
-                (s.email || '').toLowerCase().includes(searchTerm)
-            );
+            const filtered = allStudents.filter(s => {
+                if (!activeRoleFilters.has(s.role)) return false;
+                return (_dn(s.full_name) || '').toLowerCase().includes(searchTerm) ||
+                    (s.email || '').toLowerCase().includes(searchTerm);
+            });
 
             container.innerHTML = filtered.map(s => `
                 <div class="student-item ${selectedStudent?.id === s.id ? 'active' : ''}" onclick="selectStudent(${s.id})">

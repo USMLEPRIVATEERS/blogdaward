@@ -721,9 +721,13 @@
         async function deleteEntry() {
             if (!confirm('Excluir esta entrada?')) return;
 
-            const id = document.getElementById('edit-entry-id').value;
+            const id = parseInt(document.getElementById('edit-entry-id').value);
+            if (!id) { WardApp.showToast('Erro: entrada inválida', 'error'); return; }
 
-            const { error } = await WardApp.db.from('study_diary').delete().eq('id', id).eq('user_id', userData.id);
+            const { error } = await WardApp.db
+                .from('study_diary')
+                .delete()
+                .eq('id', id);
 
             if (error) {
                 console.error('Delete error:', error);
@@ -731,9 +735,12 @@
                 return;
             }
 
+            // Optimistically remove from local array
+            allEntries = allEntries.filter(e => e.id !== id);
             closeModal('edit-entry-modal');
-            WardApp.showToast('Entrada excluida');
-            await loadEntries();
+            WardApp.showToast('Entrada excluída!');
+            renderEntries();
+            renderCalendar();
         }
 
         function openModal(id) {

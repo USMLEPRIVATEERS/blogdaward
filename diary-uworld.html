@@ -1012,11 +1012,15 @@
         }
 
         async function deleteSession() {
-            if (!confirm('Excluir esta sessao?')) return;
+            if (!confirm('Excluir esta sessão?')) return;
 
-            const id = document.getElementById('edit-session-id').value;
+            const id = parseInt(document.getElementById('edit-session-id').value);
+            if (!id) { WardApp.showToast('Erro: sessão inválida', 'error'); return; }
 
-            const { error } = await WardApp.db.from('uworld_diary').delete().eq('id', id).eq('user_id', userData.id);
+            const { error } = await WardApp.db
+                .from('uworld_diary')
+                .delete()
+                .eq('id', id);
 
             if (error) {
                 console.error('Delete error:', error);
@@ -1024,9 +1028,11 @@
                 return;
             }
 
+            // Optimistically remove from local array
+            allSessions = allSessions.filter(s => s.id !== id);
             closeModal('edit-session-modal');
-            WardApp.showToast('Sessao excluida');
-            await loadSessions();
+            WardApp.showToast('Sessão excluída!');
+            renderSessions();
         }
 
         function openModal(id) {
