@@ -540,15 +540,12 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Data *</label>
-                    <select id="new-call-date" class="form-input" onchange="loadNewCallTimeSlots()">
-                        <option value="">Selecione uma data...</option>
-                    </select>
+                    <input type="date" id="new-call-date" class="form-input" onchange="loadNewCallTimeSlots()">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Horario *</label>
-                    <select id="new-call-time" class="form-input">
-                        <option value="">Selecione um horario...</option>
-                    </select>
+                    <input type="time" id="new-call-time" class="form-input" value="09:00">
+                    <div id="new-call-time-hint" style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;"></div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Observacoes</label>
@@ -1516,113 +1513,32 @@
             // Reset fields
             document.getElementById('new-call-title').value = '';
             document.getElementById('new-call-notes').value = '';
-            document.getElementById('new-call-date').innerHTML = '<option value="">Carregando datas...</option>';
-            document.getElementById('new-call-time').innerHTML = '<option value="">Selecione uma data primeiro...</option>';
+            document.getElementById('new-call-time').value = '09:00';
+            document.getElementById('new-call-time-hint').textContent = '';
 
-            // Load mentor's available dates for next 60 days
-            await loadNewCallDates();
+            // Set date input min to today
+            loadNewCallDates();
 
             openModal('new-call-modal');
         }
 
-        async function loadNewCallDates() {
-            const dateSelect = document.getElementById('new-call-date');
-            const today = new Date();
-            const availableDates = [];
-
-            // Get all regular availability slots
-            const regSlots = regularAvailability; // Already loaded
-
-            // Get specific dates for next 60 days
-            const startStr = today.toISOString().split('T')[0];
-            const endDate = new Date(today);
-            endDate.setDate(endDate.getDate() + 60);
-            const endStr = endDate.toISOString().split('T')[0];
-
-            const { data: specificData } = await WardApp.db
-                .from('mentor_availability_specific')
-                .select('*')
-                .eq('mentor_id', userData.id)
-                .gte('available_date', startStr)
-                .lte('available_date', endStr);
-
-            const specificByDate = {};
-            (specificData || []).forEach(s => {
-                specificByDate[s.available_date] = s;
-            });
-
-            // Generate dates for next 60 days
-            for (let d = 0; d < 60; d++) {
-                const date = new Date(today);
-                date.setDate(date.getDate() + d);
-                const dateStr = date.toISOString().split('T')[0];
-                const dow = date.getDay();
-
-                // Check if date is specifically blocked
-                const specific = specificByDate[dateStr];
-                if (specific && specific.is_unavailable) continue;
-
-                // Check if there's specific availability or regular availability for this day
-                const hasSpecific = specific && !specific.is_unavailable;
-                const hasRegular = regSlots.some(s => s.day_of_week === dow);
-
-                if (hasSpecific || hasRegular) {
-                    const dayLabel = dayNames[dow];
-                    const dateLabel = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                    availableDates.push({ value: dateStr, label: `${dayLabel}, ${dateLabel}` });
-                }
-            }
-
-            dateSelect.innerHTML = '<option value="">Selecione uma data...</option>' +
-                availableDates.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
+        function loadNewCallDates() {
+            const dateInput = document.getElementById('new-call-date');
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.min = today;
+            if (!dateInput.value) dateInput.value = today;
         }
 
         async function loadNewCallTimeSlots() {
             const dateStr = document.getElementById('new-call-date').value;
-            const timeSelect = document.getElementById('new-call-time');
+            const hint = document.getElementById('new-call-time-hint');
 
             if (!dateStr) {
-                timeSelect.innerHTML = '<option value="">Selecione uma data primeiro...</option>';
+                hint.textContent = '';
                 return;
             }
 
-            timeSelect.innerHTML = '<option value="">Carregando horarios...</option>';
-
-            const date = new Date(dateStr + 'T12:00:00');
-            const dow = date.getDay();
-
-            // Get specific availability for this date
-            const { data: specificData } = await WardApp.db
-                .from('mentor_availability_specific')
-                .select('*')
-                .eq('mentor_id', userData.id)
-                .eq('available_date', dateStr)
-                .not('is_unavailable', 'eq', true);
-
-            // Get regular availability for this day of week
-            const regSlots = regularAvailability.filter(s => s.day_of_week === dow);
-
-            // Generate all possible time slots
-            let allSlots = [];
-
-            // Specific availability overrides regular
-            if (specificData && specificData.length > 0) {
-                specificData.forEach(s => {
-                    const duration = s.duration_minutes || 30;
-                    const breakMin = s.break_minutes || 0;
-                    const slots = generateTimeSlots(s.start_time, s.end_time, duration, breakMin);
-                    allSlots.push(...slots);
-                });
-            } else {
-                regSlots.forEach(s => {
-                    const duration = s.duration_minutes || 30;
-                    const breakMin = s.break_minutes || 0;
-                    const slots = generateTimeSlots(s.start_time, s.end_time, duration, breakMin);
-                    allSlots.push(...slots);
-                });
-            }
-
-            // Get already booked slots for this date
+            // Check for already booked slots on this date
             const { data: booked } = await WardApp.db
                 .from('scheduled_calls')
                 .select('scheduled_time')
@@ -1632,16 +1548,11 @@
 
             const bookedTimes = (booked || []).map(b => b.scheduled_time.substring(0, 5));
 
-            // Filter out booked slots
-            const freeSlots = allSlots.filter(s => !bookedTimes.includes(s.start));
-
-            if (freeSlots.length === 0) {
-                timeSelect.innerHTML = '<option value="">Nenhum horario disponivel nesta data</option>';
-                return;
+            if (bookedTimes.length > 0) {
+                hint.innerHTML = `<span style="color: #d97706;">Horários já ocupados neste dia: ${bookedTimes.join(', ')}</span>`;
+            } else {
+                hint.textContent = 'Nenhuma chamada agendada neste dia';
             }
-
-            timeSelect.innerHTML = '<option value="">Selecione um horario...</option>' +
-                freeSlots.map(s => `<option value="${s.start}">${s.start} - ${s.end}</option>`).join('');
         }
 
         async function submitNewCall() {
