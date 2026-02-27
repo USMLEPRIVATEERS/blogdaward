@@ -193,6 +193,7 @@
                     <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: #6b7280; cursor: pointer; white-space: nowrap;">
                         <input type="checkbox" id="toggle-assessoria" onchange="toggleAssessoria()"> Mostrar Assessoria Avulsa
                     </label>
+                    <button onclick="openCallTrackingModal()" class="btn btn-sm" style="background: #7c3aed; color: white;">📞 Chamadas Pendentes</button>
                     <a href="/mentor-cronograma" class="btn btn-sm btn-primary">Gerenciar Cronogramas →</a>
                 </div>
             </div>
@@ -465,6 +466,35 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('call-details-modal')">Fechar</button>
                 <button class="btn btn-primary" id="call-details-complete-btn" onclick="completeCallFromModal()">✓ Marcar como Concluída</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Call Tracking Modal -->
+    <div id="call-tracking-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 850px;">
+            <div class="modal-header">
+                <h3 class="modal-title">📞 Alunos Precisando de Chamada</h3>
+                <button class="modal-close" onclick="closeModal('call-tracking-modal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; background: #f3f4f6; padding: 0.75rem 1rem; border-radius: 8px;">
+                    <span style="font-size: 0.9rem; color: #374151; white-space: nowrap;">Sem chamada há mais de:</span>
+                    <input type="number" id="call-interval-value" value="1" min="1" style="width: 60px; padding: 0.4rem; border: 1px solid #d1d5db; border-radius: 6px; text-align: center;">
+                    <select id="call-interval-unit" style="padding: 0.4rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                        <option value="days">dia(s)</option>
+                        <option value="weeks">semana(s)</option>
+                        <option value="months" selected>mês/meses</option>
+                        <option value="years">ano(s)</option>
+                    </select>
+                    <button onclick="filterCallTracking()" class="btn btn-sm btn-primary">Filtrar</button>
+                </div>
+                <div id="call-tracking-results">
+                    <p class="text-muted" style="text-align: center; padding: 2rem;">Clique em "Filtrar" para carregar...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('call-tracking-modal')">Fechar</button>
             </div>
         </div>
     </div>
@@ -2205,6 +2235,9 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 }
             });
 
+            // Store all schedule student data for call tracking
+            window.scheduleStudentData = sorted;
+
             container.innerHTML = sorted.map(student => {
                 let statusBadge = '';
                 let statusColor = '';
@@ -2393,6 +2426,122 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             document.querySelectorAll('.schedule-student-card[data-role="assessoria"]').forEach(el => {
                 el.style.display = show ? '' : 'none';
             });
+        }
+
+        // Call Tracking - students needing calls
+        let callTrackingData = null;
+
+        async function openCallTrackingModal() {
+            document.getElementById('call-tracking-modal').classList.add('active');
+            document.getElementById('call-tracking-results').innerHTML = '<p class="text-muted" style="text-align: center; padding: 2rem;">Carregando...</p>';
+
+            try {
+                const [callReportsRes, scheduledCallsRes] = await Promise.all([
+                    WardApp.db.from('call_reports').select('student_id, call_date').eq('mentor_id', userData.id).order('call_date', { ascending: false }),
+                    WardApp.db.from('scheduled_calls').select('student_id, scheduled_date').eq('mentor_id', userData.id).eq('status', 'scheduled').gte('scheduled_date', new Date().toISOString().split('T')[0])
+                ]);
+
+                const lastCallMap = {};
+                (callReportsRes.data || []).forEach(cr => {
+                    if (!lastCallMap[cr.student_id] || cr.call_date > lastCallMap[cr.student_id]) {
+                        lastCallMap[cr.student_id] = cr.call_date;
+                    }
+                });
+
+                const hasScheduledCall = new Set();
+                (scheduledCallsRes.data || []).forEach(sc => hasScheduledCall.add(sc.student_id));
+
+                callTrackingData = { lastCallMap, hasScheduledCall };
+                filterCallTracking();
+            } catch (err) {
+                console.error('Error loading call tracking data:', err);
+                document.getElementById('call-tracking-results').innerHTML = '<p class="text-muted" style="text-align: center; padding: 2rem; color: #dc2626;">Erro ao carregar dados</p>';
+            }
+        }
+
+        function filterCallTracking() {
+            if (!callTrackingData || !window.scheduleStudentData) return;
+
+            const intervalValue = parseInt(document.getElementById('call-interval-value').value) || 1;
+            const intervalUnit = document.getElementById('call-interval-unit').value;
+
+            const cutoffDate = new Date();
+            switch (intervalUnit) {
+                case 'days': cutoffDate.setDate(cutoffDate.getDate() - intervalValue); break;
+                case 'weeks': cutoffDate.setDate(cutoffDate.getDate() - (intervalValue * 7)); break;
+                case 'months': cutoffDate.setMonth(cutoffDate.getMonth() - intervalValue); break;
+                case 'years': cutoffDate.setFullYear(cutoffDate.getFullYear() - intervalValue); break;
+            }
+
+            const { lastCallMap, hasScheduledCall } = callTrackingData;
+
+            const needsCall = window.scheduleStudentData.filter(student => {
+                if (student.role === 'assessoria') return false;
+                if (hasScheduledCall.has(student.id)) return false;
+                const lastCall = lastCallMap[student.id];
+                if (!lastCall) return true;
+                return new Date(lastCall) < cutoffDate;
+            });
+
+            renderCallTrackingResults(needsCall, lastCallMap);
+        }
+
+        function renderCallTrackingResults(students, lastCallMap) {
+            const container = document.getElementById('call-tracking-results');
+
+            if (students.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #059669;"><strong>Todos os alunos estão com chamadas em dia ou já têm chamadas agendadas!</strong></div>';
+                return;
+            }
+
+            const groups = {
+                overdue: students.filter(s => s.status === 'overdue'),
+                no_schedule: students.filter(s => s.status === 'no_schedule'),
+                on_track: students.filter(s => s.status === 'on_track')
+            };
+
+            const groupLabels = {
+                overdue: { label: 'Atrasados', color: '#fee2e2', textColor: '#dc2626' },
+                no_schedule: { label: 'Sem Cronograma', color: '#fef3c7', textColor: '#d97706' },
+                on_track: { label: 'Em Dia', color: '#d1fae5', textColor: '#059669' }
+            };
+
+            let html = `<div style="margin-bottom: 1rem; padding: 0.75rem; background: #eff6ff; border-radius: 8px; font-size: 0.9rem; color: #1e40af;"><strong>${students.length}</strong> aluno${students.length !== 1 ? 's' : ''} precisando de chamada</div>`;
+
+            for (const [status, list] of Object.entries(groups)) {
+                if (list.length === 0) continue;
+                const { label, color, textColor } = groupLabels[status];
+
+                html += `<div style="margin-bottom: 1.5rem;">
+                    <div style="font-weight: 600; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="background: ${color}; color: ${textColor}; padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.85rem;">${label}</span>
+                        <span style="font-size: 0.8rem; color: #6b7280;">(${list.length})</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">`;
+
+                list.forEach(student => {
+                    const lastCall = lastCallMap[student.id];
+                    let lastCallText = 'Nunca fez chamada';
+                    let lastCallColor = '#dc2626';
+
+                    if (lastCall) {
+                        const d = new Date(lastCall + 'T00:00:00');
+                        const now = new Date();
+                        const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
+                        lastCallText = `Última: ${d.toLocaleDateString('pt-BR')} (${diffDays} dia${diffDays !== 1 ? 's' : ''})`;
+                        lastCallColor = '#6b7280';
+                    }
+
+                    html += `<div style="background: white; border: 1px solid #e5e7eb; border-left: 4px solid ${textColor}; border-radius: 8px; padding: 0.75rem;">
+                        <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem;">${_dn(student.full_name) || student.email}</div>
+                        <div style="font-size: 0.75rem; color: ${lastCallColor};">${lastCallText}</div>
+                    </div>`;
+                });
+
+                html += `</div></div>`;
+            }
+
+            container.innerHTML = html;
         }
 
         async function viewCallDetails(callId) {
