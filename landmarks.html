@@ -765,7 +765,7 @@
                 { value: 'America/Noronha', label: 'Fernando de Noronha (UTC-2)' },
             ]},
             { label: '🇺🇸 Estados Unidos', options: [
-                { value: 'America/New_York', label: 'Eastern - New York / Miami / Boston (UTC-5)' },
+                { value: 'America/New_York', label: 'Eastern - Florida / New York / Miami / Boston (UTC-5)' },
                 { value: 'America/Chicago', label: 'Central - Chicago / Houston / Dallas (UTC-6)' },
                 { value: 'America/Denver', label: 'Mountain - Denver / Salt Lake City (UTC-7)' },
                 { value: 'America/Los_Angeles', label: 'Pacific - Los Angeles / San Francisco (UTC-8)' },
@@ -856,6 +856,24 @@
             if (userId) {
                 await WardApp.db.from('users').update({ timezone: tz }).eq('id', userId);
             }
+        }
+
+        function friendlyTzName(tz) {
+            const map = {
+                'America/New_York': 'Florida / New York',
+                'America/Chicago': 'Chicago / Houston',
+                'America/Denver': 'Denver',
+                'America/Los_Angeles': 'Los Angeles',
+                'America/Phoenix': 'Arizona',
+                'America/Sao_Paulo': 'Brasilia',
+                'America/Manaus': 'Manaus',
+                'America/Rio_Branco': 'Acre',
+                'America/Noronha': 'Noronha',
+                'Europe/London': 'Londres',
+                'Europe/Lisbon': 'Lisboa',
+                'Europe/Paris': 'Paris',
+            };
+            return map[tz] || tz.split('/').pop().replace(/_/g, ' ');
         }
 
         // Convert time from mentor timezone to student timezone for display
@@ -1449,7 +1467,7 @@
                     const baseTime = call.scheduled_time.substring(0, 5);
                     if (studentTz !== mentorTz) {
                         const studentTime = convertTime(call.scheduled_date, baseTime, mentorTz, studentTz);
-                        const tzShort = studentTz.split('/').pop().replace(/_/g, ' ');
+                        const tzShort = friendlyTzName(studentTz);
                         datetime = `${WardApp.formatDate(call.scheduled_date)} às ${studentTime} (${tzShort})`;
                     } else {
                         datetime = `${WardApp.formatDate(call.scheduled_date)} às ${baseTime}`;
@@ -2450,7 +2468,7 @@
                 const studentTz = document.getElementById('availability-timezone')?.value || getStudentTimezone();
                 const mentorTz = await getMentorTimezone(mentor.id);
                 const showTzConversion = studentTz !== mentorTz;
-                const mentorTzShort = mentorTz.split('/').pop().replace(/_/g, ' ');
+                const mentorTzShort = friendlyTzName(mentorTz);
 
                 const hint = document.getElementById('availability-tz-hint');
                 if (hint && showTzConversion) {
@@ -2750,7 +2768,7 @@
             // Update timezone hint
             const hint = document.getElementById('schedule-tz-hint');
             if (hint && studentTz !== mentorTz) {
-                const mentorTzShort = mentorTz.split('/').pop().replace(/_/g, ' ');
+                const mentorTzShort = friendlyTzName(mentorTz);
                 hint.textContent = `Horarios do mentor em ${mentorTzShort}, convertidos para voce`;
             } else if (hint) { hint.textContent = ''; }
         }
