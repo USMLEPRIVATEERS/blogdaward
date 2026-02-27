@@ -539,13 +539,38 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Data *</label>
-                    <input type="date" id="new-call-date" class="form-input" onchange="loadNewCallTimeSlots()">
+                    <label class="form-label" style="margin-bottom: 0.5rem;">Modo de agendamento</label>
+                    <div style="display: flex; gap: 0; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--gray-300);">
+                        <button type="button" id="mode-availability-btn" onclick="switchCallMode('availability')" style="flex:1; padding: 0.5rem; font-size: 0.85rem; border: none; cursor: pointer; background: var(--primary); color: white; font-weight: 600;">📅 Da disponibilidade</button>
+                        <button type="button" id="mode-free-btn" onclick="switchCallMode('free')" style="flex:1; padding: 0.5rem; font-size: 0.85rem; border: none; cursor: pointer; background: var(--gray-100); color: var(--gray-600);">✏️ Livre</button>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Horario *</label>
-                    <input type="time" id="new-call-time" class="form-input" value="09:00">
-                    <div id="new-call-time-hint" style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;"></div>
+                <!-- Availability mode: selects from configured availability -->
+                <div id="call-mode-availability">
+                    <div class="form-group">
+                        <label class="form-label">Data *</label>
+                        <select id="new-call-date-select" class="form-input" onchange="loadAvailabilityTimeSlots()">
+                            <option value="">Selecione uma data...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Horario *</label>
+                        <select id="new-call-time-select" class="form-input">
+                            <option value="">Selecione uma data primeiro...</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Free mode: type any date/time -->
+                <div id="call-mode-free" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Data *</label>
+                        <input type="date" id="new-call-date" class="form-input" onchange="loadNewCallTimeSlots()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Horario *</label>
+                        <input type="time" id="new-call-time" class="form-input" value="09:00">
+                        <div id="new-call-time-hint" style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;"></div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Observacoes</label>
@@ -1502,6 +1527,37 @@
                 .sort((a, b) => a._displayName.localeCompare(b._displayName, 'pt-BR'));
         }
 
+        let callScheduleMode = 'availability'; // 'availability' or 'free'
+
+        function switchCallMode(mode) {
+            callScheduleMode = mode;
+            const avBtn = document.getElementById('mode-availability-btn');
+            const frBtn = document.getElementById('mode-free-btn');
+            const avDiv = document.getElementById('call-mode-availability');
+            const frDiv = document.getElementById('call-mode-free');
+
+            if (mode === 'availability') {
+                avBtn.style.background = 'var(--primary)';
+                avBtn.style.color = 'white';
+                avBtn.style.fontWeight = '600';
+                frBtn.style.background = 'var(--gray-100)';
+                frBtn.style.color = 'var(--gray-600)';
+                frBtn.style.fontWeight = 'normal';
+                avDiv.style.display = '';
+                frDiv.style.display = 'none';
+            } else {
+                frBtn.style.background = 'var(--primary)';
+                frBtn.style.color = 'white';
+                frBtn.style.fontWeight = '600';
+                avBtn.style.background = 'var(--gray-100)';
+                avBtn.style.color = 'var(--gray-600)';
+                avBtn.style.fontWeight = 'normal';
+                avDiv.style.display = 'none';
+                frDiv.style.display = '';
+                loadNewCallDates();
+            }
+        }
+
         async function openNewCallModal() {
             await loadStudentsList();
 
@@ -1513,15 +1569,132 @@
             // Reset fields
             document.getElementById('new-call-title').value = '';
             document.getElementById('new-call-notes').value = '';
+
+            // Default to availability mode
+            switchCallMode('availability');
+            await loadAvailabilityDates();
+
+            // Also prep free mode fields
             document.getElementById('new-call-time').value = '09:00';
             document.getElementById('new-call-time-hint').textContent = '';
-
-            // Set date input min to today
-            loadNewCallDates();
 
             openModal('new-call-modal');
         }
 
+        // ===== Availability mode: dates from configured availability =====
+        async function loadAvailabilityDates() {
+            const dateSelect = document.getElementById('new-call-date-select');
+            const timeSelect = document.getElementById('new-call-time-select');
+            dateSelect.innerHTML = '<option value="">Selecione uma data...</option>';
+            timeSelect.innerHTML = '<option value="">Selecione uma data primeiro...</option>';
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const dates = [];
+
+            // Generate next 60 days of available dates from regularAvailability
+            for (let d = 0; d < 60; d++) {
+                const date = new Date(today);
+                date.setDate(today.getDate() + d);
+                const dow = date.getDay(); // 0=Dom, 1=Seg...
+
+                const slotsForDay = regularAvailability.filter(s => s.day_of_week === dow);
+                if (slotsForDay.length > 0) {
+                    const yyyy = date.getFullYear();
+                    const mm = String(date.getMonth() + 1).padStart(2, '0');
+                    const dd = String(date.getDate()).padStart(2, '0');
+                    const dateStr = `${yyyy}-${mm}-${dd}`;
+                    const dayName = dayNames[dow];
+                    const label = `${dayName}, ${dd}/${mm}`;
+                    dates.push({ value: dateStr, label });
+                }
+            }
+
+            // Also add specific available dates
+            for (const sp of specificDates) {
+                if (sp.date_type === 'available' && sp.specific_date >= today.toISOString().split('T')[0]) {
+                    const parts = sp.specific_date.split('-');
+                    const spDate = new Date(parts[0], parts[1] - 1, parts[2]);
+                    const dayName = dayNames[spDate.getDay()];
+                    const label = `${dayName}, ${parts[2]}/${parts[1]} (especial)`;
+                    if (!dates.find(d => d.value === sp.specific_date)) {
+                        dates.push({ value: sp.specific_date, label });
+                    }
+                }
+            }
+
+            // Sort by date
+            dates.sort((a, b) => a.value.localeCompare(b.value));
+
+            dates.forEach(d => {
+                dateSelect.innerHTML += `<option value="${d.value}">${d.label}</option>`;
+            });
+        }
+
+        async function loadAvailabilityTimeSlots() {
+            const dateStr = document.getElementById('new-call-date-select').value;
+            const timeSelect = document.getElementById('new-call-time-select');
+            timeSelect.innerHTML = '<option value="">Carregando...</option>';
+
+            if (!dateStr) {
+                timeSelect.innerHTML = '<option value="">Selecione uma data primeiro...</option>';
+                return;
+            }
+
+            const parts = dateStr.split('-');
+            const selectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
+            const dow = selectedDate.getDay();
+
+            // Get time slots from regular availability for this day of week
+            let allSlots = [];
+            const slotsForDay = regularAvailability.filter(s => s.day_of_week === dow);
+            slotsForDay.forEach(avail => {
+                const duration = avail.duration_minutes || 60;
+                const breakMin = avail.break_minutes || 0;
+                const slots = generateTimeSlots(avail.start_time, avail.end_time, duration, breakMin);
+                slots.forEach(s => allSlots.push(s.start));
+            });
+
+            // Also check specific dates for this date
+            const specificForDate = specificDates.filter(sp => sp.specific_date === dateStr && sp.date_type === 'available');
+            specificForDate.forEach(sp => {
+                if (sp.start_time && sp.end_time) {
+                    const duration = sp.duration_minutes || 60;
+                    const breakMin = sp.break_minutes || 0;
+                    const slots = generateTimeSlots(sp.start_time, sp.end_time, duration, breakMin);
+                    slots.forEach(s => { if (!allSlots.includes(s.start)) allSlots.push(s.start); });
+                }
+            });
+
+            // Remove already booked times
+            const { data: booked } = await WardApp.db
+                .from('scheduled_calls')
+                .select('scheduled_time')
+                .eq('mentor_id', userData.id)
+                .eq('scheduled_date', dateStr)
+                .eq('status', 'scheduled');
+
+            const bookedTimes = (booked || []).map(b => b.scheduled_time.substring(0, 5));
+            allSlots = allSlots.filter(t => !bookedTimes.includes(t));
+
+            // Remove blocked dates
+            const blockedForDate = specificDates.filter(sp => sp.specific_date === dateStr && sp.date_type === 'blocked');
+            if (blockedForDate.length > 0) {
+                // If whole day is blocked, no slots
+                allSlots = [];
+            }
+
+            allSlots.sort();
+
+            if (allSlots.length === 0) {
+                timeSelect.innerHTML = '<option value="">Nenhum horario disponivel</option>';
+            } else {
+                timeSelect.innerHTML = '<option value="">Selecione um horario...</option>' +
+                    allSlots.map(t => `<option value="${t}">${t}</option>`).join('');
+            }
+        }
+
+        // ===== Free mode: any date/time =====
         function loadNewCallDates() {
             const dateInput = document.getElementById('new-call-date');
             const today = new Date().toISOString().split('T')[0];
@@ -1558,8 +1731,12 @@
         async function submitNewCall() {
             const title = document.getElementById('new-call-title').value.trim();
             const studentId = document.getElementById('new-call-student').value;
-            const dateStr = document.getElementById('new-call-date').value;
-            const time = document.getElementById('new-call-time').value;
+            const dateStr = callScheduleMode === 'availability'
+                ? document.getElementById('new-call-date-select').value
+                : document.getElementById('new-call-date').value;
+            const time = callScheduleMode === 'availability'
+                ? document.getElementById('new-call-time-select').value
+                : document.getElementById('new-call-time').value;
             const notes = document.getElementById('new-call-notes').value.trim();
 
             if (!title || !studentId || !dateStr || !time) {
