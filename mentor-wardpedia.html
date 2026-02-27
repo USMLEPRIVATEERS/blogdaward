@@ -1,0 +1,1600 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Gerenciar Wardpedia</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+    <style>
+        .mwp-header {
+            background: linear-gradient(135deg, #c2410c 0%, #9a3412 100%);
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            color: #fff;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .mwp-header h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .mwp-stats {
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .mwp-stat {
+            text-align: center;
+        }
+
+        .mwp-stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .mwp-stat-label {
+            font-size: 0.7rem;
+            opacity: 0.8;
+        }
+
+        /* Articles list */
+        .mwp-articles-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .mwp-articles-table th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            font-size: 0.8rem;
+            color: #6b7280;
+            border-bottom: 2px solid #e5e7eb;
+            font-weight: 600;
+        }
+
+        .mwp-articles-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 0.9rem;
+        }
+
+        .mwp-articles-table tr:hover {
+            background: #f9fafb;
+        }
+
+        .mwp-status-badge {
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .mwp-status-published {
+            background: #d1fae5;
+            color: #047857;
+        }
+
+        .mwp-status-draft {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .mwp-tag-small {
+            display: inline-block;
+            padding: 0.1rem 0.4rem;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            margin: 0.1rem;
+        }
+
+        .mwp-tag-step { background: #fee2e2; color: #dc2626; }
+        .mwp-tag-subject { background: #fff7ed; color: #b45309; }
+        .mwp-tag-system { background: #dbeafe; color: #1d4ed8; }
+
+        /* Article editor */
+        .mwp-editor-container {
+            display: none;
+        }
+
+        .mwp-editor-container.active {
+            display: block;
+        }
+
+        .mwp-editor-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            padding: 0.5rem;
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .mwp-toolbar-btn {
+            padding: 0.4rem 0.6rem;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .mwp-toolbar-btn:hover {
+            background: #c2410c;
+            color: #fff;
+            border-color: #c2410c;
+        }
+
+        .mwp-toolbar-divider {
+            width: 1px;
+            background: #d1d5db;
+            margin: 0 0.25rem;
+        }
+
+        .mwp-content-editor {
+            min-height: 400px;
+            max-height: 600px;
+            padding: 1.5rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 0 0 8px 8px;
+            background: #fff;
+            overflow-y: auto;
+            line-height: 1.8;
+            font-size: 1rem;
+        }
+
+        .mwp-content-editor:focus {
+            outline: none;
+            border-color: #c2410c;
+        }
+
+        .mwp-content-editor:empty:before {
+            content: attr(data-placeholder);
+            color: #9ca3af;
+        }
+
+        .mwp-content-editor img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* Tag selector */
+        .mwp-tag-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.3rem;
+            padding: 0.5rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            min-height: 40px;
+            background: #fff;
+        }
+
+        .mwp-tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            transition: all 0.2s;
+        }
+
+        .mwp-tag-chip:hover {
+            border-color: #c2410c;
+        }
+
+        .mwp-tag-chip.selected {
+            background: #c2410c;
+            color: #fff;
+            border-color: #c2410c;
+        }
+
+        .mwp-tag-chip.cat-chip.selected {
+            background: #059669;
+            color: #fff;
+            border-color: #059669;
+        }
+
+        .mwp-tag-chip.step-chip.selected {
+            background: #dc2626;
+            color: #fff;
+            border-color: #dc2626;
+        }
+
+        /* Tag management section */
+        .mwp-tag-manager {
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .mwp-add-tag-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .mwp-add-tag-row input {
+            flex: 1;
+            padding: 0.4rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .mwp-add-tag-row button {
+            padding: 0.4rem 0.75rem;
+            background: #c2410c;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        /* Modal lg variant */
+        .modal.modal-lg {
+            max-width: 700px;
+        }
+
+        /* Inline tag add button in editor */
+        .mwp-tag-add-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.2rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border: 2px dashed #d1d5db;
+            background: #fff;
+            color: #6b7280;
+            transition: all 0.2s;
+        }
+
+        .mwp-tag-add-btn:hover {
+            border-color: #c2410c;
+            color: #c2410c;
+        }
+
+        .mwp-inline-tag-input {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .mwp-inline-tag-input input {
+            width: 140px;
+            padding: 0.2rem 0.5rem;
+            border: 2px solid #c2410c;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            outline: none;
+        }
+
+        .mwp-inline-tag-input button {
+            padding: 0.2rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            border: none;
+        }
+
+        .mwp-inline-tag-input .mwp-inline-confirm {
+            background: #c2410c;
+            color: #fff;
+        }
+
+        .mwp-inline-tag-input .mwp-inline-cancel {
+            background: #e5e7eb;
+            color: #6b7280;
+        }
+
+        /* Math preview */
+        #math-preview-content .katex-display {
+            margin: 1.2rem 0;
+            padding: 0.75rem 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #c2410c;
+            overflow-x: auto;
+        }
+
+        #math-preview-content .katex {
+            font-size: 1.1em;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .mwp-header {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 1rem;
+            }
+
+            .mwp-stats {
+                gap: 1rem;
+            }
+
+            /* Make articles table scrollable on mobile */
+            .mwp-table-wrapper {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .mwp-articles-table th,
+            .mwp-articles-table td {
+                padding: 0.5rem 0.6rem;
+                font-size: 0.8rem;
+                white-space: nowrap;
+            }
+
+            .mwp-content-editor {
+                min-height: 250px;
+                padding: 1rem;
+                font-size: 0.9rem;
+            }
+
+            .mwp-toolbar-btn {
+                padding: 0.35rem 0.45rem;
+                font-size: 0.75rem;
+            }
+
+            .mwp-tag-chip {
+                font-size: 0.7rem;
+                padding: 0.2rem 0.5rem;
+            }
+
+            /* Stack tag grid and author+title on mobile */
+            div[style*="grid-template-columns: 1fr 1fr"],
+            div[style*="grid-template-columns: 1fr 2fr"] {
+                display: flex !important;
+                flex-direction: column !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </a>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="/mentor-dashboard-marcos" class="nav-link">Dashboard</a>
+                <a href="/mentor-cronograma" class="nav-link">Cronograma</a>
+                <a href="/mentor-chamadas" class="nav-link">Chamadas</a>
+                <a href="/admin-members" class="nav-link">Membros</a>
+                <a href="/mentor-wardpedia" class="nav-link active">Wardpedia</a>
+                <a href="/links" class="nav-link">Links</a>
+                <a href="/blog" class="nav-link">Blog</a>
+                <a href="/pesquisa" class="nav-link">Pesquisa</a>
+            </nav>
+            <div class="nav-user">
+                <span class="user-name">Marcos</span>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <!-- Header -->
+        <div class="mwp-header">
+            <div>
+                <h1>📖 Gerenciar Wardpedia</h1>
+            </div>
+            <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                <div class="mwp-stats">
+                    <div class="mwp-stat">
+                        <div class="mwp-stat-value" id="stat-total">0</div>
+                        <div class="mwp-stat-label">Total</div>
+                    </div>
+                    <div class="mwp-stat">
+                        <div class="mwp-stat-value" id="stat-published">0</div>
+                        <div class="mwp-stat-label">Publicados</div>
+                    </div>
+                    <div class="mwp-stat">
+                        <div class="mwp-stat-value" id="stat-drafts">0</div>
+                        <div class="mwp-stat-label">Rascunhos</div>
+                    </div>
+                </div>
+                <button class="btn" style="background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.4);" onclick="showEditor(null)">
+                    + Novo Artigo
+                </button>
+                <a href="/wardpedia" class="btn" style="background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.4); text-decoration: none;">
+                    👁️ Ver Wardpedia
+                </a>
+            </div>
+        </div>
+
+        <!-- Articles List -->
+        <div class="card mb-4" id="articles-list-section">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>📄 Artigos</span>
+                <div style="display: flex; gap: 0.5rem;">
+                    <select id="filter-status" class="form-input" style="width: auto; padding: 0.25rem 0.5rem; font-size: 0.85rem;" onchange="filterArticles()">
+                        <option value="">Todos</option>
+                        <option value="published">Publicados</option>
+                        <option value="draft">Rascunhos</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline" onclick="showTagManager()">🏷️ Gerenciar Tags</button>
+                </div>
+            </div>
+            <div class="card-body mwp-table-wrapper">
+                <table class="mwp-articles-table">
+                    <thead>
+                        <tr>
+                            <th>Titulo</th>
+                            <th>Autor</th>
+                            <th>Tags</th>
+                            <th>Status</th>
+                            <th>Views</th>
+                            <th>Favs</th>
+                            <th>Data</th>
+                            <th>Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="articles-table-body">
+                        <!-- Filled by JS -->
+                    </tbody>
+                </table>
+                <div id="no-articles" style="display: none; text-align: center; padding: 2rem; color: #9ca3af;">
+                    Nenhum artigo encontrado. Clique em "+ Novo Artigo" para criar.
+                </div>
+            </div>
+        </div>
+
+        <!-- Article Editor -->
+        <div class="mwp-editor-container" id="editor-section">
+            <div class="card">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span id="editor-title">📝 Novo Artigo</span>
+                    <button class="btn btn-sm btn-outline" onclick="hideEditor()">← Voltar para Lista</button>
+                </div>
+                <div class="card-body">
+                    <input type="hidden" id="edit-article-id">
+
+                    <!-- Author + Title row -->
+                    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem;">
+                        <!-- Author -->
+                        <div class="form-group">
+                            <label class="form-label">Autor do Artigo</label>
+                            <select id="edit-author" class="form-input">
+                                <!-- Filled by JS (loadMentors) -->
+                            </select>
+                        </div>
+
+                        <!-- Title -->
+                        <div class="form-group">
+                            <label class="form-label">Titulo do Artigo *</label>
+                            <input type="text" id="edit-title" class="form-input" placeholder="Ex: Heart Failure - Diagnostico e Tratamento">
+                        </div>
+                    </div>
+
+                    <!-- Summary -->
+                    <div class="form-group">
+                        <label class="form-label">Resumo (aparece no card)</label>
+                        <textarea id="edit-summary" class="form-textarea" rows="2" placeholder="Breve descricao do conteudo do artigo..." maxlength="300"></textarea>
+                    </div>
+
+                    <!-- Content Editor -->
+                    <div class="form-group">
+                        <label class="form-label">Conteudo do Artigo * <span style="font-weight: normal; color: #6b7280; font-size: 0.8rem;">(cole texto formatado com imagens)</span></label>
+
+                        <!-- Toolbar -->
+                        <div class="mwp-editor-toolbar">
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('bold')" title="Negrito"><b>B</b></button>
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('italic')" title="Italico"><i>I</i></button>
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('underline')" title="Sublinhado"><u>U</u></button>
+                            <div class="mwp-toolbar-divider"></div>
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('formatBlock', 'h2')" title="Titulo">H2</button>
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('formatBlock', 'h3')" title="Subtitulo">H3</button>
+                            <div class="mwp-toolbar-divider"></div>
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('insertUnorderedList')" title="Lista">• ―</button>
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('insertOrderedList')" title="Lista numerada">1.</button>
+                            <div class="mwp-toolbar-divider"></div>
+                            <button type="button" class="mwp-toolbar-btn" onclick="formatDoc('formatBlock', 'blockquote')" title="Citacao">""</button>
+                            <button type="button" class="mwp-toolbar-btn" onclick="insertTable()" title="Tabela">▦</button>
+                            <div class="mwp-toolbar-divider"></div>
+                            <button type="button" class="mwp-toolbar-btn" onclick="document.getElementById('article-image-upload').click()" title="Inserir Imagem">🖼️</button>
+                            <input type="file" id="article-image-upload" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
+                            <div class="mwp-toolbar-divider"></div>
+                            <button type="button" class="mwp-toolbar-btn" onclick="insertFormula()" title="Inserir Formula" style="font-size: 0.75rem;">∑ fx</button>
+                            <button type="button" class="mwp-toolbar-btn" onclick="previewMath()" title="Preview Formulas" style="font-size: 0.75rem;">👁 Math</button>
+                        </div>
+
+                        <!-- Content editable -->
+                        <div id="edit-content"
+                             class="mwp-content-editor"
+                             contenteditable="true"
+                             data-placeholder="Cole ou escreva o conteudo do artigo aqui. Voce pode colar texto formatado com imagens diretamente...">
+                        </div>
+                    </div>
+
+                    <!-- Tags Section -->
+                    <!-- Steps -->
+                    <div class="form-group">
+                        <label class="form-label">🎯 Step / Exam (selecione um ou mais)</label>
+                        <div class="mwp-tag-selector" id="steps-selector">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <!-- Subjects -->
+                        <div class="form-group">
+                            <label class="form-label">📚 Subjects (selecione um ou mais)</label>
+                            <div class="mwp-tag-selector" id="subjects-selector">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Systems -->
+                        <div class="form-group">
+                            <label class="form-label">🔬 Systems (selecione um ou mais)</label>
+                            <div class="mwp-tag-selector" id="systems-selector">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Categories (appears based on selected systems) -->
+                    <div class="form-group" id="categories-section" style="display: none;">
+                        <label class="form-label">📂 Categories (baseado nos Systems selecionados)</label>
+                        <div class="mwp-tag-selector" id="categories-selector">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 2px solid #e5e7eb;">
+                        <button class="btn btn-primary" onclick="saveArticle(true)">📤 Publicar</button>
+                        <button class="btn btn-outline" onclick="saveArticle(false)">💾 Salvar Rascunho</button>
+                        <button class="btn btn-secondary" onclick="hideEditor()">Cancelar</button>
+                        <button class="btn" style="background: #dc2626; color: #fff; margin-left: auto;" id="delete-article-btn" onclick="deleteArticle()" style="display: none;">🗑️ Excluir</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tag Manager Modal -->
+        <div id="tag-manager-modal" class="modal-overlay">
+            <div class="modal modal-lg">
+                <div class="modal-header">
+                    <h3 class="modal-title">🏷️ Gerenciar Tags da Wardpedia</h3>
+                    <button class="modal-close" onclick="closeModal('tag-manager-modal')">&times;</button>
+                </div>
+                <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                    <!-- Steps -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 0.75rem;">🎯 Steps / Exams</h4>
+                        <div id="tag-mgr-steps"></div>
+                        <div class="mwp-add-tag-row">
+                            <input type="text" id="new-step-name" placeholder="Novo step/exam...">
+                            <button onclick="addStepTag()">Adicionar</button>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                        <!-- Subjects -->
+                        <div>
+                            <h4 style="margin: 0 0 0.75rem;">📚 Subjects</h4>
+                            <div id="tag-mgr-subjects"></div>
+                            <div class="mwp-add-tag-row">
+                                <input type="text" id="new-subject-name" placeholder="Novo subject...">
+                                <button onclick="addSubjectTag()">Adicionar</button>
+                            </div>
+                        </div>
+
+                        <!-- Systems -->
+                        <div>
+                            <h4 style="margin: 0 0 0.75rem;">🔬 Systems</h4>
+                            <div id="tag-mgr-systems"></div>
+                            <div class="mwp-add-tag-row">
+                                <input type="text" id="new-system-name" placeholder="Novo system...">
+                                <button onclick="addSystemTag()">Adicionar</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Categories per System -->
+                    <div style="margin-top: 1.5rem;">
+                        <h4 style="margin: 0 0 0.75rem;">📂 Categories por System</h4>
+                        <div class="form-group">
+                            <select id="cat-system-select" class="form-input" style="width: auto;" onchange="loadCategoriesForSystem()">
+                                <option value="">Selecione um System...</option>
+                            </select>
+                        </div>
+                        <div id="tag-mgr-categories"></div>
+                        <div class="mwp-add-tag-row" id="add-category-row" style="display: none;">
+                            <input type="text" id="new-category-name" placeholder="Nova category...">
+                            <button onclick="addCategoryTag()">Adicionar</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal('tag-manager-modal')">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let allArticles = [];
+        let allSteps = [];
+        let allSubjects = [];
+        let allSystems = [];
+        let allCategories = [];
+        let allMentors = [];
+
+        // Editor state
+        let editingArticleId = null;
+        let selectedEditorSteps = [];
+        let selectedEditorSubjects = [];
+        let selectedEditorSystems = [];
+        let selectedEditorCategories = [];
+
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyoUKUw5etvmheffSAU7LflDrUDOElLb-nCTFEial7en78J04tJWWe4SB8KwojGrvVqOg/exec';
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Only mentors can access
+            if (!userData.role || !userData.role.startsWith('mentor_')) {
+                alert('Acesso restrito a mentores.');
+                window.location.href = '/dashboard';
+                return;
+            }
+
+            await Promise.all([
+                loadAllArticles(),
+                loadSteps(),
+                loadSubjects(),
+                loadSystems(),
+                loadCategories(),
+                loadMentors()
+            ]);
+
+            renderArticlesList();
+            updateStats();
+
+            // Setup paste handler for editor
+            setupEditorPaste();
+        });
+
+        // =============================================
+        // DATA LOADING
+        // =============================================
+
+        async function loadAllArticles() {
+            const { data } = await WardApp.db
+                .from('wardpedia_articles')
+                .select('*')
+                .order('created_at', { ascending: false });
+            allArticles = data || [];
+        }
+
+        async function loadSteps() {
+            const { data } = await WardApp.db
+                .from('wardpedia_steps')
+                .select('*')
+                .order('order_position', { ascending: true });
+            allSteps = data || [];
+        }
+
+        async function loadSubjects() {
+            const { data } = await WardApp.db
+                .from('wardpedia_subjects')
+                .select('*')
+                .order('order_position', { ascending: true });
+            allSubjects = data || [];
+        }
+
+        async function loadSystems() {
+            const { data } = await WardApp.db
+                .from('wardpedia_systems')
+                .select('*')
+                .order('order_position', { ascending: true });
+            allSystems = data || [];
+        }
+
+        async function loadCategories() {
+            const { data } = await WardApp.db
+                .from('wardpedia_categories')
+                .select('*')
+                .order('order_position', { ascending: true });
+            allCategories = data || [];
+        }
+
+        async function loadMentors() {
+            const { data } = await WardApp.db
+                .from('users')
+                .select('id, name, full_name, role')
+                .like('role', 'mentor_%');
+            allMentors = data || [];
+            renderAuthorSelect();
+        }
+
+        function renderAuthorSelect() {
+            const select = document.getElementById('edit-author');
+            if (!select) return;
+
+            // Find mentor_iria to use as default
+            const iriaId = allMentors.find(m => m.role === 'mentor_iria')?.id || '';
+
+            select.innerHTML = allMentors.map(m => {
+                const displayName = m.full_name || m.name || m.role;
+                const isDefault = m.role === 'mentor_iria';
+                return `<option value="${m.id}" ${isDefault ? 'selected' : ''}>${displayName}</option>`;
+            }).join('');
+        }
+
+        // =============================================
+        // ARTICLES LIST
+        // =============================================
+
+        function updateStats() {
+            const published = allArticles.filter(a => a.is_published).length;
+            document.getElementById('stat-total').textContent = allArticles.length;
+            document.getElementById('stat-published').textContent = published;
+            document.getElementById('stat-drafts').textContent = allArticles.length - published;
+        }
+
+        function filterArticles() {
+            renderArticlesList();
+        }
+
+        function renderArticlesList() {
+            const statusFilter = document.getElementById('filter-status').value;
+            let articles = [...allArticles];
+
+            if (statusFilter === 'published') articles = articles.filter(a => a.is_published);
+            if (statusFilter === 'draft') articles = articles.filter(a => !a.is_published);
+
+            const tbody = document.getElementById('articles-table-body');
+            const noArticles = document.getElementById('no-articles');
+
+            if (articles.length === 0) {
+                tbody.innerHTML = '';
+                noArticles.style.display = 'block';
+                return;
+            }
+
+            noArticles.style.display = 'none';
+            tbody.innerHTML = articles.map(a => {
+                const date = new Date(a.created_at).toLocaleDateString('pt-BR');
+                const status = a.is_published
+                    ? '<span class="mwp-status-badge mwp-status-published">Publicado</span>'
+                    : '<span class="mwp-status-badge mwp-status-draft">Rascunho</span>';
+
+                let tags = '';
+                if (a.steps) tags += a.steps.map(s => `<span class="mwp-tag-small mwp-tag-step">${s}</span>`).join('');
+                if (a.subjects) tags += a.subjects.slice(0, 2).map(s => `<span class="mwp-tag-small mwp-tag-subject">${s}</span>`).join('');
+                if (a.systems) tags += a.systems.slice(0, 2).map(s => `<span class="mwp-tag-small mwp-tag-system">${s}</span>`).join('');
+
+                const mentor = allMentors.find(m => String(m.id) === String(a.author_id));
+                const authorName = mentor ? (mentor.full_name || mentor.name || mentor.role) : '-';
+
+                return `
+                    <tr>
+                        <td style="max-width: 300px;">
+                            <div style="font-weight: 500;">${escapeHtml(a.title)}</div>
+                            ${a.summary ? `<div style="font-size: 0.8rem; color: #9ca3af; margin-top: 0.25rem;">${escapeHtml(a.summary).substring(0, 80)}...</div>` : ''}
+                        </td>
+                        <td style="font-size: 0.8rem; white-space: nowrap;">${escapeHtml(authorName)}</td>
+                        <td>${tags || '<span style="color: #d1d5db;">-</span>'}</td>
+                        <td>${status}</td>
+                        <td>${a.view_count || 0}</td>
+                        <td>${a.favorite_count || 0}</td>
+                        <td>${date}</td>
+                        <td>
+                            <div style="display: flex; gap: 0.25rem;">
+                                <button class="btn btn-sm btn-outline" onclick="showEditor('${a.id}')" title="Editar">✏️</button>
+                                <button class="btn btn-sm btn-outline" onclick="window.open('/wardpedia-article?id=${a.id}', '_blank')" title="Visualizar">👁️</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // =============================================
+        // EDITOR
+        // =============================================
+
+        function showEditor(articleId) {
+            editingArticleId = articleId;
+            const editorSection = document.getElementById('editor-section');
+            const listSection = document.getElementById('articles-list-section');
+
+            listSection.style.display = 'none';
+            editorSection.classList.add('active');
+
+            const authorSelect = document.getElementById('edit-author');
+
+            if (articleId) {
+                // Editing existing article
+                const article = allArticles.find(a => String(a.id) === String(articleId));
+                if (!article) return;
+
+                document.getElementById('editor-title').textContent = '✏️ Editar Artigo';
+                document.getElementById('edit-article-id').value = articleId;
+                document.getElementById('edit-title').value = article.title;
+                document.getElementById('edit-summary').value = article.summary || '';
+                document.getElementById('edit-content').innerHTML = article.content || '';
+
+                // Set author select to article's author
+                if (article.author_id) {
+                    authorSelect.value = String(article.author_id);
+                }
+
+                selectedEditorSteps = [...(article.steps || [])];
+                selectedEditorSubjects = [...(article.subjects || [])];
+                selectedEditorSystems = [...(article.systems || [])];
+                selectedEditorCategories = [...(article.categories || [])];
+
+                document.getElementById('delete-article-btn').style.display = 'inline-block';
+            } else {
+                // New article - default to Dra. Iria
+                document.getElementById('editor-title').textContent = '📝 Novo Artigo';
+                document.getElementById('edit-article-id').value = '';
+                document.getElementById('edit-title').value = '';
+                document.getElementById('edit-summary').value = '';
+                document.getElementById('edit-content').innerHTML = '';
+
+                const iria = allMentors.find(m => m.role === 'mentor_iria');
+                if (iria) authorSelect.value = String(iria.id);
+
+                selectedEditorSteps = [];
+                selectedEditorSubjects = [];
+                selectedEditorSystems = [];
+                selectedEditorCategories = [];
+
+                document.getElementById('delete-article-btn').style.display = 'none';
+            }
+
+            renderEditorTags();
+            window.scrollTo(0, 0);
+        }
+
+        function hideEditor() {
+            const editorSection = document.getElementById('editor-section');
+            const listSection = document.getElementById('articles-list-section');
+
+            editorSection.classList.remove('active');
+            listSection.style.display = 'block';
+            editingArticleId = null;
+        }
+
+        function renderEditorTags() {
+            // Steps
+            const stepsSelector = document.getElementById('steps-selector');
+            stepsSelector.innerHTML = allSteps.map(s => {
+                const isSelected = selectedEditorSteps.includes(s.name);
+                return `<button class="mwp-tag-chip step-chip ${isSelected ? 'selected' : ''}"
+                    onclick="toggleEditorStep('${s.name}')">${s.name}</button>`;
+            }).join('') + `<button class="mwp-tag-add-btn" onclick="showInlineTagInput(this, 'step')">+ Novo</button>`;
+
+            // Subjects
+            const subjectsSelector = document.getElementById('subjects-selector');
+            subjectsSelector.innerHTML = allSubjects.map(s => {
+                const isSelected = selectedEditorSubjects.includes(s.name);
+                return `<button class="mwp-tag-chip ${isSelected ? 'selected' : ''}"
+                    onclick="toggleEditorSubject('${s.name}')">${s.name}</button>`;
+            }).join('') + `<button class="mwp-tag-add-btn" onclick="showInlineTagInput(this, 'subject')">+ Novo</button>`;
+
+            // Systems
+            const systemsSelector = document.getElementById('systems-selector');
+            systemsSelector.innerHTML = allSystems.map(s => {
+                const isSelected = selectedEditorSystems.includes(s.name);
+                return `<button class="mwp-tag-chip ${isSelected ? 'selected' : ''}"
+                    onclick="toggleEditorSystem('${s.name}')">${s.name}</button>`;
+            }).join('') + `<button class="mwp-tag-add-btn" onclick="showInlineTagInput(this, 'system')">+ Novo</button>`;
+
+            // Categories (based on selected systems)
+            const categoriesSection = document.getElementById('categories-section');
+            const categoriesSelector = document.getElementById('categories-selector');
+
+            if (selectedEditorSystems.length === 0) {
+                categoriesSection.style.display = 'none';
+                return;
+            }
+
+            categoriesSection.style.display = 'block';
+            const relevantSystemIds = allSystems
+                .filter(s => selectedEditorSystems.includes(s.name))
+                .map(s => s.id);
+
+            const relevantCategories = allCategories.filter(c => relevantSystemIds.includes(c.system_id));
+
+            // Group by system
+            let html = '';
+            selectedEditorSystems.forEach(sysName => {
+                const sys = allSystems.find(s => s.name === sysName);
+                if (!sys) return;
+                const cats = allCategories.filter(c => c.system_id === sys.id);
+
+                html += `<div style="width: 100%; font-size: 0.75rem; color: #6b7280; font-weight: 600; margin-top: 0.25rem;">${sysName}:</div>`;
+                cats.forEach(c => {
+                    const catKey = sysName + '::' + c.name;
+                    const isSelected = selectedEditorCategories.includes(catKey);
+                    html += `<button class="mwp-tag-chip cat-chip ${isSelected ? 'selected' : ''}"
+                        onclick="toggleEditorCategory('${sysName}', '${c.name}')">${c.name}</button>`;
+                });
+                html += `<button class="mwp-tag-add-btn" onclick="showInlineTagInput(this, 'category', ${sys.id})">+ Novo</button>`;
+            });
+
+            if (!html) {
+                categoriesSelector.innerHTML = '<span style="color: #9ca3af; font-size: 0.85rem;">Nenhuma category para os systems selecionados</span>';
+                return;
+            }
+
+            categoriesSelector.innerHTML = html;
+        }
+
+        function toggleEditorStep(name) {
+            const idx = selectedEditorSteps.indexOf(name);
+            if (idx >= 0) selectedEditorSteps.splice(idx, 1);
+            else selectedEditorSteps.push(name);
+            renderEditorTags();
+        }
+
+        function toggleEditorSubject(name) {
+            const idx = selectedEditorSubjects.indexOf(name);
+            if (idx >= 0) selectedEditorSubjects.splice(idx, 1);
+            else selectedEditorSubjects.push(name);
+            renderEditorTags();
+        }
+
+        function toggleEditorSystem(name) {
+            const idx = selectedEditorSystems.indexOf(name);
+            if (idx >= 0) {
+                selectedEditorSystems.splice(idx, 1);
+                // Remove categories for this system
+                selectedEditorCategories = selectedEditorCategories.filter(c => !c.startsWith(name + '::'));
+            } else {
+                selectedEditorSystems.push(name);
+            }
+            renderEditorTags();
+        }
+
+        function toggleEditorCategory(systemName, categoryName) {
+            const key = systemName + '::' + categoryName;
+            const idx = selectedEditorCategories.indexOf(key);
+            if (idx >= 0) selectedEditorCategories.splice(idx, 1);
+            else selectedEditorCategories.push(key);
+            renderEditorTags();
+        }
+
+        // =============================================
+        // SAVE / DELETE ARTICLE
+        // =============================================
+
+        async function saveArticle(publish) {
+            const title = document.getElementById('edit-title').value.trim();
+            const summary = document.getElementById('edit-summary').value.trim();
+            const content = document.getElementById('edit-content').innerHTML.trim();
+
+            if (!title) {
+                WardApp.showToast('Titulo e obrigatorio', 'error');
+                return;
+            }
+
+            if (!content || content === '<br>') {
+                WardApp.showToast('Conteudo e obrigatorio', 'error');
+                return;
+            }
+
+            const selectedAuthorId = parseInt(document.getElementById('edit-author').value);
+
+            const articleData = {
+                title,
+                summary,
+                content,
+                author_id: selectedAuthorId || userData.id,
+                steps: selectedEditorSteps,
+                subjects: selectedEditorSubjects,
+                systems: selectedEditorSystems,
+                categories: selectedEditorCategories,
+                is_published: publish,
+                updated_at: new Date().toISOString()
+            };
+
+            let result;
+
+            if (editingArticleId) {
+                // Update
+                result = await WardApp.db
+                    .from('wardpedia_articles')
+                    .update(articleData)
+                    .eq('id', editingArticleId)
+                    .select();
+            } else {
+                // Insert
+                articleData.created_at = new Date().toISOString();
+                result = await WardApp.db
+                    .from('wardpedia_articles')
+                    .insert(articleData)
+                    .select();
+            }
+
+            if (result.error) {
+                console.error('Save error:', result.error);
+                WardApp.showToast('Erro ao salvar artigo', 'error');
+                return;
+            }
+
+            WardApp.showToast(publish ? 'Artigo publicado!' : 'Rascunho salvo!', 'success');
+
+            // Reload and go back to list
+            await loadAllArticles();
+            renderArticlesList();
+            updateStats();
+            hideEditor();
+        }
+
+        async function deleteArticle() {
+            if (!editingArticleId) return;
+            if (!confirm('Tem certeza que deseja excluir este artigo? Esta acao nao pode ser desfeita.')) return;
+
+            const { error } = await WardApp.db
+                .from('wardpedia_articles')
+                .delete()
+                .eq('id', editingArticleId);
+
+            if (error) {
+                WardApp.showToast('Erro ao excluir artigo', 'error');
+                return;
+            }
+
+            WardApp.showToast('Artigo excluido', 'info');
+            await loadAllArticles();
+            renderArticlesList();
+            updateStats();
+            hideEditor();
+        }
+
+        // =============================================
+        // EDITOR UTILITIES
+        // =============================================
+
+        function formatDoc(command, value) {
+            document.execCommand(command, false, value || null);
+            document.getElementById('edit-content').focus();
+        }
+
+        function insertTable() {
+            const html = `
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                    <tr>
+                        <th style="border: 1px solid #e5e7eb; padding: 0.5rem; background: #f9fafb;">Header 1</th>
+                        <th style="border: 1px solid #e5e7eb; padding: 0.5rem; background: #f9fafb;">Header 2</th>
+                        <th style="border: 1px solid #e5e7eb; padding: 0.5rem; background: #f9fafb;">Header 3</th>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #e5e7eb; padding: 0.5rem;">Cell 1</td>
+                        <td style="border: 1px solid #e5e7eb; padding: 0.5rem;">Cell 2</td>
+                        <td style="border: 1px solid #e5e7eb; padding: 0.5rem;">Cell 3</td>
+                    </tr>
+                </table>
+            `;
+            document.execCommand('insertHTML', false, html);
+        }
+
+        function insertFormula() {
+            const formula = prompt(
+                'Digite a formula LaTeX:\n\n' +
+                'Exemplos:\n' +
+                '  Fracao: \\frac{a}{b}\n' +
+                '  Subscrito: t_{1/2}\n' +
+                '  Raiz: \\sqrt{x}\n' +
+                '  Somatorio: \\sum_{i=1}^{n} x_i\n' +
+                '  Grego: \\alpha, \\beta, \\Delta\n' +
+                '  Vezes: \\times   Dividido: \\div',
+                '\\frac{0.693 \\times Vd}{CL}'
+            );
+
+            if (formula) {
+                document.execCommand('insertHTML', false, ` $$${formula}$$ `);
+            }
+        }
+
+        function previewMath() {
+            if (typeof renderMathInElement === 'undefined') {
+                WardApp.showToast('KaTeX ainda carregando, tente novamente...', 'info');
+                return;
+            }
+
+            const editor = document.getElementById('edit-content');
+
+            // KaTeX auto-render modifies DOM in place - we need to work on a clone
+            // to not break contenteditable. Instead, open a preview modal.
+            let previewModal = document.getElementById('math-preview-modal');
+            if (!previewModal) {
+                previewModal = document.createElement('div');
+                previewModal.id = 'math-preview-modal';
+                previewModal.className = 'modal-overlay';
+                previewModal.innerHTML = `
+                    <div class="modal modal-lg">
+                        <div class="modal-header">
+                            <h3 class="modal-title">Preview de Formulas</h3>
+                            <button class="modal-close" onclick="closeModal('math-preview-modal')">&times;</button>
+                        </div>
+                        <div class="modal-body" id="math-preview-content" style="max-height: 70vh; overflow-y: auto; line-height: 1.8; padding: 1.5rem;">
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" onclick="closeModal('math-preview-modal')">Fechar</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(previewModal);
+            }
+
+            const previewContent = document.getElementById('math-preview-content');
+            previewContent.innerHTML = editor.innerHTML;
+
+            renderMathInElement(previewContent, {
+                delimiters: [
+                    { left: '$$', right: '$$', display: true },
+                    { left: '$', right: '$', display: false },
+                    { left: '\\[', right: '\\]', display: true },
+                    { left: '\\(', right: '\\)', display: false }
+                ],
+                throwOnError: false,
+                trust: true
+            });
+
+            openModal('math-preview-modal');
+        }
+
+        function setupEditorPaste() {
+            const editor = document.getElementById('edit-content');
+            editor.addEventListener('paste', async function(e) {
+                // Check for pasted images first (screenshots, copied images)
+                const items = e.clipboardData.items;
+                let imageFile = null;
+
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.startsWith('image/')) {
+                        imageFile = items[i].getAsFile();
+                        break;
+                    }
+                }
+
+                if (imageFile) {
+                    e.preventDefault();
+
+                    if (imageFile.size > 5 * 1024 * 1024) {
+                        WardApp.showToast('Imagem muito grande (max 5MB)', 'error');
+                        return;
+                    }
+
+                    // Insert a placeholder while uploading
+                    const placeholderId = 'img-upload-' + Date.now();
+                    document.execCommand('insertHTML', false,
+                        `<span id="${placeholderId}" style="display:inline-block;padding:0.5rem 1rem;background:#f3f4f6;border-radius:8px;color:#6b7280;font-size:0.85rem;">📤 Enviando imagem...</span>`
+                    );
+
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', imageFile);
+                        formData.append('folder', 'wardpedia');
+
+                        const response = await fetch(GOOGLE_SCRIPT_URL, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const result = await response.json();
+                        const placeholder = document.getElementById(placeholderId);
+
+                        if (result.url && placeholder) {
+                            const img = document.createElement('img');
+                            img.src = result.url;
+                            img.alt = 'Imagem colada';
+                            img.style.cssText = 'max-width: 100%; height: auto; border-radius: 8px; margin: 0.5rem 0;';
+                            placeholder.replaceWith(img);
+                            WardApp.showToast('Imagem inserida!', 'success');
+                        } else if (placeholder) {
+                            placeholder.remove();
+                            WardApp.showToast('Erro ao enviar imagem', 'error');
+                        }
+                    } catch (err) {
+                        console.error('Paste image upload error:', err);
+                        const placeholder = document.getElementById(placeholderId);
+                        if (placeholder) placeholder.remove();
+                        WardApp.showToast('Erro ao enviar imagem', 'error');
+                    }
+
+                    return;
+                }
+
+                // Handle HTML / text paste
+                e.preventDefault();
+                const html = e.clipboardData.getData('text/html');
+                const text = e.clipboardData.getData('text/plain');
+
+                if (html) {
+                    const temp = document.createElement('div');
+                    temp.innerHTML = html;
+
+                    // Clean up pasted HTML - remove colors but keep structure
+                    const allElements = temp.querySelectorAll('*');
+                    allElements.forEach(el => {
+                        el.style.color = '';
+                        el.style.backgroundColor = '';
+                        el.style.background = '';
+                        el.style.fontFamily = '';
+
+                        if (el.getAttribute('style')) {
+                            let style = el.getAttribute('style');
+                            style = style.replace(/color\s*:\s*[^;]+;?/gi, '');
+                            style = style.replace(/background(-color)?\s*:\s*[^;]+;?/gi, '');
+                            style = style.replace(/font-family\s*:\s*[^;]+;?/gi, '');
+                            el.setAttribute('style', style.trim() || '');
+                            if (!el.getAttribute('style')) el.removeAttribute('style');
+                        }
+                    });
+
+                    document.execCommand('insertHTML', false, temp.innerHTML);
+                } else if (text) {
+                    document.execCommand('insertText', false, text);
+                }
+            });
+        }
+
+        async function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                WardApp.showToast('Selecione uma imagem valida', 'error');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                WardApp.showToast('Imagem muito grande (max 5MB)', 'error');
+                return;
+            }
+
+            WardApp.showToast('Enviando imagem...', 'info');
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('folder', 'wardpedia');
+
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.url) {
+                    const imgHtml = `<img src="${result.url}" alt="${escapeHtml(file.name)}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 0.5rem 0;">`;
+                    document.execCommand('insertHTML', false, imgHtml);
+                    WardApp.showToast('Imagem inserida!', 'success');
+                } else {
+                    WardApp.showToast('Erro ao enviar imagem', 'error');
+                }
+            } catch (err) {
+                console.error('Image upload error:', err);
+                WardApp.showToast('Erro ao enviar imagem', 'error');
+            }
+
+            // Reset input
+            event.target.value = '';
+        }
+
+        // =============================================
+        // INLINE TAG CREATION (+ button in editor)
+        // =============================================
+
+        function showInlineTagInput(btn, type, systemId) {
+            // Replace the + button with an input field
+            const wrapper = document.createElement('span');
+            wrapper.className = 'mwp-inline-tag-input';
+            wrapper.innerHTML = `
+                <input type="text" placeholder="Nome da tag..." autofocus
+                    onkeydown="if(event.key==='Enter')confirmInlineTag(this,'${type}',${systemId || 'null'});if(event.key==='Escape')renderEditorTags();">
+                <button class="mwp-inline-confirm" onclick="confirmInlineTag(this.previousElementSibling,'${type}',${systemId || 'null'})">OK</button>
+                <button class="mwp-inline-cancel" onclick="renderEditorTags()">x</button>
+            `;
+            btn.replaceWith(wrapper);
+            wrapper.querySelector('input').focus();
+        }
+
+        async function confirmInlineTag(input, type, systemId) {
+            const name = input.value.trim();
+            if (!name) {
+                renderEditorTags();
+                return;
+            }
+
+            let error = null;
+
+            if (type === 'step') {
+                const result = await WardApp.db
+                    .from('wardpedia_steps')
+                    .insert({ name, order_position: allSteps.length + 1 });
+                error = result.error;
+                if (!error) {
+                    await loadSteps();
+                    selectedEditorSteps.push(name);
+                }
+            } else if (type === 'subject') {
+                const result = await WardApp.db
+                    .from('wardpedia_subjects')
+                    .insert({ name, order_position: allSubjects.length + 1 });
+                error = result.error;
+                if (!error) {
+                    await loadSubjects();
+                    selectedEditorSubjects.push(name);
+                }
+            } else if (type === 'system') {
+                const result = await WardApp.db
+                    .from('wardpedia_systems')
+                    .insert({ name, order_position: allSystems.length + 1 });
+                error = result.error;
+                if (!error) {
+                    await loadSystems();
+                    selectedEditorSystems.push(name);
+                }
+            } else if (type === 'category' && systemId) {
+                const result = await WardApp.db
+                    .from('wardpedia_categories')
+                    .insert({ system_id: systemId, name, order_position: 0 });
+                error = result.error;
+                if (!error) {
+                    await loadCategories();
+                    const sys = allSystems.find(s => s.id === systemId);
+                    if (sys) {
+                        selectedEditorCategories.push(sys.name + '::' + name);
+                    }
+                }
+            }
+
+            if (error) {
+                WardApp.showToast('Erro ao adicionar tag', 'error');
+                console.error('Inline tag error:', error);
+            } else {
+                WardApp.showToast('Tag adicionada!', 'success');
+            }
+
+            renderEditorTags();
+        }
+
+        // =============================================
+        // TAG MANAGER
+        // =============================================
+
+        function showTagManager() {
+            renderTagManager();
+            openModal('tag-manager-modal');
+        }
+
+        function renderTagManager() {
+            // Steps
+            const stepsList = document.getElementById('tag-mgr-steps');
+            stepsList.innerHTML = allSteps.map(s => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid #f3f4f6;">
+                    <span style="font-size: 0.9rem;">${s.name}</span>
+                    <button class="btn btn-sm" style="color: #dc2626; background: none; border: none; font-size: 0.8rem; cursor: pointer;" onclick="deleteStepTag(${s.id})">x</button>
+                </div>
+            `).join('');
+
+            // Subjects
+            const subjectsList = document.getElementById('tag-mgr-subjects');
+            subjectsList.innerHTML = allSubjects.map(s => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid #f3f4f6;">
+                    <span style="font-size: 0.9rem;">${s.name}</span>
+                    <button class="btn btn-sm" style="color: #dc2626; background: none; border: none; font-size: 0.8rem; cursor: pointer;" onclick="deleteSubjectTag(${s.id})">x</button>
+                </div>
+            `).join('');
+
+            // Systems
+            const systemsList = document.getElementById('tag-mgr-systems');
+            systemsList.innerHTML = allSystems.map(s => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid #f3f4f6;">
+                    <span style="font-size: 0.9rem;">${s.name}</span>
+                    <button class="btn btn-sm" style="color: #dc2626; background: none; border: none; font-size: 0.8rem; cursor: pointer;" onclick="deleteSystemTag(${s.id})">x</button>
+                </div>
+            `).join('');
+
+            // System dropdown for categories
+            const catSelect = document.getElementById('cat-system-select');
+            catSelect.innerHTML = '<option value="">Selecione um System...</option>' +
+                allSystems.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        }
+
+        function loadCategoriesForSystem() {
+            const systemId = parseInt(document.getElementById('cat-system-select').value);
+            const catList = document.getElementById('tag-mgr-categories');
+            const addRow = document.getElementById('add-category-row');
+
+            if (!systemId) {
+                catList.innerHTML = '';
+                addRow.style.display = 'none';
+                return;
+            }
+
+            addRow.style.display = 'flex';
+            const cats = allCategories.filter(c => c.system_id === systemId);
+
+            catList.innerHTML = cats.map(c => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid #f3f4f6;">
+                    <span style="font-size: 0.9rem;">${c.name}</span>
+                    <button class="btn btn-sm" style="color: #dc2626; background: none; border: none; font-size: 0.8rem; cursor: pointer;" onclick="deleteCategoryTag(${c.id})">x</button>
+                </div>
+            `).join('') || '<div style="color: #9ca3af; font-size: 0.85rem; padding: 0.5rem;">Nenhuma category</div>';
+        }
+
+        async function addStepTag() {
+            const input = document.getElementById('new-step-name');
+            const name = input.value.trim();
+            if (!name) return;
+
+            const { error } = await WardApp.db
+                .from('wardpedia_steps')
+                .insert({ name, order_position: allSteps.length + 1 });
+
+            if (error) {
+                WardApp.showToast('Erro ao adicionar step', 'error');
+                return;
+            }
+
+            input.value = '';
+            await loadSteps();
+            renderTagManager();
+            WardApp.showToast('Step adicionado!', 'success');
+        }
+
+        async function deleteStepTag(id) {
+            if (!confirm('Remover este step?')) return;
+            await WardApp.db.from('wardpedia_steps').delete().eq('id', id);
+            await loadSteps();
+            renderTagManager();
+        }
+
+        async function addSubjectTag() {
+            const input = document.getElementById('new-subject-name');
+            const name = input.value.trim();
+            if (!name) return;
+
+            const { error } = await WardApp.db
+                .from('wardpedia_subjects')
+                .insert({ name, order_position: allSubjects.length + 1 });
+
+            if (error) {
+                WardApp.showToast('Erro ao adicionar subject', 'error');
+                return;
+            }
+
+            input.value = '';
+            await loadSubjects();
+            renderTagManager();
+            WardApp.showToast('Subject adicionado!', 'success');
+        }
+
+        async function addSystemTag() {
+            const input = document.getElementById('new-system-name');
+            const name = input.value.trim();
+            if (!name) return;
+
+            const { error } = await WardApp.db
+                .from('wardpedia_systems')
+                .insert({ name, order_position: allSystems.length + 1 });
+
+            if (error) {
+                WardApp.showToast('Erro ao adicionar system', 'error');
+                return;
+            }
+
+            input.value = '';
+            await loadSystems();
+            renderTagManager();
+            WardApp.showToast('System adicionado!', 'success');
+        }
+
+        async function addCategoryTag() {
+            const systemId = parseInt(document.getElementById('cat-system-select').value);
+            const input = document.getElementById('new-category-name');
+            const name = input.value.trim();
+            if (!name || !systemId) return;
+
+            const { error } = await WardApp.db
+                .from('wardpedia_categories')
+                .insert({ system_id: systemId, name, order_position: 0 });
+
+            if (error) {
+                WardApp.showToast('Erro ao adicionar category', 'error');
+                return;
+            }
+
+            input.value = '';
+            await loadCategories();
+            loadCategoriesForSystem();
+            WardApp.showToast('Category adicionada!', 'success');
+        }
+
+        async function deleteSubjectTag(id) {
+            if (!confirm('Remover este subject?')) return;
+            await WardApp.db.from('wardpedia_subjects').delete().eq('id', id);
+            await loadSubjects();
+            renderTagManager();
+        }
+
+        async function deleteSystemTag(id) {
+            if (!confirm('Remover este system e todas suas categories?')) return;
+            await WardApp.db.from('wardpedia_systems').delete().eq('id', id);
+            await Promise.all([loadSystems(), loadCategories()]);
+            renderTagManager();
+        }
+
+        async function deleteCategoryTag(id) {
+            if (!confirm('Remover esta category?')) return;
+            await WardApp.db.from('wardpedia_categories').delete().eq('id', id);
+            await loadCategories();
+            loadCategoriesForSystem();
+        }
+
+        // =============================================
+        // MODAL UTILITIES
+        // =============================================
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Close modals on overlay click
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal-overlay')) {
+                e.target.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        });
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

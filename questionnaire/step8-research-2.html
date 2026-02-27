@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="../js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Interesses em Pesquisa</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="questionnaire-container">
+        <!-- Progress Bar -->
+        <div class="progress-container">
+            <div class="progress-header">
+                <span class="progress-title">Interesses em Pesquisa</span>
+                <span class="progress-text">8/11</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 72%"></div>
+            </div>
+        </div>
+
+        <!-- Header -->
+        <div class="questionnaire-header">
+            <div class="login-logo">🎓</div>
+            <h1 class="questionnaire-title">Seus Interesses em Pesquisa</h1>
+            <p class="questionnaire-step">Etapa 8 de 11</p>
+        </div>
+
+        <!-- Form -->
+        <form id="step8-form" class="questionnaire-form">
+            <div class="questionnaire-section">
+                <h3 class="section-title">💡 Areas de Interesse</h3>
+                <p class="form-hint mb-3">Liste 5 areas/temas que te interessam em pesquisa</p>
+
+                <div class="form-group">
+                    <label class="form-label" for="interest1">Area de Interesse 1</label>
+                    <input type="text" id="interest1" class="form-input" placeholder="Ex: Cardiologia Intervencionista">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="interest2">Area de Interesse 2</label>
+                    <input type="text" id="interest2" class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="interest3">Area de Interesse 3</label>
+                    <input type="text" id="interest3" class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="interest4">Area de Interesse 4</label>
+                    <input type="text" id="interest4" class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="interest5">Area de Interesse 5</label>
+                    <input type="text" id="interest5" class="form-input">
+                </div>
+            </div>
+
+            <div class="questionnaire-section">
+                <h3 class="section-title">🏛️ Instituicoes Alvo</h3>
+                <p class="form-hint mb-3">Liste 3 instituicoes nos EUA que gostaria de trabalhar ou fazer networking</p>
+
+                <div class="form-group">
+                    <label class="form-label" for="institution1">Instituicao 1</label>
+                    <input type="text" id="institution1" class="form-input" placeholder="Ex: Mayo Clinic">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="institution2">Instituicao 2</label>
+                    <input type="text" id="institution2" class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="institution3">Instituicao 3</label>
+                    <input type="text" id="institution3" class="form-input">
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="questionnaire-nav">
+                <button type="button" class="btn btn-secondary" onclick="window.location.href=addViewAsToUrl('/questionnaire/step7-research-1')">
+                    ← Voltar
+                </button>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-secondary" onclick="continueLater()">
+                        Continuar Depois →
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        Avancar →
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <script src="../js/app.js"></script>
+    <script>
+        // Helper function to preserve view_as parameter in URLs
+        function getViewAsParam() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('view_as');
+        }
+
+        function addViewAsToUrl(url) {
+            const viewAs = getViewAsParam();
+            if (viewAs) {
+                const separator = url.includes('?') ? '&' : '?';
+                return url + separator + 'view_as=' + viewAs;
+            }
+            return url;
+        }
+
+        // Load existing data
+        document.addEventListener('DOMContentLoaded', async () => {
+            const data = await WardApp.loadQuestionnaireData(8);
+            if (data) {
+                if (data.interest_areas) {
+                    const interests = JSON.parse(data.interest_areas);
+                    for (let i = 0; i < interests.length && i < 5; i++) {
+                        document.getElementById(`interest${i + 1}`).value = interests[i] || '';
+                    }
+                }
+                if (data.target_institutions) {
+                    const institutions = JSON.parse(data.target_institutions);
+                    for (let i = 0; i < institutions.length && i < 3; i++) {
+                        document.getElementById(`institution${i + 1}`).value = institutions[i] || '';
+                    }
+                }
+            }
+        });
+
+        function getFormData() {
+            const interests = [];
+            for (let i = 1; i <= 5; i++) {
+                const val = document.getElementById(`interest${i}`).value.trim();
+                if (val) interests.push(val);
+            }
+
+            const institutions = [];
+            for (let i = 1; i <= 3; i++) {
+                const val = document.getElementById(`institution${i}`).value.trim();
+                if (val) institutions.push(val);
+            }
+
+            return {
+                interest_areas: JSON.stringify(interests),
+                target_institutions: JSON.stringify(institutions)
+            };
+        }
+
+        // Form submission
+        document.getElementById('step8-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            WardApp.showLoading();
+            const success = await WardApp.saveQuestionnaireProgress(8, getFormData());
+            WardApp.hideLoading();
+
+            if (success) {
+                window.location.href = addViewAsToUrl('/questionnaire/step9-research-3');
+            }
+        });
+
+        async function continueLater() {
+            await WardApp.saveQuestionnaireProgress(8, getFormData());
+            // Redirect to correct dashboard based on role
+            let userData = JSON.parse(localStorage.getItem('userData') || 'null');
+
+            // If no userData, try to get from checkAuth
+            if (!userData || !userData.role) {
+                const userId = localStorage.getItem('userId');
+                if (userId) {
+                    // Fetch from database
+                    const { data } = await WardApp.db.from('users').select('role').eq('id', userId).single();
+                    if (data) userData = data;
+                }
+            }
+
+            const dashboardUrl = (userData?.role === 'assessoria') ? '/dashboard-assessoria-avulsa' : '/dashboard';
+            window.location.href = addViewAsToUrl(dashboardUrl);
+        }
+    </script>
+</body>
+</html>

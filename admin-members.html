@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Admin Membros</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </a>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="/mentor-dashboard-marcos" class="nav-link">Dashboard</a>
+                <a href="/admin-members" class="nav-link active">Membros</a>
+                <a href="/links" class="nav-link">Links</a>
+                <a href="/blog" class="nav-link">Blog</a>
+                <a href="/pesquisa" class="nav-link">Pesquisa</a>
+            </nav>
+            <div class="nav-user">
+                <span class="user-name">Marcos</span>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
+            <h1>👥 Gerenciamento de Membros</h1>
+            <button class="btn btn-primary" onclick="openModal('add-member-modal')">+ Adicionar Membro</button>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid mb-4">
+            <div class="stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="total-members">0</span>
+                    <span class="stat-label">Total Membros</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🎓</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="total-students">0</span>
+                    <span class="stat-label">Alunos</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">👩‍🏫</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="total-mentors">0</span>
+                    <span class="stat-label">Mentores</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters and Search -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="input-group">
+                    <div class="form-group" style="flex: 2;">
+                        <input type="text" id="search-members" class="form-input" placeholder="Buscar por nome, CPF ou email..." oninput="filterMembers()">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <select id="filter-role" class="form-input" onchange="filterMembers()">
+                            <option value="">Todas as funcoes</option>
+                            <option value="aluno">🎓 Aluno</option>
+                            <option value="assessoria">📋 Assessoria</option>
+                            <option value="externo">🌐 Externo</option>
+                            <option value="mentor_iria">👩‍⚕️ Dra. Iria</option>
+                            <option value="mentor_marcos">🛠️ Marcos (Admin)</option>
+                            <option value="mentor_guilherme">🃏 Guilherme</option>
+                            <option value="mentor_romulo">🔬 Romulo</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <select id="filter-status" class="form-input" onchange="filterMembers()">
+                            <option value="">Todos os status</option>
+                            <option value="active">Ativos</option>
+                            <option value="inactive">Inativos</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 0.5; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="group-by-role" onchange="toggleGroupByRole()">
+                        <label for="group-by-role" style="cursor: pointer; white-space: nowrap;">Agrupar por funcao</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Members Table -->
+        <div class="card">
+            <div class="card-body" style="overflow-x: auto;">
+                <table class="admin-table" id="members-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="sortTable('full_name')">
+                                Nome <span class="sort-icon" data-column="full_name">↕</span>
+                            </th>
+                            <th class="sortable" onclick="sortTable('cpf')">
+                                CPF <span class="sort-icon" data-column="cpf">↕</span>
+                            </th>
+                            <th class="sortable" onclick="sortTable('email')">
+                                Email <span class="sort-icon" data-column="email">↕</span>
+                            </th>
+                            <th class="sortable" onclick="sortTable('role')">
+                                Funcao <span class="sort-icon" data-column="role">↕</span>
+                            </th>
+                            <th class="sortable" onclick="sortTable('status')">
+                                Status <span class="sort-icon" data-column="status">↕</span>
+                            </th>
+                            <th class="sortable" onclick="sortTable('created_at')">
+                                Criado em <span class="sort-icon" data-column="created_at">↓</span>
+                            </th>
+                            <th>Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="members-table-body">
+                        <!-- Filled by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Add Member Modal -->
+    <div id="add-member-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">➕ Adicionar Membro</h3>
+                <button class="modal-close" onclick="closeModal('add-member-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="new-name">Nome Completo *</label>
+                    <input type="text" id="new-name" class="form-input" placeholder="Nome do membro">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="new-cpf">CPF *</label>
+                    <input type="text" id="new-cpf" class="form-input" placeholder="000.000.000-00" maxlength="14">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="new-email">Email</label>
+                    <input type="email" id="new-email" class="form-input" placeholder="email@exemplo.com (opcional)">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="new-password">Senha Inicial *</label>
+                    <input type="text" id="new-password" class="form-input" placeholder="Senha inicial (min. 6 caracteres)">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="new-role">Funcao *</label>
+                    <select id="new-role" class="form-input">
+                        <option value="aluno">🎓 Aluno</option>
+                        <option value="assessoria">📋 Assessoria</option>
+                        <option value="externo">🌐 Externo</option>
+                        <option value="mentor_iria">👩‍⚕️ Dra. Iria</option>
+                        <option value="mentor_marcos">🛠️ Marcos (Admin)</option>
+                        <option value="mentor_guilherme">🃏 Guilherme</option>
+                        <option value="mentor_romulo">🔬 Romulo</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('add-member-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="addMember()">Adicionar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Member Modal -->
+    <div id="edit-member-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">✏️ Editar Membro</h3>
+                <button class="modal-close" onclick="closeModal('edit-member-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-member-id">
+                <div class="form-group">
+                    <label class="form-label" for="edit-name">Nome Completo *</label>
+                    <input type="text" id="edit-name" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-cpf">CPF *</label>
+                    <input type="text" id="edit-cpf" class="form-input" placeholder="000.000.000-00" maxlength="14">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-email">Email</label>
+                    <input type="email" id="edit-email" class="form-input">
+                    <span class="form-hint">Email opcional</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-role">Funcao *</label>
+                    <select id="edit-role" class="form-input">
+                        <option value="aluno">🎓 Aluno</option>
+                        <option value="assessoria">📋 Assessoria</option>
+                        <option value="externo">🌐 Externo</option>
+                        <option value="mentor_iria">👩‍⚕️ Dra. Iria</option>
+                        <option value="mentor_marcos">🛠️ Marcos (Admin)</option>
+                        <option value="mentor_guilherme">🃏 Guilherme</option>
+                        <option value="mentor_romulo">🔬 Romulo</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-status">Status</label>
+                    <select id="edit-status" class="form-input">
+                        <option value="active">Ativo</option>
+                        <option value="inactive">Inativo</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-password">Nova Senha (deixe vazio para manter)</label>
+                    <input type="text" id="edit-password" class="form-input" placeholder="Nova senha...">
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                <button class="btn btn-danger" onclick="deleteMemberPermanently()">🗑️ Excluir Permanentemente</button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-outline" onclick="inactivateMember()">Inativar</button>
+                    <button class="btn btn-secondary" onclick="closeModal('edit-member-modal')">Cancelar</button>
+                    <button class="btn btn-primary" onclick="updateMember()">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Member Modal -->
+    <div id="view-member-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">👤 Detalhes do Membro</h3>
+                <button class="modal-close" onclick="closeModal('view-member-modal')">&times;</button>
+            </div>
+            <div class="modal-body" id="member-details">
+                <!-- Filled by JS -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('view-member-modal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let allMembers = [];
+
+        const roleLabels = {
+            aluno: '🎓 Aluno',
+            assessoria: '📋 Assessoria',
+            externo: '🌐 Externo',
+            mentor_iria: '👩‍⚕️ Dra. Iria',
+            mentor_marcos: '🛠️ Marcos (Admin)',
+            mentor_guilherme: '🃏 Guilherme',
+            mentor_romulo: '🔬 Romulo'
+        };
+
+        // Ordem de prioridade para agrupamento
+        const roleOrder = ['mentor_marcos', 'mentor_iria', 'mentor_guilherme', 'mentor_romulo', 'aluno', 'assessoria', 'externo'];
+
+        // Estado de ordenacao
+        let currentSort = { column: 'created_at', direction: 'desc' };
+        let groupByRole = false;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Only Marcos can access this page
+            if (userData.role !== 'mentor_marcos') {
+                WardApp.showToast('Acesso negado', 'error');
+                window.location.href = '/dashboard';
+                return;
+            }
+
+            // Verificacao OBRIGATORIA via Supabase Auth para paginas administrativas
+            const { data: { user: authUser } } = await WardApp.db.auth.getUser();
+            if (!authUser) {
+                WardApp.showToast('Sessao invalida. Faca login novamente.', 'error');
+                WardApp.logout();
+                return;
+            }
+
+            // Verificar se o auth_id corresponde ao usuario logado
+            if (!userData.auth_id || userData.auth_id !== authUser.id) {
+                WardApp.showToast('Acesso negado: autenticacao invalida', 'error');
+                WardApp.logout();
+                return;
+            }
+
+            // Verificacao extra: confirmar no banco que este auth_id pertence ao mentor_marcos
+            const { data: dbUser, error } = await WardApp.db
+                .from('users')
+                .select('id, role, auth_id')
+                .eq('auth_id', authUser.id)
+                .single();
+
+            if (error || !dbUser || dbUser.role !== 'mentor_marcos') {
+                WardApp.showToast('Acesso negado: voce nao tem permissao para esta pagina', 'error');
+                window.location.href = '/dashboard';
+                return;
+            }
+
+            // Add CPF mask to inputs
+            setupCPFMask('new-cpf');
+            setupCPFMask('edit-cpf');
+
+            await loadMembers();
+        });
+
+        function setupCPFMask(inputId) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+
+            input.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, '');
+                if (value.length <= 11) {
+                    value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                    value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                    value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                    e.target.value = value;
+                }
+            });
+        }
+
+        function formatCPF(cpf) {
+            if (!cpf) return '-';
+            const cleaned = cpf.replace(/\D/g, '');
+            if (cleaned.length === 11) {
+                return cleaned.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+            }
+            return cpf;
+        }
+
+        // Helper to decrypt user data if encrypted
+        function _dn(val) {
+            if (!val) return val;
+            return WardApp._prs ? WardApp._prs(val) : val;
+        }
+
+        async function loadMembers() {
+            const { data: members, error } = await WardApp.db
+                .from('users')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error loading members:', error);
+                return;
+            }
+
+            allMembers = members || [];
+            updateStats();
+            renderMembersTable();
+        }
+
+        function updateStats() {
+            const students = allMembers.filter(m => m.role === 'aluno').length;
+            const mentors = allMembers.filter(m => m.role?.startsWith('mentor_')).length;
+
+            document.getElementById('total-members').textContent = allMembers.length;
+            document.getElementById('total-students').textContent = students;
+            document.getElementById('total-mentors').textContent = mentors;
+        }
+
+        function toggleGroupByRole() {
+            groupByRole = document.getElementById('group-by-role').checked;
+            filterMembers();
+        }
+
+        function sortTable(column) {
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = 'asc';
+            }
+            updateSortIcons();
+            filterMembers();
+        }
+
+        function updateSortIcons() {
+            document.querySelectorAll('.sort-icon').forEach(icon => {
+                const column = icon.dataset.column;
+                if (column === currentSort.column) {
+                    icon.textContent = currentSort.direction === 'asc' ? '↑' : '↓';
+                } else {
+                    icon.textContent = '↕';
+                }
+            });
+        }
+
+        function sortMembers(members) {
+            const sorted = [...members];
+            sorted.sort((a, b) => {
+                let aVal = a[currentSort.column] || '';
+                let bVal = b[currentSort.column] || '';
+
+                // Tratamento especial para datas
+                if (currentSort.column === 'created_at') {
+                    aVal = new Date(aVal).getTime();
+                    bVal = new Date(bVal).getTime();
+                } else if (typeof aVal === 'string') {
+                    aVal = aVal.toLowerCase();
+                    bVal = bVal.toLowerCase();
+                }
+
+                if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+                if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+            return sorted;
+        }
+
+        function filterMembers() {
+            const search = document.getElementById('search-members').value.toLowerCase();
+            const role = document.getElementById('filter-role').value;
+            const status = document.getElementById('filter-status').value;
+
+            let filtered = [...allMembers];
+
+            if (search) {
+                filtered = filtered.filter(m =>
+                    (_dn(m.full_name) || '').toLowerCase().includes(search) ||
+                    m.email?.toLowerCase().includes(search) ||
+                    (_dn(m.cpf) || '').includes(search.replace(/\D/g, ''))
+                );
+            }
+
+            if (role) {
+                filtered = filtered.filter(m => m.role === role);
+            }
+
+            if (status) {
+                filtered = filtered.filter(m => (m.status || 'active') === status);
+            }
+
+            // Aplicar ordenacao
+            filtered = sortMembers(filtered);
+
+            renderMembersTable(filtered);
+        }
+
+        function renderMembersTable(members = allMembers) {
+            const tbody = document.getElementById('members-table-body');
+
+            if (members.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Nenhum membro encontrado</td></tr>';
+                return;
+            }
+
+            if (groupByRole) {
+                // Agrupar por funcao
+                const groups = {};
+                members.forEach(member => {
+                    const role = member.role || 'outros';
+                    if (!groups[role]) {
+                        groups[role] = [];
+                    }
+                    groups[role].push(member);
+                });
+
+                // Ordenar os grupos pela ordem definida
+                const sortedRoles = Object.keys(groups).sort((a, b) => {
+                    const indexA = roleOrder.indexOf(a);
+                    const indexB = roleOrder.indexOf(b);
+                    if (indexA === -1 && indexB === -1) return 0;
+                    if (indexA === -1) return 1;
+                    if (indexB === -1) return -1;
+                    return indexA - indexB;
+                });
+
+                let html = '';
+                sortedRoles.forEach(role => {
+                    const groupMembers = groups[role];
+                    const roleLabel = roleLabels[role] || role;
+
+                    html += `
+                        <tr class="group-header">
+                            <td colspan="7">
+                                <strong>${roleLabel}</strong>
+                                <span class="group-count">(${groupMembers.length})</span>
+                            </td>
+                        </tr>
+                    `;
+
+                    html += groupMembers.map(member => renderMemberRow(member)).join('');
+                });
+
+                tbody.innerHTML = html;
+            } else {
+                tbody.innerHTML = members.map(member => renderMemberRow(member)).join('');
+            }
+        }
+
+        function renderMemberRow(member) {
+            const status = member.status || 'active';
+
+            return `
+                <tr>
+                    <td>
+                        <div class="member-name-cell">
+                            <span class="member-avatar">👤</span>
+                            <strong>${_dn(member.full_name) || 'Sem nome'}</strong>
+                        </div>
+                    </td>
+                    <td>${formatCPF(_dn(member.cpf))}</td>
+                    <td>${member.email || '-'}</td>
+                    <td>${roleLabels[member.role] || member.role}</td>
+                    <td>
+                        <span class="badge ${status === 'active' ? 'badge-success' : 'badge-secondary'}">
+                            ${status === 'active' ? 'Ativo' : 'Inativo'}
+                        </span>
+                    </td>
+                    <td>${WardApp.formatDate(member.created_at)}</td>
+                    <td>
+                        <div class="btn-group">
+                            <button class="btn btn-xs btn-outline" onclick="viewMember('${member.id}')">Ver</button>
+                            <button class="btn btn-xs btn-outline" onclick="editMember('${member.id}')">✏️</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        async function addMember() {
+            const name = document.getElementById('new-name').value.trim();
+            const cpfFormatted = document.getElementById('new-cpf').value;
+            const cpf = cpfFormatted.replace(/\D/g, '');
+            const email = document.getElementById('new-email').value.trim();
+            const password = document.getElementById('new-password').value;
+            const role = document.getElementById('new-role').value;
+
+            if (!name || !cpf || !password) {
+                WardApp.showToast('Preencha nome, CPF e senha', 'warning');
+                return;
+            }
+
+            if (cpf.length !== 11) {
+                WardApp.showToast('CPF deve ter 11 dígitos', 'warning');
+                return;
+            }
+
+            if (password.length < 6) {
+                WardApp.showToast('Senha deve ter pelo menos 6 caracteres', 'warning');
+                return;
+            }
+
+            // Create user via dedicated admin API endpoint
+            // Bypasses SQL functions entirely - hashes password server-side with bcrypt
+            // Auth: API verifies mentor_marcos session token
+            try {
+                const token = localStorage.getItem('_ward_tk');
+                const response = await fetch('/api/admin/create-member', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-ward-token': token
+                    },
+                    body: JSON.stringify({
+                        cpf,
+                        email: email || '',
+                        password,
+                        full_name: name,
+                        role
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    WardApp.showToast('Erro ao criar membro: ' + (result.error || 'Erro desconhecido'), 'error');
+                    return;
+                }
+            } catch (fetchErr) {
+                WardApp.showToast('Erro de conexao ao criar membro: ' + fetchErr.message, 'error');
+                return;
+            }
+
+            closeModal('add-member-modal');
+            document.getElementById('new-name').value = '';
+            document.getElementById('new-cpf').value = '';
+            document.getElementById('new-email').value = '';
+            document.getElementById('new-password').value = '';
+
+            WardApp.showToast('Membro adicionado com sucesso!');
+            await loadMembers();
+        }
+
+        function editMember(memberId) {
+            const id = typeof memberId === 'string' ? parseInt(memberId) : memberId;
+            const member = allMembers.find(m => m.id === id || m.id === memberId);
+            if (!member) return;
+
+            document.getElementById('edit-member-id').value = memberId;
+            document.getElementById('edit-name').value = _dn(member.full_name) || '';
+            document.getElementById('edit-cpf').value = formatCPF(_dn(member.cpf));
+            document.getElementById('edit-email').value = member.email || '';
+            document.getElementById('edit-role').value = member.role || 'aluno';
+            document.getElementById('edit-status').value = member.status || 'active';
+            document.getElementById('edit-password').value = '';
+
+            openModal('edit-member-modal');
+        }
+
+        async function updateMember() {
+            const memberId = document.getElementById('edit-member-id').value;
+            const name = document.getElementById('edit-name').value.trim();
+            const cpfFormatted = document.getElementById('edit-cpf').value;
+            const cpf = cpfFormatted.replace(/\D/g, '');
+            const email = document.getElementById('edit-email').value.trim();
+            const role = document.getElementById('edit-role').value;
+            const status = document.getElementById('edit-status').value;
+            const password = document.getElementById('edit-password').value;
+
+            if (!name || !cpf) {
+                WardApp.showToast('Nome e CPF são obrigatórios', 'warning');
+                return;
+            }
+
+            if (cpf.length !== 11) {
+                WardApp.showToast('CPF deve ter 11 dígitos', 'warning');
+                return;
+            }
+
+            const updateData = {
+                full_name: name,
+                cpf,
+                email: email || null,
+                role,
+                status,
+                updated_at: new Date().toISOString()
+            };
+
+            // Update user data (without password)
+            const { error } = await WardApp.db
+                .from('users')
+                .update(updateData)
+                .eq('id', memberId);
+
+            if (error) {
+                WardApp.showToast('Erro ao atualizar: ' + error.message, 'error');
+                return;
+            }
+
+            // Update password separately with bcrypt if provided
+            if (password && password.length >= 6) {
+                const { data: pwResult, error: pwError } = await WardApp.db.rpc('update_password_secure', {
+                    p_user_id: parseInt(memberId),
+                    p_password: password
+                });
+
+                if (pwError || !pwResult?.success) {
+                    WardApp.showToast('Usuario atualizado, mas erro ao alterar senha', 'warning');
+                }
+            }
+
+            closeModal('edit-member-modal');
+            WardApp.showToast('Membro atualizado!');
+            await loadMembers();
+        }
+
+        async function inactivateMember() {
+            const memberId = document.getElementById('edit-member-id').value;
+
+            if (!confirm('Tem certeza que deseja inativar este membro? Ele nao podera fazer login, mas os dados serao mantidos.')) {
+                return;
+            }
+
+            // Soft delete - set status to inactive
+            const { error } = await WardApp.db
+                .from('users')
+                .update({ status: 'inactive', updated_at: new Date().toISOString() })
+                .eq('id', memberId);
+
+            if (error) {
+                WardApp.showToast('Erro ao inativar membro: ' + error.message, 'error');
+                return;
+            }
+
+            closeModal('edit-member-modal');
+            WardApp.showToast('Membro inativado com sucesso!');
+            await loadMembers();
+        }
+
+        async function deleteMemberPermanently() {
+            const memberId = document.getElementById('edit-member-id').value;
+            const member = allMembers.find(m => m.id == memberId);
+
+            if (!member) {
+                WardApp.showToast('Membro nao encontrado', 'error');
+                return;
+            }
+
+            const confirmText = `⚠️ ATENÇÃO: Esta acao é PERMANENTE e IRREVERSÍVEL!
+
+Você está prestes a excluir permanentemente:
+• Nome: ${_dn(member.full_name) || 'Sem nome'}
+• Email: ${member.email || 'Sem email'}
+
+Todos os dados relacionados serão DELETADOS do banco de dados:
+• Cronogramas e progresso
+• Marcos e chamadas
+• Diários e check-ins
+• Comentários e posts
+• Questionários e assessments
+
+Digite "EXCLUIR" para confirmar:`;
+
+            const confirmation = prompt(confirmText);
+
+            if (confirmation !== 'EXCLUIR') {
+                WardApp.showToast('Exclusão cancelada', 'info');
+                return;
+            }
+
+            // Hard delete - remove from database (CASCADE will delete related data)
+            const { error } = await WardApp.db
+                .from('users')
+                .delete()
+                .eq('id', memberId);
+
+            if (error) {
+                console.error('Error deleting member:', error);
+                WardApp.showToast('Erro ao excluir membro: ' + error.message, 'error');
+                return;
+            }
+
+            closeModal('edit-member-modal');
+            WardApp.showToast('Membro excluído permanentemente do banco de dados');
+            await loadMembers();
+        }
+
+        async function viewMember(memberId) {
+            const id = typeof memberId === 'string' ? parseInt(memberId) : memberId;
+            const member = allMembers.find(m => m.id === id || m.id === memberId);
+            if (!member) return;
+
+            // Load additional data
+            const [questionnaireRes, scheduleRes, checkinsRes] = await Promise.all([
+                WardApp.db.from('questionnaire_data').select('*').eq('user_id', memberId),
+                WardApp.db.from('schedules').select('completed').eq('user_id', memberId),
+                WardApp.db.from('daily_checkins').select('*').eq('user_id', memberId).order('created_at', { ascending: false }).limit(5)
+            ]);
+
+            const scheduleTotal = scheduleRes.data?.length || 0;
+            const scheduleCompleted = scheduleRes.data?.filter(s => s.completed).length || 0;
+
+            const details = document.getElementById('member-details');
+            details.innerHTML = `
+                <div class="member-profile">
+                    <div class="profile-header">
+                        <div class="profile-avatar">👤</div>
+                        <div class="profile-info">
+                            <h2>${_dn(member.full_name) || 'Sem nome'}</h2>
+                            <p class="text-muted">${member.email}</p>
+                            <span class="badge ${(member.status || 'active') === 'active' ? 'badge-success' : 'badge-secondary'}">
+                                ${roleLabels[member.role] || member.role}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="profile-stats">
+                        <div class="profile-stat">
+                            <span class="profile-stat-value">${member.questionnaire_step || 0}/11</span>
+                            <span class="profile-stat-label">Questionario</span>
+                        </div>
+                        <div class="profile-stat">
+                            <span class="profile-stat-value">${scheduleCompleted}/${scheduleTotal}</span>
+                            <span class="profile-stat-label">Cronograma</span>
+                        </div>
+                        <div class="profile-stat">
+                            <span class="profile-stat-value">${checkinsRes.data?.length || 0}</span>
+                            <span class="profile-stat-label">Check-ins</span>
+                        </div>
+                    </div>
+
+                    <div class="profile-section">
+                        <h4>Informacoes</h4>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Criado em</span>
+                                <span class="info-value">${WardApp.formatDate(member.created_at)}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Ultimo update</span>
+                                <span class="info-value">${WardApp.formatDate(member.updated_at || member.created_at)}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Diario Estudos</span>
+                                <span class="info-value">${member.study_diary_enabled ? 'Ativo' : 'Inativo'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Diario UWorld</span>
+                                <span class="info-value">${member.uworld_diary_enabled ? 'Ativo' : 'Inativo'}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${checkinsRes.data?.length > 0 ? `
+                        <div class="profile-section">
+                            <h4>Ultimos Check-ins</h4>
+                            <div class="checkins-list">
+                                ${checkinsRes.data.map(c => `
+                                    <div class="checkin-item">
+                                        <span class="checkin-status">
+                                            ${c.status === 'tranquilo' ? '🟢' : c.status === 'preciso_ajuda' ? '🟡' : '🔴'}
+                                            ${c.status === 'tranquilo' ? 'Tranquilo' : c.status === 'preciso_ajuda' ? 'Precisa Ajuda' : 'Parado'}
+                                        </span>
+                                        <span class="checkin-date">${WardApp.formatDate(c.created_at)}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            openModal('view-member-modal');
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+    </script>
+
+    <style>
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .stat-icon { font-size: 1.5rem; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; display: block; }
+        .stat-label { font-size: 0.8rem; color: var(--gray-500); }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .admin-table th,
+        .admin-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .admin-table th {
+            font-weight: 600;
+            color: var(--gray-600);
+            font-size: 0.875rem;
+            background: var(--gray-50);
+        }
+
+        .admin-table th.sortable {
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .admin-table th.sortable:hover {
+            background: var(--gray-100);
+        }
+
+        .sort-icon {
+            display: inline-block;
+            margin-left: 0.25rem;
+            color: var(--gray-400);
+            font-size: 0.75rem;
+        }
+
+        .admin-table th.sortable:hover .sort-icon {
+            color: var(--gray-600);
+        }
+
+        .group-header {
+            background: linear-gradient(135deg, var(--primary-50) 0%, var(--gray-100) 100%);
+        }
+
+        .group-header td {
+            padding: 0.75rem 1rem !important;
+            border-bottom: 2px solid var(--primary-200) !important;
+        }
+
+        .group-header strong {
+            font-size: 0.95rem;
+            color: var(--primary-700);
+        }
+
+        .group-count {
+            font-size: 0.8rem;
+            color: var(--gray-500);
+            margin-left: 0.5rem;
+        }
+
+        .member-name-cell {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .member-avatar {
+            font-size: 1.25rem;
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .badge-success { background: #d1fae5; color: #065f46; }
+        .badge-secondary { background: var(--gray-200); color: var(--gray-600); }
+
+        .btn-xs {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        .modal-lg {
+            max-width: 600px;
+        }
+
+        .member-profile {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .profile-header {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .profile-avatar {
+            font-size: 3rem;
+        }
+
+        .profile-info h2 {
+            margin: 0 0 0.25rem;
+        }
+
+        .profile-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+
+        .profile-stat {
+            text-align: center;
+            padding: 1rem;
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+        }
+
+        .profile-stat-value {
+            display: block;
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .profile-stat-label {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+        }
+
+        .profile-section h4 {
+            margin-bottom: 0.75rem;
+            color: var(--gray-600);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-label {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+        }
+
+        .info-value {
+            font-weight: 500;
+        }
+
+        .checkins-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .checkin-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem;
+            background: var(--gray-50);
+            border-radius: var(--radius-sm);
+        }
+
+        .checkin-date {
+            font-size: 0.875rem;
+            color: var(--gray-500);
+        }
+    </style>
+</body>
+</html>

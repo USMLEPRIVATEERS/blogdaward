@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Toolbox</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .toolbox-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        .toolbox-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .toolbox-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .toolbox-subtitle {
+            font-size: 1.1rem;
+            color: var(--gray-600);
+        }
+
+        .apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .app-card {
+            background: white;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .favorite-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.5rem;
+            cursor: pointer;
+            z-index: 10;
+            background: white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #e5e7eb;
+            transition: all 0.2s ease;
+        }
+
+        .favorite-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .favorite-btn.favorited {
+            border-color: #fbbf24;
+            background: #fef3c7;
+        }
+
+        .favorite-btn:active {
+            transform: scale(0.95);
+        }
+
+        .app-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .app-card:hover {
+            border-color: #667eea;
+            transform: translateY(-4px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+        }
+
+        .app-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .app-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .app-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .app-description {
+            font-size: 0.95rem;
+            color: var(--gray-600);
+            line-height: 1.5;
+        }
+
+        .app-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 1rem;
+        }
+
+        /* App Modal */
+        .app-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10000;
+            padding: 1rem;
+        }
+
+        .app-modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .app-modal-content {
+            background: white;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 1400px;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .app-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            border-bottom: 2px solid var(--gray-200);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .app-modal-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .app-modal-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .app-modal-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        .app-modal-header-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .app-modal-fullscreen {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .app-modal-fullscreen:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        /* Fullscreen mode */
+        .app-modal-content.fullscreen {
+            max-width: 100%;
+            width: 100%;
+            height: 100vh;
+            border-radius: 0;
+        }
+
+        .app-modal-content.fullscreen .app-modal-header {
+            display: none;
+        }
+
+        .app-modal-content.fullscreen .app-modal-body {
+            border-radius: 0;
+        }
+
+        /* Floating exit fullscreen button */
+        .fullscreen-exit-btn {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            z-index: 10001;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s;
+        }
+
+        .fullscreen-exit-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .fullscreen-exit-btn.visible {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .app-modal-body {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .app-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .loading-spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            color: #667eea;
+        }
+
+        @media (max-width: 768px) {
+            .toolbox-title {
+                font-size: 2rem;
+            }
+
+            .apps-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .app-modal-content {
+                height: 95vh;
+                max-width: 100%;
+                margin: 0;
+                border-radius: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </a>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="/dashboard" class="nav-link">Dashboard</a>
+                <a href="/cronograma" class="nav-link">Cronograma</a>
+                <a href="/landmarks" class="nav-link">Chamadas</a>
+                <a href="/curso" class="nav-link">Curso</a>
+                <a href="/wardpedia" class="nav-link">Wardpedia</a>
+                <a href="/links" class="nav-link">Links</a>
+                <a href="/blog" class="nav-link">Blog</a>
+                <a href="/pesquisa" class="nav-link">Pesquisa</a>
+                <a href="/toolbox" class="nav-link active">Toolbox</a>
+                <a href="/diary-uworld" class="nav-link" id="nav-diary" style="display: none;">Diario</a>
+            </nav>
+            <div class="nav-user">
+                <a href="/profile" class="user-menu-btn">
+                    <span>👤</span>
+                    <span class="user-name">Perfil</span>
+                </a>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="toolbox-container">
+            <div class="toolbox-header">
+                <h1 class="toolbox-title">🧰 Toolbox</h1>
+                <p class="toolbox-subtitle">Ferramentas e utilidades para turbinar seus estudos</p>
+            </div>
+
+            <div class="apps-grid" id="apps-grid">
+                <!-- Apps will be loaded here by JavaScript -->
+            </div>
+        </div>
+    </main>
+
+    <!-- App Modal -->
+    <div id="app-modal" class="app-modal">
+        <div class="app-modal-content">
+            <div class="app-modal-header">
+                <h3 class="app-modal-title" id="modal-app-title">App</h3>
+                <div class="app-modal-header-buttons">
+                    <button class="app-modal-fullscreen" onclick="toggleFullscreen()">⛶ Tela Cheia</button>
+                    <button class="app-modal-close" onclick="closeApp()">✕ Fechar</button>
+                </div>
+            </div>
+            <div class="app-modal-body">
+                <div class="loading-spinner" id="app-loading">⏳ Carregando...</div>
+                <iframe id="app-iframe" class="app-iframe" style="display: none;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fullscreen Exit Button (floating) -->
+    <button id="fullscreen-exit-btn" class="fullscreen-exit-btn" onclick="toggleFullscreen()">
+        ✕ Sair da Tela Cheia
+    </button>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="js/app.js"></script>
+    <script>
+        // Categorias de apps
+        const categories = [
+            { id: 'networking', name: 'Networking', icon: '🤝' },
+            { id: 'estagios', name: 'Estágios Internacionais', icon: '✈️' },
+            { id: 'usmle', name: 'USMLE & Match', icon: '📚' },
+            { id: 'pesquisa', name: 'Pesquisa', icon: '🔬' },
+            { id: 'anki', name: 'Anki', icon: '🎴' },
+            { id: 'outras', name: 'Outras', icon: '🔧' }
+        ];
+
+        // Lista de apps disponíveis
+        const apps = [
+            // Networking
+            {
+                id: 'networking-sharing',
+                category: 'networking',
+                title: 'Compartilhar Networking',
+                description: 'Compartilhe e descubra contatos profissionais. Visualize a rede de conexões da Ward Academy.',
+                icon: '🌐',
+                file: '/toolbox-networking',
+                badge: 'Novo'
+            },
+
+            // Estágios Internacionais
+            {
+                id: 'mapa-observerships',
+                category: 'estagios',
+                title: 'Mapa de Observerships',
+                description: 'Visualize e explore oportunidades de observership nos EUA em um mapa interativo.',
+                icon: '🗺️',
+                file: '/toolbox/mapadeobserverships',
+                badge: 'Interativo'
+            },
+
+            // Anki e USMLE
+            {
+                id: 'uworld-question-ids',
+                category: 'anki',
+                title: 'UWorld Question IDs',
+                description: 'Encontre rapidamente os Question IDs do UWorld organizados por tags do Anki.',
+                icon: '🎴',
+                file: '/toolbox/uworldquestionids',
+                badge: 'Popular'
+            },
+            {
+                id: 'uworld-deduplicator',
+                category: 'anki',
+                title: 'UWorld Deduplicador',
+                description: 'Remova Question IDs duplicados das suas listas do UWorld.',
+                icon: '🧹',
+                file: '/toolbox/uworlddeduplicator',
+                badge: 'Útil'
+            },
+
+            // USMLE & Match
+            {
+                id: 'match-calculator',
+                category: 'usmle',
+                title: 'Calculadora do Match',
+                description: 'Calcule sua probabilidade de Match com base no seu perfil, scores, pesquisa e experiências clínicas.',
+                icon: '🎯',
+                file: '/toolbox/match-calculator',
+                badge: 'Novo'
+            },
+
+            // Pesquisa Científica
+            {
+                id: 'pubmed-analyzer',
+                category: 'pesquisa',
+                title: 'PubMed Research Analyzer',
+                description: 'Análise avançada de artigos do PubMed com gráficos, filtros e exportação de dados.',
+                icon: '📊',
+                file: '/toolbox/Advanced-PubMed-Research-Analyzer',
+                badge: 'Avançado'
+            },
+            {
+                id: 'data-extractor',
+                category: 'pesquisa',
+                title: 'Data Extractor',
+                description: 'Extraia e organize dados de estudos para revisões sistemáticas e meta-análises.',
+                icon: '📋',
+                file: '/toolbox/DATAEXTRACTOR',
+                badge: 'Essencial'
+            },
+            {
+                id: 'nma-extractor',
+                category: 'pesquisa',
+                title: 'Network Meta-Analysis Extractor',
+                description: 'Ferramenta avançada para extração de dados em Network Meta-Analysis.',
+                icon: '🕸️',
+                file: '/toolbox/NMADATAEXTRACTOR',
+                badge: 'Especializado'
+            },
+            {
+                id: 'faers-platform',
+                category: 'pesquisa',
+                title: 'FAERS Research Platform',
+                description: 'Plataforma completa para pesquisa em farmacovigilância usando dados FAERS.',
+                icon: '💊',
+                file: '/toolbox/FAERS Advanced Research Platform',
+                badge: 'Completo'
+            },
+            {
+                id: 'pubmed-author-count',
+                category: 'pesquisa',
+                title: 'PubMed Author Counter',
+                description: 'Conte e analise publicações de autores específicos no PubMed.',
+                icon: '👥',
+                file: '/toolbox/PubMed-Author-Counting',
+                badge: 'Rápido'
+            },
+            {
+                id: 'pubmed-collaboration',
+                category: 'pesquisa',
+                title: 'PubMed Collaboration Analyzer',
+                description: 'Analise redes de colaboração entre autores e instituições.',
+                icon: '🤝',
+                file: '/toolbox/PubMed-Collaboration-Analyzer',
+                badge: 'Rede'
+            },
+            {
+                id: 'pubmed-ai-screening',
+                category: 'pesquisa',
+                title: 'PubMed AI Screening',
+                description: 'Use IA para triagem automática de artigos em revisões sistemáticas.',
+                icon: '🤖',
+                file: '/toolbox/pubmedaiscreening',
+                badge: 'IA'
+            },
+            {
+                id: 'screening-tool',
+                category: 'pesquisa',
+                title: 'Screening Tool',
+                description: 'Ferramenta profissional para triagem de artigos em revisões sistemáticas.',
+                icon: '🔍',
+                file: '/toolbox/screening',
+                badge: 'Pro'
+            },
+            {
+                id: 'robins-i-v2',
+                category: 'pesquisa',
+                title: 'Auto ROBINS-I V2',
+                description: 'Avaliação automatizada de risco de viés usando ROBINS-I Version 2 para estudos não-randomizados.',
+                icon: '⚖️',
+                file: '/toolbox/auto-robins-i-v2',
+                badge: 'Novo'
+            },
+            {
+                id: 'rob2',
+                category: 'pesquisa',
+                title: 'Auto RoB 2',
+                description: 'Avaliação automatizada de risco de viés usando RoB 2 (Cochrane) para ensaios clínicos randomizados.',
+                icon: '🎲',
+                file: '/toolbox/auto-rob2',
+                badge: 'Novo'
+            },
+            {
+                id: 'manuscript-finder',
+                category: 'pesquisa',
+                title: 'DOI to Sci-Hub Manager',
+                description: 'Gerencie e acesse artigos científicos através de DOIs.',
+                icon: '📄',
+                file: '/toolbox/manuscriptfinder',
+                badge: 'Acesso'
+            },
+            {
+                id: 'bibliography-organizer',
+                category: 'pesquisa',
+                title: 'Bibliography Organizer',
+                description: 'Organize e renomeie arquivos de bibliografia automaticamente.',
+                icon: '📚',
+                file: '/toolbox/RENAMEDATABASE',
+                badge: 'Organizar'
+            },
+
+            // Outras Ferramentas
+            {
+                id: 'table-to-list',
+                category: 'outras',
+                title: 'Conversor Tabela para Lista',
+                description: 'Converta tabelas em listas formatadas de forma rápida e fácil.',
+                icon: '📝',
+                file: '/toolbox/tabletolist',
+                badge: 'Conversor'
+            },
+            {
+                id: 'reddit-saver',
+                category: 'outras',
+                title: 'Reddit Link Saver',
+                description: 'Salve e organize links e posts do Reddit por categorias.',
+                icon: '🔖',
+                file: '/toolbox/reddit',
+                badge: 'Útil'
+            }
+        ];
+
+        let userData = null;
+        let userFavorites = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Block assessoria users from accessing this page
+            if (userData.role === 'assessoria') {
+                alert('Esta página está disponível apenas para membros completos da Ward Academy.\n\nPara ter acesso, você pode demonstrar interesse através do seu dashboard.');
+                window.location.href = '/dashboard-assessoria-avulsa';
+                return;
+            }
+
+            // Load user favorites
+            await loadUserFavorites();
+
+            // Check diary toggle
+            const diariesEnabled = localStorage.getItem('study_diary_enabled') === 'true';
+            const diaryLink = document.getElementById('nav-diary');
+            if (diaryLink && diariesEnabled) {
+                diaryLink.style.display = 'block';
+            }
+
+            renderApps();
+
+            // Check if there's an app parameter in URL to auto-open
+            const urlParams = new URLSearchParams(window.location.search);
+            const appToOpen = urlParams.get('app');
+            if (appToOpen) {
+                // Small delay to ensure DOM is ready
+                setTimeout(() => {
+                    openApp(appToOpen);
+                }, 100);
+            }
+        });
+
+        function renderApps() {
+            const container = document.getElementById('apps-grid');
+
+            if (apps.length === 0) {
+                container.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 4rem 1rem;">
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">🔧</div>
+                        <h3 style="color: var(--gray-600); margin-bottom: 0.5rem;">Nenhum app disponível ainda</h3>
+                        <p style="color: var(--gray-500);">Novos apps serão adicionados em breve!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group apps by category
+            let html = '';
+
+            categories.forEach(category => {
+                const categoryApps = apps.filter(app => app.category === category.id);
+
+                // Only show category if it has apps
+                if (categoryApps.length > 0) {
+                    html += `
+                        <div style="grid-column: 1 / -1; margin-top: ${html ? '2rem' : '0'};">
+                            <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--gray-900); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <span>${category.icon}</span>
+                                <span>${category.name}</span>
+                            </h2>
+                        </div>
+                    `;
+
+                    html += categoryApps.map(app => {
+                        const isFavorited = userFavorites.includes(app.id);
+                        return `
+                            <div class="app-card" onclick="openApp('${app.id}')">
+                                <button
+                                    class="favorite-btn ${isFavorited ? 'favorited' : ''}"
+                                    onclick="event.stopPropagation(); toggleFavorite('${app.id}')"
+                                    title="${isFavorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}">
+                                    ${isFavorited ? '⭐' : '☆'}
+                                </button>
+                                <span class="app-icon">${app.icon}</span>
+                                <h3 class="app-title">${app.title}</h3>
+                                <p class="app-description">${app.description}</p>
+                                ${app.badge ? `<span class="app-badge">${app.badge}</span>` : ''}
+                            </div>
+                        `;
+                    }).join('');
+                }
+            });
+
+            container.innerHTML = html;
+        }
+
+        async function loadUserFavorites() {
+            try {
+                const { data, error } = await WardApp.db
+                    .from('users')
+                    .select('toolbox_favorites')
+                    .eq('id', userData.id)
+                    .single();
+
+                if (error) throw error;
+
+                userFavorites = data?.toolbox_favorites || [];
+            } catch (err) {
+                console.error('Error loading favorites:', err);
+                userFavorites = [];
+            }
+        }
+
+        async function toggleFavorite(appId) {
+            const index = userFavorites.indexOf(appId);
+
+            if (index > -1) {
+                // Remove from favorites
+                userFavorites.splice(index, 1);
+                WardApp.showToast('☆ Removido dos favoritos');
+            } else {
+                // Add to favorites (limit to 6)
+                if (userFavorites.length >= 6) {
+                    WardApp.showToast('⚠️ Você pode ter no máximo 6 favoritos. Remova algum primeiro.', 'warning');
+                    return;
+                }
+                userFavorites.push(appId);
+                WardApp.showToast('⭐ Adicionado aos favoritos!');
+            }
+
+            // Save to database
+            try {
+                const { error } = await WardApp.db
+                    .from('users')
+                    .update({ toolbox_favorites: userFavorites })
+                    .eq('id', userData.id);
+
+                if (error) throw error;
+
+                // Re-render to update UI
+                renderApps();
+            } catch (err) {
+                console.error('Error saving favorites:', err);
+                WardApp.showToast('Erro ao salvar favorito', 'error');
+            }
+        }
+
+        function openApp(appId) {
+            const app = apps.find(a => a.id === appId);
+            if (!app) return;
+
+            // Update URL for sharing (without reloading page)
+            const newUrl = `${window.location.pathname}?app=${appId}`;
+            window.history.pushState({ appId }, app.title, newUrl);
+
+            // Update modal title
+            document.getElementById('modal-app-title').textContent = app.title;
+
+            // Show modal
+            document.getElementById('app-modal').classList.add('active');
+
+            // Load app in iframe
+            const iframe = document.getElementById('app-iframe');
+            const loading = document.getElementById('app-loading');
+
+            loading.style.display = 'block';
+            iframe.style.display = 'none';
+
+            iframe.onload = function() {
+                loading.style.display = 'none';
+                iframe.style.display = 'block';
+            };
+
+            iframe.src = app.file;
+
+            // Prevent body scroll when modal is open
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeApp() {
+            const modal = document.getElementById('app-modal');
+            const iframe = document.getElementById('app-iframe');
+            const modalContent = document.querySelector('.app-modal-content');
+            const exitBtn = document.getElementById('fullscreen-exit-btn');
+
+            // Exit fullscreen if active
+            modalContent.classList.remove('fullscreen');
+            exitBtn.classList.remove('visible');
+
+            modal.classList.remove('active');
+            iframe.src = '';
+
+            // Restore body scroll
+            document.body.style.overflow = '';
+
+            // Restore URL without app parameter
+            window.history.pushState({}, 'Toolbox', window.location.pathname);
+        }
+
+        // Handle browser back/forward navigation
+        window.addEventListener('popstate', function(e) {
+            if (e.state && e.state.appId) {
+                openApp(e.state.appId);
+            } else {
+                // Close app if open
+                const modal = document.getElementById('app-modal');
+                if (modal.classList.contains('active')) {
+                    const iframe = document.getElementById('app-iframe');
+                    const modalContent = document.querySelector('.app-modal-content');
+                    const exitBtn = document.getElementById('fullscreen-exit-btn');
+                    modalContent.classList.remove('fullscreen');
+                    exitBtn.classList.remove('visible');
+                    modal.classList.remove('active');
+                    iframe.src = '';
+                    document.body.style.overflow = '';
+                }
+            }
+        });
+
+        function toggleFullscreen() {
+            const modalContent = document.querySelector('.app-modal-content');
+            const exitBtn = document.getElementById('fullscreen-exit-btn');
+
+            modalContent.classList.toggle('fullscreen');
+            exitBtn.classList.toggle('visible');
+        }
+
+        // Close modal on ESC key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeApp();
+            }
+        });
+
+        // Close modal when clicking outside
+        document.getElementById('app-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeApp();
+            }
+        });
+    </script>
+</body>
+</html>

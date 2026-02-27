@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Diario UWorld</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </a>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="/dashboard" class="nav-link">Dashboard</a>
+                <a href="/cronograma" class="nav-link">Cronograma</a>
+                <a href="/links" class="nav-link">Links</a>
+                <a href="/blog" class="nav-link">Blog</a>
+                <a href="/pesquisa" class="nav-link">Pesquisa</a>
+                <a href="/diary-uworld" class="nav-link active">Diario UW</a>
+            </nav>
+            <div class="nav-user">
+                <a href="/profile" class="user-menu-btn">
+                    <span>👤</span>
+                    <span class="user-name">Perfil</span>
+                </a>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
+            <h1>📊 Diario UWorld</h1>
+            <a href="/diary-study" class="btn btn-outline">📓 Diario Estudos</a>
+        </div>
+
+        <!-- Add Session Banner -->
+        <div class="add-session-banner mb-4" id="add-session-banner">
+            <div class="add-session-content">
+                <span class="add-session-icon">📝</span>
+                <div class="add-session-text">
+                    <strong>Registrar Nova Sessao</strong>
+                    <span>Clique aqui para adicionar uma sessao de questoes</span>
+                </div>
+            </div>
+            <button class="btn btn-primary btn-lg" id="new-session-btn" onclick="openNewSessionModal()">+ Nova Sessao</button>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="stats-grid mb-4">
+            <div class="stat-card">
+                <div class="stat-icon">📝</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="total-questions">0</span>
+                    <span class="stat-label">Questoes Feitas</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">✅</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="correct-rate">0%</span>
+                    <span class="stat-label">Acertos</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📈</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="avg-per-day">0</span>
+                    <span class="stat-label">Media/Dia</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🎯</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="best-system">-</span>
+                    <span class="stat-label">Melhor System</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="charts-row mb-4">
+            <!-- Progress Chart -->
+            <div class="card">
+                <div class="card-header">📈 Progresso Semanal</div>
+                <div class="card-body">
+                    <div id="weekly-chart" class="bar-chart">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Performance -->
+            <div class="card">
+                <div class="card-header">🎯 Performance por System</div>
+                <div class="card-body">
+                    <div id="system-performance" class="system-bars">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Category/Subject Performance -->
+            <div class="card">
+                <div class="card-header">📚 Performance por Category/Subject</div>
+                <div class="card-body">
+                    <div id="category-performance" class="system-bars">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sessions List -->
+        <div class="card">
+            <div class="card-header">
+                <span>📋 Historico de Sessoes</span>
+                <select id="filter-system" class="form-input" style="width: auto; padding: 0.25rem 0.5rem;" onchange="filterSessions()">
+                    <option value="">Todos Systems</option>
+                    <!-- Filled by JS -->
+                </select>
+            </div>
+            <div class="card-body">
+                <div id="sessions-list" class="sessions-list">
+                    <!-- Filled by JS -->
+                </div>
+                <div id="no-sessions" class="empty-state" style="display: none;">
+                    <div class="empty-state-icon">📊</div>
+                    <h3 class="empty-state-title">Nenhuma sessao registrada</h3>
+                    <p class="text-muted">Registre sua primeira sessao de UWorld!</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- New Session Modal -->
+    <div id="new-session-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">➕ Nova Sessao UWorld</h3>
+                <button class="modal-close" onclick="closeModal('new-session-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="session-date">Data *</label>
+                    <input type="date" id="session-date" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="session-exam">Prova</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="session-exam" class="form-input" placeholder="Ex: Step 1, Step 2 CK..." autocomplete="off">
+                    </div>
+                    <small class="text-muted">Baseado na sua preparacao atual</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="session-subject">Subject</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="session-subject" class="form-input" placeholder="Digite ou selecione..." autocomplete="off">
+                        <div id="session-subject-suggestions" class="autocomplete-suggestions"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="session-system">System *</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="session-system" class="form-input" placeholder="Digite ou selecione..." autocomplete="off">
+                        <div id="session-system-suggestions" class="autocomplete-suggestions"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="session-category">Category</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="session-category" class="form-input" placeholder="Digite ou selecione..." autocomplete="off">
+                        <div id="session-category-suggestions" class="autocomplete-suggestions"></div>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <div class="form-group">
+                        <label class="form-label" for="session-total">Total de Questoes *</label>
+                        <input type="number" id="session-total" class="form-input" min="1" placeholder="Ex: 40">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="session-correct">Corretas *</label>
+                        <input type="number" id="session-correct" class="form-input" min="0" placeholder="Ex: 28">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="session-time">Tempo (minutos)</label>
+                    <input type="number" id="session-time" class="form-input" min="0" placeholder="Ex: 60">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="session-mode">Modo</label>
+                    <select id="session-mode" class="form-input">
+                        <option value="untimed">Untimed</option>
+                        <option value="timed">Timed</option>
+                        <option value="tutor">Tutor</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="session-notes">Observacoes</label>
+                    <textarea id="session-notes" class="form-textarea" rows="2" placeholder="Dificuldades, topicos para revisar..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('new-session-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveSession()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Session Modal -->
+    <div id="edit-session-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">✏️ Editar Sessao</h3>
+                <button class="modal-close" onclick="closeModal('edit-session-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-session-id">
+                <div class="form-group">
+                    <label class="form-label" for="edit-session-date">Data *</label>
+                    <input type="date" id="edit-session-date" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-session-exam">Prova</label>
+                    <input type="text" id="edit-session-exam" class="form-input" placeholder="Ex: Step 1, Step 2 CK...">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-session-subject">Subject</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="edit-session-subject" class="form-input" placeholder="Digite ou selecione..." autocomplete="off">
+                        <div id="edit-session-subject-suggestions" class="autocomplete-suggestions"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-session-system">System *</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="edit-session-system" class="form-input" placeholder="Digite ou selecione..." autocomplete="off">
+                        <div id="edit-session-system-suggestions" class="autocomplete-suggestions"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-session-category">Category</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="edit-session-category" class="form-input" placeholder="Digite ou selecione..." autocomplete="off">
+                        <div id="edit-session-category-suggestions" class="autocomplete-suggestions"></div>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <div class="form-group">
+                        <label class="form-label" for="edit-session-total">Total de Questoes *</label>
+                        <input type="number" id="edit-session-total" class="form-input" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="edit-session-correct">Corretas *</label>
+                        <input type="number" id="edit-session-correct" class="form-input" min="0">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-session-time">Tempo (minutos)</label>
+                    <input type="number" id="edit-session-time" class="form-input" min="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-session-mode">Modo</label>
+                    <select id="edit-session-mode" class="form-input">
+                        <option value="untimed">Untimed</option>
+                        <option value="timed">Timed</option>
+                        <option value="tutor">Tutor</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-session-notes">Observacoes</label>
+                    <textarea id="edit-session-notes" class="form-textarea" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="deleteSession()">Excluir</button>
+                <button class="btn btn-secondary" onclick="closeModal('edit-session-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="updateSession()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Viewing As Banner -->
+    <div id="viewing-as-banner" class="viewing-as-banner" style="display: none;">
+        <span>👁️ Visualizando como: <strong id="viewing-student-name"></strong></span>
+        <button class="btn btn-sm btn-secondary" onclick="exitViewAs()">Voltar para minha conta</button>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let allSessions = [];
+        let filteredSessions = [];
+        let viewingAsStudentId = null;
+        let targetUserId = null; // The user whose diary we're viewing
+        let userPreparation = null; // User's current preparation focus
+        let userScheduleType = 'subject'; // User's schedule type: 'subject' or 'category'
+        let autocompleteOptions = { subject: [], system: [], category: [] };
+
+        // Helper to decrypt user name if encrypted
+        function _dn(name) {
+            if (!name) return name;
+            return WardApp._prs ? WardApp._prs(name) : name;
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Block assessoria users from accessing this page
+            if (userData.role === 'assessoria') {
+                alert('Esta página está disponível apenas para membros completos da Ward Academy.\n\nPara ter acesso, você pode demonstrar interesse através do seu dashboard.');
+                window.location.href = '/dashboard-assessoria-avulsa';
+                return;
+            }
+
+            // Check if viewing as another student (URL param or localStorage)
+            const urlParams = new URLSearchParams(window.location.search);
+            viewingAsStudentId = urlParams.get('view_as');
+
+            // If not in URL, check localStorage
+            if (!viewingAsStudentId) {
+                const storedViewAs = localStorage.getItem('view_as_student');
+                if (storedViewAs) {
+                    try {
+                        const parsed = JSON.parse(storedViewAs);
+                        viewingAsStudentId = parsed.id;
+                    } catch(e) {}
+                }
+            }
+
+            if (viewingAsStudentId) {
+                // Verify mentor is authorized to view this student
+                const isMentor = userData.role && userData.role.startsWith('mentor');
+                if (isMentor) {
+                    await setupViewingAsStudent(viewingAsStudentId);
+                    targetUserId = parseInt(viewingAsStudentId);
+
+                    // Hide new session banner for mentors
+                    document.getElementById('add-session-banner').style.display = 'none';
+                } else {
+                    // Not a mentor, ignore view_as and clear storage
+                    localStorage.removeItem('view_as_student');
+                    targetUserId = userData.id;
+                }
+            } else {
+                targetUserId = userData.id;
+
+                // Check if diary is enabled (stored in localStorage)
+                if (localStorage.getItem('uworld_diary_enabled') !== 'true') {
+                    window.location.href = '/dashboard';
+                    return;
+                }
+            }
+
+            // Set default date to today
+            document.getElementById('session-date').value = WardApp.getTodayString();
+
+            // Load user's preparation status, schedule type, and autocomplete options
+            await Promise.all([
+                loadUserPreparation(),
+                loadUserScheduleType(),
+                loadAutocompleteOptions()
+            ]);
+
+            // Setup autocomplete for all fields
+            setupAutocomplete('session-subject', 'subject');
+            setupAutocomplete('session-system', 'system');
+            setupAutocomplete('session-category', 'category');
+            setupAutocomplete('edit-session-subject', 'subject');
+            setupAutocomplete('edit-session-system', 'system');
+            setupAutocomplete('edit-session-category', 'category');
+
+            await loadSessions();
+        });
+
+        async function loadUserPreparation() {
+            const { data } = await WardApp.db
+                .from('user_preparation_status')
+                .select('currently_preparing_for')
+                .eq('user_id', targetUserId)
+                .maybeSingle();
+
+            if (data?.currently_preparing_for) {
+                // Convert internal value to display label
+                const prepLabels = {
+                    'step1': 'Step 1',
+                    'step2ck': 'Step 2 CK',
+                    'step3': 'Step 3',
+                    'oet': 'OET',
+                    'other': 'Outro'
+                };
+                userPreparation = prepLabels[data.currently_preparing_for] || data.currently_preparing_for;
+            }
+        }
+
+        async function loadUserScheduleType() {
+            const { data } = await WardApp.db
+                .from('users')
+                .select('schedule_type')
+                .eq('id', targetUserId)
+                .maybeSingle();
+
+            userScheduleType = data?.schedule_type || 'subject';
+
+            // Update modal fields visibility based on schedule type
+            updateModalFieldsForScheduleType();
+        }
+
+        function updateModalFieldsForScheduleType() {
+            const isSubjectMode = userScheduleType === 'subject';
+
+            // New Session Modal
+            const subjectGroup = document.getElementById('session-subject')?.closest('.form-group');
+            const categoryGroup = document.getElementById('session-category')?.closest('.form-group');
+
+            if (subjectGroup) subjectGroup.style.display = isSubjectMode ? 'block' : 'none';
+            if (categoryGroup) categoryGroup.style.display = isSubjectMode ? 'none' : 'block';
+
+            // Edit Session Modal
+            const editSubjectGroup = document.getElementById('edit-session-subject')?.closest('.form-group');
+            const editCategoryGroup = document.getElementById('edit-session-category')?.closest('.form-group');
+
+            if (editSubjectGroup) editSubjectGroup.style.display = isSubjectMode ? 'block' : 'none';
+            if (editCategoryGroup) editCategoryGroup.style.display = isSubjectMode ? 'none' : 'block';
+        }
+
+        async function loadAutocompleteOptions() {
+            const { data } = await WardApp.db
+                .from('uworld_options')
+                .select('option_type, name')
+                .order('name');
+
+            if (data) {
+                autocompleteOptions = { subject: [], system: [], category: [] };
+                data.forEach(opt => {
+                    if (autocompleteOptions[opt.option_type]) {
+                        autocompleteOptions[opt.option_type].push(opt.name);
+                    }
+                });
+            }
+        }
+
+        function setupAutocomplete(inputId, optionType) {
+            const input = document.getElementById(inputId);
+            const suggestionsId = `${inputId}-suggestions`;
+            const suggestionsEl = document.getElementById(suggestionsId);
+
+            if (!input || !suggestionsEl) return;
+
+            input.addEventListener('input', () => {
+                const value = input.value.toLowerCase();
+                const options = autocompleteOptions[optionType] || [];
+                const filtered = value
+                    ? options.filter(opt => opt.toLowerCase().includes(value))
+                    : options;
+
+                if (filtered.length > 0 && value) {
+                    suggestionsEl.innerHTML = filtered.slice(0, 8).map(opt => `
+                        <div class="autocomplete-item" onclick="selectAutocomplete('${inputId}', '${opt.replace(/'/g, "\\'")}')">${opt}</div>
+                    `).join('');
+                    if (!filtered.some(opt => opt.toLowerCase() === value) && value.length > 1) {
+                        suggestionsEl.innerHTML += `
+                            <div class="autocomplete-item autocomplete-add" onclick="addNewOption('${optionType}', '${inputId}')">
+                                + Adicionar "${input.value}"
+                            </div>
+                        `;
+                    }
+                    suggestionsEl.style.display = 'block';
+                } else {
+                    suggestionsEl.style.display = 'none';
+                }
+            });
+
+            input.addEventListener('focus', () => {
+                const value = input.value.toLowerCase();
+                const options = autocompleteOptions[optionType] || [];
+                if (options.length > 0) {
+                    const filtered = value
+                        ? options.filter(opt => opt.toLowerCase().includes(value))
+                        : options;
+                    suggestionsEl.innerHTML = filtered.slice(0, 8).map(opt => `
+                        <div class="autocomplete-item" onclick="selectAutocomplete('${inputId}', '${opt.replace(/'/g, "\\'")}')">${opt}</div>
+                    `).join('');
+                    suggestionsEl.style.display = 'block';
+                }
+            });
+
+            input.addEventListener('blur', () => {
+                setTimeout(() => {
+                    suggestionsEl.style.display = 'none';
+                }, 200);
+            });
+        }
+
+        function selectAutocomplete(inputId, value) {
+            document.getElementById(inputId).value = value;
+            const suggestionsEl = document.getElementById(`${inputId}-suggestions`);
+            if (suggestionsEl) suggestionsEl.style.display = 'none';
+        }
+
+        async function addNewOption(optionType, inputId) {
+            const input = document.getElementById(inputId);
+            const value = input.value.trim();
+
+            if (!value) return;
+
+            // Add to database
+            const { error } = await WardApp.db
+                .from('uworld_options')
+                .insert({ option_type: optionType, name: value });
+
+            if (!error) {
+                // Add to local options
+                if (!autocompleteOptions[optionType].includes(value)) {
+                    autocompleteOptions[optionType].push(value);
+                    autocompleteOptions[optionType].sort();
+                }
+                WardApp.showToast(`"${value}" adicionado!`, 'success');
+            }
+
+            const suggestionsEl = document.getElementById(`${inputId}-suggestions`);
+            if (suggestionsEl) suggestionsEl.style.display = 'none';
+        }
+
+        function openNewSessionModal() {
+            // Set defaults
+            document.getElementById('session-date').value = WardApp.getTodayString();
+            document.getElementById('session-exam').value = userPreparation || '';
+            document.getElementById('session-subject').value = 'All';
+            document.getElementById('session-system').value = '';
+            document.getElementById('session-category').value = '';
+            document.getElementById('session-total').value = '';
+            document.getElementById('session-correct').value = '';
+            document.getElementById('session-time').value = '';
+            document.getElementById('session-mode').value = 'untimed';
+            document.getElementById('session-notes').value = '';
+
+            openModal('new-session-modal');
+        }
+
+        async function setupViewingAsStudent(studentId) {
+            // Get student info
+            const { data: student } = await WardApp.db
+                .from('users')
+                .select('full_name')
+                .eq('id', studentId)
+                .single();
+
+            if (student) {
+                // Show viewing banner and add body padding
+                document.getElementById('viewing-as-banner').style.display = 'flex';
+                document.getElementById('viewing-student-name').textContent = _dn(student.full_name);
+                document.body.style.paddingTop = '50px';
+
+                // Update header to show student name
+                const userNameEl = document.querySelector('.user-name');
+                if (userNameEl) {
+                    const sName = _dn(student.full_name);
+                    userNameEl.textContent = sName ? sName.split(' ')[0] : sName;
+                }
+
+                // Preserve mentorRole from existing localStorage if available
+                const existingData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+                const mentorRole = existingData?.mentorRole || userData.role;
+
+                // Store in localStorage for other pages
+                localStorage.setItem('view_as_student', JSON.stringify({
+                    id: studentId,
+                    name: _dn(student.full_name),
+                    mentorRole: mentorRole
+                }));
+
+                // Update navbar links to maintain view_as context
+                updateNavbarForViewAs(studentId);
+            }
+        }
+
+        function updateNavbarForViewAs(studentId) {
+            const navLinks = document.querySelectorAll('.nav-menu a.nav-link, .nav-user a');
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && !href.startsWith('#') && !href.startsWith('javascript')) {
+                    const url = new URL(href, window.location.href);
+                    url.searchParams.set('view_as', studentId);
+                    link.setAttribute('href', url.href);
+                }
+            });
+        }
+
+        function exitViewAs() {
+            const viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+            localStorage.removeItem('view_as_student');
+
+            // Redirect back to mentor dashboard
+            if (viewAsData && viewAsData.mentorRole) {
+                const mentorName = viewAsData.mentorRole.replace('mentor_', '');
+                window.location.href = `/mentor-dashboard-${mentorName}`;
+            } else {
+                window.location.href = '/';
+            }
+        }
+
+        async function loadSessions() {
+            const { data: sessions, error } = await WardApp.db
+                .from('uworld_diary')
+                .select('*')
+                .eq('user_id', targetUserId)
+                .order('date', { ascending: false });
+
+            if (error) {
+                console.error('Error loading sessions:', error);
+                return;
+            }
+
+            allSessions = sessions || [];
+            filteredSessions = [...allSessions];
+
+            populateSystemFilter();
+            updateStats();
+            renderWeeklyChart();
+            renderSystemPerformance();
+            renderCategoryPerformance();
+            renderSessions();
+        }
+
+        function populateSystemFilter() {
+            const systems = [...new Set(allSessions.map(s => s.system))].sort();
+            const select = document.getElementById('filter-system');
+            select.innerHTML = '<option value="">Todos Systems</option>' +
+                systems.map(s => `<option value="${s}">${s}</option>`).join('');
+        }
+
+        function filterSessions() {
+            const system = document.getElementById('filter-system').value;
+            filteredSessions = system
+                ? allSessions.filter(s => s.system === system)
+                : [...allSessions];
+            renderSessions();
+        }
+
+        function updateStats() {
+            const totalQuestions = allSessions.reduce((sum, s) => sum + s.total_questions, 0);
+            const totalCorrect = allSessions.reduce((sum, s) => sum + s.correct_answers, 0);
+            const correctRate = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
+
+            // Calculate average per day
+            const uniqueDays = new Set(allSessions.map(s => s.date)).size;
+            const avgPerDay = uniqueDays > 0 ? Math.round(totalQuestions / uniqueDays) : 0;
+
+            // Find best system
+            const systemStats = {};
+            allSessions.forEach(s => {
+                if (!systemStats[s.system]) {
+                    systemStats[s.system] = { total: 0, correct: 0 };
+                }
+                systemStats[s.system].total += s.total_questions;
+                systemStats[s.system].correct += s.correct_answers;
+            });
+
+            let bestSystem = '-';
+            let bestRate = 0;
+            Object.entries(systemStats).forEach(([system, stats]) => {
+                if (stats.total >= 10) { // Minimum 10 questions
+                    const rate = stats.correct / stats.total;
+                    if (rate > bestRate) {
+                        bestRate = rate;
+                        bestSystem = system;
+                    }
+                }
+            });
+
+            document.getElementById('total-questions').textContent = totalQuestions;
+            document.getElementById('correct-rate').textContent = correctRate + '%';
+            document.getElementById('avg-per-day').textContent = avgPerDay;
+            document.getElementById('best-system').textContent = bestSystem.length > 10 ? bestSystem.substring(0, 10) + '...' : bestSystem;
+        }
+
+        function renderWeeklyChart() {
+            const container = document.getElementById('weekly-chart');
+            const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
+            const today = new Date();
+
+            // Get last 7 days data
+            const weekData = [];
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+
+                const daySessions = allSessions.filter(s => s.date === dateStr);
+                const questions = daySessions.reduce((sum, s) => sum + s.total_questions, 0);
+
+                weekData.push({
+                    day: days[date.getDay()],
+                    questions,
+                    date: dateStr
+                });
+            }
+
+            const maxQuestions = Math.max(...weekData.map(d => d.questions), 1);
+
+            container.innerHTML = weekData.map(d => {
+                const height = (d.questions / maxQuestions) * 100;
+                return `
+                    <div class="bar-column">
+                        <div class="bar-value">${d.questions}</div>
+                        <div class="bar" style="height: ${Math.max(height, 5)}%"></div>
+                        <div class="bar-label">${d.day}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderSystemPerformance() {
+            const container = document.getElementById('system-performance');
+
+            // Calculate stats per system
+            const systemStats = {};
+            allSessions.forEach(s => {
+                if (!systemStats[s.system]) {
+                    systemStats[s.system] = { total: 0, correct: 0 };
+                }
+                systemStats[s.system].total += s.total_questions;
+                systemStats[s.system].correct += s.correct_answers;
+            });
+
+            // Sort by total questions
+            const sorted = Object.entries(systemStats)
+                .map(([system, stats]) => ({
+                    system,
+                    total: stats.total,
+                    rate: Math.round((stats.correct / stats.total) * 100)
+                }))
+                .sort((a, b) => b.total - a.total)
+                .slice(0, 6); // Top 6
+
+            if (sorted.length === 0) {
+                container.innerHTML = '<p class="text-muted">Nenhum dado ainda</p>';
+                return;
+            }
+
+            container.innerHTML = sorted.map(s => `
+                <div class="system-bar-item">
+                    <div class="system-bar-header">
+                        <span class="system-name">${s.system}</span>
+                        <span class="system-rate">${s.rate}%</span>
+                    </div>
+                    <div class="system-bar-track">
+                        <div class="system-bar-fill" style="width: ${s.rate}%; background: ${s.rate >= 70 ? '#22c55e' : s.rate >= 50 ? '#f59e0b' : '#ef4444'}"></div>
+                    </div>
+                    <div class="system-bar-footer">${s.total} questoes</div>
+                </div>
+            `).join('');
+        }
+
+        function renderCategoryPerformance() {
+            const container = document.getElementById('category-performance');
+
+            // Calculate stats per category and subject combined
+            const categoryStats = {};
+            allSessions.forEach(s => {
+                // Add category stats
+                if (s.category) {
+                    const key = `📁 ${s.category}`;
+                    if (!categoryStats[key]) {
+                        categoryStats[key] = { total: 0, correct: 0 };
+                    }
+                    categoryStats[key].total += s.total_questions;
+                    categoryStats[key].correct += s.correct_answers;
+                }
+                // Add subject stats
+                if (s.subject) {
+                    const key = `📖 ${s.subject}`;
+                    if (!categoryStats[key]) {
+                        categoryStats[key] = { total: 0, correct: 0 };
+                    }
+                    categoryStats[key].total += s.total_questions;
+                    categoryStats[key].correct += s.correct_answers;
+                }
+            });
+
+            // Sort by total questions
+            const sorted = Object.entries(categoryStats)
+                .map(([name, stats]) => ({
+                    name,
+                    total: stats.total,
+                    rate: Math.round((stats.correct / stats.total) * 100)
+                }))
+                .sort((a, b) => b.total - a.total)
+                .slice(0, 6); // Top 6
+
+            if (sorted.length === 0) {
+                container.innerHTML = '<p class="text-muted">Nenhum dado ainda</p>';
+                return;
+            }
+
+            container.innerHTML = sorted.map(s => `
+                <div class="system-bar-item">
+                    <div class="system-bar-header">
+                        <span class="system-name">${s.name}</span>
+                        <span class="system-rate">${s.rate}%</span>
+                    </div>
+                    <div class="system-bar-track">
+                        <div class="system-bar-fill" style="width: ${s.rate}%; background: ${s.rate >= 70 ? '#22c55e' : s.rate >= 50 ? '#f59e0b' : '#ef4444'}"></div>
+                    </div>
+                    <div class="system-bar-footer">${s.total} questoes</div>
+                </div>
+            `).join('');
+        }
+
+        function renderSessions() {
+            const container = document.getElementById('sessions-list');
+            const noSessions = document.getElementById('no-sessions');
+
+            if (filteredSessions.length === 0) {
+                container.innerHTML = '';
+                noSessions.style.display = 'block';
+                return;
+            }
+
+            noSessions.style.display = 'none';
+
+            container.innerHTML = filteredSessions.slice(0, 30).map(session => {
+                const rate = Math.round((session.correct_answers / session.total_questions) * 100);
+                const rateColor = rate >= 70 ? 'text-success' : rate >= 50 ? 'text-warning' : 'text-danger';
+                const isViewing = viewingAsStudentId !== null;
+                const extraInfo = [session.category, session.subject].filter(Boolean).join(' | ');
+
+                return `
+                    <div class="session-item" onclick="${isViewing ? '' : `editSession(${session.id})`}" style="${isViewing ? 'cursor: default;' : ''}">
+                        <div class="session-date">
+                            ${WardApp.formatDate(session.date)}
+                        </div>
+                        <div class="session-system">
+                            ${session.system}
+                            ${extraInfo ? `<span class="session-extra">${extraInfo}</span>` : ''}
+                        </div>
+                        <div class="session-stats">
+                            <span class="session-questions">${session.correct_answers}/${session.total_questions}</span>
+                            <span class="session-rate ${rateColor}">${rate}%</span>
+                        </div>
+                        <div class="session-mode">${session.mode || 'untimed'}</div>
+                        ${session.time_minutes ? `<div class="session-time">⏱️ ${session.time_minutes}min</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        let savingSession = false;
+        async function saveSession() {
+            if (savingSession) return;
+            const date = document.getElementById('session-date').value;
+            const examType = document.getElementById('session-exam').value.trim();
+            const subject = document.getElementById('session-subject').value.trim();
+            const system = document.getElementById('session-system').value.trim();
+            const category = document.getElementById('session-category').value.trim();
+            const total = parseInt(document.getElementById('session-total').value);
+            const correct = parseInt(document.getElementById('session-correct').value);
+            const time = parseInt(document.getElementById('session-time').value) || null;
+            const mode = document.getElementById('session-mode').value;
+            const notes = document.getElementById('session-notes').value.trim();
+
+            if (!date || !system || isNaN(total) || isNaN(correct)) {
+                WardApp.showToast('Preencha os campos obrigatorios', 'warning');
+                return;
+            }
+
+            if (correct > total) {
+                WardApp.showToast('Corretas nao pode ser maior que total', 'warning');
+                return;
+            }
+
+            savingSession = true;
+
+            try {
+            // Auto-add new options to database if they don't exist
+            await ensureOptionExists('subject', subject);
+            await ensureOptionExists('system', system);
+            await ensureOptionExists('category', category);
+
+            const { error } = await WardApp.db.from('uworld_diary').insert({
+                user_id: userData.id,
+                date: date,
+                exam_type: examType || null,
+                subject: subject || null,
+                system,
+                category: category || null,
+                total_questions: total,
+                correct_answers: correct,
+                time_minutes: time,
+                mode,
+                notes: notes || null
+            });
+
+            if (error) {
+                console.error('Error saving session:', error);
+                WardApp.showToast('Erro ao salvar sessao', 'error');
+                return;
+            }
+
+            closeModal('new-session-modal');
+            WardApp.showToast('Sessao registrada!');
+            await loadSessions();
+            } finally {
+                savingSession = false;
+            }
+        }
+
+        async function ensureOptionExists(optionType, value) {
+            if (!value || value === 'All') return;
+
+            if (!autocompleteOptions[optionType].includes(value)) {
+                const { error } = await WardApp.db
+                    .from('uworld_options')
+                    .insert({ option_type: optionType, name: value });
+
+                if (!error) {
+                    autocompleteOptions[optionType].push(value);
+                    autocompleteOptions[optionType].sort();
+                }
+            }
+        }
+
+        function editSession(id) {
+            const session = allSessions.find(s => s.id === id);
+            if (!session) return;
+
+            document.getElementById('edit-session-id').value = id;
+            document.getElementById('edit-session-date').value = session.date;
+            document.getElementById('edit-session-exam').value = session.exam_type || '';
+            document.getElementById('edit-session-subject').value = session.subject || '';
+            document.getElementById('edit-session-system').value = session.system;
+            document.getElementById('edit-session-category').value = session.category || '';
+            document.getElementById('edit-session-total').value = session.total_questions;
+            document.getElementById('edit-session-correct').value = session.correct_answers;
+            document.getElementById('edit-session-time').value = session.time_minutes || '';
+            document.getElementById('edit-session-mode').value = session.mode || 'untimed';
+            document.getElementById('edit-session-notes').value = session.notes || '';
+
+            openModal('edit-session-modal');
+        }
+
+        async function updateSession() {
+            const id = document.getElementById('edit-session-id').value;
+            const date = document.getElementById('edit-session-date').value;
+            const examType = document.getElementById('edit-session-exam').value.trim();
+            const subject = document.getElementById('edit-session-subject').value.trim();
+            const system = document.getElementById('edit-session-system').value.trim();
+            const category = document.getElementById('edit-session-category').value.trim();
+            const total = parseInt(document.getElementById('edit-session-total').value);
+            const correct = parseInt(document.getElementById('edit-session-correct').value);
+            const time = parseInt(document.getElementById('edit-session-time').value) || null;
+            const mode = document.getElementById('edit-session-mode').value;
+            const notes = document.getElementById('edit-session-notes').value.trim();
+
+            if (!date || !system || isNaN(total) || isNaN(correct)) {
+                WardApp.showToast('Preencha os campos obrigatorios', 'warning');
+                return;
+            }
+
+            if (correct > total) {
+                WardApp.showToast('Corretas nao pode ser maior que total', 'warning');
+                return;
+            }
+
+            // Auto-add new options to database if they don't exist
+            await ensureOptionExists('subject', subject);
+            await ensureOptionExists('system', system);
+            await ensureOptionExists('category', category);
+
+            const { error } = await WardApp.db
+                .from('uworld_diary')
+                .update({
+                    date: date,
+                    exam_type: examType || null,
+                    subject: subject || null,
+                    system,
+                    category: category || null,
+                    total_questions: total,
+                    correct_answers: correct,
+                    time_minutes: time,
+                    mode,
+                    notes: notes || null,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id)
+                .eq('user_id', userData.id);
+
+            if (error) {
+                console.error('Update error:', error);
+                WardApp.showToast('Erro ao atualizar: ' + (error.message || error), 'error');
+                return;
+            }
+
+            closeModal('edit-session-modal');
+            WardApp.showToast('Sessao atualizada!');
+            await loadSessions();
+        }
+
+        async function deleteSession() {
+            if (!confirm('Excluir esta sessão?')) return;
+
+            const id = parseInt(document.getElementById('edit-session-id').value);
+            if (!id) { WardApp.showToast('Erro: sessão inválida', 'error'); return; }
+
+            const { error } = await WardApp.db
+                .from('uworld_diary')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                console.error('Delete error:', error);
+                WardApp.showToast('Erro ao excluir: ' + (error.message || error), 'error');
+                return;
+            }
+
+            // Optimistically remove from local array
+            allSessions = allSessions.filter(s => s.id !== id);
+            closeModal('edit-session-modal');
+            WardApp.showToast('Sessão excluída!');
+            renderSessions();
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+    </script>
+
+    <style>
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .stat-icon {
+            font-size: 1.5rem;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--gray-500);
+        }
+
+        .charts-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .bar-chart {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            height: 150px;
+            padding: 1rem 0;
+        }
+
+        .bar-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }
+
+        .bar-value {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            margin-bottom: 0.25rem;
+        }
+
+        .bar {
+            width: 30px;
+            background: var(--primary-color);
+            border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+            min-height: 5px;
+        }
+
+        .bar-label {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            margin-top: 0.5rem;
+        }
+
+        .system-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .system-bar-item {
+            padding: 0.5rem 0;
+        }
+
+        .system-bar-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.25rem;
+        }
+
+        .system-name {
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .system-rate {
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .system-bar-track {
+            height: 8px;
+            background: var(--gray-200);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+        }
+
+        .system-bar-fill {
+            height: 100%;
+            border-radius: var(--radius-full);
+            transition: width 0.3s ease;
+        }
+
+        .system-bar-footer {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            margin-top: 0.25rem;
+        }
+
+        .sessions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .session-item {
+            display: grid;
+            grid-template-columns: 100px 1fr auto auto auto;
+            gap: 1rem;
+            align-items: center;
+            padding: 1rem;
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .session-item:hover {
+            background: var(--gray-100);
+        }
+
+        @media (max-width: 768px) {
+            .session-item {
+                grid-template-columns: 1fr 1fr;
+                gap: 0.5rem;
+            }
+        }
+
+        .session-date {
+            font-size: 0.875rem;
+            color: var(--gray-500);
+        }
+
+        .session-system {
+            font-weight: 500;
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+
+        .session-extra {
+            font-size: 0.75rem;
+            font-weight: 400;
+            color: var(--gray-500);
+        }
+
+        .session-stats {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .session-questions {
+            font-size: 0.875rem;
+        }
+
+        .session-rate {
+            font-weight: 600;
+        }
+
+        .session-mode {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            text-transform: capitalize;
+        }
+
+        .session-time {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+        }
+
+        .text-success { color: #22c55e; }
+        .text-warning { color: #f59e0b; }
+        .text-danger { color: #ef4444; }
+
+        /* Viewing As Banner */
+        .viewing-as-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .viewing-as-banner button {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.5);
+            color: white;
+            padding: 0.35rem 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .viewing-as-banner button:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        /* Add Session Banner */
+        .add-session-banner {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .add-session-content {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .add-session-icon {
+            font-size: 2.5rem;
+        }
+
+        .add-session-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .add-session-text strong {
+            font-size: 1.1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .add-session-text span {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .add-session-banner .btn-lg {
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 640px) {
+            .add-session-banner {
+                flex-direction: column;
+                text-align: center;
+                padding: 1.25rem;
+            }
+
+            .add-session-content {
+                flex-direction: column;
+            }
+        }
+
+        /* Autocomplete Styles */
+        .autocomplete-wrapper {
+            position: relative;
+        }
+
+        .autocomplete-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+
+        .autocomplete-item {
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+
+        .autocomplete-item:hover {
+            background: var(--gray-50);
+        }
+
+        .autocomplete-add {
+            color: var(--primary-color);
+            font-weight: 500;
+            background: #eff6ff;
+        }
+
+        .autocomplete-add:hover {
+            background: #dbeafe;
+        }
+    </style>
+</body>
+</html>

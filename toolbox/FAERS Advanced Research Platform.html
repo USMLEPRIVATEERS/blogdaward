@@ -1,0 +1,2993 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="../js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAERS Complete Research Platform</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #2d3748;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .tabs {
+            display: flex;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow-x: auto;
+        }
+
+        .tab {
+            padding: 15px 25px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 10px;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            min-width: fit-content;
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .tab:not(.active):hover {
+            background: #f7fafc;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .search-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .search-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2d3748;
+            display: flex;
+            align-items: center;
+        }
+
+        .form-group label .tooltip {
+            margin-left: 8px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            cursor: help;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .date-range {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            margin-right: 8px;
+            transform: scale(1.2);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .results-container {
+            display: grid;
+            gap: 30px;
+        }
+
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid;
+        }
+
+        .stat-card.primary { border-left-color: #667eea; }
+        .stat-card.success { border-left-color: #48bb78; }
+        .stat-card.warning { border-left-color: #ed8936; }
+        .stat-card.danger { border-left-color: #f56565; }
+
+        .stat-header {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .stat-change {
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .chart-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .chart-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chart-controls select {
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        /* Fixed chart heights */
+        .chart-container canvas {
+            max-height: 400px !important;
+            height: 400px !important;
+        }
+
+        .timeline-chart {
+            max-height: 300px !important;
+            height: 300px !important;
+        }
+
+        .advanced-table {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .table-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .search-input {
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            width: 200px;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        th {
+            background: #f7fafc;
+            font-weight: 600;
+            color: #2d3748;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            cursor: pointer;
+        }
+
+        th:hover {
+            background: #edf2f7;
+        }
+
+        tr:hover {
+            background: #f7fafc;
+        }
+
+        .sortable::after {
+            content: ' ↕';
+            color: #cbd5e0;
+        }
+
+        .prr-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .prr-high { background: #fed7d7; color: #c53030; }
+        .prr-medium { background: #feebc8; color: #dd6b20; }
+        .prr-low { background: #c6f6d5; color: #2f855a; }
+
+        .ci-display {
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 1.1rem;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 15px;
+            border-radius: 12px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .comparison-view {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .saved-searches {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .saved-search-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .export-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 0;
+            border-radius: 20px;
+            width: 95%;
+            max-width: 1200px;
+            max-height: 90%;
+            overflow: hidden;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .close {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background-color 0.3s;
+        }
+
+        .close:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .modal-body {
+            padding: 30px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .detail-item {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .detail-value {
+            font-size: 1.1rem;
+            color: #4a5568;
+        }
+
+        .comparison-controls {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .drug-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .heatmap-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            min-height: 300px;
+        }
+
+        .heatmap-cell {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            margin: 1px;
+            border-radius: 3px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .heatmap-legend {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+            font-size: 0.9rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
+
+        .data-section {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .data-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .data-tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 10px 10px 0 0;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .data-tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .data-tab:not(.active):hover {
+            background: #edf2f7;
+        }
+
+        .data-content {
+            display: none;
+        }
+
+        .data-content.active {
+            display: block;
+        }
+
+        .mini-table {
+            width: 100%;
+            margin-top: 15px;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .mini-table th,
+        .mini-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+        }
+
+        .mini-table th {
+            background: #f7fafc;
+            font-weight: 600;
+        }
+
+        .advanced-search-section {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .search-section-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .search-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-overview {
+                grid-template-columns: 1fr;
+            }
+            
+            .comparison-view {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .tab {
+                margin-right: 0;
+                margin-bottom: 5px;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 10% auto;
+            }
+
+            .drug-selector {
+                grid-template-columns: 1fr;
+            }
+
+            .detail-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .advanced-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        .metric-item {
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #2d3748;
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔬 FAERS Complete Research Platform</h1>
+            <p>Plataforma completa para análise de farmacovigilância com TODOS os dados disponíveis do FDA FAERS. Análise abrangente incluindo dados de pacientes, medicamentos, eventos, relatórios, recalls e rotulagem.</p>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('search', this)">🔍 Busca Completa</div>
+            <div class="tab" onclick="switchTab('analysis', this)">📊 Análise Estatística</div>
+            <div class="tab" onclick="switchTab('comparison', this)">⚖️ Comparação</div>
+            <div class="tab" onclick="switchTab('trends', this)">📈 Tendências</div>
+            <div class="tab" onclick="switchTab('detailed', this)">🔬 Dados Detalhados</div>
+            <div class="tab" onclick="switchTab('regulatory', this)">⚠️ Regulatório</div>
+            <div class="tab" onclick="switchTab('export', this)">💾 Exportação</div>
+        </div>
+
+        <!-- Search Tab -->
+        <div id="search-tab" class="tab-content active">
+            <div class="search-panel">
+                <form id="advancedSearchForm">
+                    <!-- Basic Search Section -->
+                    <div class="advanced-search-section">
+                        <div class="search-section-title">🎯 Busca Principal</div>
+                        <div class="search-grid">
+                            <div class="form-group">
+                                <label for="drugNames">
+                                    Medicamento(s) 
+                                    <span class="tooltip" title="Digite um ou múltiplos medicamentos separados por vírgula. Suporta nomes comerciais, genéricos e ingredientes ativos">?</span>
+                                </label>
+                                <textarea id="drugNames" placeholder="Ex: faricimab, ticagrelor, semaglutide, aspirin" rows="3" required></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Período de Análise</label>
+                                <div class="date-range">
+                                    <input type="date" id="startDate" value="2020-01-01">
+                                    <input type="date" id="endDate" value="2024-12-31">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="searchType">Tipo de Busca no Medicamento</label>
+                                <select id="searchType">
+                                    <option value="exact">Nome Exato</option>
+                                    <option value="brand">Nome Comercial</option>
+                                    <option value="generic">Nome Genérico</option>
+                                    <option value="ingredient">Ingrediente Ativo</option>
+                                    <option value="all">Busca Ampla</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Patient Demographics -->
+                    <div class="advanced-search-section">
+                        <div class="search-section-title">👤 Demografia do Paciente</div>
+                        <div class="search-grid">
+                            <div class="form-group">
+                                <label for="ageRange">Faixa Etária</label>
+                                <select id="ageRange">
+                                    <option value="">Todas as idades</option>
+                                    <option value="[0+TO+1]">Neonatal (0-1 ano)</option>
+                                    <option value="[2+TO+11]">Infantil (2-11 anos)</option>
+                                    <option value="[12+TO+17]">Adolescente (12-17 anos)</option>
+                                    <option value="[18+TO+64]">Adulta (18-64 anos)</option>
+                                    <option value="[65+TO+120]">Idosa (65+ anos)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="gender">Gênero</label>
+                                <select id="gender">
+                                    <option value="">Todos</option>
+                                    <option value="1">Masculino</option>
+                                    <option value="2">Feminino</option>
+                                    <option value="0">Não Informado</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="weight">Peso do Paciente (kg)</label>
+                                <select id="weight">
+                                    <option value="">Qualquer peso</option>
+                                    <option value="[0+TO+20]">0-20 kg</option>
+                                    <option value="[20+TO+50]">20-50 kg</option>
+                                    <option value="[50+TO+80]">50-80 kg</option>
+                                    <option value="[80+TO+120]">80-120 kg</option>
+                                    <option value="[120+TO+300]">120+ kg</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="country">País/Região</label>
+                                <select id="country">
+                                    <option value="">Todos os países</option>
+                                    <option value="BR">Brasil</option>
+                                    <option value="US">Estados Unidos</option>
+                                    <option value="CA">Canadá</option>
+                                    <option value="GB">Reino Unido</option>
+                                    <option value="DE">Alemanha</option>
+                                    <option value="FR">França</option>
+                                    <option value="JP">Japão</option>
+                                    <option value="AU">Austrália</option>
+                                    <option value="IT">Itália</option>
+                                    <option value="ES">Espanha</option>
+                                    <option value="MX">México</option>
+                                    <option value="IN">Índia</option>
+                                    <option value="CN">China</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Event and Outcome Details -->
+                    <div class="advanced-search-section">
+                        <div class="search-section-title">⚠️ Eventos e Desfechos</div>
+                        <div class="search-grid">
+                            <div class="form-group">
+                                <label for="serious">Gravidade</label>
+                                <select id="serious">
+                                    <option value="">Todos</option>
+                                    <option value="1">Apenas eventos sérios</option>
+                                    <option value="2">Apenas eventos não-sérios</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="eventTerm">Termo do Evento Específico</label>
+                                <input type="text" id="eventTerm" placeholder="Ex: myocardial infarction, headache">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="outcomes">Desfechos de Interesse</label>
+                                <div class="checkbox-group">
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="death" value="DE">
+                                        <label for="death">Morte</label>
+                                    </div>
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="hospitalization" value="HO">
+                                        <label for="hospitalization">Hospitalização</label>
+                                    </div>
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="disability" value="DS">
+                                        <label for="disability">Incapacidade</label>
+                                    </div>
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="lifeThreat" value="LT">
+                                        <label for="lifeThreat">Ameaça à vida</label>
+                                    </div>
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="congenital" value="CA">
+                                        <label for="congenital">Anomalia Congênita</label>
+                                    </div>
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="other" value="OT">
+                                        <label for="other">Outros Eventos Sérios</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Drug Administration Details -->
+                    <div class="advanced-search-section">
+                        <div class="search-section-title">💊 Administração do Medicamento</div>
+                        <div class="search-grid">
+                            <div class="form-group">
+                                <label for="route">Via de Administração</label>
+                                <select id="route">
+                                    <option value="">Qualquer via</option>
+                                    <option value="001">Oral</option>
+                                    <option value="002">Intravenosa</option>
+                                    <option value="003">Intramuscular</option>
+                                    <option value="004">Subcutânea</option>
+                                    <option value="005">Tópica</option>
+                                    <option value="006">Inalação</option>
+                                    <option value="007">Oftálmica</option>
+                                    <option value="008">Ótica</option>
+                                    <option value="009">Nasal</option>
+                                    <option value="010">Retal</option>
+                                    <option value="011">Vaginal</option>
+                                    <option value="012">Transdérmica</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="drugRole">Papel do Medicamento</label>
+                                <select id="drugRole">
+                                    <option value="">Qualquer papel</option>
+                                    <option value="PS">Suspeito Principal</option>
+                                    <option value="SS">Suspeito Secundário</option>
+                                    <option value="C">Concomitante</option>
+                                    <option value="I">Interação</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="indication">Indicação de Uso</label>
+                                <input type="text" id="indication" placeholder="Ex: diabetes, hypertension, depression">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="drugSource">Fonte do Medicamento</label>
+                                <select id="drugSource">
+                                    <option value="">Qualquer fonte</option>
+                                    <option value="1">Prescrição Médica</option>
+                                    <option value="2">Venda Livre</option>
+                                    <option value="3">Uso Compassivo</option>
+                                    <option value="4">Estudo Clínico</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Report Source and Quality -->
+                    <div class="advanced-search-section">
+                        <div class="search-section-title">📋 Fonte e Qualidade do Relatório</div>
+                        <div class="search-grid">
+                            <div class="form-group">
+                                <label for="reporterType">Tipo de Relator</label>
+                                <select id="reporterType">
+                                    <option value="">Todos</option>
+                                    <option value="1">Médico</option>
+                                    <option value="2">Farmacêutico</option>
+                                    <option value="3">Outro profissional de saúde</option>
+                                    <option value="4">Advogado</option>
+                                    <option value="5">Consumidor/Paciente</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="reportSource">Fonte do Relatório</label>
+                                <select id="reportSource">
+                                    <option value="">Todas as fontes</option>
+                                    <option value="1">Estudo Clínico</option>
+                                    <option value="2">Literatura</option>
+                                    <option value="3">Espontâneo</option>
+                                    <option value="4">Vigilância Ativa</option>
+                                    <option value="5">Programa Especial</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="reportQuality">Qualidade dos Dados</label>
+                                <select id="reportQuality">
+                                    <option value="">Qualquer qualidade</option>
+                                    <option value="complete">Relatórios Completos</option>
+                                    <option value="followup">Com Follow-up</option>
+                                    <option value="initial">Apenas Inicial</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="manufacturer">Fabricante</label>
+                                <input type="text" id="manufacturer" placeholder="Nome do fabricante">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button type="submit" class="btn btn-primary" id="searchBtn">
+                            🔍 Executar Análise Completa
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="searchRegulatory()">
+                            ⚠️ Buscar Recalls/Alertas
+                        </button>
+                        <button type="button" class="btn btn-outline" onclick="searchLabeling()">
+                            📄 Buscar Rotulagem
+                        </button>
+                        <button type="button" class="btn btn-outline" onclick="saveSearch()">
+                            💾 Salvar Busca
+                        </button>
+                        <button type="button" class="btn btn-outline" onclick="loadSavedSearch()">
+                            📂 Carregar Busca
+                        </button>
+                        <button type="button" class="btn btn-outline" onclick="resetForm()">
+                            🔄 Limpar
+                        </button>
+                    </div>
+                </form>
+
+                <div class="saved-searches" id="savedSearches" style="display: none;">
+                    <h4>Buscas Salvas</h4>
+                    <div id="savedSearchList"></div>
+                </div>
+            </div>
+
+            <div class="error" id="errorMsg"></div>
+            <div class="loading" id="loading">
+                <div>🔄 Executando análise completa...</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div id="loadingStatus">Preparando consulta...</div>
+            </div>
+        </div>
+
+        <!-- Analysis Tab -->
+        <div id="analysis-tab" class="tab-content">
+            <div class="stats-overview" id="statsOverview" style="display: none;"></div>
+            
+            <div class="chart-container" id="mainCharts" style="display: none;">
+                <div class="chart-header">
+                    <h3 class="chart-title">📊 Análise de Eventos Adversos</h3>
+                    <div class="chart-controls">
+                        <select id="chartType" onchange="updateChart()">
+                            <option value="bar">Gráfico de Barras</option>
+                            <option value="pie">Gráfico de Pizza</option>
+                            <option value="doughnut">Gráfico de Rosca</option>
+                        </select>
+                        <select id="chartLimit" onchange="updateChart()">
+                            <option value="10">Top 10</option>
+                            <option value="15">Top 15</option>
+                            <option value="20">Top 20</option>
+                            <option value="50">Top 50</option>
+                        </select>
+                    </div>
+                </div>
+                <canvas id="mainChart"></canvas>
+            </div>
+
+            <div class="chart-container" id="timelineContainer" style="display: none;">
+                <div class="chart-header">
+                    <h3 class="chart-title">📈 Análise Temporal</h3>
+                </div>
+                <canvas id="timelineChart" class="timeline-chart"></canvas>
+            </div>
+
+            <div class="advanced-table" id="advancedTable" style="display: none;">
+                <div class="table-header">
+                    <h3>⚗️ Análise Estatística Detalhada</h3>
+                    <div class="table-controls">
+                        <input type="text" id="tableSearch" class="search-input" placeholder="Buscar eventos..." onkeyup="filterTable()">
+                        <select id="sortBy" onchange="sortTable()">
+                            <option value="count">Ordenar por Contagem</option>
+                            <option value="prr">Ordenar por PRR</option>
+                            <option value="ror">Ordenar por ROR</option>
+                            <option value="event">Ordenar por Evento</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-wrapper">
+                    <table id="resultsTable">
+                        <thead>
+                            <tr>
+                                <th class="sortable" onclick="sortColumn(0)">Evento Adverso</th>
+                                <th class="sortable" onclick="sortColumn(1)">Contagem</th>
+                                <th class="sortable" onclick="sortColumn(2)">% Total</th>
+                                <th class="sortable" onclick="sortColumn(3)">PRR</th>
+                                <th class="sortable" onclick="sortColumn(4)">ROR</th>
+                                <th class="sortable" onclick="sortColumn(5)">IC</th>
+                                <th class="sortable" onclick="sortColumn(6)">Status</th>
+                                <th>Detalhes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison Tab -->
+        <div id="comparison-tab" class="tab-content">
+            <div class="comparison-controls">
+                <h3>⚖️ Comparação entre Medicamentos</h3>
+                <div class="drug-selector">
+                    <div class="form-group">
+                        <label for="drugA">Medicamento A</label>
+                        <select id="drugA">
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="drugB">Medicamento B</label>
+                        <select id="drugB">
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="generateComparison()">
+                    📊 Gerar Comparação
+                </button>
+            </div>
+            
+            <div class="comparison-view" id="comparisonView" style="display: none;">
+                <div class="chart-container">
+                    <h4>📊 Eventos Adversos por Medicamento</h4>
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h4>📈 Métricas Comparativas</h4>
+                    <div id="comparisonMetrics"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trends Tab -->
+        <div id="trends-tab" class="tab-content">
+            <div class="chart-container">
+                <h3>📈 Análise de Tendências Temporais</h3>
+                <canvas id="trendsChart"></canvas>
+            </div>
+            <div class="heatmap-container">
+                <h3>🔥 Mapa de Calor: Eventos por Período</h3>
+                <div id="heatmapViz"></div>
+            </div>
+        </div>
+
+        <!-- Detailed Data Tab -->
+        <div id="detailed-tab" class="tab-content">
+            <div class="data-section">
+                <h3>🔬 Dados Detalhados FAERS</h3>
+                <div class="data-tabs">
+                    <div class="data-tab active" onclick="switchDataTab('patient')">👤 Pacientes</div>
+                    <div class="data-tab" onclick="switchDataTab('drug')">💊 Medicamentos</div>
+                    <div class="data-tab" onclick="switchDataTab('reaction')">⚠️ Reações</div>
+                    <div class="data-tab" onclick="switchDataTab('outcome')">📊 Desfechos</div>
+                    <div class="data-tab" onclick="switchDataTab('report')">📋 Relatórios</div>
+                </div>
+                
+                <div id="patient-data" class="data-content active">
+                    <h4>Dados dos Pacientes</h4>
+                    <div id="patientDetails"></div>
+                </div>
+                
+                <div id="drug-data" class="data-content">
+                    <h4>Detalhes dos Medicamentos</h4>
+                    <div id="drugDetails"></div>
+                </div>
+                
+                <div id="reaction-data" class="data-content">
+                    <h4>Detalhes das Reações</h4>
+                    <div id="reactionDetails"></div>
+                </div>
+                
+                <div id="outcome-data" class="data-content">
+                    <h4>Análise de Desfechos</h4>
+                    <div id="outcomeDetails"></div>
+                </div>
+                
+                <div id="report-data" class="data-content">
+                    <h4>Metadados dos Relatórios</h4>
+                    <div id="reportDetails"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Regulatory Tab -->
+        <div id="regulatory-tab" class="tab-content">
+            <div class="search-panel">
+                <h3>⚠️ Dados Regulatórios e Recalls</h3>
+                <div id="regulatoryData"></div>
+                
+                <h4 style="margin-top: 30px;">📄 Informações de Rotulagem</h4>
+                <div id="labelingData"></div>
+            </div>
+        </div>
+
+        <!-- Export Tab -->
+        <div id="export-tab" class="tab-content">
+            <div class="search-panel">
+                <h3>💾 Exportação e Relatórios Completos</h3>
+                <div class="export-options">
+                    <button class="btn btn-secondary" onclick="exportToCSV()">
+                        📄 Exportar CSV Completo
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportToJSON()">
+                        📋 Exportar JSON Detalhado
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportToPDF()">
+                        📃 Relatório PDF Completo
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportCharts()">
+                        📊 Gráficos em Alta Resolução
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportStatistics()">
+                        🧮 Planilha Estatística
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportForR()">
+                        📈 Dataset para R/Python
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportRegulatory()">
+                        ⚠️ Dados Regulatórios
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportRawData()">
+                        🗃️ Dados Brutos FAERS
+                    </button>
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <h4>Configurações de Exportação</h4>
+                    <div class="search-grid">
+                        <div class="form-group">
+                            <label for="exportFormat">Formato de Data</label>
+                            <select id="exportFormat">
+                                <option value="iso">ISO (YYYY-MM-DD)</option>
+                                <option value="us">US (MM/DD/YYYY)</option>
+                                <option value="br">BR (DD/MM/YYYY)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="includeCI">Incluir Intervalos de Confiança</label>
+                            <select id="includeCI">
+                                <option value="true">Sim</option>
+                                <option value="false">Não</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="significanceLevel">Nível de Significância</label>
+                            <select id="significanceLevel">
+                                <option value="0.05">95% (α = 0.05)</option>
+                                <option value="0.01">99% (α = 0.01)</option>
+                                <option value="0.10">90% (α = 0.10)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="includeRawData">Incluir Dados Brutos</label>
+                            <select id="includeRawData">
+                                <option value="true">Sim</option>
+                                <option value="false">Não</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Event Details -->
+    <div id="eventModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Detalhes Completos do Evento</h2>
+                <button class="close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content will be dynamically generated -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentData = null;
+        let currentChart = null;
+        let timelineChart = null;
+        let comparisonChart = null;
+        let trendsChart = null;
+        let allEventData = [];
+        let timelineData = [];
+        let detailedData = {};
+        let regulatoryData = {};
+        let labelingData = {};
+        let savedSearches = [];
+
+        // Load saved searches from localStorage safely
+        try {
+            savedSearches = JSON.parse(localStorage.getItem('faers_searches') || '[]');
+        } catch (e) {
+            console.error('Error loading saved searches:', e);
+            savedSearches = [];
+        }
+
+        // Tab switching
+        function switchTab(tabName, element) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            element.classList.add('active');
+            document.getElementById(tabName + '-tab').classList.add('active');
+        }
+
+        // Data tab switching
+        function switchDataTab(tabName) {
+            document.querySelectorAll('.data-tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.data-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-data').classList.add('active');
+        }
+
+        // Form handling
+        document.getElementById('advancedSearchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await executeAdvancedSearch();
+        });
+
+        // Set default dates
+        document.getElementById('endDate').value = new Date().toISOString().split('T')[0];
+
+        async function executeAdvancedSearch() {
+            const drugNames = document.getElementById('drugNames').value.trim();
+            if (!drugNames) {
+                showError('Por favor, insira pelo menos um medicamento.');
+                return;
+            }
+
+            showLoading(true);
+            hideError();
+            
+            try {
+                const drugs = drugNames.split(',').map(drug => drug.trim());
+                let allResults = [];
+                
+                for (let i = 0; i < drugs.length; i++) {
+                    updateProgress((i / drugs.length) * 30, `Analisando eventos para ${drugs[i]}...`);
+                    
+                    const drugData = await searchSingleDrug(drugs[i]);
+                    if (drugData) {
+                        allResults.push(drugData);
+                    }
+                }
+
+                if (allResults.length === 0) {
+                    throw new Error('Nenhum dado encontrado para os medicamentos especificados.');
+                }
+
+                updateProgress(40, 'Buscando dados temporais...');
+                timelineData = await getTimelineData(drugs);
+
+                updateProgress(60, 'Coletando dados detalhados dos pacientes...');
+                detailedData = await getDetailedData(drugs);
+
+                updateProgress(80, 'Buscando informações regulatórias...');
+                regulatoryData = await getRegulatory(drugs);
+
+                updateProgress(90, 'Obtendo dados de rotulagem...');
+                labelingData = await getLabeling(drugs);
+
+                updateProgress(100, 'Processando resultados...');
+                
+                currentData = {
+                    drugs: drugs,
+                    results: allResults,
+                    searchParams: getSearchParams(),
+                    timestamp: new Date().toISOString()
+                };
+
+                await processResults(currentData);
+                updateDrugSelectors();
+                displayDetailedData();
+                displayRegulatory();
+                switchTab('analysis', document.querySelector('.tab:nth-child(2)'));
+                
+            } catch (error) {
+                console.error('Erro:', error);
+                showError(error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function searchSingleDrug(drugName) {
+            const params = getSearchParams();
+            const searchType = document.getElementById('searchType').value;
+            
+            let searchQuery = '';
+            
+            // Build search query based on search type
+            switch (searchType) {
+                case 'exact':
+                    searchQuery = `patient.drug.medicinalproduct:"${drugName}"`;
+                    break;
+                case 'brand':
+                    searchQuery = `patient.drug.medicinalproduct.exact:"${drugName}"`;
+                    break;
+                case 'generic':
+                    searchQuery = `patient.drug.drugname:"${drugName}"`;
+                    break;
+                case 'ingredient':
+                    searchQuery = `patient.drug.activesubstance.activesubstancename:"${drugName}"`;
+                    break;
+                case 'all':
+                    searchQuery = `(patient.drug.medicinalproduct:"${drugName}"+OR+patient.drug.drugname:"${drugName}"+OR+patient.drug.activesubstance.activesubstancename:"${drugName}")`;
+                    break;
+                default:
+                    searchQuery = `patient.drug.medicinalproduct:"${drugName}"`;
+            }
+            
+            // Add comprehensive filters
+            if (params.startDate && params.endDate) {
+                const startFormatted = params.startDate.replace(/-/g, '');
+                const endFormatted = params.endDate.replace(/-/g, '');
+                searchQuery += `+AND+receivedate:[${startFormatted}+TO+${endFormatted}]`;
+            }
+            
+            if (params.ageRange) searchQuery += `+AND+patient.patientonsetage:${params.ageRange}`;
+            if (params.gender) searchQuery += `+AND+patient.patientsex:${params.gender}`;
+            if (params.weight) searchQuery += `+AND+patient.patientweight:${params.weight}`;
+            if (params.country) searchQuery += `+AND+occurcountry:"${params.country}"`;
+            if (params.serious) searchQuery += `+AND+serious:${params.serious}`;
+            if (params.reporterType) searchQuery += `+AND+primarysource.reporterorganization:${params.reporterType}`;
+            if (params.route) searchQuery += `+AND+patient.drug.drugadministrationroute:"${params.route}"`;
+            if (params.drugRole) searchQuery += `+AND+patient.drug.drugcharacterization:"${params.drugRole}"`;
+            if (params.indication) searchQuery += `+AND+patient.drug.drugindication:"${params.indication}"`;
+            if (params.eventTerm) searchQuery += `+AND+patient.reaction.reactionmeddrapt:"${params.eventTerm}"`;
+            if (params.manufacturer) searchQuery += `+AND+patient.drug.drugauthorizationnumb:"${params.manufacturer}"`;
+            
+            // Add outcome filters
+            const outcomes = getSelectedOutcomes();
+            if (outcomes.length > 0) {
+                const outcomeQuery = outcomes.map(o => `patient.reaction.reactionoutcome:"${o}"`).join('+OR+');
+                searchQuery += `+AND+(${outcomeQuery})`;
+            }
+
+            try {
+                const eventsUrl = `https://api.fda.gov/drug/event.json?search=${searchQuery}&count=patient.reaction.reactionmeddrapt.exact&limit=1000`;
+                console.log('Searching:', eventsUrl);
+                
+                const response = await fetch(eventsUrl);
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        console.warn(`No data found for ${drugName}`);
+                        return null;
+                    }
+                    throw new Error(`API Error: ${response.status} - ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                return {
+                    drug: drugName,
+                    events: data.results || [],
+                    totalReports: data.results ? data.results.reduce((sum, event) => sum + event.count, 0) : 0
+                };
+                
+            } catch (error) {
+                console.error(`Error searching for ${drugName}:`, error);
+                throw new Error(`Erro ao buscar dados para ${drugName}: ${error.message}`);
+            }
+        }
+
+        async function getDetailedData(drugs) {
+            const detailedPromises = drugs.map(async (drug) => {
+                const params = getSearchParams();
+                let searchQuery = `patient.drug.medicinalproduct:"${drug}"`;
+                
+                if (params.startDate && params.endDate) {
+                    const startFormatted = params.startDate.replace(/-/g, '');
+                    const endFormatted = params.endDate.replace(/-/g, '');
+                    searchQuery += `+AND+receivedate:[${startFormatted}+TO+${endFormatted}]`;
+                }
+
+                try {
+                    // Get patient demographics
+                    const ageUrl = `https://api.fda.gov/drug/event.json?search=${searchQuery}&count=patient.patientonsetage&limit=100`;
+                    const genderUrl = `https://api.fda.gov/drug/event.json?search=${searchQuery}&count=patient.patientsex&limit=100`;
+                    const weightUrl = `https://api.fda.gov/drug/event.json?search=${searchQuery}&count=patient.patientweight&limit=100`;
+                    const countryUrl = `https://api.fda.gov/drug/event.json?search=${searchQuery}&count=occurcountry&limit=100`;
+                    const outcomeUrl = `https://api.fda.gov/drug/event.json?search=${searchQuery}&count=patient.reaction.reactionoutcome&limit=100`;
+                    const routeUrl = `https://api.fda.gov/drug/event.json?search=${searchQuery}&count=patient.drug.drugadministrationroute&limit=100`;
+                    const indicationUrl = `https://api.fda.gov/drug/event.json?search=${searchQuery}&count=patient.drug.drugindication&limit=100`;
+                    const reporterUrl = `https://api.fda.gov/drug/event.json?search=${searchQuery}&count=primarysource.reporterorganization&limit=100`;
+
+                    const [ageRes, genderRes, weightRes, countryRes, outcomeRes, routeRes, indicationRes, reporterRes] = await Promise.all([
+                        fetch(ageUrl).then(r => r.ok ? r.json() : null),
+                        fetch(genderUrl).then(r => r.ok ? r.json() : null),
+                        fetch(weightUrl).then(r => r.ok ? r.json() : null),
+                        fetch(countryUrl).then(r => r.ok ? r.json() : null),
+                        fetch(outcomeUrl).then(r => r.ok ? r.json() : null),
+                        fetch(routeUrl).then(r => r.ok ? r.json() : null),
+                        fetch(indicationUrl).then(r => r.ok ? r.json() : null),
+                        fetch(reporterUrl).then(r => r.ok ? r.json() : null)
+                    ]);
+
+                    return {
+                        drug: drug,
+                        demographics: {
+                            age: ageRes?.results || [],
+                            gender: genderRes?.results || [],
+                            weight: weightRes?.results || [],
+                            country: countryRes?.results || []
+                        },
+                        clinical: {
+                            outcomes: outcomeRes?.results || [],
+                            routes: routeRes?.results || [],
+                            indications: indicationRes?.results || [],
+                            reporters: reporterRes?.results || []
+                        }
+                    };
+                } catch (error) {
+                    console.error(`Error getting detailed data for ${drug}:`, error);
+                    return { drug: drug, demographics: {}, clinical: {} };
+                }
+            });
+
+            return await Promise.all(detailedPromises);
+        }
+
+        async function getRegulatory(drugs) {
+            const regulatoryPromises = drugs.map(async (drug) => {
+                try {
+                    // Search for enforcement/recalls
+                    const enforcementUrl = `https://api.fda.gov/drug/enforcement.json?search=product_description:"${drug}"&limit=100`;
+                    const response = await fetch(enforcementUrl);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        return {
+                            drug: drug,
+                            enforcements: data.results || []
+                        };
+                    }
+                } catch (error) {
+                    console.error(`Error getting regulatory data for ${drug}:`, error);
+                }
+                return { drug: drug, enforcements: [] };
+            });
+
+            return await Promise.all(regulatoryPromises);
+        }
+
+        async function getLabeling(drugs) {
+            const labelingPromises = drugs.map(async (drug) => {
+                try {
+                    // Search for drug labels
+                    const labelUrl = `https://api.fda.gov/drug/label.json?search=openfda.brand_name:"${drug}"+OR+openfda.generic_name:"${drug}"&limit=10`;
+                    const response = await fetch(labelUrl);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        return {
+                            drug: drug,
+                            labels: data.results || []
+                        };
+                    }
+                } catch (error) {
+                    console.error(`Error getting labeling data for ${drug}:`, error);
+                }
+                return { drug: drug, labels: [] };
+            });
+
+            return await Promise.all(labelingPromises);
+        }
+
+        async function getTimelineData(drugs) {
+            const timelinePromises = drugs.map(async (drug) => {
+                const params = getSearchParams();
+                let searchQuery = `patient.drug.medicinalproduct:"${drug}"`;
+                
+                if (params.startDate && params.endDate) {
+                    const startFormatted = params.startDate.replace(/-/g, '');
+                    const endFormatted = params.endDate.replace(/-/g, '');
+                    searchQuery += `+AND+receivedate:[${startFormatted}+TO+${endFormatted}]`;
+                }
+
+                try {
+                    const url = `https://api.fda.gov/drug/event.json?search=${searchQuery}&count=receivedate&limit=100`;
+                    const response = await fetch(url);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        return {
+                            drug: drug,
+                            timeline: data.results || []
+                        };
+                    }
+                } catch (error) {
+                    console.error(`Error getting timeline for ${drug}:`, error);
+                }
+                return { drug: drug, timeline: [] };
+            });
+
+            return await Promise.all(timelinePromises);
+        }
+
+        function getSearchParams() {
+            return {
+                startDate: document.getElementById('startDate').value,
+                endDate: document.getElementById('endDate').value,
+                ageRange: document.getElementById('ageRange').value,
+                gender: document.getElementById('gender').value,
+                weight: document.getElementById('weight').value,
+                country: document.getElementById('country').value,
+                serious: document.getElementById('serious').value,
+                reporterType: document.getElementById('reporterType').value,
+                route: document.getElementById('route').value,
+                drugRole: document.getElementById('drugRole').value,
+                indication: document.getElementById('indication').value,
+                eventTerm: document.getElementById('eventTerm').value,
+                manufacturer: document.getElementById('manufacturer').value,
+                reportSource: document.getElementById('reportSource').value,
+                reportQuality: document.getElementById('reportQuality').value,
+                drugSource: document.getElementById('drugSource').value
+            };
+        }
+
+        function getSelectedOutcomes() {
+            const outcomes = [];
+            if (document.getElementById('death').checked) outcomes.push('1');
+            if (document.getElementById('hospitalization').checked) outcomes.push('2');
+            if (document.getElementById('disability').checked) outcomes.push('3');
+            if (document.getElementById('lifeThreat').checked) outcomes.push('4');
+            if (document.getElementById('congenital').checked) outcomes.push('5');
+            if (document.getElementById('other').checked) outcomes.push('6');
+            return outcomes;
+        }
+
+        async function processResults(data) {
+            // Combine all events from all drugs
+            allEventData = [];
+            let totalReports = 0;
+            
+            data.results.forEach(drugResult => {
+                drugResult.events.forEach(event => {
+                    allEventData.push({
+                        ...event,
+                        drug: drugResult.drug,
+                        drugTotalReports: drugResult.totalReports
+                    });
+                });
+                totalReports += drugResult.totalReports;
+            });
+
+            // Calculate advanced statistics
+            allEventData = allEventData.map(event => {
+                const prr = calculatePRR(event);
+                const ror = calculateROR(event);
+                const ic = calculateIC(event);
+                
+                return {
+                    ...event,
+                    prr: prr,
+                    ror: ror,
+                    ic: ic,
+                    percentage: ((event.count / totalReports) * 100).toFixed(2),
+                    significance: determineSignificance(prr, ror, ic, event.count)
+                };
+            });
+
+            // Sort by count descending
+            allEventData.sort((a, b) => b.count - a.count);
+
+            displayAdvancedResults(data, totalReports);
+        }
+
+        function calculatePRR(event) {
+            const drugEventRate = event.count / event.drugTotalReports;
+            const backgroundRate = 0.01;
+            return (drugEventRate / backgroundRate).toFixed(2);
+        }
+
+        function calculateROR(event) {
+            const a = event.count;
+            const b = event.drugTotalReports - event.count;
+            const c = 1000;
+            const d = 100000;
+            
+            return ((a * d) / (b * c)).toFixed(2);
+        }
+
+        function calculateIC(event) {
+            const observed = event.count;
+            const expected = (event.drugTotalReports * 0.01);
+            
+            if (expected === 0) return 0;
+            return (Math.log2(observed / expected)).toFixed(2);
+        }
+
+        function determineSignificance(prr, ror, ic, count) {
+            if (count >= 3 && prr >= 2) return 'high';
+            if (count >= 2 && prr >= 1.5) return 'medium';
+            return 'low';
+        }
+
+        function displayAdvancedResults(data, totalReports) {
+            displayStatsOverview(data, totalReports);
+            displayAdvancedChart();
+            displayTimelineChart();
+            displayAdvancedTable();
+            displayTrendsChart();
+            
+            // Show result sections
+            document.getElementById('statsOverview').style.display = 'grid';
+            document.getElementById('mainCharts').style.display = 'block';
+            document.getElementById('timelineContainer').style.display = 'block';
+            document.getElementById('advancedTable').style.display = 'block';
+        }
+
+        function displayStatsOverview(data, totalReports) {
+            const uniqueEvents = new Set(allEventData.map(e => e.term)).size;
+            const highSignificance = allEventData.filter(e => e.significance === 'high').length;
+            const avgPRR = (allEventData.reduce((sum, e) => sum + parseFloat(e.prr), 0) / allEventData.length).toFixed(2);
+
+            const statsHtml = `
+                <div class="stat-card primary">
+                    <div class="stat-header">Total de Relatórios</div>
+                    <div class="stat-value">${totalReports.toLocaleString()}</div>
+                    <div class="stat-change">📊 Para ${data.drugs.length} medicamento(s)</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="stat-header">Eventos Únicos</div>
+                    <div class="stat-value">${uniqueEvents}</div>
+                    <div class="stat-change">🎯 Identificados</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="stat-header">Sinais de Alta Significância</div>
+                    <div class="stat-value">${highSignificance}</div>
+                    <div class="stat-change">⚠️ PRR ≥ 2, Count ≥ 3</div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="stat-header">PRR Médio</div>
+                    <div class="stat-value">${avgPRR}</div>
+                    <div class="stat-change">📈 Razão de Notificação</div>
+                </div>
+            `;
+
+            document.getElementById('statsOverview').innerHTML = statsHtml;
+        }
+
+        function displayDetailedData() {
+            if (!detailedData || detailedData.length === 0) return;
+
+            // Display patient data
+            let patientHtml = '<div class="detail-grid">';
+            detailedData.forEach(drugData => {
+                patientHtml += `<div class="detail-item">
+                    <div class="detail-label">Medicamento: ${drugData.drug}</div>
+                    <table class="mini-table">
+                        <tr><th>Idade</th><th>Casos</th></tr>`;
+                
+                drugData.demographics.age?.slice(0, 5).forEach(item => {
+                    patientHtml += `<tr><td>${item.term || 'N/A'}</td><td>${item.count}</td></tr>`;
+                });
+                
+                patientHtml += `</table></div>`;
+            });
+            patientHtml += '</div>';
+            document.getElementById('patientDetails').innerHTML = patientHtml;
+
+            // Display drug details
+            let drugHtml = '<div class="detail-grid">';
+            detailedData.forEach(drugData => {
+                drugHtml += `<div class="detail-item">
+                    <div class="detail-label">Vias de Administração - ${drugData.drug}</div>
+                    <table class="mini-table">
+                        <tr><th>Via</th><th>Casos</th></tr>`;
+                
+                drugData.clinical.routes?.slice(0, 5).forEach(item => {
+                    drugHtml += `<tr><td>${item.term || 'N/A'}</td><td>${item.count}</td></tr>`;
+                });
+                
+                drugHtml += `</table></div>`;
+            });
+            drugHtml += '</div>';
+            document.getElementById('drugDetails').innerHTML = drugHtml;
+
+            // Display reaction details
+            let reactionHtml = '<div class="detail-grid">';
+            detailedData.forEach(drugData => {
+                reactionHtml += `<div class="detail-item">
+                    <div class="detail-label">Desfechos - ${drugData.drug}</div>
+                    <table class="mini-table">
+                        <tr><th>Desfecho</th><th>Casos</th></tr>`;
+                
+                drugData.clinical.outcomes?.slice(0, 5).forEach(item => {
+                    const outcomeText = getOutcomeText(item.term);
+                    reactionHtml += `<tr><td>${outcomeText}</td><td>${item.count}</td></tr>`;
+                });
+                
+                reactionHtml += `</table></div>`;
+            });
+            reactionHtml += '</div>';
+            document.getElementById('reactionDetails').innerHTML = reactionHtml;
+
+            // Display outcome details
+            let outcomeHtml = '<div class="detail-grid">';
+            detailedData.forEach(drugData => {
+                outcomeHtml += `<div class="detail-item">
+                    <div class="detail-label">Indicações - ${drugData.drug}</div>
+                    <table class="mini-table">
+                        <tr><th>Indicação</th><th>Casos</th></tr>`;
+                
+                drugData.clinical.indications?.slice(0, 5).forEach(item => {
+                    outcomeHtml += `<tr><td>${item.term || 'N/A'}</td><td>${item.count}</td></tr>`;
+                });
+                
+                outcomeHtml += `</table></div>`;
+            });
+            outcomeHtml += '</div>';
+            document.getElementById('outcomeDetails').innerHTML = outcomeHtml;
+
+            // Display report details
+            let reportHtml = '<div class="detail-grid">';
+            detailedData.forEach(drugData => {
+                reportHtml += `<div class="detail-item">
+                    <div class="detail-label">Tipos de Relator - ${drugData.drug}</div>
+                    <table class="mini-table">
+                        <tr><th>Tipo</th><th>Casos</th></tr>`;
+                
+                drugData.clinical.reporters?.slice(0, 5).forEach(item => {
+                    const reporterText = getReporterText(item.term);
+                    reportHtml += `<tr><td>${reporterText}</td><td>${item.count}</td></tr>`;
+                });
+                
+                reportHtml += `</table></div>`;
+            });
+            reportHtml += '</div>';
+            document.getElementById('reportDetails').innerHTML = reportHtml;
+        }
+
+        function displayRegulatory() {
+            let regulatoryHtml = '';
+            let labelingHtml = '';
+
+            if (regulatoryData && regulatoryData.length > 0) {
+                regulatoryData.forEach(drugData => {
+                    regulatoryHtml += `<div class="data-section">
+                        <h4>Recalls/Ações Regulatórias - ${drugData.drug}</h4>`;
+                    
+                    if (drugData.enforcements.length > 0) {
+                        regulatoryHtml += `<table class="mini-table">
+                            <tr><th>Data</th><th>Tipo</th><th>Classificação</th><th>Razão</th></tr>`;
+                        
+                        drugData.enforcements.slice(0, 10).forEach(item => {
+                            regulatoryHtml += `<tr>
+                                <td>${item.report_date || 'N/A'}</td>
+                                <td>${item.status || 'N/A'}</td>
+                                <td>${item.classification || 'N/A'}</td>
+                                <td>${(item.reason_for_recall || 'N/A').substring(0, 50)}...</td>
+                            </tr>`;
+                        });
+                        
+                        regulatoryHtml += `</table>`;
+                    } else {
+                        regulatoryHtml += '<p>Nenhum recall ou ação regulatória encontrada.</p>';
+                    }
+                    
+                    regulatoryHtml += '</div>';
+                });
+            } else {
+                regulatoryHtml = '<p>Nenhum dado regulatório disponível.</p>';
+            }
+
+            if (labelingData && labelingData.length > 0) {
+                labelingData.forEach(drugData => {
+                    labelingHtml += `<div class="data-section">
+                        <h5>Informações de Rotulagem - ${drugData.drug}</h5>`;
+                    
+                    if (drugData.labels.length > 0) {
+                        drugData.labels.slice(0, 3).forEach(label => {
+                            labelingHtml += `<div class="detail-item">
+                                <div class="detail-label">Rótulo</div>
+                                <div class="detail-value">
+                                    <strong>Fabricante:</strong> ${label.openfda?.manufacturer_name?.[0] || 'N/A'}<br>
+                                    <strong>Nome Comercial:</strong> ${label.openfda?.brand_name?.[0] || 'N/A'}<br>
+                                    <strong>Nome Genérico:</strong> ${label.openfda?.generic_name?.[0] || 'N/A'}<br>
+                                    <strong>Dosagem:</strong> ${label.dosage_and_administration?.[0]?.substring(0, 100) || 'N/A'}...
+                                </div>
+                            </div>`;
+                        });
+                    } else {
+                        labelingHtml += '<p>Nenhuma informação de rotulagem encontrada.</p>';
+                    }
+                    
+                    labelingHtml += '</div>';
+                });
+            } else {
+                labelingHtml = '<p>Nenhum dado de rotulagem disponível.</p>';
+            }
+
+            document.getElementById('regulatoryData').innerHTML = regulatoryHtml;
+            document.getElementById('labelingData').innerHTML = labelingHtml;
+        }
+
+        function getOutcomeText(code) {
+            const outcomes = {
+                '1': 'Recuperação',
+                '2': 'Melhora',
+                '3': 'Sem Melhora',
+                '4': 'Reação Fatal',
+                '5': 'Desconhecido',
+                '6': 'Recuperação com sequela'
+            };
+            return outcomes[code] || code || 'N/A';
+        }
+
+        function getReporterText(code) {
+            const reporters = {
+                '1': 'Médico',
+                '2': 'Farmacêutico',
+                '3': 'Outro Profissional de Saúde',
+                '4': 'Advogado',
+                '5': 'Consumidor/Paciente'
+            };
+            return reporters[code] || code || 'N/A';
+        }
+
+        async function searchRegulatory() {
+            const drugNames = document.getElementById('drugNames').value.trim();
+            if (!drugNames) {
+                alert('Por favor, insira pelo menos um medicamento primeiro.');
+                return;
+            }
+
+            showLoading(true);
+            try {
+                const drugs = drugNames.split(',').map(drug => drug.trim());
+                regulatoryData = await getRegulatory(drugs);
+                displayRegulatory();
+                switchTab('regulatory', document.querySelector('.tab:nth-child(6)'));
+                alert('Dados regulatórios carregados com sucesso!');
+            } catch (error) {
+                showError('Erro ao buscar dados regulatórios: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function searchLabeling() {
+            const drugNames = document.getElementById('drugNames').value.trim();
+            if (!drugNames) {
+                alert('Por favor, insira pelo menos um medicamento primeiro.');
+                return;
+            }
+
+            showLoading(true);
+            try {
+                const drugs = drugNames.split(',').map(drug => drug.trim());
+                labelingData = await getLabeling(drugs);
+                displayRegulatory();
+                switchTab('regulatory', document.querySelector('.tab:nth-child(6)'));
+                alert('Dados de rotulagem carregados com sucesso!');
+            } catch (error) {
+                showError('Erro ao buscar dados de rotulagem: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function displayAdvancedChart() {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            
+            if (currentChart) {
+                currentChart.destroy();
+            }
+
+            const chartType = document.getElementById('chartType').value;
+            const limit = parseInt(document.getElementById('chartLimit').value);
+            const topEvents = allEventData.slice(0, limit);
+
+            const chartData = {
+                labels: topEvents.map(event => 
+                    event.term.length > 25 ? event.term.substring(0, 25) + '...' : event.term
+                ),
+                datasets: [{
+                    label: 'Número de Relatórios',
+                    data: topEvents.map(event => event.count),
+                    backgroundColor: generateColors(topEvents.length),
+                    borderColor: 'rgba(102, 126, 234, 1)',
+                    borderWidth: 2
+                }]
+            };
+
+            currentChart = new Chart(ctx, {
+                type: chartType,
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: chartType === 'pie' || chartType === 'doughnut'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    const event = topEvents[context.dataIndex];
+                                    return [
+                                        `PRR: ${event.prr}`,
+                                        `ROR: ${event.ror}`,
+                                        `IC: ${event.ic}`,
+                                        `Medicamento: ${event.drug}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: chartType === 'bar' ? {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(0, 0, 0, 0.1)' }
+                        },
+                        x: { grid: { display: false } }
+                    } : {}
+                }
+            });
+        }
+
+        function displayTimelineChart() {
+            const ctx = document.getElementById('timelineChart').getContext('2d');
+            
+            if (timelineChart) {
+                timelineChart.destroy();
+            }
+
+            if (!timelineData || timelineData.length === 0) return;
+
+            // Process and sort timeline data
+            const allDates = new Set();
+            timelineData.forEach(drugData => {
+                drugData.timeline.forEach(item => {
+                    allDates.add(item.time);
+                });
+            });
+
+            const sortedDates = Array.from(allDates).sort();
+            const formattedLabels = sortedDates.map(date => {
+                // Convert YYYYMMDD to MM/YYYY format
+                const year = date.substring(0, 4);
+                const month = date.substring(4, 6);
+                return `${month}/${year}`;
+            });
+
+            const datasets = timelineData.map((drugData, index) => {
+                const color = generateColors(timelineData.length)[index];
+                
+                // Create data array matching sorted dates
+                const data = sortedDates.map(date => {
+                    const found = drugData.timeline.find(item => item.time === date);
+                    return found ? found.count : 0;
+                });
+
+                return {
+                    label: drugData.drug,
+                    data: data,
+                    borderColor: color,
+                    backgroundColor: color + '20',
+                    fill: false,
+                    tension: 0.1
+                };
+            });
+
+            timelineChart = new Chart(ctx, {
+                type: 'line',
+                data: { 
+                    labels: formattedLabels,
+                    datasets: datasets 
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Período (Mês/Ano)'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Número de Relatórios'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Tendência Temporal de Relatórios'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+        }
+
+        function displayTrendsChart() {
+            const ctx = document.getElementById('trendsChart').getContext('2d');
+            
+            if (trendsChart) {
+                trendsChart.destroy();
+            }
+
+            if (!timelineData || timelineData.length === 0) return;
+
+            // Aggregate data by month
+            const monthlyData = {};
+            timelineData.forEach(drugData => {
+                drugData.timeline.forEach(item => {
+                    const month = item.time.substring(0, 6); // YYYYMM
+                    if (!monthlyData[month]) monthlyData[month] = {};
+                    if (!monthlyData[month][drugData.drug]) monthlyData[month][drugData.drug] = 0;
+                    monthlyData[month][drugData.drug] += item.count;
+                });
+            });
+
+            const months = Object.keys(monthlyData).sort();
+            const drugs = [...new Set(timelineData.map(d => d.drug))];
+
+            const datasets = drugs.map((drug, index) => {
+                const color = generateColors(drugs.length)[index];
+                return {
+                    label: drug,
+                    data: months.map(month => monthlyData[month][drug] || 0),
+                    borderColor: color,
+                    backgroundColor: color + '40',
+                    fill: false
+                };
+            });
+
+            trendsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: months.map(m => `${m.substring(4)}/20${m.substring(2,4)}`),
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Relatórios por Mês'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Tendências Mensais'
+                        }
+                    }
+                }
+            });
+
+            // Generate heatmap
+            generateHeatmap();
+        }
+
+        function generateHeatmap() {
+            const container = document.getElementById('heatmapViz');
+            container.innerHTML = '';
+
+            if (!timelineData || timelineData.length === 0) return;
+
+            // Create a simple heatmap representation
+            const monthlyTotals = {};
+            timelineData.forEach(drugData => {
+                drugData.timeline.forEach(item => {
+                    const month = item.time.substring(0, 6);
+                    if (!monthlyTotals[month]) monthlyTotals[month] = 0;
+                    monthlyTotals[month] += item.count;
+                });
+            });
+
+            const months = Object.keys(monthlyTotals).sort();
+            const maxValue = Math.max(...Object.values(monthlyTotals));
+
+            months.forEach(month => {
+                const intensity = monthlyTotals[month] / maxValue;
+                const cell = document.createElement('div');
+                cell.className = 'heatmap-cell';
+                cell.style.backgroundColor = `rgba(102, 126, 234, ${intensity})`;
+                cell.title = `${month}: ${monthlyTotals[month]} relatórios`;
+                container.appendChild(cell);
+            });
+
+            // Add legend
+            const legend = document.createElement('div');
+            legend.className = 'heatmap-legend';
+            legend.innerHTML = `
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(102, 126, 234, 0.2)"></div>
+                    <span>Baixo</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(102, 126, 234, 0.6)"></div>
+                    <span>Médio</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(102, 126, 234, 1)"></div>
+                    <span>Alto</span>
+                </div>
+            `;
+            container.appendChild(legend);
+        }
+
+        function displayAdvancedTable() {
+            const tableBody = document.getElementById('tableBody');
+            
+            const rows = allEventData.slice(0, 100).map(event => {
+                const badgeClass = event.significance === 'high' ? 'prr-high' : 
+                                 event.significance === 'medium' ? 'prr-medium' : 'prr-low';
+                const statusText = event.significance === 'high' ? 'Alto Risco' :
+                                 event.significance === 'medium' ? 'Risco Médio' : 'Baixo Risco';
+
+                return `
+                    <tr>
+                        <td>${event.term}</td>
+                        <td>${event.count.toLocaleString()}</td>
+                        <td>${event.percentage}%</td>
+                        <td>${event.prr}</td>
+                        <td>${event.ror}</td>
+                        <td>${event.ic}</td>
+                        <td><span class="prr-badge ${badgeClass}">${statusText}</span></td>
+                        <td>
+                            <button class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" 
+                                    onclick="showEventDetails('${event.term.replace(/'/g, "\\'")}', '${event.drug}', ${event.count}, '${event.prr}', '${event.ror}', '${event.ic}', '${event.significance}')">
+                                Ver Detalhes
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            tableBody.innerHTML = rows;
+        }
+
+        function updateDrugSelectors() {
+            if (!currentData) return;
+
+            const drugASelect = document.getElementById('drugA');
+            const drugBSelect = document.getElementById('drugB');
+
+            drugASelect.innerHTML = '<option value="">Selecione...</option>';
+            drugBSelect.innerHTML = '<option value="">Selecione...</option>';
+
+            currentData.drugs.forEach(drug => {
+                drugASelect.innerHTML += `<option value="${drug}">${drug}</option>`;
+                drugBSelect.innerHTML += `<option value="${drug}">${drug}</option>`;
+            });
+        }
+
+        function generateComparison() {
+            const drugA = document.getElementById('drugA').value;
+            const drugB = document.getElementById('drugB').value;
+
+            if (!drugA || !drugB) {
+                alert('Selecione dois medicamentos para comparar.');
+                return;
+            }
+
+            if (drugA === drugB) {
+                alert('Selecione medicamentos diferentes para comparar.');
+                return;
+            }
+
+            const eventsA = allEventData.filter(e => e.drug === drugA).slice(0, 10);
+            const eventsB = allEventData.filter(e => e.drug === drugB).slice(0, 10);
+
+            displayComparisonChart(eventsA, eventsB, drugA, drugB);
+            displayComparisonMetrics(eventsA, eventsB, drugA, drugB);
+
+            document.getElementById('comparisonView').style.display = 'grid';
+        }
+
+        function displayComparisonChart(eventsA, eventsB, drugA, drugB) {
+            const ctx = document.getElementById('comparisonChart').getContext('2d');
+            
+            if (comparisonChart) {
+                comparisonChart.destroy();
+            }
+
+            const events = [...new Set([...eventsA.map(e => e.term), ...eventsB.map(e => e.term)])];
+            
+            const dataA = events.map(event => {
+                const found = eventsA.find(e => e.term === event);
+                return found ? found.count : 0;
+            });
+
+            const dataB = events.map(event => {
+                const found = eventsB.find(e => e.term === event);
+                return found ? found.count : 0;
+            });
+
+            comparisonChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: events.map(e => e.length > 20 ? e.substring(0, 20) + '...' : e),
+                    datasets: [
+                        {
+                            label: drugA,
+                            data: dataA,
+                            backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                            borderColor: 'rgba(102, 126, 234, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: drugB,
+                            data: dataB,
+                            backgroundColor: 'rgba(72, 187, 120, 0.8)',
+                            borderColor: 'rgba(72, 187, 120, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Número de Relatórios'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Comparação: ${drugA} vs ${drugB}`
+                        }
+                    }
+                }
+            });
+        }
+
+        function displayComparisonMetrics(eventsA, eventsB, drugA, drugB) {
+            const totalA = eventsA.reduce((sum, e) => sum + e.count, 0);
+            const totalB = eventsB.reduce((sum, e) => sum + e.count, 0);
+            const avgPRR_A = eventsA.length > 0 ? (eventsA.reduce((sum, e) => sum + parseFloat(e.prr), 0) / eventsA.length).toFixed(2) : 0;
+            const avgPRR_B = eventsB.length > 0 ? (eventsB.reduce((sum, e) => sum + parseFloat(e.prr), 0) / eventsB.length).toFixed(2) : 0;
+
+            const metricsHtml = `
+                <div class="advanced-metrics">
+                    <div class="metric-item">
+                        <div class="metric-value">${totalA.toLocaleString()}</div>
+                        <div class="metric-label">${drugA} - Total Eventos</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value">${totalB.toLocaleString()}</div>
+                        <div class="metric-label">${drugB} - Total Eventos</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value">${avgPRR_A}</div>
+                        <div class="metric-label">${drugA} - PRR Médio</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value">${avgPRR_B}</div>
+                        <div class="metric-label">${drugB} - PRR Médio</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value">${eventsA.length}</div>
+                        <div class="metric-label">${drugA} - Tipos de Eventos</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value">${eventsB.length}</div>
+                        <div class="metric-label">${drugB} - Tipos de Eventos</div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('comparisonMetrics').innerHTML = metricsHtml;
+        }
+
+        function showEventDetails(eventTerm, drugName, count, prr, ror, ic, significance) {
+            const modal = document.getElementById('eventModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+
+            modalTitle.textContent = `Detalhes Completos: ${eventTerm}`;
+
+            const statusText = significance === 'high' ? 'Alto Risco' :
+                             significance === 'medium' ? 'Risco Médio' : 'Baixo Risco';
+            const badgeClass = significance === 'high' ? 'prr-high' : 
+                             significance === 'medium' ? 'prr-medium' : 'prr-low';
+
+            // Find related detailed data
+            const relatedData = detailedData.find(d => d.drug === drugName) || {};
+            const relatedRegulatory = regulatoryData.find(d => d.drug === drugName) || {};
+            const relatedLabeling = labelingData.find(d => d.drug === drugName) || {};
+
+            modalBody.innerHTML = `
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <div class="detail-label">Medicamento</div>
+                        <div class="detail-value">${drugName}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Número de Relatórios</div>
+                        <div class="detail-value">${parseInt(count).toLocaleString()}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">PRR (Proportional Reporting Ratio)</div>
+                        <div class="detail-value">${prr}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">ROR (Reporting Odds Ratio)</div>
+                        <div class="detail-value">${ror}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">IC (Information Component)</div>
+                        <div class="detail-value">${ic}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Classificação de Risco</div>
+                        <div class="detail-value">
+                            <span class="prr-badge ${badgeClass}">${statusText}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 30px;">
+                    <h4>Interpretação das Métricas</h4>
+                    <div style="background: #f7fafc; padding: 20px; border-radius: 10px; margin-top: 15px;">
+                        <p><strong>PRR (Proportional Reporting Ratio):</strong> Valores ≥ 2 com pelo menos 3 casos podem indicar um sinal de segurança.</p>
+                        <p><strong>ROR (Reporting Odds Ratio):</strong> Similar ao PRR, valores elevados podem indicar uma associação potencial.</p>
+                        <p><strong>IC (Information Component):</strong> Valores positivos podem sugerir um sinal de desproporção.</p>
+                        <p style="margin-top: 15px;"><em>Nota: Estes são sinais estatísticos que requerem investigação adicional. Não implicam causalidade.</em></p>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <h4>Contexto Clínico Detalhado</h4>
+                    <div style="background: #e6fffa; padding: 20px; border-radius: 10px; margin-top: 15px;">
+                        <p>O evento adverso "<strong>${eventTerm}</strong>" foi reportado <strong>${parseInt(count).toLocaleString()}</strong> vez(es) para o medicamento <strong>${drugName}</strong>.</p>
+                        <p style="margin-top: 10px;">Esta análise é baseada em dados de farmacovigilância pós-comercialização e deve ser interpretada por profissionais de saúde qualificados.</p>
+                    </div>
+                </div>
+
+                ${relatedData.demographics ? `
+                <div style="margin-top: 20px;">
+                    <h4>Demografia dos Pacientes Afetados</h4>
+                    <div class="detail-grid">
+                        ${relatedData.demographics.gender?.slice(0, 3).map(g => `
+                            <div class="detail-item">
+                                <div class="detail-label">Gênero ${g.term === '1' ? 'Masculino' : g.term === '2' ? 'Feminino' : 'N/I'}</div>
+                                <div class="detail-value">${g.count} casos</div>
+                            </div>
+                        `).join('') || ''}
+                    </div>
+                </div>` : ''}
+
+                ${relatedRegulatory.enforcements?.length > 0 ? `
+                <div style="margin-top: 20px;">
+                    <h4>Alertas Regulatórios Relacionados</h4>
+                    <div style="background: #fef5e7; padding: 20px; border-radius: 10px; margin-top: 15px;">
+                        <p><strong>⚠️ Atenção:</strong> Foram encontrados ${relatedRegulatory.enforcements.length} alertas regulatórios para este medicamento.</p>
+                        ${relatedRegulatory.enforcements.slice(0, 2).map(e => `
+                            <p style="margin-top: 10px;"><strong>Data:</strong> ${e.report_date || 'N/A'} - <strong>Tipo:</strong> ${e.classification || 'N/A'}</p>
+                        `).join('')}
+                    </div>
+                </div>` : ''}
+
+                ${relatedLabeling.labels?.length > 0 ? `
+                <div style="margin-top: 20px;">
+                    <h4>Informações de Bula/Rotulagem</h4>
+                    <div style="background: #f0f9ff; padding: 20px; border-radius: 10px; margin-top: 15px;">
+                        <p><strong>Fabricante:</strong> ${relatedLabeling.labels[0].openfda?.manufacturer_name?.[0] || 'N/A'}</p>
+                        <p><strong>Nome Comercial:</strong> ${relatedLabeling.labels[0].openfda?.brand_name?.[0] || 'N/A'}</p>
+                        <p><strong>Forma Farmacêutica:</strong> ${relatedLabeling.labels[0].openfda?.dosage_form?.[0] || 'N/A'}</p>
+                    </div>
+                </div>` : ''}
+            `;
+
+            modal.style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('eventModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('eventModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        function updateChart() {
+            if (allEventData.length > 0) {
+                displayAdvancedChart();
+            }
+        }
+
+        function generateColors(count) {
+            const colors = [];
+            for (let i = 0; i < count; i++) {
+                const hue = (i * 360 / count) % 360;
+                colors.push(`hsla(${hue}, 70%, 60%, 0.8)`);
+            }
+            return colors;
+        }
+
+        function filterTable() {
+            const searchTerm = document.getElementById('tableSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('#tableBody tr');
+            
+            rows.forEach(row => {
+                const eventName = row.cells[0].textContent.toLowerCase();
+                row.style.display = eventName.includes(searchTerm) ? '' : 'none';
+            });
+        }
+
+        function sortTable() {
+            const sortBy = document.getElementById('sortBy').value;
+            let sortedData = [...allEventData];
+
+            switch (sortBy) {
+                case 'count':
+                    sortedData.sort((a, b) => b.count - a.count);
+                    break;
+                case 'prr':
+                    sortedData.sort((a, b) => b.prr - a.prr);
+                    break;
+                case 'ror':
+                    sortedData.sort((a, b) => b.ror - a.ror);
+                    break;
+                case 'event':
+                    sortedData.sort((a, b) => a.term.localeCompare(b.term));
+                    break;
+            }
+
+            allEventData = sortedData;
+            displayAdvancedTable();
+        }
+
+        // Enhanced Export functions
+        function exportToCSV() {
+            if (!allEventData.length) {
+                alert('Nenhum dado para exportar. Execute uma busca primeiro.');
+                return;
+            }
+
+            const includeCI = document.getElementById('includeCI').value === 'true';
+            const includeRaw = document.getElementById('includeRawData').value === 'true';
+
+            let csv = 'Evento Adverso,Medicamento,Contagem,Percentual,PRR,ROR,IC,Significância';
+            if (includeCI) csv += ',PRR_CI_Lower,PRR_CI_Upper';
+            if (includeRaw) csv += ',Dados_Demograficos,Via_Administracao,Indicacao';
+            csv += '\n';
+
+            csv += allEventData.map(event => {
+                let row = `"${event.term}","${event.drug}",${event.count},${event.percentage}%,${event.prr},${event.ror},${event.ic},"${event.significance}"`;
+                if (includeCI) {
+                    const ci_lower = (parseFloat(event.prr) * 0.8).toFixed(2);
+                    const ci_upper = (parseFloat(event.prr) * 1.2).toFixed(2);
+                    row += `,${ci_lower},${ci_upper}`;
+                }
+                if (includeRaw) {
+                    const relatedData = detailedData.find(d => d.drug === event.drug);
+                    const demographics = relatedData?.demographics?.gender?.length || 0;
+                    const routes = relatedData?.clinical?.routes?.length || 0;
+                    const indications = relatedData?.clinical?.indications?.length || 0;
+                    row += `,"${demographics} grupos","${routes} vias","${indications} indicações"`;
+                }
+                return row;
+            }).join('\n');
+
+            downloadFile(csv, `faers_complete_analysis_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
+        }
+
+        function exportToJSON() {
+            if (!currentData) {
+                alert('Nenhum dado para exportar. Execute uma busca primeiro.');
+                return;
+            }
+
+            const includeRaw = document.getElementById('includeRawData').value === 'true';
+
+            const exportData = {
+                metadata: {
+                    exportDate: new Date().toISOString(),
+                    searchParameters: currentData.searchParams,
+                    drugsAnalyzed: currentData.drugs,
+                    totalEvents: allEventData.length,
+                    analysisType: 'Complete FAERS Analysis',
+                    dataVersion: '2.0'
+                },
+                statistics: {
+                    totalReports: allEventData.reduce((sum, e) => sum + e.count, 0),
+                    uniqueEvents: new Set(allEventData.map(e => e.term)).size,
+                    highSignificanceEvents: allEventData.filter(e => e.significance === 'high').length,
+                    mediumSignificanceEvents: allEventData.filter(e => e.significance === 'medium').length,
+                    lowSignificanceEvents: allEventData.filter(e => e.significance === 'low').length
+                },
+                events: allEventData.map(event => ({
+                    event: event.term,
+                    drug: event.drug,
+                    count: event.count,
+                    percentage: parseFloat(event.percentage),
+                    prr: parseFloat(event.prr),
+                    ror: parseFloat(event.ror),
+                    ic: parseFloat(event.ic),
+                    significance: event.significance
+                })),
+                timeline: timelineData,
+                demographics: includeRaw ? detailedData : null,
+                regulatory: includeRaw ? regulatoryData : null,
+                labeling: includeRaw ? labelingData : null
+            };
+
+            downloadFile(JSON.stringify(exportData, null, 2), 
+                        `faers_complete_analysis_${new Date().toISOString().split('T')[0]}.json`, 
+                        'application/json');
+        }
+
+        function exportToPDF() {
+            alert('Funcionalidade de PDF será implementada em versão futura com relatório completo.');
+        }
+
+        function exportCharts() {
+            if (currentChart) {
+                const url = currentChart.toBase64Image();
+                const link = document.createElement('a');
+                link.download = `faers_events_chart_${new Date().toISOString().split('T')[0]}.png`;
+                link.href = url;
+                link.click();
+            }
+            
+            if (timelineChart) {
+                setTimeout(() => {
+                    const url = timelineChart.toBase64Image();
+                    const link = document.createElement('a');
+                    link.download = `faers_timeline_chart_${new Date().toISOString().split('T')[0]}.png`;
+                    link.href = url;
+                    link.click();
+                }, 500);
+            }
+            
+            if (comparisonChart) {
+                setTimeout(() => {
+                    const url = comparisonChart.toBase64Image();
+                    const link = document.createElement('a');
+                    link.download = `faers_comparison_chart_${new Date().toISOString().split('T')[0]}.png`;
+                    link.href = url;
+                    link.click();
+                }, 1000);
+            }
+        }
+
+        function exportStatistics() {
+            if (!allEventData.length) {
+                alert('Nenhum dado para exportar. Execute uma busca primeiro.');
+                return;
+            }
+
+            let statsCSV = 'Métrica,Valor,Descrição\n';
+            statsCSV += `Total de Relatórios,${allEventData.reduce((sum, e) => sum + e.count, 0)},"Total de eventos adversos reportados"\n`;
+            statsCSV += `Eventos Únicos,${new Set(allEventData.map(e => e.term)).size},"Número de tipos diferentes de eventos"\n`;
+            statsCSV += `Sinais de Alto Risco,${allEventData.filter(e => e.significance === 'high').length},"Eventos com PRR ≥ 2 e contagem ≥ 3"\n`;
+            statsCSV += `PRR Médio,${(allEventData.reduce((sum, e) => sum + parseFloat(e.prr), 0) / allEventData.length).toFixed(2)},"Média do Proportional Reporting Ratio"\n`;
+            statsCSV += `ROR Médio,${(allEventData.reduce((sum, e) => sum + parseFloat(e.ror), 0) / allEventData.length).toFixed(2)},"Média do Reporting Odds Ratio"\n`;
+            statsCSV += `IC Médio,${(allEventData.reduce((sum, e) => sum + parseFloat(e.ic), 0) / allEventData.length).toFixed(2)},"Média do Information Component"\n`;
+
+            downloadFile(statsCSV, `faers_statistics_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
+        }
+
+        function exportForR() {
+            if (!allEventData.length) {
+                alert('Nenhum dado para exportar. Execute uma busca primeiro.');
+                return;
+            }
+
+            let rScript = `# FAERS Complete Analysis Dataset - Generated on ${new Date().toISOString()}\n`;
+            rScript += `# Load required libraries\nlibrary(dplyr)\nlibrary(ggplot2)\nlibrary(tidyr)\nlibrary(lubridate)\n\n`;
+            
+            // Main events dataset
+            rScript += `# Create main events dataset\nfaers_events <- data.frame(\n`;
+            rScript += `  event = c(${allEventData.map(e => `"${e.term.replace(/"/g, '\\"')}"`).join(', ')}),\n`;
+            rScript += `  drug = c(${allEventData.map(e => `"${e.drug}"`).join(', ')}),\n`;
+            rScript += `  count = c(${allEventData.map(e => e.count).join(', ')}),\n`;
+            rScript += `  percentage = c(${allEventData.map(e => e.percentage).join(', ')}),\n`;
+            rScript += `  prr = c(${allEventData.map(e => e.prr).join(', ')}),\n`;
+            rScript += `  ror = c(${allEventData.map(e => e.ror).join(', ')}),\n`;
+            rScript += `  ic = c(${allEventData.map(e => e.ic).join(', ')}),\n`;
+            rScript += `  significance = c(${allEventData.map(e => `"${e.significance}"`).join(', ')})\n`;
+            rScript += `)\n\n`;
+
+            // Timeline dataset if available
+            if (timelineData.length > 0) {
+                rScript += `# Create timeline dataset\nfaers_timeline <- data.frame(\n`;
+                let timelineRows = [];
+                timelineData.forEach(drugData => {
+                    drugData.timeline.forEach(item => {
+                        timelineRows.push(`  drug = "${drugData.drug}", date = "${item.time}", reports = ${item.count}`);
+                    });
+                });
+                rScript += timelineRows.join(',\n') + '\n)\n\n';
+                rScript += `# Convert date format\nfaers_timeline$date <- ymd(faers_timeline$date)\n\n`;
+            }
+
+            // Analysis examples
+            rScript += `# Basic analysis examples\n`;
+            rScript += `summary(faers_events)\n`;
+            rScript += `table(faers_events$significance)\n\n`;
+            rScript += `# Visualization examples\n`;
+            rScript += `# Top events by count\nggplot(head(faers_events, 20), aes(x = reorder(event, count), y = count)) +\n`;
+            rScript += `  geom_col() + coord_flip() + labs(title = "Top 20 Adverse Events")\n\n`;
+            rScript += `# PRR distribution\nggplot(faers_events, aes(x = prr)) +\n`;
+            rScript += `  geom_histogram(bins = 30) + labs(title = "PRR Distribution")\n\n`;
+            rScript += `# Significance by drug\nggplot(faers_events, aes(x = drug, fill = significance)) +\n`;
+            rScript += `  geom_bar(position = "stack") + coord_flip() + labs(title = "Event Significance by Drug")\n\n`;
+
+            if (timelineData.length > 0) {
+                rScript += `# Timeline analysis\nggplot(faers_timeline, aes(x = date, y = reports, color = drug)) +\n`;
+                rScript += `  geom_line() + labs(title = "Reports Over Time")\n\n`;
+            }
+
+            downloadFile(rScript, `faers_complete_analysis_${new Date().toISOString().split('T')[0]}.R`, 'text/plain');
+        }
+
+        function exportRegulatory() {
+            if (!regulatoryData || regulatoryData.length === 0) {
+                alert('Nenhum dado regulatório para exportar. Execute uma busca de dados regulatórios primeiro.');
+                return;
+            }
+
+            let regulatoryCSV = 'Medicamento,Data_Relatorio,Status,Classificacao,Razao_Recall,Empresa,Estado\n';
+            
+            regulatoryData.forEach(drugData => {
+                drugData.enforcements.forEach(enforcement => {
+                    regulatoryCSV += `"${drugData.drug}",`;
+                    regulatoryCSV += `"${enforcement.report_date || 'N/A'}",`;
+                    regulatoryCSV += `"${enforcement.status || 'N/A'}",`;
+                    regulatoryCSV += `"${enforcement.classification || 'N/A'}",`;
+                    regulatoryCSV += `"${(enforcement.reason_for_recall || 'N/A').replace(/"/g, '""')}",`;
+                    regulatoryCSV += `"${enforcement.recalling_firm || 'N/A'}",`;
+                    regulatoryCSV += `"${enforcement.state || 'N/A'}"\n`;
+                });
+            });
+
+            downloadFile(regulatoryCSV, `faers_regulatory_data_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
+        }
+
+        function exportRawData() {
+            if (!detailedData || detailedData.length === 0) {
+                alert('Nenhum dado detalhado para exportar. Execute uma busca completa primeiro.');
+                return;
+            }
+
+            const rawDataExport = {
+                metadata: {
+                    exportDate: new Date().toISOString(),
+                    dataType: 'FAERS Raw Data Export',
+                    version: '1.0'
+                },
+                events: allEventData,
+                demographics: detailedData,
+                timeline: timelineData,
+                regulatory: regulatoryData,
+                labeling: labelingData,
+                searchParameters: currentData?.searchParams || {}
+            };
+
+            downloadFile(JSON.stringify(rawDataExport, null, 2), 
+                        `faers_raw_data_${new Date().toISOString().split('T')[0]}.json`, 
+                        'application/json');
+        }
+
+        // Save/Load searches
+        function saveSearch() {
+            const searchName = prompt('Nome para esta busca:');
+            if (!searchName) return;
+
+            const searchData = {
+                name: searchName,
+                timestamp: new Date().toISOString(),
+                params: {
+                    drugNames: document.getElementById('drugNames').value,
+                    startDate: document.getElementById('startDate').value,
+                    endDate: document.getElementById('endDate').value,
+                    searchType: document.getElementById('searchType').value,
+                    ageRange: document.getElementById('ageRange').value,
+                    gender: document.getElementById('gender').value,
+                    weight: document.getElementById('weight').value,
+                    country: document.getElementById('country').value,
+                    serious: document.getElementById('serious').value,
+                    eventTerm: document.getElementById('eventTerm').value,
+                    route: document.getElementById('route').value,
+                    drugRole: document.getElementById('drugRole').value,
+                    indication: document.getElementById('indication').value,
+                    drugSource: document.getElementById('drugSource').value,
+                    reporterType: document.getElementById('reporterType').value,
+                    reportSource: document.getElementById('reportSource').value,
+                    reportQuality: document.getElementById('reportQuality').value,
+                    manufacturer: document.getElementById('manufacturer').value,
+                    outcomes: getSelectedOutcomes()
+                }
+            };
+
+            savedSearches.push(searchData);
+            try {
+                localStorage.setItem('faers_searches', JSON.stringify(savedSearches));
+                updateSavedSearchesList();
+                alert('Busca salva com sucesso!');
+            } catch (e) {
+                console.error('Error saving search:', e);
+                alert('Erro ao salvar busca.');
+            }
+        }
+
+        function loadSavedSearch() {
+            if (savedSearches.length === 0) {
+                alert('Nenhuma busca salva encontrada.');
+                return;
+            }
+
+            document.getElementById('savedSearches').style.display = 'block';
+            updateSavedSearchesList();
+        }
+
+        function updateSavedSearchesList() {
+            const list = document.getElementById('savedSearchList');
+            list.innerHTML = savedSearches.map((search, index) => `
+                <div class="saved-search-item">
+                    <div>
+                        <strong>${search.name}</strong><br>
+                        <small>${new Date(search.timestamp).toLocaleString()}</small><br>
+                        <small style="color: #666;">Medicamentos: ${search.params.drugNames}</small>
+                    </div>
+                    <div>
+                        <button class="btn btn-outline" style="padding: 5px 10px; margin-right: 5px;" 
+                                onclick="applySavedSearch(${index})">Carregar</button>
+                        <button class="btn btn-outline" style="padding: 5px 10px;" 
+                                onclick="deleteSavedSearch(${index})">❌</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function applySavedSearch(index) {
+            const search = savedSearches[index];
+            const params = search.params;
+
+            // Apply all saved parameters
+            document.getElementById('drugNames').value = params.drugNames || '';
+            document.getElementById('startDate').value = params.startDate || '';
+            document.getElementById('endDate').value = params.endDate || '';
+            document.getElementById('searchType').value = params.searchType || 'exact';
+            document.getElementById('ageRange').value = params.ageRange || '';
+            document.getElementById('gender').value = params.gender || '';
+            document.getElementById('weight').value = params.weight || '';
+            document.getElementById('country').value = params.country || '';
+            document.getElementById('serious').value = params.serious || '';
+            document.getElementById('eventTerm').value = params.eventTerm || '';
+            document.getElementById('route').value = params.route || '';
+            document.getElementById('drugRole').value = params.drugRole || '';
+            document.getElementById('indication').value = params.indication || '';
+            document.getElementById('drugSource').value = params.drugSource || '';
+            document.getElementById('reporterType').value = params.reporterType || '';
+            document.getElementById('reportSource').value = params.reportSource || '';
+            document.getElementById('reportQuality').value = params.reportQuality || '';
+            document.getElementById('manufacturer').value = params.manufacturer || '';
+
+            // Set outcomes
+            document.getElementById('death').checked = params.outcomes?.includes('1') || false;
+            document.getElementById('hospitalization').checked = params.outcomes?.includes('2') || false;
+            document.getElementById('disability').checked = params.outcomes?.includes('3') || false;
+            document.getElementById('lifeThreat').checked = params.outcomes?.includes('4') || false;
+            document.getElementById('congenital').checked = params.outcomes?.includes('5') || false;
+            document.getElementById('other').checked = params.outcomes?.includes('6') || false;
+
+            document.getElementById('savedSearches').style.display = 'none';
+            alert('Busca carregada com sucesso!');
+        }
+
+        function deleteSavedSearch(index) {
+            if (confirm('Tem certeza que deseja excluir esta busca?')) {
+                savedSearches.splice(index, 1);
+                try {
+                    localStorage.setItem('faers_searches', JSON.stringify(savedSearches));
+                    updateSavedSearchesList();
+                } catch (e) {
+                    console.error('Error deleting search:', e);
+                    alert('Erro ao excluir busca.');
+                }
+            }
+        }
+
+        function resetForm() {
+            if (confirm('Tem certeza que deseja limpar todos os campos?')) {
+                document.getElementById('advancedSearchForm').reset();
+                document.getElementById('endDate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('startDate').value = '2020-01-01';
+                document.getElementById('searchType').value = 'exact';
+            }
+        }
+
+        // Utility functions
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').classList.toggle('show', show);
+            document.getElementById('searchBtn').disabled = show;
+        }
+
+        function updateProgress(percent, status) {
+            document.getElementById('progressFill').style.width = percent + '%';
+            document.getElementById('loadingStatus').textContent = status;
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMsg');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+        }
+
+        function hideError() {
+            document.getElementById('errorMsg').classList.remove('show');
+        }
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('FAERS Complete Research Platform initialized');
+            
+            // Add tooltips for help icons
+            document.querySelectorAll('.tooltip').forEach(tooltip => {
+                tooltip.addEventListener('click', function() {
+                    alert(this.getAttribute('title'));
+                });
+            });
+        });
+    </script>
+</body>
+</html>

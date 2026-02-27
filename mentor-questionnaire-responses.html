@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Respostas dos Questionários</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .questionnaire-grid {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .students-sidebar {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 1rem;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .student-item {
+            padding: 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 0.5rem;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .student-item:hover {
+            background: #f9fafb;
+            border-color: #e5e7eb;
+        }
+
+        .student-item.active {
+            background: #eff6ff;
+            border-color: #C45700;
+        }
+
+        .student-item-name {
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .student-item-progress {
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+
+        .responses-container {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 2rem;
+        }
+
+        .step-section {
+            margin-bottom: 2rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .step-section:last-child {
+            border-bottom: none;
+        }
+
+        .step-header {
+            background: linear-gradient(135deg, #C45700, #ff8c42);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .response-item {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: #f9fafb;
+            border-radius: 8px;
+            border-left: 3px solid #C45700;
+            transition: all 0.2s;
+        }
+
+        .response-item:hover {
+            background: #f3f4f6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .response-label {
+            font-weight: 600;
+            color: #C45700;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .response-value {
+            color: #1f2937;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        .response-value.empty {
+            color: #9ca3af;
+            font-style: italic;
+        }
+
+        .array-list {
+            list-style: none;
+            padding: 0;
+            margin: 0.5rem 0 0 0;
+        }
+
+        .array-list li {
+            padding: 0.5rem 0.75rem;
+            background: white;
+            margin-bottom: 0.5rem;
+            border-radius: 6px;
+            border-left: 3px solid #3b82f6;
+            font-size: 0.9rem;
+        }
+
+        .object-card {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            border: 1px solid #e5e7eb;
+        }
+
+        .object-card-title {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .object-field {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 0.9rem;
+        }
+
+        .object-field:last-child {
+            border-bottom: none;
+        }
+
+        .object-field-label {
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .object-field-value {
+            color: #1f2937;
+            font-weight: 600;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-right: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .badge-primary {
+            background: #eff6ff;
+            color: #1e40af;
+        }
+
+        .badge-success {
+            background: #f0fdf4;
+            color: #15803d;
+        }
+
+        .badge-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .empty-state-responses {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #9ca3af;
+        }
+
+        .export-btn {
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </a>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="#" class="nav-link" id="mentor-dashboard-link">Dashboard</a>
+            </nav>
+            <div class="nav-user">
+                <a href="/profile" class="user-menu-btn">
+                    <span>👤</span>
+                    <span class="user-name">Perfil</span>
+                </a>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="welcome-banner">
+            <h1 class="welcome-title">📋 Respostas dos Questionários</h1>
+            <p class="welcome-subtitle">Visualize as respostas completas de cada aluno</p>
+        </div>
+
+        <div class="questionnaire-grid">
+            <!-- Sidebar com lista de alunos -->
+            <div class="students-sidebar">
+                <h3 style="margin-bottom: 0.5rem; font-size: 1rem;">Selecione um Aluno</h3>
+
+                <!-- Search bar -->
+                <div style="margin-bottom: 0.75rem;">
+                    <input type="text" id="student-search" placeholder="🔍 Buscar aluno..." oninput="renderStudentsList()" style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem; outline: none; box-sizing: border-box;" onfocus="this.style.borderColor='#C45700'" onblur="this.style.borderColor='#d1d5db'">
+                </div>
+
+                <!-- Filter buttons -->
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                    <button id="filter-all" class="btn btn-xs btn-primary" onclick="filterByRole('all')" style="flex: 1; font-size: 0.75rem; padding: 0.35rem 0.5rem;">
+                        Todos
+                    </button>
+                    <button id="filter-aluno" class="btn btn-xs btn-outline" onclick="filterByRole('aluno')" style="flex: 1; font-size: 0.75rem; padding: 0.35rem 0.5rem;">
+                        🎓 Alunos
+                    </button>
+                    <button id="filter-assessoria" class="btn btn-xs btn-outline" onclick="filterByRole('assessoria')" style="flex: 1; font-size: 0.75rem; padding: 0.35rem 0.5rem;">
+                        📋 Assessoria
+                    </button>
+                </div>
+
+                <div id="students-list">
+                    <p class="text-muted">Carregando alunos...</p>
+                </div>
+            </div>
+
+            <!-- Container de respostas -->
+            <div class="responses-container">
+                <div id="no-student-selected" class="empty-state-responses">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">👈</div>
+                    <h3>Selecione um aluno</h3>
+                    <p>Escolha um aluno da lista ao lado para ver suas respostas</p>
+                </div>
+
+                <div id="responses-content" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h2 id="student-name" style="margin: 0;"></h2>
+                        <button class="btn btn-outline export-btn" onclick="exportResponses()">📥 Exportar Respostas</button>
+                    </div>
+
+                    <!-- Student Summary Card -->
+                    <div id="student-summary" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; color: white; display: none;">
+                        <!-- Filled by JS -->
+                    </div>
+
+                    <div id="responses-sections"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let allStudents = [];
+        let currentStudent = null;
+        let currentResponses = [];
+        let currentRoleFilter = 'all';
+
+        // Helper to decrypt user data if encrypted
+        function _dn(val) {
+            if (!val) return val;
+            return WardApp._prs ? WardApp._prs(val) : val;
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Check if user is mentor
+            const isMentor = userData.role && userData.role.startsWith('mentor');
+            if (!isMentor) {
+                WardApp.showToast('Acesso restrito a mentores', 'error');
+                setTimeout(() => window.location.href = '/dashboard', 1500);
+                return;
+            }
+
+            // Verificacao adicional via Supabase Auth
+            const { data: { user: authUser } } = await WardApp.db.auth.getUser();
+            if (!authUser) {
+                WardApp.showToast('Sessao invalida. Faca login novamente.', 'error');
+                WardApp.logout();
+                return;
+            }
+
+            // Verificar se o auth_id corresponde ao usuario logado
+            if (userData.auth_id && userData.auth_id !== authUser.id) {
+                WardApp.showToast('Acesso negado: autenticacao invalida', 'error');
+                WardApp.logout();
+                return;
+            }
+
+            // Set dashboard link based on mentor role
+            const mentorName = userData.role.replace('mentor_', '');
+            document.getElementById('mentor-dashboard-link').href = `/mentor-dashboard-${mentorName}`;
+
+            // Update user name
+            const displayName = _dn(userData.full_name) || userData.email.split('@')[0];
+            document.querySelector('.user-name').textContent = (displayName ? displayName.split(' ')[0] : null) || 'Perfil';
+
+            // Load students
+            await loadStudents();
+        });
+
+        async function loadStudents() {
+            const { data: students, error } = await WardApp.db
+                .from('users')
+                .select('id, full_name, email, questionnaire_step, first_login_completed, role')
+                .in('role', ['aluno', 'assessoria']);
+
+            if (error) {
+                console.error('Error loading students:', error);
+                document.getElementById('students-list').innerHTML = '<p class="text-muted">Erro ao carregar alunos</p>';
+                return;
+            }
+
+            if (!students || students.length === 0) {
+                document.getElementById('students-list').innerHTML = '<p class="text-muted">Nenhum aluno encontrado</p>';
+                return;
+            }
+
+            // Decrypt names and sort alphabetically
+            allStudents = students.map(s => ({
+                ...s,
+                _displayName: _dn(s.full_name) || s.email
+            }));
+            allStudents.sort((a, b) => a._displayName.localeCompare(b._displayName, 'pt-BR', { sensitivity: 'base' }));
+
+            renderStudentsList();
+        }
+
+        function filterByRole(role) {
+            currentRoleFilter = role;
+
+            // Update button styles
+            document.getElementById('filter-all').classList.toggle('btn-primary', role === 'all');
+            document.getElementById('filter-all').classList.toggle('btn-outline', role !== 'all');
+
+            document.getElementById('filter-aluno').classList.toggle('btn-primary', role === 'aluno');
+            document.getElementById('filter-aluno').classList.toggle('btn-outline', role !== 'aluno');
+
+            document.getElementById('filter-assessoria').classList.toggle('btn-primary', role === 'assessoria');
+            document.getElementById('filter-assessoria').classList.toggle('btn-outline', role !== 'assessoria');
+
+            renderStudentsList();
+        }
+
+        function renderStudentsList() {
+            const container = document.getElementById('students-list');
+            const searchTerm = (document.getElementById('student-search')?.value || '').toLowerCase().trim();
+
+            // Apply role filter
+            let filteredStudents = allStudents;
+            if (currentRoleFilter !== 'all') {
+                filteredStudents = filteredStudents.filter(s => s.role === currentRoleFilter);
+            }
+
+            // Apply search filter
+            if (searchTerm) {
+                filteredStudents = filteredStudents.filter(s =>
+                    s._displayName.toLowerCase().includes(searchTerm) ||
+                    (s.email && s.email.toLowerCase().includes(searchTerm))
+                );
+            }
+
+            if (filteredStudents.length === 0) {
+                container.innerHTML = '<p class="text-muted">Nenhum aluno encontrado</p>';
+                return;
+            }
+
+            container.innerHTML = filteredStudents.map(student => {
+                const step = student.questionnaire_step || 0;
+                const completed = student.first_login_completed && step >= 11;
+                const progress = Math.round((step / 11) * 100);
+
+                const roleIcon = student.role === 'aluno' ? '🎓' : '📋';
+
+                return `
+                    <div class="student-item" onclick="selectStudent(${student.id})">
+                        <div class="student-item-name">
+                            ${roleIcon} ${student._displayName}
+                        </div>
+                        <div class="student-item-progress">
+                            ${completed ? '✅ Completo' : `📊 ${progress}% (${step}/11 etapas)`}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function selectStudent(studentId) {
+            // Update active state
+            document.querySelectorAll('.student-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+
+            // Load student data
+            const student = allStudents.find(s => s.id === studentId);
+            if (!student) return;
+
+            // Load questionnaire responses
+            const { data: responses, error } = await WardApp.db
+                .from('questionnaire_data')
+                .select('*')
+                .eq('user_id', studentId)
+                .order('step', { ascending: true });
+
+            if (error) {
+                console.error('Error loading responses:', error);
+                WardApp.showToast('Erro ao carregar respostas', 'error');
+                return;
+            }
+
+            currentStudent = student;
+            currentResponses = responses || [];
+            renderStudentResponses();
+        }
+
+        // Step titles and descriptions
+        const stepTitles = {
+            1: { icon: '👤', title: 'Dados Básicos', desc: 'Informações pessoais, endereço e formação acadêmica' },
+            2: { icon: '📅', title: 'Dados USMLE', desc: 'Cronograma de estudos, preparação e datas planejadas' },
+            3: { icon: '📚', title: 'UWorld Prep', desc: 'Preparação e recursos para UWorld' },
+            4: { icon: '📊', title: 'Progresso UWorld', desc: 'Categorias completadas e progresso atual' },
+            5: { icon: '🗣️', title: 'Inglês', desc: 'Nível de proficiência em leitura e compreensão' },
+            6: { icon: '🎴', title: 'Anki', desc: 'Uso e configuração do Anki para estudos' },
+            7: { icon: '🔬', title: 'Pesquisa - Parte 1', desc: 'Experiência inicial em pesquisa e publicações' },
+            8: { icon: '📝', title: 'Pesquisa - Parte 2', desc: 'Projetos de pesquisa em andamento e interesses' },
+            9: { icon: '🧪', title: 'Pesquisa - Parte 3', desc: 'Objetivos e metas de pesquisa futura' },
+            10: { icon: '🏥', title: 'Observerships', desc: 'Experiências clínicas e observações' },
+            11: { icon: '✈️', title: 'Background', desc: 'História pessoal, família e motivações' }
+        };
+
+        // Define the correct order for fields in each step
+        const fieldOrder = {
+            1: ['full_name', 'email_confirm', 'cpf', 'orcid', 'address_line1', 'address_line2', 'city', 'state', 'zip_code', 'country', 'medical_school', 'graduation_date', 'current_specialty', 'current_institution', 'intended_specialty_usa'],
+            2: ['pathway', 'has_visa', 'visa_type', 'next_exam', 'current_stage', 'study_start_date', 'first_pass_months', 'first_pass_completed', 'second_pass_months', 'second_pass_completed', 'dedicated_months', 'dedicated_completed', 'next_exam_date', 'step1_exam_date', 'step2ck_exam_date', 'step3_exam_date', 'no_study_days', 'break_periods', 'other_stage_details'],
+            3: ['purchased', 'activated', 'subscription_length', 'expiration_date', 'questions_done', 'overall_percentage', 'highest_percentage', 'lowest_percentage', 'highest_system', 'lowest_system', 'did_nbme', 'nbme_forms', 'did_uwsa', 'uwsa_exams', 'has_other_assessments', 'other_assessments'],
+            4: ['exam_type', 'completed_categories'],
+            5: ['reading_level', 'listening_level', 'additional_comments'],
+            6: ['uses_anki', 'used', 'main_device', 'devices', 'downloaded', 'uses_anking', 'anki_deck', 'using_since', 'frequency', 'average_cards_per_day', 'cards_per_day', 'creates_own_cards'],
+            7: ['orcid', 'full_name', 'email', 'specialty', 'department', 'institution', 'experience_level', 'has_publications', 'publication_count', 'participated_systematic_review', 'review_status', 'sr_other_details', 'research_interests'],
+            8: ['interest_areas', 'target_institutions'],
+            9: ['has_networking_contacts', 'networking_contacts', 'wants_research_ward', 'can_collaborate_stages'],
+            10: ['did_observership', 'did_clerkship', 'past_observerships', 'future_observerships', 'plans_more_observerships', 'observerships'],
+            11: ['current_location', 'is_in_usa', 'other_location', 'how_got_to_usa', 'how_got_usa', 'how_got_visa', 'how_got_job', 'visa_type_usa', 'works_in_usa', 'family_agreement', 'family_agreement_usa', 'personal_story', 'personal_story_usa']
+        };
+
+        // Field name translations to Portuguese
+        const fieldLabels = {
+            // Step 1 - Dados Básicos
+            'full_name': '📛 Nome Completo',
+            'email_confirm': '📧 Email',
+            'cpf': '🆔 CPF',
+            'orcid': '🔬 ORCID',
+            'address_line1': '🏠 Endereço (Linha 1)',
+            'address_line2': '🏠 Endereço (Linha 2)',
+            'city': '🌆 Cidade',
+            'state': '📍 Estado',
+            'zip_code': '📮 CEP',
+            'country': '🌍 País',
+            'graduation_date': '🎓 Data de Formatura',
+            'medical_school': '🏫 Faculdade de Medicina',
+            'current_institution': '🏥 Instituição Atual',
+            'current_specialty': '⚕️ Especialidade Atual',
+            'intended_specialty_usa': '🎯 Especialidade Pretendida (EUA)',
+
+            // Step 2 - Dados USMLE
+            'pathway': '🛤️ Caminho',
+            'has_visa': '📋 Tem Visto',
+            'next_exam': '📝 Próxima Prova',
+            'visa_type': '📄 Tipo de Visto',
+            'current_stage': '📍 Estágio Atual',
+            'study_start_date': '📅 Data de Início dos Estudos',
+            'next_exam_date': '📅 Data da Próxima Prova',
+            'step1_exam_date': '📅 Data Planejada Step 1',
+            'step2ck_exam_date': '📅 Data Planejada Step 2 CK',
+            'step3_exam_date': '📅 Data Planejada Step 3',
+            'first_pass_months': '⏱️ Tempo First Pass (meses)',
+            'first_pass_completed': '✅ First Pass Concluído',
+            'second_pass_months': '⏱️ Tempo Second Pass (meses)',
+            'second_pass_completed': '✅ Second Pass Concluído',
+            'dedicated_months': '⏱️ Tempo Dedicated (meses)',
+            'dedicated_completed': '✅ Dedicated Concluído',
+            'no_study_days': '🚫 Dias SEM Estudo',
+            'break_periods': '🏝️ Períodos de Pausa',
+            'other_stage_details': '📝 Detalhes Adicionais',
+            'start_date': '📅 Data de Início',
+            'end_date': '📅 Data de Término',
+            'reason': '📝 Motivo',
+
+            // Step 3 - UWorld Prep
+            'activated': '✅ Ativado',
+            'purchased': '💳 Comprado',
+            'lowest_system': '📉 Sistema com Menor Desempenho',
+            'highest_system': '📈 Sistema com Maior Desempenho',
+            'questions_done': '📊 Questões Realizadas',
+            'expiration_date': '📅 Data de Expiração',
+            'lowest_percentage': '📉 Menor Porcentagem',
+            'highest_percentage': '📈 Maior Porcentagem',
+            'overall_percentage': '📊 Porcentagem Geral',
+            'subscription_length': '⏱️ Duração da Assinatura',
+            'uworld_subscription': '💳 Assinatura UWorld',
+            'uworld_renewal_date': '🔄 Data de Renovação',
+            'did_uwsa': '📝 Fez UWSA',
+            'uwsa_exams': '📝 UWSAs Realizados',
+            'did_nbme': '🎯 Fez NBME',
+            'nbme_forms': '🎯 NBMEs Realizados',
+            'has_other_assessments': '📋 Outras Avaliações',
+            'other_assessments': '📋 Outras Avaliações Realizadas',
+
+            // Step 4 - Progresso UWorld
+            'exam_type': '📝 Tipo de Exame',
+            'completed_categories': '✅ Categorias Completadas',
+
+            // Step 5 - Inglês
+            'reading_level': '📖 Nível de Leitura',
+            'listening_level': '🎧 Nível de Compreensão Oral',
+            'additional_comments': '💬 Comentários Adicionais',
+
+            // Step 6 - Anki
+            'used': '🎴 Usa Anki',
+            'devices': '📱 Dispositivos',
+            'frequency': '📊 Frequência de Uso',
+            'downloaded': '💾 Deck Baixado',
+            'main_device': '📱 Dispositivo Principal',
+            'uses_anking': '👑 Usa AnKing',
+            'using_since': '📅 Usando Desde',
+            'creates_own_cards': '✏️ Cria Próprios Cards',
+            'average_cards_per_day': '📊 Média de Cards por Dia',
+            'uses_anki': '🎴 Usa Anki',
+            'anki_deck': '📦 Deck do Anki',
+            'cards_per_day': '📊 Cards por Dia',
+
+            // Step 7 - Pesquisa Parte 1
+            'specialty': '⚕️ Especialidade',
+            'department': '🏢 Departamento',
+            'institution': '🏥 Instituição',
+            'experience_level': '📊 Nível de Experiência',
+            'sr_other_details': '📝 Outros Detalhes',
+            'participated_systematic_review': '📚 Participou de Revisão Sistemática',
+            'review_status': '📋 Status de Revisão',
+            'has_publications': '📝 Tem Publicações',
+            'publication_count': '🔢 Número de Publicações',
+            'research_interests': '🔬 Interesses de Pesquisa',
+
+            // Step 8 - Pesquisa Parte 2
+            'interest_areas': '🔬 Áreas de Interesse',
+            'target_institutions': '🎯 Instituições Alvo',
+
+            // Step 9 - Pesquisa Parte 3
+            'networking_contacts': '👥 Contatos de Networking',
+            'wants_research_ward': '🔬 Interesse em Pesquisa Ward',
+            'can_collaborate_stages': '🤝 Pode Colaborar em Etapas',
+            'has_networking_contacts': '👥 Tem Contatos de Networking',
+
+            // Step 10 - Observerships
+            'did_clerkship': '🏥 Fez Clerkship',
+            'did_observership': '👀 Fez Observership',
+            'past_observerships': '📚 Observerships Passados',
+            'future_observerships': '🔮 Observerships Futuros',
+            'plans_more_observerships': '📅 Planeja Mais Observerships',
+            'observerships': '🏥 Observerships Realizados',
+            'is_past': '📅 Concluído',
+            'year': '📅 Ano',
+            'location_type': '📍 Tipo de Local',
+            'when_planned': '📅 Quando Planejado',
+            'approximate_cost': '💰 Custo Aproximado',
+            'comments': '💬 Comentários',
+            'got_recommendation_letter': '📜 Recebeu Carta de Recomendação',
+
+            // Step 11 - Background
+            'how_got_job': '💼 Como conseguiu o emprego',
+            'how_got_visa': '📄 Como conseguiu o visto',
+            'works_in_usa': '💼 Trabalha nos EUA',
+            'visa_type_usa': '📋 Tipo de Visto',
+            'how_got_to_usa': '✈️ Como foi para os EUA',
+            'other_location': '📍 Outra Localização',
+            'personal_story': '📖 História Pessoal',
+            'current_location': '📍 Localização Atual',
+            'family_agreement': '👨‍👩‍👧‍👦 Acordo Familiar',
+            'is_in_usa': '🇺🇸 Está nos EUA',
+            'how_got_usa': '✈️ Como foi para os EUA',
+            'personal_story_usa': '📖 História Pessoal',
+            'family_agreement_usa': '👨‍👩‍👧‍👦 Acordo Familiar'
+        };
+
+        // Helper function to format dates as "10 jan. 2026"
+        function formatDateBR(dateStr) {
+            if (!dateStr) return null;
+            try {
+                // Parse date string manually to avoid timezone issues
+                // For dates like "2012-08-01", split and create date with local timezone
+                let date;
+                if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                    // ISO date without time - parse as local date to avoid timezone shift
+                    const [year, month, day] = dateStr.split('-').map(Number);
+                    date = new Date(year, month - 1, day); // month is 0-indexed
+                } else {
+                    date = new Date(dateStr);
+                }
+
+                if (isNaN(date.getTime())) return dateStr;
+
+                const day = date.getDate();
+                const months = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
+                const month = months[date.getMonth()];
+                const year = date.getFullYear();
+
+                return `${day} ${month} ${year}`;
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        // Check if a value looks like a date string
+        function isDateString(value) {
+            if (typeof value !== 'string') return false;
+            // Match ISO date format (2012-08-01) or similar date patterns
+            return /^\d{4}-\d{2}-\d{2}(T.*)?$/.test(value) ||
+                   /^\d{2}\/\d{2}\/\d{4}$/.test(value);
+        }
+
+        // Value translations to Portuguese
+        const valueTranslations = {
+            // Pathway
+            'traditional': 'Tradicional',
+            'alternate': 'Alternativo',
+
+            // Exam types
+            'step1': 'Step 1',
+            'step2ck': 'Step 2 CK',
+            'step2cs': 'Step 2 CS',
+            'step3': 'Step 3',
+
+            // Current stage
+            'starting': 'Iniciando',
+            'first_pass': 'First Pass',
+            'second_pass': 'Second Pass',
+            'dedicated': 'Dedicated',
+            'post_exam': 'Pós-Prova',
+
+            // Reading/Listening levels
+            'excellent': 'Excelente',
+            'good': 'Bom',
+            'needs_search': 'Precisa buscar palavras',
+            'needs_subtitles': 'Precisa legendas',
+            'poor': 'Fraco',
+
+            // Frequency
+            'daily': 'Diariamente',
+            'few_times': 'Algumas vezes por semana',
+            'weekly': 'Semanalmente',
+            'rarely': 'Raramente',
+            'never': 'Nunca',
+
+            // Devices
+            'windows': 'Windows',
+            'mac': 'Mac',
+            'iphone': 'iPhone',
+            'ipad': 'iPad',
+            'android': 'Android',
+
+            // Research experience
+            'none': 'Nenhuma',
+            'congress': 'Apresentação em Congresso',
+            'pubmed': 'Publicações no PubMed',
+            'not_indexed': 'Publicações Não Indexadas',
+
+            // Systematic review participation
+            'never': 'Nunca',
+            'first_author': 'Primeiro Autor',
+            'co_author': 'Coautor',
+            'reviewer': 'Revisor',
+
+            // Research interest
+            'immediately': 'Imediatamente',
+            'after_usmle': 'Após o USMLE',
+            'not_interested': 'Não Interessado',
+
+            // Location
+            'usa': 'EUA',
+            'brazil': 'Brasil',
+            'other': 'Outro',
+
+            // Family agreement
+            'totally_agree': 'Acordo Total',
+            'mostly_agree': 'Maioria Concorda',
+            'some_disagree': 'Alguns Discordam',
+            'strong_disagreement': 'Forte Desacordo',
+
+            // Location type
+            'hospital': 'Hospital',
+            'private_clinic': 'Clínica Privada',
+            'university': 'Universidade',
+            'research_center': 'Centro de Pesquisa',
+
+            // Yes/No alternatives
+            'yes': 'Sim',
+            'no': 'Não',
+            'true': 'Sim',
+            'false': 'Não',
+
+            // UWorld Systems (em português)
+            'pharmacology': 'Farmacologia',
+            'biostatistics': 'Bioestatística',
+            'cardiovascular': 'Cardiovascular',
+            'renal': 'Renal',
+            'respiratory': 'Respiratório',
+            'gastrointestinal': 'Gastrointestinal',
+            'hematology': 'Hematologia',
+            'oncology': 'Oncologia',
+            'musculoskeletal': 'Musculoesquelético',
+            'rheumatology': 'Reumatologia',
+            'endocrine': 'Endócrino',
+            'reproductive': 'Reprodutivo',
+            'neurology': 'Neurologia',
+            'psychiatry': 'Psiquiatria',
+            'immunology': 'Imunologia',
+            'infectious': 'Infectologia',
+            'genetics': 'Genética',
+            'biochemistry': 'Bioquímica',
+            'embryology': 'Embriologia',
+
+            // UWorld Categories (simplificado - remover underscores e capitalizar)
+            'drug_metabolism': 'Metabolismo de Drogas',
+            'pharmacodynamics': 'Farmacodinâmica',
+            'pharmacokinetics': 'Farmacocinética',
+            'pharm_misc': 'Farmacologia - Diversos',
+            'epidemiology': 'Epidemiologia',
+            'measures_data': 'Medidas de Dados',
+            'probability': 'Probabilidade',
+            'study_design': 'Desenho de Estudo',
+            'biostats_misc': 'Bioestatística - Diversos',
+            'normal_cardio': 'Cardiologia Normal',
+            'aortic_peripheral': 'Aórtica e Periférica',
+            'arrhythmias': 'Arritmias',
+            'congenital_heart': 'Cardiopatia Congênita',
+            'coronary': 'Coronária',
+            'heart_failure': 'Insuficiência Cardíaca',
+            'hypertension': 'Hipertensão',
+            'myopericardial': 'Miopericárdica',
+            'valvular': 'Valvular',
+            'cardio_drugs': 'Drogas Cardiovasculares',
+            'cardio_misc': 'Cardiovascular - Diversos',
+            'normal_renal': 'Renal Normal',
+            'congenital_renal': 'Renal Congênita',
+            'aki': 'Lesão Renal Aguda',
+            'bone_metabolism': 'Metabolismo Ósseo',
+            'ckd': 'Doença Renal Crônica',
+            'cystic_kidney': 'Rim Policístico',
+            'electrolytes': 'Eletrólitos',
+            'glomerular': 'Glomerular',
+            'renal_neoplasms': 'Neoplasias Renais',
+            'nephrolithiasis': 'Nefrolitíase',
+            'diabetes_insipidus': 'Diabetes Insipidus',
+            'urinary_incontinence': 'Incontinência Urinária',
+            'renal_misc': 'Renal - Diversos',
+            'normal_msk': 'Musculoesquelético Normal'
+        };
+
+        function renderStudentResponses() {
+            document.getElementById('no-student-selected').style.display = 'none';
+            document.getElementById('responses-content').style.display = 'block';
+            document.getElementById('student-name').textContent = _dn(currentStudent.full_name) || currentStudent.email;
+
+            // Render student summary
+            renderStudentSummary();
+
+            const sections = document.getElementById('responses-sections');
+            sections.innerHTML = '';
+
+            // Render all 11 steps
+            for (let step = 1; step <= 11; step++) {
+                const stepData = currentResponses.find(r => r.step === step);
+                let data = stepData ? stepData.data : {};
+
+                // Parse JSON if it's a string
+                if (typeof data === 'string') {
+                    try {
+                        data = JSON.parse(data);
+                    } catch (e) {
+                        console.error('Error parsing step data:', e);
+                        data = {};
+                    }
+                }
+
+                const stepInfo = stepTitles[step] || { icon: '📋', title: `Step ${step}`, desc: '' };
+                sections.innerHTML += renderStep(step, stepInfo, data);
+            }
+        }
+
+        function renderStudentSummary() {
+            // Extract key information from all steps
+            const step1 = currentResponses.find(r => r.step === 1)?.data || {};
+            const step2 = currentResponses.find(r => r.step === 2)?.data || {};
+            const step11 = currentResponses.find(r => r.step === 11)?.data || {};
+
+            const summaryEl = document.getElementById('student-summary');
+
+            let summaryHTML = '<h3 style="margin: 0 0 1rem 0; font-size: 1.2rem;">📊 Resumo Rápido</h3>';
+            summaryHTML += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">';
+
+            // Key info cards
+            if (step1.intended_specialty_usa) {
+                summaryHTML += `
+                    <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px;">
+                        <div style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.25rem;">🎯 Especialidade Pretendida</div>
+                        <div style="font-size: 1.1rem; font-weight: 600;">${step1.intended_specialty_usa}</div>
+                    </div>
+                `;
+            }
+
+            if (step2.step1_exam_date) {
+                summaryHTML += `
+                    <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px;">
+                        <div style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.25rem;">📅 Data Step 1</div>
+                        <div style="font-size: 1.1rem; font-weight: 600;">${formatDateBR(step2.step1_exam_date)}</div>
+                    </div>
+                `;
+            }
+
+            if (step11.is_in_usa !== undefined) {
+                summaryHTML += `
+                    <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px;">
+                        <div style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.25rem;">🇺🇸 Status EUA</div>
+                        <div style="font-size: 1.1rem; font-weight: 600;">${step11.is_in_usa ? 'Nos EUA' : 'Fora dos EUA'}</div>
+                    </div>
+                `;
+            }
+
+            const completedSteps = currentResponses.filter(r => r.data && Object.keys(r.data).length > 0).length;
+            summaryHTML += `
+                <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px;">
+                    <div style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.25rem;">✅ Progresso</div>
+                    <div style="font-size: 1.1rem; font-weight: 600;">${completedSteps}/11 etapas</div>
+                </div>
+            `;
+
+            summaryHTML += '</div>';
+            summaryEl.innerHTML = summaryHTML;
+            summaryEl.style.display = 'block';
+        }
+
+        // Translate a value using the valueTranslations map
+        function translateValue(value) {
+            if (typeof value !== 'string') return value;
+
+            // Check if it's a date string first
+            if (isDateString(value)) {
+                return formatDateBR(value);
+            }
+
+            const lowerValue = value.toLowerCase();
+            return valueTranslations[lowerValue] || valueTranslations[value] || value;
+        }
+
+        // Format complex data types for display
+        function formatValue(value, fieldKey = '') {
+            // Try to parse JSON strings first
+            if (typeof value === 'string') {
+                // Check if it looks like JSON (starts with [ or {)
+                const trimmed = value.trim();
+                if ((trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+                    (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+                    try {
+                        value = JSON.parse(value);
+                    } catch (e) {
+                        // Not valid JSON, keep as string
+                    }
+                }
+            }
+
+            if (typeof value === 'boolean') {
+                return value ? '<span class="badge badge-success">✓ Sim</span>' : '<span class="badge badge-warning">✗ Não</span>';
+            }
+
+            if (value === null || value === undefined || value === '') {
+                return '<span class="response-value empty">Não informado</span>';
+            }
+
+            // Handle arrays
+            if (Array.isArray(value)) {
+                if (value.length === 0) {
+                    return '<span class="response-value empty">Nenhum item</span>';
+                }
+
+                // Special handling for UWSA exams
+                if (fieldKey === 'uwsa_exams') {
+                    return `
+                        <div style="margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                            ${value.map(exam => {
+                                const name = exam.name || exam.id || 'UWSA';
+                                const pct = exam.percentage ? `${exam.percentage}%` : 'N/A';
+                                const date = exam.date ? formatDateBR(exam.date) : 'N/A';
+                                return `
+                                    <div style="background: linear-gradient(135deg, #f3e8ff 0%, #faf5ff 100%); border-left: 4px solid #8b5cf6; padding: 1rem; border-radius: 8px;">
+                                        <div style="font-weight: 600; color: #6b21a8; margin-bottom: 0.5rem;">📝 ${name}</div>
+                                        <div style="display: flex; gap: 1.5rem; font-size: 0.9rem;">
+                                            <div><span style="color: #6b7280;">Acertos:</span> <strong style="color: #8b5cf6;">${pct}</strong></div>
+                                            <div><span style="color: #6b7280;">Data:</span> <strong>${date}</strong></div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                }
+
+                // Special handling for NBME forms
+                if (fieldKey === 'nbme_forms') {
+                    return `
+                        <div style="margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                            ${value.map(form => {
+                                const name = form.id ? form.id.replace('form_', 'Form ') : 'NBME';
+                                const pct = form.percentage ? `${form.percentage}%` : 'N/A';
+                                const date = form.date ? formatDateBR(form.date) : 'N/A';
+                                return `
+                                    <div style="background: linear-gradient(135deg, #ffedd5 0%, #fff7ed 100%); border-left: 4px solid #f97316; padding: 1rem; border-radius: 8px;">
+                                        <div style="font-weight: 600; color: #9a3412; margin-bottom: 0.5rem;">🎯 ${name}</div>
+                                        <div style="display: flex; gap: 1.5rem; font-size: 0.9rem;">
+                                            <div><span style="color: #6b7280;">Acertos:</span> <strong style="color: #f97316;">${pct}</strong></div>
+                                            <div><span style="color: #6b7280;">Data:</span> <strong>${date}</strong></div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                }
+
+                // Special handling for other assessments
+                if (fieldKey === 'other_assessments') {
+                    return `
+                        <div style="margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                            ${value.map(assessment => {
+                                const name = assessment.name || 'Avaliação';
+                                const pct = assessment.percentage ? `${assessment.percentage}%` : 'N/A';
+                                const date = assessment.date ? formatDateBR(assessment.date) : 'N/A';
+                                return `
+                                    <div style="background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%); border-left: 4px solid #3b82f6; padding: 1rem; border-radius: 8px;">
+                                        <div style="font-weight: 600; color: #1e40af; margin-bottom: 0.5rem;">📋 ${name}</div>
+                                        <div style="display: flex; gap: 1.5rem; font-size: 0.9rem;">
+                                            <div><span style="color: #6b7280;">Acertos:</span> <strong style="color: #3b82f6;">${pct}</strong></div>
+                                            <div><span style="color: #6b7280;">Data:</span> <strong>${date}</strong></div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                }
+
+                // Check if array contains objects
+                if (typeof value[0] === 'object' && value[0] !== null) {
+                    return formatObjectArray(value);
+                }
+
+                // Special handling for no_study_days - convert numbers to day names
+                if (fieldKey === 'no_study_days') {
+                    const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+                    return `
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
+                            ${value.map(dayNum => `
+                                <span style="background: #fef3c7; color: #92400e; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500;">
+                                    ${dayNames[dayNum] || dayNum}
+                                </span>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+
+                // Simple array (strings, numbers) - show as badges with translation
+                return `
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
+                        ${value.map(item => `
+                            <span style="background: #dbeafe; color: #1e40af; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500;">
+                                ${translateValue(item)}
+                            </span>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            // Handle objects
+            if (typeof value === 'object') {
+                return formatObject(value);
+            }
+
+            // Simple value (string, number, etc) - apply translation
+            return translateValue(value);
+        }
+
+        function formatObject(obj) {
+            if (Object.keys(obj).length === 0) {
+                return '<span class="response-value empty">Nenhum dado</span>';
+            }
+
+            const fields = Object.entries(obj).map(([key, val]) => {
+                // Use translated label if available
+                const label = fieldLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                let displayValue = val;
+
+                if (typeof val === 'boolean') {
+                    displayValue = val ? '✓ Sim' : '✗ Não';
+                } else if (val === null || val === undefined || val === '') {
+                    displayValue = '-';
+                } else {
+                    displayValue = translateValue(val);
+                }
+
+                return `
+                    <div class="object-field">
+                        <span class="object-field-label">${label}</span>
+                        <span class="object-field-value">${displayValue}</span>
+                    </div>
+                `;
+            }).join('');
+
+            return `<div class="object-card">${fields}</div>`;
+        }
+
+        function formatObjectArray(arr) {
+            // Helper to format category names - use translation if available
+            function formatCategoryName(text) {
+                const translated = translateValue(text);
+                if (translated !== text) {
+                    return translated; // Translation found
+                }
+                // No translation, format it nicely
+                return text
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, l => l.toUpperCase());
+            }
+
+            return `<div style="margin-top: 0.75rem;">` + arr.map((obj, index) => {
+                // Build descriptive title
+                let title = '';
+                if (obj.system && obj.category) {
+                    // For completed_categories type - format nicely
+                    const systemFormatted = formatCategoryName(obj.system);
+                    const categoryFormatted = formatCategoryName(obj.category);
+                    title = `${systemFormatted} → ${categoryFormatted}`;
+                } else if (obj.system) {
+                    title = formatCategoryName(obj.system);
+                } else if (obj.category) {
+                    title = formatCategoryName(obj.category);
+                } else if (obj.name) {
+                    title = obj.name;
+                } else if (obj.institution) {
+                    title = obj.institution;
+                } else if (obj.reason) {
+                    // For break_periods
+                    title = obj.reason;
+                } else {
+                    title = `Item ${index + 1}`;
+                }
+
+                return `
+                    <div class="object-card" style="margin-bottom: 0.75rem; background: linear-gradient(to right, #f0f9ff 0%, #ffffff 100%);">
+                        <div class="object-card-title" style="padding-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb; margin-bottom: 0.75rem;">
+                            🔹 ${title}
+                        </div>
+                        ${Object.entries(obj).sort(([keyA], [keyB]) => {
+                            // Define field order for break_periods objects
+                            const breakPeriodOrder = ['reason', 'start_date', 'end_date'];
+                            const indexA = breakPeriodOrder.indexOf(keyA);
+                            const indexB = breakPeriodOrder.indexOf(keyB);
+                            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                            if (indexA !== -1) return -1;
+                            if (indexB !== -1) return 1;
+                            return 0;
+                        }).map(([key, val]) => {
+                            // Don't show system/category/name twice since they're in title
+                            if ((obj.system && obj.category) && (key === 'system' || key === 'category')) return '';
+                            if (!obj.system && !obj.category && key === 'name') return '';
+                            if (!obj.institution && key === 'institution') return '';
+
+                            // Skip null, undefined, empty strings, or false booleans that aren't meaningful
+                            if (val === null || val === undefined || val === '') return '';
+                            if (typeof val === 'boolean' && !val) return ''; // Skip false flags
+
+                            // Use translated label if available
+                            const label = fieldLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                            let displayValue = val;
+
+                            if (typeof val === 'boolean') {
+                                // For boolean fields, remove the emoji from label
+                                const labelText = label.replace(/[^\w\s]/gi, '').trim();
+                                displayValue = `<span style="color: #10b981; font-weight: 600;">✓ ${labelText}</span>`;
+                            } else {
+                                displayValue = translateValue(val);
+                            }
+
+                            return `
+                                <div class="object-field" style="padding: 0.4rem 0;">
+                                    ${typeof val === 'boolean' ? displayValue : `
+                                        <span class="object-field-label" style="color: #6b7280; font-size: 0.85rem;">${label}:</span>
+                                        <span class="object-field-value" style="color: #1f2937; font-weight: 500;">${displayValue}</span>
+                                    `}
+                                </div>
+                            `;
+                        }).filter(item => item !== '').join('')}
+                    </div>
+                `;
+            }).join('') + `</div>`;
+        }
+
+        function renderStep(stepNumber, stepInfo, data) {
+            if (!data || Object.keys(data).length === 0) {
+                return `
+                    <div class="step-section">
+                        <div class="step-header">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="font-size: 1.5rem;">${stepInfo.icon}</span>
+                                <div>
+                                    <div style="font-size: 1.1rem; font-weight: 700;">${stepInfo.title}</div>
+                                    <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">${stepInfo.desc}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="response-item">
+                            <div class="response-value empty">Nenhuma resposta registrada</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Get the defined order for this step, or use all keys if not defined
+            const order = fieldOrder[stepNumber] || [];
+            const dataKeys = Object.keys(data);
+
+            // Sort keys: first the ones in fieldOrder (in order), then any remaining keys alphabetically
+            const sortedKeys = [
+                ...order.filter(key => dataKeys.includes(key)),
+                ...dataKeys.filter(key => !order.includes(key)).sort()
+            ];
+
+            const items = sortedKeys.map(key => {
+                const value = data[key];
+                // Use custom label if available, otherwise format the key
+                const label = fieldLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                const formattedValue = formatValue(value, key);
+
+                return `
+                    <div class="response-item">
+                        <div class="response-label">${label}</div>
+                        <div class="response-value">${formattedValue}</div>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="step-section">
+                    <div class="step-header">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 1.5rem;">${stepInfo.icon}</span>
+                            <div>
+                                <div style="font-size: 1.1rem; font-weight: 700;">${stepInfo.title}</div>
+                                <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">${stepInfo.desc}</div>
+                            </div>
+                        </div>
+                    </div>
+                    ${items}
+                </div>
+            `;
+        }
+
+        function exportResponses() {
+            if (!currentStudent) return;
+
+            // Create text content
+            let content = `RESPOSTAS DO QUESTIONÁRIO\n`;
+            content += `Aluno: ${_dn(currentStudent.full_name) || currentStudent.email}\n`;
+            content += `Email: ${currentStudent.email}\n`;
+            content += `Data de Exportação: ${formatDateBR(new Date().toISOString())}\n`;
+            content += `\n${'='.repeat(80)}\n\n`;
+
+            // Add all steps
+            for (let step = 1; step <= 11; step++) {
+                const stepData = currentResponses.find(r => r.step === step);
+                const data = stepData ? stepData.data : {};
+
+                content += `STEP ${step}\n${'-'.repeat(80)}\n`;
+
+                if (!data || Object.keys(data).length === 0) {
+                    content += 'Nenhuma resposta registrada\n';
+                } else {
+                    Object.entries(data).forEach(([key, value]) => {
+                        const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        let displayValue = value;
+                        if (typeof value === 'boolean') {
+                            displayValue = value ? 'Sim' : 'Não';
+                        } else if (value === null || value === undefined || value === '') {
+                            displayValue = '-';
+                        } else if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        content += `${label}: ${displayValue}\n`;
+                    });
+                }
+                content += `\n`;
+            }
+
+            // Download as text file
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `questionario_${_dn(currentStudent.full_name) || currentStudent.email}_${new Date().getTime()}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            WardApp.showToast('Respostas exportadas com sucesso!');
+        }
+    </script>
+</body>
+</html>

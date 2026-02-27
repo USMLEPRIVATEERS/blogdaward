@@ -1,0 +1,1654 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Cronograma dos Alunos</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </a>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="#" class="nav-link" id="nav-dashboard">Dashboard</a>
+                <a href="/mentor-cronograma" class="nav-link active">Cronograma</a>
+                <a href="/mentor-chamadas" class="nav-link">Chamadas</a>
+                <a href="/links" class="nav-link">Links</a>
+                <a href="/blog" class="nav-link">Blog</a>
+                <a href="/pesquisa" class="nav-link">Pesquisa</a>
+            </nav>
+            <div class="nav-user">
+                <span class="user-name" id="mentor-name">Mentor</span>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
+            <h1>📅 Cronograma dos Alunos</h1>
+        </div>
+
+        <!-- Student Selector -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <span>👥 Selecionar Aluno ou Membro</span>
+            </div>
+            <div class="card-body">
+                <div class="input-group" style="gap: 1rem;">
+                    <div class="form-group" style="flex: 2;">
+                        <label class="form-label">Aluno / Membro</label>
+                        <select id="student-select" class="form-input" onchange="loadStudentSchedule()">
+                            <option value="">-- Selecione um aluno ou membro --</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Tipo de Pass</label>
+                        <select id="pass-type-select" class="form-input" onchange="savePassType()">
+                            <option value="first">First Pass</option>
+                            <option value="second">Second Pass</option>
+                            <option value="third">Third Pass</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Tipo de Cronograma</label>
+                        <select id="schedule-type-select" class="form-input" onchange="saveScheduleType()">
+                            <option value="subject">Por Subject</option>
+                            <option value="category">Por Category</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Student Schedule Section (hidden until student selected) -->
+        <div id="schedule-section" style="display: none;">
+            <!-- Student Info -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-between align-center">
+                    <span>📊 Cronograma de <strong id="selected-student-name"></strong></span>
+                    <div class="btn-group">
+                        <button class="btn btn-primary btn-sm" onclick="openScheduleGenerator('new')">⚡ Criar Novo Cronograma</button>
+                        <button class="btn btn-secondary btn-sm" onclick="openScheduleGenerator('update')">🔄 Atualizar Cronograma</button>
+                        <button class="btn btn-outline btn-sm" onclick="openImportModal()">📋 Importar do Excel</button>
+                        <button class="btn btn-danger btn-sm" onclick="clearSchedule()">🗑️ Limpar Cronograma</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Progress -->
+                    <div class="progress-container mb-3">
+                        <div class="progress-header">
+                            <span>Progresso Geral</span>
+                            <span id="schedule-progress-text">0%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="schedule-progress-fill" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Delays Alert -->
+                    <div id="delays-alert" class="alert alert-warning mb-3" style="display: none;">
+                        <strong>⚠️ Atrasos Sinalizados:</strong>
+                        <div id="delays-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schedule Table -->
+            <div class="card">
+                <div class="card-header d-flex justify-between align-center">
+                    <span>📋 Itens do Cronograma</span>
+                    <div class="btn-group">
+                        <button class="btn btn-outline btn-sm" onclick="copyScheduleToClipboard()">📋 Copiar</button>
+                        <button class="btn btn-primary btn-sm" onclick="openAddItemModal()">+ Adicionar Item</button>
+                    </div>
+                </div>
+                <div class="card-body" style="overflow-x: auto;">
+                    <table class="schedule-table" id="schedule-table">
+                        <thead>
+                            <tr>
+                                <th>System</th>
+                                <th id="category-header">Category</th>
+                                <th>Questoes</th>
+                                <th>Inicio</th>
+                                <th>Fim</th>
+                                <th>Concluido</th>
+                                <th>Acoes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schedule-body">
+                            <!-- Filled by JS -->
+                        </tbody>
+                    </table>
+                    <div id="no-schedule" class="empty-state" style="display: none;">
+                        <p class="text-muted">Nenhum item no cronograma. Importe do Excel ou adicione manualmente.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Import Modal -->
+    <div id="import-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">📋 Importar Cronograma do Excel</h3>
+                <button class="modal-close" onclick="closeModal('import-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info mb-3">
+                    <strong>Instrucoes:</strong><br>
+                    1. Copie os dados do Excel (incluindo o cabeçalho)<br>
+                    2. Cole na area abaixo (separado por TAB)<br>
+                    3. Colunas aceitas: System, Category, Questions, Data de Início, Data de Fim, Aulas Recomendadas, ✓<br>
+                    4. Escolha o formato de data abaixo
+                </div>
+                <div class="form-group mb-3">
+                    <label class="form-label">Formato das datas:</label>
+                    <div style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
+                        <label class="form-check">
+                            <input type="radio" name="date-format" value="MM/DD/YYYY">
+                            <span class="form-check-label">MM/DD/YYYY (Americano)</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="radio" name="date-format" value="DD/MM/YYYY" checked>
+                            <span class="form-check-label">DD/MM/YYYY (Brasileiro)</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Cole os dados aqui:</label>
+                    <textarea id="import-data" class="form-textarea" rows="10" placeholder="System	Category	Questions	Data de Início	Data de Fim	✓
+CARDIOVASCULAR	Normal structure	55	12/19/2025	12/22/2025	FALSE
+CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
+..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="import-replace">
+                        <span class="form-check-label">Substituir cronograma existente</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('import-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="importSchedule()">Importar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Item Modal -->
+    <div id="add-item-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">➕ Adicionar Item</h3>
+                <button class="modal-close" onclick="closeModal('add-item-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">System *</label>
+                    <input type="text" id="item-system" class="form-input" placeholder="Ex: Cardiovascular">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" id="add-item-category-label">Category *</label>
+                    <input type="text" id="item-category" class="form-input" placeholder="Ex: Cardiac arrhythmias">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Questoes</label>
+                    <input type="number" id="item-questions" class="form-input" placeholder="0">
+                </div>
+                <div class="input-group">
+                    <div class="form-group">
+                        <label class="form-label">Data Inicio</label>
+                        <input type="date" id="item-start-date" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Data Fim</label>
+                        <input type="date" id="item-end-date" class="form-input">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('add-item-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="addScheduleItem()">Adicionar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Item Modal -->
+    <div id="edit-item-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">✏️ Editar Item</h3>
+                <button class="modal-close" onclick="closeModal('edit-item-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-item-id">
+                <div class="form-group">
+                    <label class="form-label">System *</label>
+                    <input type="text" id="edit-item-system" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" id="edit-item-category-label">Category *</label>
+                    <input type="text" id="edit-item-category" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Questoes</label>
+                    <input type="number" id="edit-item-questions" class="form-input">
+                </div>
+                <div class="input-group">
+                    <div class="form-group">
+                        <label class="form-label">Data Inicio</label>
+                        <input type="date" id="edit-item-start-date" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Data Fim</label>
+                        <input type="date" id="edit-item-end-date" class="form-input">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="edit-item-completed">
+                        <span class="form-check-label">Marcar como concluido</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="deleteScheduleItem()">Excluir</button>
+                <button class="btn btn-secondary" onclick="closeModal('edit-item-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveScheduleItem()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Schedule Generator Modal -->
+    <div id="schedule-generator-modal" class="modal-overlay">
+        <div class="modal modal-fullscreen" style="max-width: 95vw; max-height: 95vh; width: 1400px;">
+            <div class="modal-header" style="background: #1a2332; border-bottom: 1px solid #2d3a4f;">
+                <h3 class="modal-title" style="color: #f1f5f9;">⚡ Gerador de Cronograma - <span id="generator-student-name"></span></h3>
+                <button class="modal-close" onclick="closeModal('schedule-generator-modal')" style="color: #94a3b8;">&times;</button>
+            </div>
+            <div class="modal-body" style="background: #0a0f1a; color: #f1f5f9; overflow-y: auto; max-height: calc(95vh - 140px); padding: 1.5rem;">
+                <!-- Stats do Questionário -->
+                <div id="questionnaire-info" class="generator-info-box" style="display: none; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem;">
+                    <h4 style="color: #60a5fa; margin-bottom: 0.75rem;">📋 Dados do Questionário do Aluno</h4>
+                    <div id="questionnaire-summary" style="font-size: 0.9rem; color: #94a3b8;"></div>
+                </div>
+
+                <!-- Completed Categories Reference -->
+                <div id="completed-categories-box" class="generator-info-box" style="display: none; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem;">
+                    <h4 style="color: #10b981; margin-bottom: 0.75rem;">✅ Categorias Marcadas como Concluídas</h4>
+                    <div id="completed-categories-list" style="font-size: 0.85rem; color: #94a3b8; max-height: 150px; overflow-y: auto;"></div>
+                </div>
+
+                <!-- Generator Form Grid -->
+                <div class="generator-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <!-- Period Settings -->
+                    <div class="generator-card" style="background: #1a2332; border: 1px solid #2d3a4f; border-radius: 12px; padding: 1.25rem;">
+                        <h4 style="color: #f1f5f9; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="background: rgba(59, 130, 246, 0.15); padding: 0.5rem; border-radius: 8px;">📅</span>
+                            Período de Estudos
+                        </h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label" style="color: #94a3b8;">Data de Início</label>
+                                <input type="date" id="gen-start-date" class="form-input generator-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" style="color: #94a3b8;">Data de Término</label>
+                                <input type="date" id="gen-end-date" class="form-input generator-input">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" style="color: #94a3b8;">Dias SEM Estudo (clique para bloquear)</label>
+                            <div class="weekday-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; margin-top: 0.5rem;">
+                                <button type="button" class="weekday-btn" data-day="0">Dom</button>
+                                <button type="button" class="weekday-btn" data-day="1">Seg</button>
+                                <button type="button" class="weekday-btn" data-day="2">Ter</button>
+                                <button type="button" class="weekday-btn" data-day="3">Qua</button>
+                                <button type="button" class="weekday-btn" data-day="4">Qui</button>
+                                <button type="button" class="weekday-btn" data-day="5">Sex</button>
+                                <button type="button" class="weekday-btn" data-day="6">Sáb</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Break Periods -->
+                    <div class="generator-card" style="background: #1a2332; border: 1px solid #2d3a4f; border-radius: 12px; padding: 1.25rem;">
+                        <h4 style="color: #f1f5f9; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="background: rgba(245, 158, 11, 0.15); padding: 0.5rem; border-radius: 8px;">🏝️</span>
+                            Períodos de Pausa
+                        </h4>
+                        <div id="gen-breaks-list" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; max-height: 150px; overflow-y: auto;">
+                            <p class="placeholder-text" style="color: #64748b; font-size: 0.85rem;">Nenhum período de pausa</p>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 0.5rem; align-items: end;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="color: #94a3b8; font-size: 0.8rem;">Motivo</label>
+                                <input type="text" id="gen-break-name" class="form-input generator-input" placeholder="Ex: Congresso" style="font-size: 0.85rem;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="color: #94a3b8; font-size: 0.8rem;">Início</label>
+                                <input type="date" id="gen-break-start" class="form-input generator-input" style="font-size: 0.85rem;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="color: #94a3b8; font-size: 0.8rem;">Fim</label>
+                                <input type="date" id="gen-break-end" class="form-input generator-input" style="font-size: 0.85rem;">
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="addGeneratorBreak()" style="padding: 0.5rem 0.75rem;">➕</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Input -->
+                <div class="generator-card" style="background: #1a2332; border: 1px solid #2d3a4f; border-radius: 12px; padding: 1.25rem; margin-top: 1.5rem;">
+                    <h4 style="color: #f1f5f9; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="background: rgba(59, 130, 246, 0.15); padding: 0.5rem; border-radius: 8px;">📋</span>
+                        <span id="gen-title-label">Categorias</span> e Questões
+                    </h4>
+                    <div class="form-group">
+                        <label class="form-label" style="color: #94a3b8;" id="gen-data-label">Cole aqui os dados (separados por TAB): System → Category → Questions → Data de Início → Data de Fim → Aulas Recomendadas → ✓</label>
+                        <textarea id="gen-data-input" class="form-textarea generator-input" rows="10" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; background: #0d1421; color: #f1f5f9; border: 1px solid #2d3a4f;" placeholder="System	Category	Questions	Data de Início	Data de Fim	Aulas Recomendadas	✓
+CARDIOVASCULAR	Normal structure and function	55			B&B: Cardiac Anatomy	FALSE
+CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
+..."></textarea>
+                    </div>
+                    <p style="color: #64748b; font-size: 0.8rem; margin-top: 0.5rem;">
+                        💡 As colunas "Data de Início" e "Data de Fim" serão preenchidas automaticamente. Itens com ✓=TRUE serão ignorados.
+                    </p>
+                </div>
+
+                <!-- Generate Button & Stats -->
+                <div style="text-align: center; margin: 2rem 0;">
+                    <button type="button" class="btn btn-primary" onclick="generateScheduleFromModal()" style="padding: 1rem 3rem; font-size: 1.1rem; background: linear-gradient(135deg, #3b82f6, #60a5fa);">
+                        ⚡ Gerar Cronograma
+                    </button>
+                </div>
+
+                <!-- Stats Bar -->
+                <div id="gen-stats-bar" class="generator-stats" style="display: none; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="stat-card" style="background: #1a2332; border: 1px solid #2d3a4f; border-radius: 10px; padding: 1rem; text-align: center;">
+                        <div class="stat-value" id="gen-stat-questions" style="font-size: 1.5rem; color: #60a5fa; font-weight: 700;">0</div>
+                        <div class="stat-label" style="font-size: 0.75rem; color: #64748b;">Questões</div>
+                    </div>
+                    <div class="stat-card" style="background: #1a2332; border: 1px solid #2d3a4f; border-radius: 10px; padding: 1rem; text-align: center;">
+                        <div class="stat-value" id="gen-stat-days" style="font-size: 1.5rem; color: #60a5fa; font-weight: 700;">0</div>
+                        <div class="stat-label" style="font-size: 0.75rem; color: #64748b;">Dias Úteis</div>
+                    </div>
+                    <div class="stat-card" style="background: #1a2332; border: 1px solid #2d3a4f; border-radius: 10px; padding: 1rem; text-align: center;">
+                        <div class="stat-value" id="gen-stat-avg" style="font-size: 1.5rem; color: #60a5fa; font-weight: 700;">0</div>
+                        <div class="stat-label" style="font-size: 0.75rem; color: #64748b;">Questões/Dia</div>
+                    </div>
+                    <div class="stat-card" style="background: #1a2332; border: 1px solid #2d3a4f; border-radius: 10px; padding: 1rem; text-align: center;">
+                        <div class="stat-value" id="gen-stat-categories" style="font-size: 1.5rem; color: #60a5fa; font-weight: 700;">0</div>
+                        <div class="stat-label" style="font-size: 0.75rem; color: #64748b;" id="gen-stat-categories-label">Categorias</div>
+                    </div>
+                </div>
+
+                <!-- Results Table -->
+                <div id="gen-results-section" style="display: none;">
+                    <div class="generator-card" style="background: #1a2332; border: 1px solid #2d3a4f; border-radius: 12px; padding: 1.25rem;">
+                        <h4 style="color: #f1f5f9; margin-bottom: 1rem;">📊 Cronograma Gerado</h4>
+                        <div style="max-height: 300px; overflow-y: auto; border: 1px solid #2d3a4f; border-radius: 8px;">
+                            <table class="generator-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                                <thead style="position: sticky; top: 0; background: #111827;">
+                                    <tr>
+                                        <th style="padding: 0.75rem; text-align: left; color: #94a3b8; border-bottom: 1px solid #2d3a4f;">System</th>
+                                        <th style="padding: 0.75rem; text-align: left; color: #94a3b8; border-bottom: 1px solid #2d3a4f;" id="gen-results-category-header">Category</th>
+                                        <th style="padding: 0.75rem; text-align: center; color: #94a3b8; border-bottom: 1px solid #2d3a4f;">Questões</th>
+                                        <th style="padding: 0.75rem; text-align: left; color: #94a3b8; border-bottom: 1px solid #2d3a4f;">Início</th>
+                                        <th style="padding: 0.75rem; text-align: left; color: #94a3b8; border-bottom: 1px solid #2d3a4f;">Fim</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="gen-results-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="background: #1a2332; border-top: 1px solid #2d3a4f;">
+                <button class="btn btn-secondary" onclick="closeModal('schedule-generator-modal')">Cancelar</button>
+                <button class="btn btn-outline" id="gen-copy-btn" onclick="copyGeneratedSchedule()" style="display: none;">📋 Copiar Tabela</button>
+                <button class="btn btn-primary" id="gen-import-btn" onclick="importGeneratedSchedule()" style="display: none;">✅ Importar para o Cronograma</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let allStudents = [];
+        let selectedStudentId = null;
+        let scheduleData = [];
+
+        // Helper to decrypt user data if encrypted
+        function _dn(val) {
+            if (!val) return val;
+            return WardApp._prs ? WardApp._prs(val) : val;
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Check if mentor
+            if (!userData.role || !userData.role.startsWith('mentor_')) {
+                WardApp.showToast('Acesso negado', 'error');
+                window.location.href = '/dashboard';
+                return;
+            }
+
+            // Verificacao adicional via Supabase Auth
+            const { data: { user: authUser } } = await WardApp.db.auth.getUser();
+            if (!authUser) {
+                WardApp.showToast('Sessao invalida. Faca login novamente.', 'error');
+                WardApp.logout();
+                return;
+            }
+
+            // Verificar se o auth_id corresponde ao usuario logado
+            if (userData.auth_id && userData.auth_id !== authUser.id) {
+                WardApp.showToast('Acesso negado: autenticacao invalida', 'error');
+                WardApp.logout();
+                return;
+            }
+
+            // Set dashboard link based on role
+            const dashboardLinks = {
+                'mentor_marcos': '/mentor-dashboard-marcos',
+                'mentor_iria': '/mentor-dashboard-iria',
+                'mentor_guilherme': '/mentor-dashboard-guilherme',
+                'mentor_romulo': '/mentor-dashboard-romulo'
+            };
+            document.getElementById('nav-dashboard').href = dashboardLinks[userData.role] || '/dashboard';
+            const mentorFullName = _dn(userData.full_name) || userData.email;
+            document.getElementById('mentor-name').textContent = mentorFullName ? mentorFullName.split(' ')[0] : mentorFullName;
+
+            await loadStudents();
+        });
+
+        async function loadStudents() {
+            const { data: students } = await WardApp.db
+                .from('users')
+                .select('id, full_name, email, role, pass_type, schedule_type')
+                .in('role', ['aluno', 'assessoria']);
+
+            // Sort by decrypted name alphabetically
+            allStudents = (students || []).sort((a, b) => {
+                const nameA = (_dn(a.full_name) || a.email || '').toLowerCase();
+                const nameB = (_dn(b.full_name) || b.email || '').toLowerCase();
+                return nameA.localeCompare(nameB, 'pt-BR');
+            });
+
+            const select = document.getElementById('student-select');
+            select.innerHTML = '<option value="">-- Selecione um aluno ou membro --</option>' +
+                allStudents.map(s => `<option value="${s.id}">${_dn(s.full_name) || s.email}</option>`).join('');
+        }
+
+        async function loadStudentSchedule() {
+            const studentId = document.getElementById('student-select').value;
+            if (!studentId) {
+                document.getElementById('schedule-section').style.display = 'none';
+                return;
+            }
+
+            selectedStudentId = studentId;
+            const student = allStudents.find(s => s.id == studentId);
+            document.getElementById('selected-student-name').textContent = _dn(student?.full_name) || student?.email;
+            document.getElementById('schedule-section').style.display = 'block';
+
+            // Load pass_type
+            const passType = student?.pass_type || 'first';
+            document.getElementById('pass-type-select').value = passType;
+
+            // Load schedule_type
+            const scheduleType = student?.schedule_type || 'subject';
+            document.getElementById('schedule-type-select').value = scheduleType;
+            updateScheduleTypeHeader(scheduleType);
+
+            // Load schedule
+            const { data: schedule } = await WardApp.db
+                .from('schedules')
+                .select('*')
+                .eq('user_id', studentId)
+                .order('start_date', { ascending: true });
+
+            scheduleData = schedule || [];
+            renderSchedule();
+
+            // Load delays
+            const { data: delays } = await WardApp.db
+                .from('schedule_delays')
+                .select('*')
+                .eq('user_id', studentId)
+                .order('created_at', { ascending: false });
+
+            if (delays && delays.length > 0) {
+                document.getElementById('delays-alert').style.display = 'block';
+                document.getElementById('delays-list').innerHTML = delays.map(d => `
+                    <div class="delay-item">
+                        📅 ${WardApp.formatDate(d.start_date)} - ${WardApp.formatDate(d.end_date)}
+                        ${d.reason ? `: ${d.reason}` : ''}
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('delays-alert').style.display = 'none';
+            }
+        }
+
+        function renderSchedule() {
+            const tbody = document.getElementById('schedule-body');
+            const noSchedule = document.getElementById('no-schedule');
+
+            if (scheduleData.length === 0) {
+                tbody.innerHTML = '';
+                noSchedule.style.display = 'block';
+                document.getElementById('schedule-progress-text').textContent = '0%';
+                document.getElementById('schedule-progress-fill').style.width = '0%';
+                return;
+            }
+
+            noSchedule.style.display = 'none';
+
+            // Calculate progress
+            const completed = scheduleData.filter(s => s.completed).length;
+            const progress = Math.round((completed / scheduleData.length) * 100);
+            document.getElementById('schedule-progress-text').textContent = progress + '%';
+            document.getElementById('schedule-progress-fill').style.width = progress + '%';
+
+            // Check for overdue items
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            tbody.innerHTML = scheduleData.map(item => {
+                let rowClass = '';
+                let isOverdue = false;
+
+                if (item.completed) {
+                    rowClass = 'completed-row';
+                } else if (item.end_date) {
+                    const endDate = new Date(item.end_date);
+                    endDate.setHours(23, 59, 59, 999);
+                    if (endDate < today) {
+                        rowClass = 'overdue-row';
+                        isOverdue = true;
+                    }
+                }
+
+                return `
+                    <tr class="${rowClass}">
+                        <td>${isOverdue ? '⚠️ ' : ''}${item.system || '-'}</td>
+                        <td>${item.category || '-'}</td>
+                        <td>${item.questions || '-'}</td>
+                        <td>${item.start_date ? WardApp.formatDate(item.start_date) : '-'}</td>
+                        <td>${item.end_date ? WardApp.formatDate(item.end_date) : '-'}</td>
+                        <td class="text-center">
+                            <input type="checkbox" ${item.completed ? 'checked' : ''}
+                                onchange="toggleCompleted(${item.id}, this.checked)">
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline" onclick="editItem(${item.id})">✏️</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function toggleCompleted(itemId, completed) {
+            await WardApp.db
+                .from('schedules')
+                .update({ completed, updated_at: new Date().toISOString() })
+                .eq('id', itemId);
+
+            // Update local data
+            const item = scheduleData.find(s => s.id === itemId);
+            if (item) item.completed = completed;
+            renderSchedule();
+        }
+
+        function openImportModal() {
+            document.getElementById('import-data').value = '';
+            document.getElementById('import-replace').checked = false;
+            openModal('import-modal');
+        }
+
+        async function importSchedule() {
+            const data = document.getElementById('import-data').value.trim();
+            const replace = document.getElementById('import-replace').checked;
+            const dateFormat = document.querySelector('input[name="date-format"]:checked').value;
+
+            if (!data) {
+                WardApp.showToast('Cole os dados do Excel', 'warning');
+                return;
+            }
+
+            const lines = data.split('\n').filter(l => l.trim());
+            const items = [];
+
+            // Helper to convert date to YYYY-MM-DD based on selected format
+            function parseDate(dateStr) {
+                if (!dateStr) return null;
+                const parts = dateStr.trim().split('/');
+                if (parts.length !== 3) return null;
+
+                let day, month, year;
+                const num1 = parseInt(parts[0]);
+                const num2 = parseInt(parts[1]);
+                const num3 = parseInt(parts[2]);
+
+                // Detect year position
+                if (num3 > 31) {
+                    year = num3;
+                    // Use selected format
+                    if (dateFormat === 'DD/MM/YYYY') {
+                        day = num1;
+                        month = num2;
+                    } else {
+                        // MM/DD/YYYY
+                        month = num1;
+                        day = num2;
+                    }
+                } else if (num1 > 31) {
+                    // Year is in first position: YYYY/?/?
+                    year = num1;
+                    month = num2;
+                    day = num3;
+                } else {
+                    // Assume third position is year with 2 digits
+                    year = num3 < 100 ? 2000 + num3 : num3;
+                    // Use selected format
+                    if (dateFormat === 'DD/MM/YYYY') {
+                        day = num1;
+                        month = num2;
+                    } else {
+                        // MM/DD/YYYY
+                        month = num1;
+                        day = num2;
+                    }
+                }
+
+                return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            }
+
+            // Skip header if present (check if first line contains "System" or "Category")
+            let startIndex = 0;
+            if (lines.length > 0 && (lines[0].includes('System') || lines[0].includes('Category'))) {
+                startIndex = 1;
+            }
+
+            for (let i = startIndex; i < lines.length; i++) {
+                const cols = lines[i].split('\t');
+                if (cols.length >= 2) {
+                    const questionsValue = parseInt(cols[2]) || null;
+                    const startDate = parseDate(cols[3]);
+                    const endDate = parseDate(cols[4]);
+                    const recommendedLessons = cols[5]?.trim() || null;
+                    const isCompleted = cols[6]?.trim().toUpperCase() === 'TRUE';
+
+                    items.push({
+                        user_id: selectedStudentId,
+                        system: cols[0]?.trim() || '',
+                        category: cols[1]?.trim() || '',
+                        questions: questionsValue,
+                        start_date: startDate,
+                        end_date: endDate,
+                        recommended_lessons: recommendedLessons,
+                        completed: isCompleted
+                    });
+                }
+            }
+
+            if (items.length === 0) {
+                WardApp.showToast('Nenhum dado valido encontrado', 'error');
+                return;
+            }
+
+            // If replacing, delete existing
+            if (replace) {
+                await WardApp.db
+                    .from('schedules')
+                    .delete()
+                    .eq('user_id', selectedStudentId);
+            }
+
+            // Insert new items
+            const { error } = await WardApp.db
+                .from('schedules')
+                .insert(items);
+
+            if (error) {
+                console.error('Error importing:', error);
+                WardApp.showToast('Erro ao importar', 'error');
+                return;
+            }
+
+            closeModal('import-modal');
+            WardApp.showToast(`${items.length} itens importados!`);
+            await loadStudentSchedule();
+        }
+
+        async function clearSchedule() {
+            if (!confirm('Tem certeza que deseja limpar todo o cronograma deste aluno?')) return;
+
+            await WardApp.db
+                .from('schedules')
+                .delete()
+                .eq('user_id', selectedStudentId);
+
+            WardApp.showToast('Cronograma limpo');
+            await loadStudentSchedule();
+        }
+
+        function openAddItemModal() {
+            document.getElementById('item-system').value = '';
+            document.getElementById('item-category').value = '';
+            document.getElementById('item-questions').value = '';
+            document.getElementById('item-start-date').value = '';
+            document.getElementById('item-end-date').value = '';
+            openModal('add-item-modal');
+        }
+
+        async function addScheduleItem() {
+            const system = document.getElementById('item-system').value.trim();
+            const category = document.getElementById('item-category').value.trim();
+            const questions = parseInt(document.getElementById('item-questions').value) || null;
+            const startDate = document.getElementById('item-start-date').value || null;
+            const endDate = document.getElementById('item-end-date').value || null;
+
+            if (!system || !category) {
+                WardApp.showToast('System e Category sao obrigatorios', 'warning');
+                return;
+            }
+
+            const { error } = await WardApp.db
+                .from('schedules')
+                .insert({
+                    user_id: selectedStudentId,
+                    system: system,
+                    category: category,
+                    questions: questions,
+                    start_date: startDate,
+                    end_date: endDate,
+                    completed: false
+                });
+
+            if (error) {
+                WardApp.showToast('Erro ao adicionar', 'error');
+                return;
+            }
+
+            closeModal('add-item-modal');
+            WardApp.showToast('Item adicionado!');
+            await loadStudentSchedule();
+        }
+
+        function editItem(itemId) {
+            const item = scheduleData.find(s => s.id === itemId);
+            if (!item) return;
+
+            document.getElementById('edit-item-id').value = itemId;
+            document.getElementById('edit-item-system').value = item.system || '';
+            document.getElementById('edit-item-category').value = item.category || '';
+            document.getElementById('edit-item-questions').value = item.questions || '';
+            document.getElementById('edit-item-start-date').value = item.start_date || '';
+            document.getElementById('edit-item-end-date').value = item.end_date || '';
+            document.getElementById('edit-item-completed').checked = item.completed || false;
+            openModal('edit-item-modal');
+        }
+
+        async function saveScheduleItem() {
+            const itemId = document.getElementById('edit-item-id').value;
+            const system = document.getElementById('edit-item-system').value.trim();
+            const category = document.getElementById('edit-item-category').value.trim();
+            const questions = parseInt(document.getElementById('edit-item-questions').value) || null;
+            const startDate = document.getElementById('edit-item-start-date').value || null;
+            const endDate = document.getElementById('edit-item-end-date').value || null;
+            const completed = document.getElementById('edit-item-completed').checked;
+
+            if (!system || !category) {
+                WardApp.showToast('System e Category sao obrigatorios', 'warning');
+                return;
+            }
+
+            await WardApp.db
+                .from('schedules')
+                .update({
+                    system: system,
+                    category: category,
+                    questions: questions,
+                    start_date: startDate,
+                    end_date: endDate,
+                    completed: completed,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', itemId);
+
+            closeModal('edit-item-modal');
+            WardApp.showToast('Item atualizado!');
+            await loadStudentSchedule();
+        }
+
+        async function deleteScheduleItem() {
+            if (!confirm('Excluir este item?')) return;
+
+            const itemId = document.getElementById('edit-item-id').value;
+
+            await WardApp.db
+                .from('schedules')
+                .delete()
+                .eq('id', itemId);
+
+            closeModal('edit-item-modal');
+            WardApp.showToast('Item excluido');
+            await loadStudentSchedule();
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        async function savePassType() {
+            if (!selectedStudentId) return;
+
+            const passType = document.getElementById('pass-type-select').value;
+
+            const { error } = await WardApp.db
+                .from('users')
+                .update({ pass_type: passType })
+                .eq('id', selectedStudentId);
+
+            if (error) {
+                console.error('Error saving pass type:', error);
+                WardApp.showToast('Erro ao salvar tipo de pass', 'error');
+                return;
+            }
+
+            WardApp.showToast('Tipo de pass salvo!');
+        }
+
+        async function saveScheduleType() {
+            if (!selectedStudentId) return;
+
+            const scheduleType = document.getElementById('schedule-type-select').value;
+
+            const { error } = await WardApp.db
+                .from('users')
+                .update({ schedule_type: scheduleType })
+                .eq('id', selectedStudentId);
+
+            if (error) {
+                console.error('Error saving schedule type:', error);
+                WardApp.showToast('Erro ao salvar tipo de cronograma', 'error');
+                return;
+            }
+
+            // Update local data
+            const student = allStudents.find(s => s.id == selectedStudentId);
+            if (student) student.schedule_type = scheduleType;
+
+            // Update header
+            updateScheduleTypeHeader(scheduleType);
+
+            WardApp.showToast('Tipo de cronograma salvo!');
+        }
+
+        function updateScheduleTypeHeader(scheduleType) {
+            const label = scheduleType === 'subject' ? 'Subject' : 'Category';
+            const labelPlural = scheduleType === 'subject' ? 'Subjects' : 'Categorias';
+
+            // Update main table header
+            const header = document.getElementById('category-header');
+            if (header) {
+                header.textContent = label;
+            }
+
+            // Update add item modal label
+            const addLabel = document.getElementById('add-item-category-label');
+            if (addLabel) {
+                addLabel.textContent = label + ' *';
+            }
+
+            // Update edit item modal label
+            const editLabel = document.getElementById('edit-item-category-label');
+            if (editLabel) {
+                editLabel.textContent = label + ' *';
+            }
+
+            // Update generator modal labels
+            const genTitleLabel = document.getElementById('gen-title-label');
+            if (genTitleLabel) {
+                genTitleLabel.textContent = labelPlural;
+            }
+
+            const genDataLabel = document.getElementById('gen-data-label');
+            if (genDataLabel) {
+                genDataLabel.textContent = `Cole aqui os dados (separados por TAB): System → ${label} → Questions → Data de Início → Data de Fim → Aulas Recomendadas → ✓`;
+            }
+
+            const genStatLabel = document.getElementById('gen-stat-categories-label');
+            if (genStatLabel) {
+                genStatLabel.textContent = labelPlural;
+            }
+
+            const genResultsHeader = document.getElementById('gen-results-category-header');
+            if (genResultsHeader) {
+                genResultsHeader.textContent = label;
+            }
+        }
+
+        function copyScheduleToClipboard() {
+            if (scheduleData.length === 0) {
+                WardApp.showToast('Nenhum item no cronograma para copiar', 'warning');
+                return;
+            }
+
+            // Header row
+            const header = ['System', 'Category', 'Questions', 'Data de Início', 'Data de Fim', 'Aulas Recomendadas', '✓'].join('\t');
+
+            // Data rows
+            const rows = scheduleData.map(item => {
+                const startDate = item.start_date ? formatDateForExport(item.start_date) : '';
+                const endDate = item.end_date ? formatDateForExport(item.end_date) : '';
+                const completed = item.completed ? 'TRUE' : 'FALSE';
+
+                return [
+                    item.system || '',
+                    item.category || '',
+                    item.questions || '',
+                    startDate,
+                    endDate,
+                    item.recommended_lessons || '',
+                    completed
+                ].join('\t');
+            });
+
+            const text = [header, ...rows].join('\n');
+
+            navigator.clipboard.writeText(text).then(() => {
+                WardApp.showToast('Cronograma copiado para o clipboard!');
+            }).catch(err => {
+                console.error('Erro ao copiar:', err);
+                WardApp.showToast('Erro ao copiar para o clipboard', 'error');
+            });
+        }
+
+        // ========== HELPER FUNCTIONS FOR TIMEZONE-SAFE DATE HANDLING ==========
+
+        // Parse YYYY-MM-DD string to Date without timezone issues
+        function parseDateSafe(dateStr) {
+            if (!dateStr) return null;
+            let datePart = String(dateStr);
+            if (datePart.includes('T')) {
+                datePart = datePart.split('T')[0];
+            }
+            const parts = datePart.split('-');
+            if (parts.length !== 3) return null;
+            // Create date using local timezone (year, month-1, day)
+            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        }
+
+        // Format date string YYYY-MM-DD to DD/MM/YYYY without timezone conversion
+        function formatDateForExport(dateInput) {
+            if (!dateInput) return '';
+
+            // If it's a string in YYYY-MM-DD format, parse directly
+            if (typeof dateInput === 'string') {
+                let datePart = dateInput;
+                if (datePart.includes('T')) {
+                    datePart = datePart.split('T')[0];
+                }
+                const parts = datePart.split('-');
+                if (parts.length === 3) {
+                    const day = parts[2].replace(/\D/g, '').padStart(2, '0');
+                    const month = parts[1].padStart(2, '0');
+                    const year = parts[0];
+                    return `${day}/${month}/${year}`;
+                }
+                return dateInput;
+            }
+
+            // If it's a Date object, extract local components
+            if (dateInput instanceof Date) {
+                const day = String(dateInput.getDate()).padStart(2, '0');
+                const month = String(dateInput.getMonth() + 1).padStart(2, '0');
+                const year = dateInput.getFullYear();
+                return `${day}/${month}/${year}`;
+            }
+
+            return '';
+        }
+
+        // Format Date to YYYY-MM-DD string (for input fields)
+        function formatDateISO(dateInput) {
+            if (!dateInput) return '';
+
+            if (typeof dateInput === 'string') {
+                let datePart = dateInput;
+                if (datePart.includes('T')) {
+                    datePart = datePart.split('T')[0];
+                }
+                return datePart;
+            }
+
+            if (dateInput instanceof Date) {
+                const day = String(dateInput.getDate()).padStart(2, '0');
+                const month = String(dateInput.getMonth() + 1).padStart(2, '0');
+                const year = dateInput.getFullYear();
+                return `${year}-${month}-${day}`;
+            }
+
+            return '';
+        }
+
+        // ============== SCHEDULE GENERATOR ==============
+        let genBreaks = [];
+        let genBlockedDays = new Set();
+        let genScheduleData = [];
+        let generatorMode = 'new'; // 'new' or 'update'
+
+        // Initialize generator weekday buttons
+        function initGeneratorWeekdays() {
+            document.querySelectorAll('.weekday-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const day = parseInt(btn.dataset.day);
+                    if (genBlockedDays.has(day)) {
+                        genBlockedDays.delete(day);
+                        btn.classList.remove('blocked');
+                    } else {
+                        genBlockedDays.add(day);
+                        btn.classList.add('blocked');
+                    }
+                });
+            });
+        }
+
+        // Open Schedule Generator Modal
+        async function openScheduleGenerator(mode) {
+            if (!selectedStudentId) {
+                WardApp.showToast('Selecione um aluno primeiro', 'warning');
+                return;
+            }
+
+            generatorMode = mode;
+            const student = allStudents.find(s => s.id == selectedStudentId);
+            document.getElementById('generator-student-name').textContent = _dn(student?.full_name) || student?.email;
+
+            // Reset generator state
+            genBreaks = [];
+            genBlockedDays = new Set();
+            genScheduleData = [];
+            document.getElementById('gen-breaks-list').innerHTML = '<p class="placeholder-text" style="color: #64748b; font-size: 0.85rem;">Nenhum período de pausa</p>';
+            document.querySelectorAll('.weekday-btn').forEach(btn => btn.classList.remove('blocked'));
+            document.getElementById('gen-data-input').value = '';
+            document.getElementById('gen-stats-bar').style.display = 'none';
+            document.getElementById('gen-results-section').style.display = 'none';
+            document.getElementById('gen-copy-btn').style.display = 'none';
+            document.getElementById('gen-import-btn').style.display = 'none';
+
+            // Initialize weekday buttons
+            initGeneratorWeekdays();
+
+            // Load questionnaire data
+            await loadQuestionnaireDataForGenerator();
+
+            // If update mode, load existing schedule
+            if (mode === 'update') {
+                loadExistingScheduleForGenerator();
+            }
+
+            openModal('schedule-generator-modal');
+        }
+
+        // Load questionnaire data for the selected student
+        async function loadQuestionnaireDataForGenerator() {
+            try {
+                // Load step 2 (dates, breaks, no_study_days)
+                const { data: step2Data } = await WardApp.db
+                    .from('questionnaire_data')
+                    .select('data')
+                    .eq('user_id', selectedStudentId)
+                    .eq('step', 2)
+                    .single();
+
+                // Load step 4 (completed categories)
+                const { data: step4Data } = await WardApp.db
+                    .from('questionnaire_data')
+                    .select('data')
+                    .eq('user_id', selectedStudentId)
+                    .eq('step', 4)
+                    .single();
+
+                const questionnaireInfoDiv = document.getElementById('questionnaire-info');
+                const questionnaireSummaryDiv = document.getElementById('questionnaire-summary');
+                const completedCategoriesBox = document.getElementById('completed-categories-box');
+                const completedCategoriesList = document.getElementById('completed-categories-list');
+
+                if (step2Data && step2Data.data) {
+                    const d = step2Data.data;
+                    questionnaireInfoDiv.style.display = 'block';
+
+                    let summaryHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.5rem;">';
+
+                    // Study start date
+                    if (d.study_start_date) {
+                        document.getElementById('gen-start-date').value = d.study_start_date;
+                        summaryHtml += `<span>📅 Início: <strong>${formatDateForExport(d.study_start_date)}</strong></span>`;
+                    }
+
+                    // Next exam date (as end date)
+                    if (d.next_exam_date) {
+                        document.getElementById('gen-end-date').value = d.next_exam_date;
+                        summaryHtml += `<span>🎯 Prova: <strong>${formatDateForExport(d.next_exam_date)}</strong></span>`;
+                    }
+
+                    // Next exam type
+                    if (d.next_exam) {
+                        summaryHtml += `<span>📝 Exame: <strong>${d.next_exam.toUpperCase()}</strong></span>`;
+                    }
+
+                    // First pass info
+                    if (d.first_pass_months) {
+                        summaryHtml += `<span>1️⃣ First Pass: <strong>${d.first_pass_months} meses</strong></span>`;
+                    }
+                    if (d.first_pass_completed) {
+                        summaryHtml += `<span style="color: #10b981;">✅ First Pass Completo</span>`;
+                    }
+
+                    summaryHtml += '</div>';
+                    questionnaireSummaryDiv.innerHTML = summaryHtml;
+
+                    // No study days
+                    if (d.no_study_days && Array.isArray(d.no_study_days)) {
+                        d.no_study_days.forEach(day => {
+                            genBlockedDays.add(parseInt(day));
+                            const btn = document.querySelector(`.weekday-btn[data-day="${day}"]`);
+                            if (btn) btn.classList.add('blocked');
+                        });
+                    }
+
+                    // Break periods
+                    if (d.break_periods && Array.isArray(d.break_periods)) {
+                        d.break_periods.forEach(period => {
+                            if (period.start_date && period.end_date) {
+                                genBreaks.push({
+                                    name: period.reason || 'Pausa',
+                                    start: period.start_date,
+                                    end: period.end_date
+                                });
+                            }
+                        });
+                        renderGeneratorBreaks();
+                    }
+                } else {
+                    questionnaireInfoDiv.style.display = 'none';
+                    questionnaireSummaryDiv.innerHTML = '<span style="color: #f59e0b;">⚠️ Questionário não preenchido</span>';
+
+                    // Set default dates
+                    const today = new Date();
+                    const threeMonthsLater = new Date(today);
+                    threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3);
+                    document.getElementById('gen-start-date').value = formatDateISO(today);
+                    document.getElementById('gen-end-date').value = formatDateISO(threeMonthsLater);
+                }
+
+                // Completed categories from step 4
+                if (step4Data && step4Data.data && step4Data.data.completed_categories) {
+                    try {
+                        const categories = JSON.parse(step4Data.data.completed_categories);
+                        if (categories.length > 0) {
+                            completedCategoriesBox.style.display = 'block';
+                            let catHtml = '<ul style="margin: 0; padding-left: 1.5rem; list-style: none;">';
+                            categories.forEach(cat => {
+                                catHtml += `<li style="margin-bottom: 0.25rem;">✅ ${cat.system} → ${cat.category}</li>`;
+                            });
+                            catHtml += '</ul>';
+                            completedCategoriesList.innerHTML = catHtml;
+                        } else {
+                            completedCategoriesBox.style.display = 'none';
+                        }
+                    } catch (e) {
+                        completedCategoriesBox.style.display = 'none';
+                    }
+                } else {
+                    completedCategoriesBox.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading questionnaire data:', error);
+            }
+        }
+
+        // Load existing schedule for update mode
+        function loadExistingScheduleForGenerator() {
+            if (scheduleData.length === 0) {
+                WardApp.showToast('Não há cronograma existente para atualizar', 'warning');
+                return;
+            }
+
+            // Filter out completed items and format for generator
+            const pendingItems = scheduleData.filter(item => !item.completed);
+
+            if (pendingItems.length === 0) {
+                WardApp.showToast('Todas as categorias já estão concluídas!', 'info');
+                return;
+            }
+
+            // Format as tab-separated data
+            const lines = pendingItems.map(item => {
+                const startDate = item.start_date ? formatDateForExport(item.start_date) : '';
+                const endDate = item.end_date ? formatDateForExport(item.end_date) : '';
+                return [
+                    item.system || '',
+                    item.category || '',
+                    item.questions || '',
+                    startDate,
+                    endDate,
+                    item.recommended_lessons || '',
+                    'FALSE'
+                ].join('\t');
+            });
+
+            document.getElementById('gen-data-input').value = lines.join('\n');
+        }
+
+        // Add break period to generator
+        function addGeneratorBreak() {
+            const name = document.getElementById('gen-break-name').value.trim();
+            const start = document.getElementById('gen-break-start').value;
+            const end = document.getElementById('gen-break-end').value;
+
+            if (!name || !start || !end) {
+                WardApp.showToast('Preencha todos os campos', 'warning');
+                return;
+            }
+
+            if (new Date(start) > new Date(end)) {
+                WardApp.showToast('Data de início deve ser anterior à data de fim', 'warning');
+                return;
+            }
+
+            genBreaks.push({ name, start, end });
+            renderGeneratorBreaks();
+
+            // Clear fields
+            document.getElementById('gen-break-name').value = '';
+            document.getElementById('gen-break-start').value = '';
+            document.getElementById('gen-break-end').value = '';
+        }
+
+        // Remove break from generator
+        function removeGeneratorBreak(index) {
+            genBreaks.splice(index, 1);
+            renderGeneratorBreaks();
+        }
+
+        // Render generator breaks list
+        function renderGeneratorBreaks() {
+            const container = document.getElementById('gen-breaks-list');
+
+            if (genBreaks.length === 0) {
+                container.innerHTML = '<p class="placeholder-text" style="color: #64748b; font-size: 0.85rem;">Nenhum período de pausa</p>';
+                return;
+            }
+
+            container.innerHTML = genBreaks.map((b, i) => `
+                <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; font-size: 0.8rem;">
+                    <span>🏝️</span>
+                    <span style="flex: 1;"><strong>${b.name}</strong>: ${formatDateForExport(b.start)} → ${formatDateForExport(b.end)}</span>
+                    <button onclick="removeGeneratorBreak(${i})" style="background: none; border: none; color: #64748b; cursor: pointer; padding: 0.25rem;">✕</button>
+                </div>
+            `).join('');
+        }
+
+        // Check if date is a study day
+        function isGenStudyDay(date) {
+            if (genBlockedDays.has(date.getDay())) return false;
+
+            for (const b of genBreaks) {
+                const start = parseDateSafe(b.start);
+                const end = parseDateSafe(b.end);
+                if (start && end && date >= start && date <= end) return false;
+            }
+
+            return true;
+        }
+
+        // Get study days in range
+        function getGenStudyDays(startDate, endDate) {
+            const days = [];
+            const current = new Date(startDate);
+
+            while (current <= endDate) {
+                if (isGenStudyDay(current)) {
+                    days.push(new Date(current));
+                }
+                current.setDate(current.getDate() + 1);
+            }
+
+            return days;
+        }
+
+        // Parse input data for generator
+        function parseGenInputData(text) {
+            const lines = text.trim().split('\n');
+            const data = [];
+
+            // Check if first line is header
+            let startIndex = 0;
+            if (lines.length > 0 && (lines[0].toLowerCase().includes('system') || lines[0].toLowerCase().includes('category'))) {
+                startIndex = 1;
+            }
+
+            for (let i = startIndex; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+
+                const parts = lines[i].split('\t');
+                const system = parts[0]?.trim() || '';
+                const category = parts[1]?.trim() || '';
+                const questions = parseInt(parts[2]?.trim()) || 0;
+                const recommendedLessons = parts[5]?.trim() || '';
+                const completed = parts[6]?.trim().toUpperCase() === 'TRUE';
+
+                // Skip completed items
+                if (completed) continue;
+
+                if (category && questions > 0) {
+                    data.push({ system, category, questions, recommendedLessons });
+                }
+            }
+
+            return data;
+        }
+
+        // Generate schedule from modal
+        function generateScheduleFromModal() {
+            const startDateStr = document.getElementById('gen-start-date').value;
+            const endDateStr = document.getElementById('gen-end-date').value;
+            const inputData = document.getElementById('gen-data-input').value;
+
+            if (!startDateStr || !endDateStr) {
+                WardApp.showToast('Defina as datas de início e término', 'warning');
+                return;
+            }
+
+            if (!inputData.trim()) {
+                WardApp.showToast('Cole os dados das categorias', 'warning');
+                return;
+            }
+
+            const startDate = parseDateSafe(startDateStr);
+            const endDate = parseDateSafe(endDateStr);
+
+            if (!startDate || !endDate || startDate >= endDate) {
+                WardApp.showToast('Data de início deve ser anterior à data de término', 'warning');
+                return;
+            }
+
+            const categories = parseGenInputData(inputData);
+            if (categories.length === 0) {
+                WardApp.showToast('Nenhuma categoria válida encontrada', 'warning');
+                return;
+            }
+
+            const studyDays = getGenStudyDays(startDate, endDate);
+            if (studyDays.length === 0) {
+                WardApp.showToast('Não há dias de estudo disponíveis no período', 'warning');
+                return;
+            }
+
+            const totalQuestions = categories.reduce((sum, c) => sum + c.questions, 0);
+            const questionsPerDay = totalQuestions / studyDays.length;
+
+            // Distribute categories
+            genScheduleData = [];
+            let currentPosition = 0;
+
+            for (const cat of categories) {
+                const daysNeeded = cat.questions / questionsPerDay;
+                const startIdx = Math.min(Math.floor(currentPosition), studyDays.length - 1);
+                currentPosition += daysNeeded;
+                const endIdx = Math.min(Math.max(Math.floor(currentPosition - 0.01), startIdx), studyDays.length - 1);
+
+                genScheduleData.push({
+                    system: cat.system,
+                    category: cat.category,
+                    questions: cat.questions,
+                    startDate: studyDays[startIdx],
+                    endDate: studyDays[endIdx],
+                    recommendedLessons: cat.recommendedLessons
+                });
+            }
+
+            // Update stats
+            document.getElementById('gen-stat-questions').textContent = totalQuestions.toLocaleString();
+            document.getElementById('gen-stat-days').textContent = studyDays.length;
+            document.getElementById('gen-stat-avg').textContent = questionsPerDay.toFixed(1);
+            document.getElementById('gen-stat-categories').textContent = categories.length;
+
+            // Render results
+            renderGenResults();
+
+            // Show sections
+            document.getElementById('gen-stats-bar').style.display = 'grid';
+            document.getElementById('gen-results-section').style.display = 'block';
+            document.getElementById('gen-copy-btn').style.display = 'inline-flex';
+            document.getElementById('gen-import-btn').style.display = 'inline-flex';
+
+            // Scroll to results
+            document.getElementById('gen-stats-bar').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Render generated results
+        function renderGenResults() {
+            const tbody = document.getElementById('gen-results-body');
+
+            tbody.innerHTML = genScheduleData.map(item => `
+                <tr style="border-bottom: 1px solid #2d3a4f;">
+                    <td style="padding: 0.5rem 0.75rem; color: #60a5fa; font-weight: 500;">${item.system}</td>
+                    <td style="padding: 0.5rem 0.75rem; color: #f1f5f9;">${item.category}</td>
+                    <td style="padding: 0.5rem 0.75rem; text-align: center; color: #60a5fa; font-family: monospace;">${item.questions}</td>
+                    <td style="padding: 0.5rem 0.75rem; color: #94a3b8; font-family: monospace;">${formatDateForExport(item.startDate)}</td>
+                    <td style="padding: 0.5rem 0.75rem; color: #94a3b8; font-family: monospace;">${formatDateForExport(item.endDate)}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Copy generated schedule to clipboard
+        function copyGeneratedSchedule() {
+            const header = 'System\tCategory\tQuestions\tData de Início\tData de Fim\tAulas Recomendadas\t✓\n';
+            const rows = genScheduleData.map(item =>
+                `${item.system}\t${item.category}\t${item.questions}\t${formatDateForExport(item.startDate)}\t${formatDateForExport(item.endDate)}\t${item.recommendedLessons || ''}\tFALSE`
+            ).join('\n');
+
+            navigator.clipboard.writeText(header + rows);
+            WardApp.showToast('Tabela copiada para o clipboard!');
+        }
+
+        // Import generated schedule to student
+        async function importGeneratedSchedule() {
+            if (genScheduleData.length === 0) {
+                WardApp.showToast('Gere o cronograma primeiro', 'warning');
+                return;
+            }
+
+            const confirmMsg = generatorMode === 'update'
+                ? 'Isso irá SUBSTITUIR o cronograma existente. Continuar?'
+                : 'Isso irá adicionar as categorias ao cronograma. Continuar?';
+
+            if (!confirm(confirmMsg)) return;
+
+            // If update mode, delete existing non-completed items
+            if (generatorMode === 'update') {
+                // Delete all existing schedule items
+                await WardApp.db
+                    .from('schedules')
+                    .delete()
+                    .eq('user_id', selectedStudentId);
+            }
+
+            // Prepare items for insert
+            const items = genScheduleData.map(item => ({
+                user_id: selectedStudentId,
+                system: item.system,
+                category: item.category,
+                questions: item.questions,
+                start_date: formatDateISO(item.startDate),
+                end_date: formatDateISO(item.endDate),
+                recommended_lessons: item.recommendedLessons || null,
+                completed: false
+            }));
+
+            const { error } = await WardApp.db
+                .from('schedules')
+                .insert(items);
+
+            if (error) {
+                console.error('Error importing schedule:', error);
+                WardApp.showToast('Erro ao importar cronograma', 'error');
+                return;
+            }
+
+            closeModal('schedule-generator-modal');
+            WardApp.showToast(`${items.length} itens importados com sucesso!`);
+            await loadStudentSchedule();
+        }
+    </script>
+
+    <style>
+        .schedule-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .schedule-table th,
+        .schedule-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .schedule-table th {
+            background: var(--gray-50);
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .schedule-table tr:hover {
+            background: var(--gray-50);
+        }
+
+        .overdue-row {
+            background: #fee2e2 !important;
+            border-left: 4px solid #dc2626 !important;
+        }
+
+        .overdue-row:hover {
+            background: #fecaca !important;
+        }
+
+        .schedule-table .completed-row {
+            background: #d1fae5;
+        }
+
+        .schedule-table .completed-row:hover {
+            background: #a7f3d0;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: var(--radius-md);
+        }
+
+        .alert-warning {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            color: #92400e;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            border: 1px solid #3b82f6;
+            color: #1e40af;
+        }
+
+        .delay-item {
+            padding: 0.25rem 0;
+            font-size: 0.875rem;
+        }
+
+        /* Schedule Generator Styles */
+        .modal-fullscreen {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .generator-input {
+            background: #0d1421 !important;
+            border: 1px solid #2d3a4f !important;
+            color: #f1f5f9 !important;
+            border-radius: 8px !important;
+        }
+
+        .generator-input:focus {
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+        }
+
+        .weekday-btn {
+            padding: 0.5rem;
+            background: #0d1421;
+            border: 1px solid #2d3a4f;
+            border-radius: 8px;
+            color: #94a3b8;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .weekday-btn:hover {
+            border-color: #3b82f6;
+            color: #f1f5f9;
+        }
+
+        .weekday-btn.blocked {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+
+        .weekday-btn.blocked::after {
+            content: ' ✕';
+        }
+
+        .generator-stats {
+            display: grid;
+        }
+
+        @media (max-width: 768px) {
+            .generator-grid {
+                grid-template-columns: 1fr !important;
+            }
+
+            .generator-stats {
+                grid-template-columns: repeat(2, 1fr) !important;
+            }
+        }
+    </style>
+</body>
+</html>

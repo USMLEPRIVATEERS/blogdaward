@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Links</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </a>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="/dashboard" class="nav-link">Dashboard</a>
+                <a href="/cronograma" class="nav-link">Cronograma</a>
+                <a href="/landmarks" class="nav-link">Chamadas</a>
+                <a href="/curso" class="nav-link">Curso</a>
+                <a href="/wardpedia" class="nav-link">Wardpedia</a>
+                <a href="/links" class="nav-link active">Links</a>
+                <a href="/blog" class="nav-link">Blog</a>
+                <a href="/pesquisa" class="nav-link">Pesquisa</a>
+                <a href="/diary-uworld" class="nav-link" id="nav-diary" style="display: none;">Diario</a>
+            </nav>
+            <div class="nav-user">
+                <a href="/profile" class="user-menu-btn">
+                    <span>👤</span>
+                    <span class="user-name">Perfil</span>
+                </a>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
+            <h1>🔗 Repositorio de Links</h1>
+            <div id="mentor-actions" class="btn-group" style="display: none;">
+                <button class="btn btn-primary" onclick="openModal('add-link-modal')">+ Adicionar Link</button>
+            </div>
+        </div>
+
+        <!-- Search and Filters -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="input-group">
+                    <div class="form-group" style="flex: 2;">
+                        <input type="text" id="search-links" class="form-input" placeholder="Buscar links..." oninput="filterLinks()">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <select id="filter-step" class="form-input" onchange="filterLinks()">
+                            <option value="">Todos os Steps</option>
+                            <option value="step1">Step 1</option>
+                            <option value="step2">Step 2 CK</option>
+                            <option value="step3">Step 3</option>
+                            <option value="pesquisa">Pesquisa</option>
+                            <option value="match">Match</option>
+                            <option value="outros">Outros</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <select id="filter-category" class="form-input" onchange="filterLinks()">
+                            <option value="">Todas categorias</option>
+                            <!-- Categories loaded dynamically from link_categories table -->
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Links Grid -->
+        <div id="links-container" class="links-grid">
+            <!-- Filled by JS -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="no-links" class="card" style="display: none;">
+            <div class="card-body text-center p-4">
+                <div class="empty-state">
+                    <div class="empty-state-icon">🔗</div>
+                    <h3 class="empty-state-title">Nenhum link encontrado</h3>
+                    <p class="text-muted">Ajuste os filtros ou aguarde novos links serem adicionados.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Add Link Modal (Mentors only) -->
+    <div id="add-link-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">➕ Adicionar Link</h3>
+                <button class="modal-close" onclick="closeModal('add-link-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="link-title">Titulo *</label>
+                    <input type="text" id="link-title" class="form-input" placeholder="Nome do recurso">
+                </div>
+
+                <!-- Choose between URL or Upload -->
+                <div class="form-group">
+                    <label class="form-label">Tipo de Link *</label>
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                        <label class="form-check" style="flex: 1;">
+                            <input type="radio" name="link-type" value="url" checked onchange="toggleLinkType()">
+                            <span class="form-check-label">🔗 Inserir URL</span>
+                        </label>
+                        <label class="form-check" style="flex: 1;">
+                            <input type="radio" name="link-type" value="upload" onchange="toggleLinkType()">
+                            <span class="form-check-label">📤 Upload de Arquivo</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- URL Input (default) -->
+                <div class="form-group" id="url-input-group">
+                    <label class="form-label" for="link-url">URL *</label>
+                    <input type="url" id="link-url" class="form-input" placeholder="https://...">
+                </div>
+
+                <!-- Upload Input (hidden by default) -->
+                <div class="form-group" id="upload-input-group" style="display: none;">
+                    <label class="form-label" for="file-upload">Arquivo *</label>
+                    <input type="file" id="file-upload" class="form-input" onchange="handleFileSelect(event)">
+                    <span class="form-hint">Selecione um arquivo para fazer upload no Google Drive</span>
+                    <div id="upload-progress" style="display: none; margin-top: 0.5rem;">
+                        <div style="background: #f3f4f6; border-radius: 4px; height: 8px; overflow: hidden;">
+                            <div id="upload-progress-bar" style="background: #C45700; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                        </div>
+                        <p id="upload-status" style="font-size: 0.85rem; color: #6b7280; margin-top: 0.25rem;">Preparando upload...</p>
+                    </div>
+                    <div id="upload-result" style="display: none; margin-top: 0.5rem; padding: 0.75rem; background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px;">
+                        <p style="font-size: 0.9rem; color: #15803d; margin: 0;">✓ Arquivo enviado com sucesso!</p>
+                        <a id="upload-link" href="#" target="_blank" style="font-size: 0.85rem; color: #C45700; word-break: break-all;"></a>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="link-description">Descricao</label>
+                    <textarea id="link-description" class="form-textarea" rows="3" placeholder="Breve descricao do recurso..."></textarea>
+                </div>
+                <div class="input-group">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label" for="link-step">Step/Exame *</label>
+                        <select id="link-step" class="form-input">
+                            <option value="">Selecione...</option>
+                            <option value="step1">Step 1</option>
+                            <option value="step2">Step 2 CK</option>
+                            <option value="step3">Step 3</option>
+                            <option value="oet">OET</option>
+                            <option value="pesquisa">Pesquisa</option>
+                            <option value="match">Match</option>
+                            <option value="arquivos">Arquivos</option>
+                            <option value="ia">Inteligencia Artificial</option>
+                            <option value="outros">Outros</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label" for="link-category">Categoria *</label>
+                        <select id="link-category" class="form-input" onchange="toggleCustomCategory('add')">
+                            <option value="">Selecione...</option>
+                            <!-- Categories loaded dynamically from link_categories table -->
+                            <option value="custom">Outra...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" id="custom-category-field-add" style="display: none;">
+                    <label class="form-label" for="custom-category-add">Nome da Nova Categoria *</label>
+                    <input type="text" id="custom-category-add" class="form-input" placeholder="Digite o nome da categoria...">
+                </div>
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="link-pinned">
+                        <span class="form-check-label">📌 Fixar no topo</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('add-link-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveLink()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Link Modal -->
+    <div id="edit-link-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">✏️ Editar Link</h3>
+                <button class="modal-close" onclick="closeModal('edit-link-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-link-id">
+                <div class="form-group">
+                    <label class="form-label" for="edit-link-title">Titulo *</label>
+                    <input type="text" id="edit-link-title" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-link-url">URL *</label>
+                    <input type="url" id="edit-link-url" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-link-description">Descricao</label>
+                    <textarea id="edit-link-description" class="form-textarea" rows="3"></textarea>
+                </div>
+                <div class="input-group">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label" for="edit-link-step">Step/Exame *</label>
+                        <select id="edit-link-step" class="form-input">
+                            <option value="">Selecione...</option>
+                            <option value="step1">Step 1</option>
+                            <option value="step2">Step 2 CK</option>
+                            <option value="step3">Step 3</option>
+                            <option value="oet">OET</option>
+                            <option value="pesquisa">Pesquisa</option>
+                            <option value="match">Match</option>
+                            <option value="arquivos">Arquivos</option>
+                            <option value="ia">Inteligencia Artificial</option>
+                            <option value="outros">Outros</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label" for="edit-link-category">Categoria *</label>
+                        <select id="edit-link-category" class="form-input" onchange="toggleCustomCategory('edit')">
+                            <!-- Categories loaded dynamically from link_categories table -->
+                            <option value="custom">Outra...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" id="custom-category-field-edit" style="display: none;">
+                    <label class="form-label" for="custom-category-edit">Nome da Nova Categoria *</label>
+                    <input type="text" id="custom-category-edit" class="form-input" placeholder="Digite o nome da categoria...">
+                </div>
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" id="edit-link-pinned">
+                        <span class="form-check-label">📌 Fixar no topo</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="deleteLink()">Excluir</button>
+                <button class="btn btn-secondary" onclick="closeModal('edit-link-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="updateLink()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Viewing As Banner -->
+    <div id="viewing-as-banner" class="viewing-as-banner" style="display: none;">
+        <span>👁️ Visualizando como: <strong id="viewing-student-name"></strong></span>
+        <button class="btn btn-sm btn-secondary" onclick="exitViewAs()">Voltar para minha conta</button>
+    </div>
+
+    <style>
+        /* Viewing As Banner */
+        .viewing-as-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .viewing-as-banner .btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.5);
+            color: white;
+            padding: 0.35rem 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .viewing-as-banner .btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+    </style>
+
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let allLinks = [];
+        let isMentor = false;
+        let viewingAsStudentId = null;
+        let dynamicCategoryLabels = {}; // Populated from database
+
+        // Helper to decrypt user name if encrypted
+        function _dn(name) {
+            if (!name) return name;
+            return WardApp._prs ? WardApp._prs(name) : name;
+        }
+
+        const categoryLabels = {
+            uworld: '📚 UWorld',
+            anki: '🃏 Anki',
+            amboss: '🔬 Amboss',
+            boards_beyond: '🎥 Boards & Beyond',
+            pathoma: '🔬 Pathoma',
+            sketchy: '🎨 Sketchy',
+            first_aid: '📕 First Aid',
+            nbme: '📋 NBME',
+            research: '🔬 Pesquisa',
+            visa: '🛂 Visa/Imigracao',
+            ecfmg: '📋 ECFMG',
+            residency: '🏥 Residencia',
+            observership: '👁️ Observership',
+            tools: '🛠️ Ferramentas',
+            other: '📎 Outros'
+        };
+
+        const stepLabels = {
+            step1: 'Step 1',
+            step2: 'Step 2 CK',
+            step3: 'Step 3',
+            pesquisa: 'Pesquisa',
+            match: 'Match',
+            outros: 'Outros'
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Block assessoria users from accessing this page
+            if (userData.role === 'assessoria') {
+                alert('Esta página está disponível apenas para membros completos da Ward Academy.\n\nPara ter acesso, você pode demonstrar interesse através do seu dashboard.');
+                window.location.href = '/dashboard-assessoria-avulsa';
+                return;
+            }
+
+            // Check if viewing as another student (URL param or localStorage)
+            const urlParams = new URLSearchParams(window.location.search);
+            viewingAsStudentId = urlParams.get('view_as');
+
+            // If not in URL, check localStorage
+            if (!viewingAsStudentId) {
+                const storedViewAs = localStorage.getItem('view_as_student');
+                if (storedViewAs) {
+                    try {
+                        const parsed = JSON.parse(storedViewAs);
+                        viewingAsStudentId = parsed.id;
+                    } catch(e) {}
+                }
+            }
+
+            if (viewingAsStudentId) {
+                const isMentor = userData.role && userData.role.startsWith('mentor');
+                if (isMentor) {
+                    await setupViewingAsStudent(viewingAsStudentId);
+                } else {
+                    localStorage.removeItem('view_as_student');
+                }
+            }
+
+            // Check diary toggle and show/hide diary link
+            const diariesEnabled = localStorage.getItem('study_diary_enabled') === 'true';
+            const diaryLink = document.getElementById('nav-diary');
+            if (diaryLink && diariesEnabled) {
+                diaryLink.style.display = 'block';
+            }
+
+            isMentor = userData.role && userData.role.startsWith('mentor_');
+
+            // Only show mentor actions if not viewing as student
+            if (isMentor && !viewingAsStudentId) {
+                document.getElementById('mentor-actions').style.display = 'flex';
+            }
+
+            await loadCustomCategories(); // Load categories first so labels are ready
+            await loadLinks();
+        });
+
+        async function setupViewingAsStudent(studentId) {
+            // Get student info
+            const { data: student } = await WardApp.db
+                .from('users')
+                .select('full_name')
+                .eq('id', studentId)
+                .single();
+
+            if (student) {
+                // Show viewing banner and add body padding
+                document.getElementById('viewing-as-banner').style.display = 'flex';
+                document.getElementById('viewing-student-name').textContent = _dn(student.full_name);
+                document.body.style.paddingTop = '50px';
+
+                // Preserve mentorRole from existing localStorage if available
+                const existingData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+                const mentorRole = existingData?.mentorRole || userData.role;
+
+                // Store in localStorage for other pages
+                localStorage.setItem('view_as_student', JSON.stringify({
+                    id: studentId,
+                    name: _dn(student.full_name),
+                    mentorRole: mentorRole
+                }));
+
+                // Update navbar links to maintain view_as context
+                updateNavbarForViewAs(studentId);
+            }
+        }
+
+        function updateNavbarForViewAs(studentId) {
+            const navLinks = document.querySelectorAll('.nav-menu a.nav-link, .nav-user a');
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && !href.startsWith('#') && !href.startsWith('javascript')) {
+                    // Use current page URL as base to preserve directory structure (e.g., /blogdaward/)
+                    const url = new URL(href, window.location.href);
+                    url.searchParams.set('view_as', studentId);
+                    link.setAttribute('href', url.href);
+                }
+            });
+        }
+
+        function exitViewAs() {
+            const viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+            localStorage.removeItem('view_as_student');
+
+            // Redirect back to mentor dashboard based on stored role
+            if (viewAsData && viewAsData.mentorRole) {
+                const mentorName = viewAsData.mentorRole.replace('mentor_', '');
+                window.location.href = `/mentor-dashboard-${mentorName}`;
+            } else {
+                window.location.href = '/';
+            }
+        }
+
+        async function loadLinks() {
+            const { data: links, error } = await WardApp.db
+                .from('links_repository')
+                .select('*')
+                .eq('is_active', true)
+                .order('is_featured', { ascending: false })
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error loading links:', error);
+                return;
+            }
+
+            allLinks = links || [];
+            renderLinks(allLinks);
+        }
+
+        function filterLinks() {
+            const search = document.getElementById('search-links').value.toLowerCase();
+            const category = document.getElementById('filter-category').value;
+            const step = document.getElementById('filter-step').value;
+
+            let filtered = allLinks;
+
+            if (search) {
+                filtered = filtered.filter(link =>
+                    link.title.toLowerCase().includes(search) ||
+                    (link.description && link.description.toLowerCase().includes(search))
+                );
+            }
+
+            if (step) {
+                filtered = filtered.filter(link => link.step === step);
+            }
+
+            if (category) {
+                filtered = filtered.filter(link => link.category === category);
+            }
+
+            renderLinks(filtered);
+        }
+
+        function renderLinks(links) {
+            const container = document.getElementById('links-container');
+            const noLinks = document.getElementById('no-links');
+
+            if (!links || links.length === 0) {
+                container.innerHTML = '';
+                noLinks.style.display = 'block';
+                return;
+            }
+
+            noLinks.style.display = 'none';
+
+            container.innerHTML = links.map(link => `
+                <div class="link-card ${link.is_featured ? 'pinned' : ''}">
+                    ${link.is_featured ? '<span class="link-pin">📌</span>' : ''}
+                    <div class="link-badges">
+                        ${link.step ? `<span class="link-step">${stepLabels[link.step] || link.step}</span>` : ''}
+                        <span class="link-category">${categoryLabels[link.category] || dynamicCategoryLabels[link.category] || link.category}</span>
+                    </div>
+                    <h3 class="link-title">${link.title}</h3>
+                    ${link.description ? `<p class="link-description">${link.description}</p>` : ''}
+                    <div class="link-actions">
+                        <a href="${link.url}" target="_blank" class="btn btn-primary btn-sm">Acessar ↗</a>
+                        ${isMentor ? `<button class="btn btn-outline btn-sm" onclick="editLink(${link.id})">✏️</button>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Toggle between URL input and File upload
+        function toggleLinkType() {
+            const linkType = document.querySelector('input[name="link-type"]:checked').value;
+            const urlGroup = document.getElementById('url-input-group');
+            const uploadGroup = document.getElementById('upload-input-group');
+            const uploadResult = document.getElementById('upload-result');
+
+            if (linkType === 'url') {
+                urlGroup.style.display = 'block';
+                uploadGroup.style.display = 'none';
+                uploadResult.style.display = 'none';
+                document.getElementById('link-url').value = '';
+            } else {
+                urlGroup.style.display = 'none';
+                uploadGroup.style.display = 'block';
+                document.getElementById('file-upload').value = '';
+            }
+        }
+
+        // Handle file selection and upload
+        async function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const progress = document.getElementById('upload-progress');
+            const progressBar = document.getElementById('upload-progress-bar');
+            const status = document.getElementById('upload-status');
+            const result = document.getElementById('upload-result');
+            const uploadLink = document.getElementById('upload-link');
+
+            // Show progress
+            progress.style.display = 'block';
+            result.style.display = 'none';
+            progressBar.style.width = '0%';
+            status.textContent = 'Preparando upload...';
+
+            try {
+                // Convert file to Base64
+                status.textContent = 'Convertendo arquivo...';
+                progressBar.style.width = '30%';
+
+                const base64 = await fileToBase64(file);
+
+                // Upload to Google Apps Script using JSON payload
+                status.textContent = 'Enviando para Google Drive...';
+                progressBar.style.width = '60%';
+
+                const payload = {
+                    fileName: file.name,
+                    fileContent: base64,
+                    mimeType: file.type || 'application/octet-stream'
+                };
+
+                const response = await fetch('https://script.google.com/macros/s/AKfycbyoUKUw5etvmheffSAU7LflDrUDOElLb-nCTFEial7en78J04tJWWe4SB8KwojGrvVqOg/exec', {
+                    method: 'POST',
+                    body: JSON.stringify(payload),
+                    redirect: 'follow'
+                });
+
+                status.textContent = 'Processando resposta...';
+                progressBar.style.width = '90%';
+
+                const data = await response.json();
+
+                if (data.success) {
+                    progressBar.style.width = '100%';
+                    status.textContent = 'Upload concluído!';
+
+                    // Show result
+                    setTimeout(() => {
+                        progress.style.display = 'none';
+                        result.style.display = 'block';
+                        uploadLink.href = data.viewLink;
+                        uploadLink.textContent = data.viewLink;
+
+                        // Automatically fill the URL field
+                        document.getElementById('link-url').value = data.viewLink;
+
+                        WardApp.showToast('✓ Arquivo enviado para o Google Drive!');
+                    }, 500);
+
+                } else {
+                    throw new Error(data.error || 'Erro desconhecido no upload');
+                }
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                console.error('Error stack:', error.stack);
+                progress.style.display = 'none';
+
+                let errorMessage = error.message;
+                if (error.message.includes('JSON')) {
+                    errorMessage = 'Erro ao processar resposta do servidor. Verifique se o Google Apps Script está configurado corretamente.';
+                }
+
+                WardApp.showToast('Erro ao fazer upload: ' + errorMessage, 'error');
+            }
+        }
+
+        // Convert file to Base64
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    // Remove the data:*/*;base64, prefix
+                    const base64 = reader.result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Toggle custom category input field
+        function toggleCustomCategory(mode) {
+            const select = document.getElementById(mode === 'add' ? 'link-category' : 'edit-link-category');
+            const field = document.getElementById(`custom-category-field-${mode}`);
+
+            if (select.value === 'custom') {
+                field.style.display = 'block';
+            } else {
+                field.style.display = 'none';
+            }
+        }
+
+        // Save custom category to database
+        async function saveCustomCategory(categoryName) {
+            // Clean the input - remove any invisible characters and trim
+            const cleanName = categoryName
+                .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove zero-width characters
+                .trim();
+
+            // Generate slug with proper Unicode handling
+            const categorySlug = cleanName.toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+                .replace(/[^\p{L}\p{N}]+/gu, '_') // Replace non-letter/non-number with underscore (Unicode-aware)
+                .replace(/^_+|_+$/g, '') // Remove leading/trailing underscores
+                .replace(/_+/g, '_'); // Replace multiple underscores with single
+
+            // If slug is empty or too short, generate a fallback
+            if (!categorySlug || categorySlug.length < 2) {
+                const timestamp = Date.now().toString(36);
+                const finalSlug = categorySlug ? `${categorySlug}_${timestamp}` : `cat_${timestamp}`;
+
+                const { error } = await WardApp.db
+                    .from('link_categories')
+                    .insert({
+                        slug: finalSlug,
+                        name: cleanName,
+                        created_by: userData.id
+                    });
+
+                if (!error) await loadCustomCategories();
+                return finalSlug;
+            }
+
+            // Check if category already exists
+            const { data: existing } = await WardApp.db
+                .from('link_categories')
+                .select('*')
+                .eq('slug', categorySlug)
+                .maybeSingle();
+
+            if (existing) {
+                return categorySlug;
+            }
+
+            // Insert new category
+            const { error } = await WardApp.db
+                .from('link_categories')
+                .insert({
+                    slug: categorySlug,
+                    name: cleanName,
+                    created_by: userData.id
+                });
+
+            if (error) {
+                console.error('Error saving custom category:', error);
+            }
+
+            // Reload categories
+            await loadCustomCategories();
+
+            return categorySlug;
+        }
+
+        // Load categories from database dynamically
+        async function loadCustomCategories() {
+            const { data: categories } = await WardApp.db
+                .from('link_categories')
+                .select('*')
+                .order('name');
+
+            if (categories && categories.length > 0) {
+                // Build dynamic category labels for display
+                dynamicCategoryLabels = {};
+                categories.forEach(cat => {
+                    dynamicCategoryLabels[cat.slug] = cat.name;
+                });
+
+                // Populate modal selects (Add and Edit)
+                const addSelect = document.getElementById('link-category');
+                const editSelect = document.getElementById('edit-link-category');
+                const filterSelect = document.getElementById('filter-category');
+
+                // Clear and rebuild modal selects
+                [addSelect, editSelect].forEach(select => {
+                    // Keep only "Selecione..." and "Outra..."
+                    const selectOption = select.querySelector('option[value=""]');
+                    const customOption = select.querySelector('option[value="custom"]');
+                    select.innerHTML = '';
+                    if (selectOption) select.appendChild(selectOption);
+
+                    // Add all categories from database
+                    categories.forEach(cat => {
+                        const option = document.createElement('option');
+                        option.value = cat.slug;
+                        option.textContent = cat.name;
+                        select.appendChild(option);
+                    });
+
+                    // Add "Outra..." at the end
+                    if (customOption) select.appendChild(customOption);
+                });
+
+                // Populate filter select
+                // Keep only "Todas categorias"
+                const allOption = filterSelect.querySelector('option[value=""]');
+                filterSelect.innerHTML = '';
+                if (allOption) filterSelect.appendChild(allOption);
+
+                // Add all categories to filter
+                categories.forEach(cat => {
+                    const option = document.createElement('option');
+                    option.value = cat.slug;
+                    option.textContent = cat.name;
+                    filterSelect.appendChild(option);
+                });
+            }
+        }
+
+        async function saveLink() {
+            const title = document.getElementById('link-title').value.trim();
+            const url = document.getElementById('link-url').value.trim();
+            const description = document.getElementById('link-description').value.trim();
+            const step = document.getElementById('link-step').value;
+            let category = document.getElementById('link-category').value;
+            const pinned = document.getElementById('link-pinned').checked;
+
+            // Handle custom category
+            if (category === 'custom') {
+                const customCategoryName = document.getElementById('custom-category-add').value.trim();
+                if (!customCategoryName) {
+                    WardApp.showToast('Digite o nome da nova categoria', 'warning');
+                    return;
+                }
+                // Save custom category and get its slug
+                category = await saveCustomCategory(customCategoryName);
+            }
+
+            if (!title || !url || !step || !category) {
+                WardApp.showToast('Preencha todos os campos obrigatorios', 'warning');
+                return;
+            }
+
+            const { error } = await WardApp.db.from('links_repository').insert({
+                title,
+                url,
+                description,
+                step,
+                category,
+                is_featured: pinned,
+                added_by: userData.id
+            });
+
+            if (error) {
+                WardApp.showToast('Erro ao salvar link: ' + error.message, 'error');
+                return;
+            }
+
+            closeModal('add-link-modal');
+            document.getElementById('link-title').value = '';
+            document.getElementById('link-url').value = '';
+            document.getElementById('link-description').value = '';
+            document.getElementById('link-step').value = '';
+            document.getElementById('link-category').value = '';
+            document.getElementById('link-pinned').checked = false;
+            document.getElementById('custom-category-add').value = '';
+            document.getElementById('custom-category-field-add').style.display = 'none';
+
+            WardApp.showToast('Link adicionado com sucesso!');
+            await loadLinks();
+        }
+
+        function editLink(id) {
+            const link = allLinks.find(l => l.id === id);
+            if (!link) return;
+
+            document.getElementById('edit-link-id').value = id;
+            document.getElementById('edit-link-title').value = link.title;
+            document.getElementById('edit-link-url').value = link.url;
+            document.getElementById('edit-link-description').value = link.description || '';
+            document.getElementById('edit-link-step').value = link.step || '';
+            document.getElementById('edit-link-category').value = link.category;
+            document.getElementById('edit-link-pinned').checked = link.is_featured;
+
+            openModal('edit-link-modal');
+        }
+
+        async function updateLink() {
+            const id = document.getElementById('edit-link-id').value;
+            const title = document.getElementById('edit-link-title').value.trim();
+            const url = document.getElementById('edit-link-url').value.trim();
+            const description = document.getElementById('edit-link-description').value.trim();
+            const step = document.getElementById('edit-link-step').value;
+            let category = document.getElementById('edit-link-category').value;
+            const pinned = document.getElementById('edit-link-pinned').checked;
+
+            // Handle custom category
+            if (category === 'custom') {
+                const customCategoryName = document.getElementById('custom-category-edit').value.trim();
+                if (!customCategoryName) {
+                    WardApp.showToast('Digite o nome da nova categoria', 'warning');
+                    return;
+                }
+                // Save custom category and get its slug
+                category = await saveCustomCategory(customCategoryName);
+            }
+
+            if (!title || !url || !step || !category) {
+                WardApp.showToast('Preencha todos os campos obrigatorios', 'warning');
+                return;
+            }
+
+            const { error } = await WardApp.db
+                .from('links_repository')
+                .update({ title, url, description, step, category, is_featured: pinned })
+                .eq('id', id);
+
+            if (error) {
+                WardApp.showToast('Erro ao atualizar link: ' + error.message, 'error');
+                return;
+            }
+
+            closeModal('edit-link-modal');
+            WardApp.showToast('Link atualizado com sucesso!');
+            await loadLinks();
+        }
+
+        async function deleteLink() {
+            if (!confirm('Tem certeza que deseja excluir este link?')) return;
+
+            const id = document.getElementById('edit-link-id').value;
+
+            const { error } = await WardApp.db
+                .from('links_repository')
+                .update({ is_active: false })
+                .eq('id', id);
+
+            if (error) {
+                WardApp.showToast('Erro ao excluir link', 'error');
+                return;
+            }
+
+            closeModal('edit-link-modal');
+            WardApp.showToast('Link excluido!');
+            await loadLinks();
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+    </script>
+
+    <style>
+        .links-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .link-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        .link-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .link-card.pinned {
+            border-color: var(--primary-color);
+            background: linear-gradient(135deg, #fff 0%, #fff5f0 100%);
+        }
+
+        .link-pin {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+        }
+
+        .link-badges {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.5rem;
+        }
+
+        .link-step {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--white);
+            background: var(--primary-color);
+            padding: 0.15rem 0.5rem;
+            border-radius: var(--radius-sm);
+        }
+
+        .link-category {
+            font-size: 0.7rem;
+            color: var(--gray-600);
+            background: var(--gray-100);
+            padding: 0.15rem 0.5rem;
+            border-radius: var(--radius-sm);
+        }
+
+        .link-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-dark);
+        }
+
+        .link-description {
+            font-size: 0.9rem;
+            color: var(--gray-600);
+            margin-bottom: 1rem;
+            line-height: 1.5;
+        }
+
+        .link-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-sm {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.875rem;
+        }
+    </style>
+</body>
+</html>

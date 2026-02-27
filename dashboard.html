@@ -1,0 +1,1974 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .viewing-as-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .viewing-as-banner button {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.5);
+            color: white;
+            padding: 0.35rem 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .viewing-as-banner button:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        /* Shake animation for favorites counter */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+
+        /* Pulse animation for star icon */
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </a>
+
+            <button class="mobile-menu-toggle">☰</button>
+
+            <nav class="nav-menu">
+                <a href="/dashboard" class="nav-link active">Dashboard</a>
+                <a href="/cronograma" class="nav-link">Cronograma</a>
+                <a href="/landmarks" class="nav-link">Chamadas</a>
+                <a href="/curso" class="nav-link">Curso</a>
+                <a href="/wardpedia" class="nav-link">Wardpedia</a>
+                <a href="/links" class="nav-link">Links</a>
+                <a href="/blog" class="nav-link">Blog</a>
+                <a href="/pesquisa" class="nav-link">Pesquisa</a>
+                <a href="/diary-uworld" class="nav-link" id="nav-diary" style="display: none;">Diario</a>
+            </nav>
+
+            <div class="nav-user">
+                <a href="/profile" class="user-menu-btn">
+                    <span>👤</span>
+                    <span class="user-name">Perfil</span>
+                </a>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <!-- Welcome Banner -->
+        <div class="welcome-banner">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h1 class="welcome-title">Bem-vindo(a), <span id="user-name">Aluno</span>! 👋</h1>
+                    <p class="welcome-subtitle">Continue sua jornada rumo ao USMLE</p>
+                </div>
+                <button class="btn btn-outline" onclick="openTutorialModal()" style="background: rgba(255,255,255,0.9); border: 2px solid #d97706; color: #d97706; font-weight: 600;">
+                    🎬 Tutorial da Plataforma
+                </button>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- Questionnaire Status -->
+            <div class="dashboard-card" id="questionnaire-card">
+                <div class="dashboard-card-header">
+                    <span class="dashboard-card-icon">📝</span>
+                    <span class="dashboard-card-title">Status do Questionario</span>
+                </div>
+                <div id="questionnaire-status">
+                    <div class="progress-container mb-2">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="questionnaire-progress" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <p class="text-muted" id="questionnaire-text">Carregando...</p>
+                    <a href="/questionnaire/step1-basic-data" class="btn btn-primary btn-sm mt-2" id="continue-questionnaire">
+                        Continuar Questionario →
+                    </a>
+                </div>
+            </div>
+
+            <!-- Current Preparation -->
+            <div class="dashboard-card">
+                <div class="dashboard-card-header">
+                    <span class="dashboard-card-icon">🎯</span>
+                    <span class="dashboard-card-title">Preparacao Atual</span>
+                </div>
+
+                <!-- Display Mode (when already filled) -->
+                <div id="prep-status-display" style="display: none;">
+                    <div style="padding: 1rem; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-radius: 8px; border-left: 4px solid #0ea5e9; margin-bottom: 0.75rem;">
+                        <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.25rem;">Voce esta focando em:</div>
+                        <div id="prep-status-value" style="font-size: 1.1rem; font-weight: 700; color: #0f172a;"></div>
+                    </div>
+                    <button class="btn btn-outline btn-sm" onclick="editPrepStatus()">✏️ Editar</button>
+                </div>
+
+                <!-- Edit Form Mode (when empty or editing) -->
+                <form id="prep-status-form" style="display: none;">
+                    <div class="form-group mb-2">
+                        <label class="form-label">Atualmente focando em:</label>
+                        <div class="form-check">
+                            <input type="radio" id="prep_step1" name="current_prep" value="step1">
+                            <label class="form-check-label" for="prep_step1">Step 1</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="radio" id="prep_step2" name="current_prep" value="step2ck">
+                            <label class="form-check-label" for="prep_step2">Step 2 CK</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="radio" id="prep_step3" name="current_prep" value="step3">
+                            <label class="form-check-label" for="prep_step3">Step 3</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="radio" id="prep_oet" name="current_prep" value="oet">
+                            <label class="form-check-label" for="prep_oet">OET</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="radio" id="prep_other" name="current_prep" value="other">
+                            <label class="form-check-label" for="prep_other">Outro</label>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="cancelPrepStatusEdit()" id="cancel-prep-btn" style="display: none;">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Flash Questions -->
+            <div class="dashboard-card" style="background: linear-gradient(135deg, #fff7ed 0%, #ffffff 100%); border: 2px solid #fed7aa;">
+                <div class="dashboard-card-header">
+                    <span class="dashboard-card-icon">⚡</span>
+                    <span class="dashboard-card-title">Flash Questions</span>
+                </div>
+                <p class="text-muted mb-2">Teste seus conhecimentos com questões rápidas de USMLE</p>
+                <a href="/flash-questions-dashboard" class="btn btn-primary btn-sm" style="width: 100%; text-align: center; text-decoration: none; display: inline-block; background: linear-gradient(135deg, #d97706 0%, #b45309 100%);">
+                    🚀 Acessar Flash Questions
+                </a>
+            </div>
+
+            <!-- Wardpedia -->
+            <div class="dashboard-card" style="background: linear-gradient(135deg, #f5f3ff 0%, #ffffff 100%); border: 2px solid #ddd6fe;">
+                <div class="dashboard-card-header">
+                    <span class="dashboard-card-icon">📖</span>
+                    <span class="dashboard-card-title">Wardpedia</span>
+                </div>
+                <p class="text-muted mb-2">Enciclopedia medica da Ward Academy - artigos por Subject, System e Category</p>
+                <a href="/wardpedia" class="btn btn-primary btn-sm" style="width: 100%; text-align: center; text-decoration: none; display: inline-block; background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);">
+                    📖 Acessar Wardpedia
+                </a>
+            </div>
+
+            <!-- Security -->
+            <div class="dashboard-card">
+                <div class="dashboard-card-header">
+                    <span class="dashboard-card-icon">🔐</span>
+                    <span class="dashboard-card-title">Seguranca</span>
+                </div>
+                <button class="btn btn-outline btn-sm" onclick="openModal('password-modal')">
+                    Trocar Senha
+                </button>
+                <a href="/profile" class="btn btn-primary btn-sm" style="margin-top: 0.5rem; width: 100%; text-align: center; text-decoration: none; display: inline-block;">
+                    ✏️ Editar Perfil
+                </a>
+            </div>
+
+            <!-- Messages -->
+            <div class="dashboard-card">
+                <div class="dashboard-card-header">
+                    <span class="dashboard-card-icon">📬</span>
+                    <span class="dashboard-card-title">Recados dos Mentores</span>
+                </div>
+                <div id="messages-list">
+                    <div class="empty-state">
+                        <p class="text-muted">Nenhum recado no momento</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Self Assessments -->
+            <div class="dashboard-card">
+                <div class="dashboard-card-header">
+                    <span class="dashboard-card-icon">📝</span>
+                    <span class="dashboard-card-title">Self Assessments</span>
+                </div>
+                <div id="self-assessments-preview">
+                    <p class="text-muted" style="font-size: 0.9rem; margin-bottom: 1rem;">Avalie seu conhecimento com nossos simulados gratuitos no estilo USMLE.</p>
+                    <a href="/assessments" class="btn btn-primary" style="display: inline-block; width: 100%; text-align: center; text-decoration: none; background: linear-gradient(135deg, #C45700 0%, #a04700 100%); border: none;">
+                        🎯 Ver Self Assessments
+                    </a>
+                </div>
+            </div>
+
+            <!-- Optional Activations -->
+            <div class="dashboard-card">
+                <div class="dashboard-card-header">
+                    <span class="dashboard-card-icon">📊</span>
+                    <span class="dashboard-card-title">Ativacoes Opcionais</span>
+                </div>
+
+                <div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-diaries">
+                        <span class="toggle-slider"></span>
+                        <span>Ativar Diarios</span>
+                    </label>
+                    <p class="form-hint">Ativa ambos: Diario de Estudos e Diario do UWorld</p>
+
+                    <!-- Diary button - shown when diaries are enabled -->
+                    <div id="diary-button-container" style="display: none; margin-top: 1rem;">
+                        <a href="/diary" class="btn btn-primary" style="display: inline-block; width: 100%; text-align: center; text-decoration: none;">
+                            📔 Abrir Meu Diário
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Landmarks Preview -->
+            <div class="dashboard-card">
+                <div class="dashboard-card-header">
+                    <span class="dashboard-card-icon">📞</span>
+                    <span class="dashboard-card-title">Próximas Chamadas com Mentores</span>
+                </div>
+                <div id="landmarks-preview">
+                    <div class="empty-state">
+                        <p class="text-muted">Carregando...</p>
+                    </div>
+                </div>
+                <a href="/landmarks" class="btn btn-outline btn-sm mt-2">Ver Todas as Chamadas →</a>
+            </div>
+        </div>
+
+        <!-- Scheduled Video Calls -->
+        <div class="card mt-4">
+            <div class="card-header">
+                📞 Chamadas de Video Agendadas
+            </div>
+            <div class="card-body">
+                <div id="scheduled-calls-list">
+                    <p class="text-muted">Carregando chamadas...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Access -->
+        <div class="card mt-4">
+            <div class="card-header">
+                🔗 Acesso Rapido
+            </div>
+            <div class="card-body">
+                <div class="btn-group">
+                    <a href="/links" class="btn btn-outline">📁 Repositorio de Links</a>
+                    <a href="/cronograma" class="btn btn-outline">📅 Cronograma</a>
+                    <a href="/blog" class="btn btn-outline">💬 Blog da Ward</a>
+                    <a href="/pesquisa" class="btn btn-outline">🔬 Minhas Pesquisas</a>
+                    <a href="/assessments" class="btn btn-outline">📝 Simulados</a>
+                    <a href="/toolbox?app=mapa-observerships" class="btn btn-outline">🗺️ Mapa de Observerships</a>
+                    <a href="/toolbox" class="btn btn-outline">🧰 Toolbox</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toolbox Highlight Card (Only for aluno, not assessoria_avulsa) -->
+        <div class="card mt-4" id="toolbox-favorites-card" style="display: none;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 1.5rem; box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3); position: relative; overflow: hidden;">
+                <div style="position: absolute; top: -20px; right: -20px; font-size: 8rem; opacity: 0.1;">🧰</div>
+                <div style="position: relative; z-index: 1;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 2.5rem;">🧰</span>
+                            <div>
+                                <h2 style="color: white; font-size: 1.5rem; font-weight: 700; margin: 0;">Toolbox - Meus Favoritos</h2>
+                                <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 0.85rem;">Acesso rápido às suas ferramentas favoritas</p>
+                            </div>
+                        </div>
+                        <button onclick="openEditFavorites()" style="background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid rgba(255, 255, 255, 0.3); padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(10px);" onmouseover="this.style.background='rgba(255, 255, 255, 0.3)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.2)'">
+                            ⭐ Editar Favoritos
+                        </button>
+                    </div>
+                    <div id="favorites-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; margin-bottom: 1rem;">
+                        <!-- Filled by JavaScript -->
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <a href="/toolbox" style="display: inline-block; background: white; color: #667eea; padding: 0.75rem 2rem; border-radius: 8px; font-weight: 700; text-decoration: none; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(0, 0, 0, 0.3)'" onmouseout="this.style.transform=''; this.style.boxShadow='0 4px 15px rgba(0, 0, 0, 0.2)'">
+                            🚀 Explorar Toolbox
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Assessoria Avulsa Message -->
+        <div class="card mt-4" id="toolbox-locked-card" style="display: none;">
+            <div style="background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%); border-radius: 12px; padding: 2rem; text-align: center; position: relative; overflow: hidden;">
+                <div style="position: absolute; top: -20px; right: -20px; font-size: 8rem; opacity: 0.1;">🔒</div>
+                <div style="position: relative; z-index: 1;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🧰</div>
+                    <h3 style="color: white; font-size: 1.5rem; font-weight: 700; margin: 0 0 0.5rem 0;">Toolbox Premium</h3>
+                    <p style="color: rgba(255, 255, 255, 0.9); margin-bottom: 1.5rem;">Acesso à Toolbox está disponível apenas para alunos do curso completo</p>
+                    <a href="/profile" style="display: inline-block; background: white; color: #64748b; padding: 0.75rem 2rem; border-radius: 8px; font-weight: 700; text-decoration: none; transition: all 0.3s ease;">
+                        Ver Opções de Upgrade
+                    </a>
+                </div>
+            </div>
+        </div>
+    </main>
+        <!-- Kanban Board (Embedded) -->
+        <div style="margin-top: 3rem; padding-top: 2rem; border-top: 2px solid #e2e8f0;">
+            <iframe 
+                src="/kanban" 
+                style="width: 100%; height: 900px; border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);"
+                title="Kanban Board">
+            </iframe>
+        </div>
+
+    <!-- Check-in Modal -->
+    <div id="checkin-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">🎓 Como tem sido sua preparacao?</h3>
+                <button class="modal-close" onclick="skipCheckIn()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Conte-nos sobre os ultimos dias:</label>
+                    <textarea id="checkin-message" class="form-textarea" rows="3"
+                        placeholder="Como tem sido seus estudos?"></textarea>
+                </div>
+
+                <h4 style="margin: 1.5rem 0 1rem; font-size: 1.1rem; color: #374151;">📊 Progresso de Estudos</h4>
+
+                <!-- UWorld Progress -->
+                <div style="background: #f0f9ff; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                    <h5 style="margin: 0 0 0.75rem; font-size: 0.95rem; color: #1e40af; font-weight: 600;">UWorld</h5>
+                    <div class="input-group">
+                        <div class="form-group">
+                            <label class="form-label" for="checkin-uworld-questions">Questões feitas (total)</label>
+                            <input type="number" id="checkin-uworld-questions" class="form-input" min="0" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="checkin-uworld-correct">Acertos (total)</label>
+                            <input type="number" id="checkin-uworld-correct" class="form-input" min="0" placeholder="0">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Anki Progress -->
+                <div style="background: #fef3c7; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                    <h5 style="margin: 0 0 0.75rem; font-size: 0.95rem; color: #92400e; font-weight: 600;">Anki</h5>
+                    <div class="input-group">
+                        <div class="form-group">
+                            <label class="form-label" for="checkin-anki-today">Cards feitos hoje</label>
+                            <input type="number" id="checkin-anki-today" class="form-input" min="0" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="checkin-anki-avg">Média de cards/dia</label>
+                            <input type="number" id="checkin-anki-avg" class="form-input" min="0" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="checkin-anki-streak">Streak (dias seguidos)</label>
+                            <input type="number" id="checkin-anki-streak" class="form-input" min="0" placeholder="0">
+                        </div>
+                    </div>
+                </div>
+
+                <p class="text-muted mb-2">Status geral:</p>
+                <div class="form-check">
+                    <input type="radio" id="checkin_ok" name="checkin_status" value="tranquilo">
+                    <label class="form-check-label" for="checkin_ok">😊 Tudo tranquilo!</label>
+                </div>
+                <div class="form-check">
+                    <input type="radio" id="checkin_help" name="checkin_status" value="preciso_ajuda">
+                    <label class="form-check-label" for="checkin_help">🆘 Preciso de ajuda</label>
+                </div>
+                <div class="form-check">
+                    <input type="radio" id="checkin_paused" name="checkin_status" value="parado">
+                    <label class="form-check-label" for="checkin_paused">⏸️ Estou parado no momento</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="skipCheckIn()">Pular</button>
+                <button id="checkin-submit-btn" class="btn btn-primary" onclick="submitCheckIn()">Enviar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Change Modal -->
+    <div id="password-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">🔐 Trocar Senha</h3>
+                <button class="modal-close" onclick="closeModal('password-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="password-form">
+                    <div class="form-group">
+                        <label class="form-label" for="old-password">Senha Atual</label>
+                        <input type="password" id="old-password" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="new-password">Nova Senha</label>
+                        <input type="password" id="new-password" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="confirm-password">Confirmar Nova Senha</label>
+                        <input type="password" id="confirm-password" class="form-input" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('password-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="changePassword()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Call Details Modal -->
+    <div id="call-details-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">📞 Detalhes da Chamada</h3>
+                <button class="modal-close" onclick="closeModal('call-details-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="modal-call-id">
+                <input type="hidden" id="modal-landmark-id">
+                <div class="form-group">
+                    <label class="form-label"><strong>Mentor:</strong></label>
+                    <p id="modal-mentor-name" class="text-muted"></p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><strong>Tipo de Chamada:</strong></label>
+                    <p id="modal-call-title" class="text-muted"></p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><strong>Data e Horário:</strong></label>
+                    <p id="modal-call-datetime" class="text-muted"></p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><strong>Status:</strong></label>
+                    <p id="modal-call-status" class="text-muted"></p>
+                </div>
+
+                <!-- Landmark Notes Display -->
+                <div id="modal-landmark-notes-section" style="display: none;">
+                    <div style="background: #dbeafe; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem;">
+                        <strong style="color: #1e40af;">📋 Observações:</strong>
+                        <div id="modal-landmark-notes-list"></div>
+                    </div>
+                </div>
+
+                <!-- Add Note Section -->
+                <div id="modal-add-note-section" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--gray-200);">
+                    <h4 style="margin: 0 0 0.75rem; font-size: 0.95rem; color: var(--gray-700);">➕ Adicionar Observação</h4>
+                    <textarea id="modal-new-note" class="form-textarea" rows="3" placeholder="Escreva uma observação sobre esta chamada..."></textarea>
+                    <button class="btn btn-primary btn-sm" onclick="addCallObservation()" style="margin-top: 0.5rem;">💾 Salvar Observação</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-warning" onclick="openRescheduleModal()" style="background: #f59e0b; color: white;">🔄 Reagendar</button>
+                <button class="btn btn-danger" onclick="cancelCall()">❌ Desmarcar Chamada</button>
+                <button class="btn btn-secondary" onclick="closeModal('call-details-modal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reschedule Call Modal -->
+    <div id="reschedule-call-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">🔄 Reagendar Chamada</h3>
+                <button class="modal-close" onclick="closeModal('reschedule-call-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="reschedule-call-id">
+                <div class="form-group">
+                    <label class="form-label"><strong>Nova Data:</strong></label>
+                    <input type="date" id="reschedule-date" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><strong>Novo Horário:</strong></label>
+                    <input type="time" id="reschedule-time" class="form-input">
+                </div>
+                <div style="background: #fef3c7; padding: 0.75rem; border-radius: 8px; margin-top: 1rem;">
+                    <small style="color: #92400e;">⚠️ A chamada será atualizada com a nova data e horário. O mentor será notificado.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="rescheduleCall()">✅ Confirmar Reagendamento</button>
+                <button class="btn btn-secondary" onclick="closeModal('reschedule-call-modal')">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Favorites Modal -->
+    <div id="edit-favorites-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">⭐ Editar Favoritos da Toolbox</h3>
+                <button class="modal-close" onclick="closeModal('edit-favorites-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Instructions with visual example -->
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; color: white;">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem;">
+                        <div style="font-size: 2rem;">👆</div>
+                        <div>
+                            <h4 style="margin: 0; font-size: 1.1rem; font-weight: 700;">Como funciona:</h4>
+                            <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; opacity: 0.95;">Clique nos cards abaixo para adicionar/remover das suas ferramentas favoritas</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 1rem; align-items: center; font-size: 0.85rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.25rem;">☆</span>
+                            <span>Não selecionado</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.25rem;">⭐</span>
+                            <span>Favorito marcado!</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Counter -->
+                <div id="favorites-counter" style="text-align: center; margin-bottom: 1.5rem; padding: 0.75rem; background: #f3f4f6; border-radius: 8px; border: 2px solid #e5e7eb;">
+                    <span style="font-size: 1.5rem; font-weight: 700; color: #3b82f6;">0</span>
+                    <span style="font-size: 1rem; color: #6b7280;"> / 6 favoritos selecionados</span>
+                </div>
+
+                <div id="all-apps-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
+                    <!-- Filled by JavaScript -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('edit-favorites-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveFavorites()">💾 Salvar Favoritos</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tutorial Modal -->
+    <div id="tutorial-modal" class="modal-overlay" onclick="if(event.target===this){event.stopPropagation();closeTutorialModal();}">
+        <div class="modal" style="max-width: 800px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%);">
+                <h3 class="modal-title" style="color: white;">🎬 Como usar a Plataforma da Ward Academy</h3>
+                <button class="modal-close" onclick="closeTutorialModal()" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 0;">
+                <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
+                    <iframe
+                        id="tutorial-video-iframe"
+                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
+                        src=""
+                        title="Tutorial - Como usar a Plataforma"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowfullscreen>
+                    </iframe>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <label class="form-check" style="margin: 0;">
+                    <input type="checkbox" id="tutorial-watched-checkbox" onchange="toggleTutorialWatched()">
+                    <span class="form-check-label" style="font-weight: 500;">
+                        Não mostrar novamente ao entrar na página
+                    </span>
+                </label>
+                <button class="btn btn-primary" onclick="closeTutorialModal()">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tutorial Confirm Modal -->
+    <div id="tutorial-confirm-modal" class="modal-overlay" style="z-index: 2100;">
+        <div class="modal" style="max-width: 420px; border-radius: 16px;" onclick="event.stopPropagation()">
+            <div class="modal-body" style="padding: 2rem; text-align: center;">
+                <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🎬</div>
+                <h3 style="margin: 0 0 0.5rem; font-size: 1.15rem; font-weight: 700; color: var(--gray-900);">Deseja ver este tutorial novamente?</h3>
+                <p style="margin: 0 0 1.5rem; font-size: 0.9rem; color: var(--gray-500); line-height: 1.5;">Você pode desativar para que o tutorial não apareça automaticamente ao entrar na página.</p>
+                <div style="display: flex; gap: 0.75rem;">
+                    <button class="btn btn-secondary" style="flex: 1;" onclick="dismissTutorialConfirm(false)">Manter ativo</button>
+                    <button class="btn btn-primary" style="flex: 1;" onclick="dismissTutorialConfirm(true)">Não mostrar mais</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let viewingAsStudent = null;
+        let targetUserId = null; // The user ID to load data for (student's ID when viewing as student)
+
+        // Helper to decrypt user data if encrypted
+        function _dn(val) {
+            if (!val) return val;
+            return WardApp._prs ? WardApp._prs(val) : val;
+        }
+
+        function convertTime(date, time, fromTz, toTz) {
+            if (!date || !time || !fromTz || !toTz || fromTz === toTz) return time;
+            try {
+                const dt = new Date(`${date}T${time.substring(0,5)}:00`);
+                const fromStr = dt.toLocaleString('en-US', { timeZone: fromTz });
+                const toStr = dt.toLocaleString('en-US', { timeZone: toTz });
+                const diffMs = new Date(toStr) - new Date(fromStr);
+                return new Date(dt.getTime() + diffMs).toTimeString().substring(0, 5);
+            } catch (e) { return time; }
+        }
+
+        function getCallTimeDisplay(call) {
+            if (!call.scheduled_date || !call.scheduled_time) return 'Data a definir';
+            const studentTz = call.student_timezone || 'America/Sao_Paulo';
+            const mentorTz = call.mentor?.timezone || 'America/Sao_Paulo';
+            const baseTime = call.scheduled_time.substring(0, 5);
+
+            if (studentTz === mentorTz) {
+                return `${WardApp.formatDate(call.scheduled_date)} as ${baseTime}`;
+            }
+            // Convert mentor time to student time
+            const studentTime = convertTime(call.scheduled_date, baseTime, mentorTz, studentTz);
+            const studentTzShort = studentTz.split('/').pop().replace(/_/g, ' ');
+            return `${WardApp.formatDate(call.scheduled_date)} as ${studentTime} <span style="font-size:0.75rem;color:#9ca3af">(${studentTzShort})</span>`;
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Block assessoria users from accessing this page
+            if (userData.role === 'assessoria') {
+                alert('Esta página está disponível apenas para membros completos da Ward Academy.\n\nPara ter acesso, você pode demonstrar interesse através do seu dashboard.');
+                window.location.href = '/dashboard-assessoria-avulsa';
+                return;
+            }
+
+            // Check if mentor is viewing as student (URL param or localStorage)
+            const urlParams = new URLSearchParams(window.location.search);
+            let viewAsId = urlParams.get('view_as');
+            let viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+
+            // If not in URL, check localStorage
+            if (!viewAsId && viewAsData) {
+                viewAsId = viewAsData.id || viewAsData.studentId;
+            }
+
+            if (viewAsId) {
+                // Check if current user is a mentor
+                const isMentor = userData.role && userData.role.startsWith('mentor');
+
+                if (isMentor) {
+                    // Load student data
+                    const { data: student } = await WardApp.db
+                        .from('users')
+                        .select('*')
+                        .eq('id', viewAsId)
+                        .single();
+
+                    if (student) {
+                        viewingAsStudent = student;
+                        targetUserId = student.id; // Set target to student's ID
+                        userData = { ...userData, ...student, originalMentor: viewAsData };
+
+                        // Ensure localStorage has the data (for persistence across navigation)
+                        if (!viewAsData || (viewAsData.id != viewAsId && viewAsData.studentId != viewAsId)) {
+                            viewAsData = { id: student.id, name: _dn(student.full_name), mentorRole: userData.role };
+                            localStorage.setItem('view_as_student', JSON.stringify(viewAsData));
+                        }
+
+                        // Show viewing banner
+                        showViewingAsBanner({
+                            id: student.id,
+                            name: _dn(student.full_name) || student.email,
+                            mentorRole: viewAsData?.mentorRole || userData.role
+                        });
+                    }
+                } else {
+                    // Not a mentor, clear the storage
+                    localStorage.removeItem('view_as_student');
+                    targetUserId = userData.id;
+                }
+            }
+
+            // If targetUserId is not set, use current user's ID
+            if (!targetUserId) {
+                targetUserId = userData.id;
+            }
+
+            // Update user name
+            const displayName = viewingAsStudent ? _dn(viewingAsStudent.full_name) || viewingAsStudent.email.split('@')[0] : (_dn(userData.name) || userData.email.split('@')[0]);
+            const firstName = displayName ? displayName.split(' ')[0] : displayName;
+            document.getElementById('user-name').textContent = firstName;
+            document.querySelector('.user-name').textContent = firstName || 'Perfil';
+
+            // Load dashboard data
+            loadDashboard();
+
+            // Check if should show check-in (only for actual students, not mentors viewing as students)
+            if (userData.role === 'aluno' && !viewingAsStudent && userData.first_login_completed) {
+                await checkAndShowCheckIn();
+            }
+
+            // Initialize toolbox favorites
+            await initializeToolboxFavorites();
+
+            // Load toggle states
+            loadToggleStates();
+
+            // Check tutorial status (only for students, not mentors viewing as students)
+            if (userData.role === 'aluno' && !viewingAsStudent) {
+                await checkTutorialStatus();
+            }
+        });
+
+        async function loadDashboard() {
+            // Update questionnaire status
+            const step = userData.questionnaire_step || 0;
+            const progress = Math.round((step / 11) * 100);
+
+            document.getElementById('questionnaire-progress').style.width = progress + '%';
+
+            if (userData.first_login_completed && step >= 11) {
+                // Fully complete
+                document.getElementById('questionnaire-text').textContent = 'Questionario completo!';
+                document.getElementById('continue-questionnaire').textContent = 'Revisar Dados →';
+            } else {
+                // Show progress and allow continuing
+                document.getElementById('questionnaire-text').textContent = `${progress}% concluido`;
+            }
+
+            // Set correct step URL - always continue from where they left off
+            const stepUrls = {
+                0: '/questionnaire/step1-basic-data',
+                1: '/questionnaire/step2-usmle-data',
+                2: '/questionnaire/step3-uworld-prep',
+                3: '/questionnaire/step4-uworld-progress',
+                4: '/questionnaire/step5-english',
+                5: '/questionnaire/step6-anki',
+                6: '/questionnaire/step7-research-1',
+                7: '/questionnaire/step8-research-2',
+                8: '/questionnaire/step9-research-3',
+                9: '/questionnaire/step10-observerships',
+                10: '/questionnaire/step11-background',
+                11: '/questionnaire/step1-basic-data' // If completed, start from beginning for review
+            };
+
+            // Add view_as parameter if present
+            let questionnaireUrl = stepUrls[step] || stepUrls[0];
+            const urlParams = new URLSearchParams(window.location.search);
+            const viewAs = urlParams.get('view_as');
+            if (viewAs) {
+                questionnaireUrl += '?view_as=' + viewAs;
+            }
+
+            document.getElementById('continue-questionnaire').href = questionnaireUrl;
+
+            // Load messages
+            await loadMessages();
+
+            // Load landmarks preview
+            await loadLandmarksPreview();
+
+            // Load scheduled calls
+            await loadScheduledCalls();
+
+            // Load preparation status
+            await loadPrepStatus();
+        }
+
+        async function loadMessages() {
+            // Query mentor_messages table (where mentors send messages to students)
+            const { data: messages, error } = await WardApp.db
+                .from('mentor_messages')
+                .select('*, mentor:users!mentor_messages_mentor_id_fkey(full_name, email)')
+                .eq('user_id', targetUserId)
+                .eq('is_read', false)
+                .order('created_at', { ascending: false })
+                .limit(10);
+
+            const container = document.getElementById('messages-list');
+
+            if (error) {
+                console.error('Error loading messages:', error);
+            }
+
+            if (!messages || messages.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p class="text-muted">Nenhum recado no momento</p></div>';
+                return;
+            }
+
+            container.innerHTML = messages.map(msg => `
+                <div class="message-item" data-id="${msg.id}">
+                    <div class="message-header">
+                        <span class="message-author">📌 ${_dn(msg.mentor?.full_name) || 'Mentor'}</span>
+                        <span class="message-date">${WardApp.formatDate(msg.created_at)}</span>
+                    </div>
+                    <p class="message-content">${msg.content}</p>
+                    <button class="btn btn-sm btn-outline" onclick="markAsRead(${msg.id})">
+                        ✓ Marcar como lido
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        async function markAsRead(messageId) {
+            await WardApp.db
+                .from('mentor_messages')
+                .update({ is_read: true })
+                .eq('id', messageId);
+
+            loadMessages();
+            WardApp.showToast('Mensagem marcada como lida');
+        }
+
+        async function loadLandmarksPreview() {
+            // First check if user has any landmarks at all
+            const { data: allLandmarks } = await WardApp.db
+                .from('landmarks')
+                .select('id')
+                .eq('user_id', userData.id);
+
+            const container = document.getElementById('landmarks-preview');
+
+            // If no landmarks exist at all, user needs to visit landmarks page first
+            if (!allLandmarks || allLandmarks.length === 0) {
+                container.innerHTML = `
+                    <div style="padding: 1.5rem; background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%); border-radius: 8px; border-left: 4px solid #d97706; text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 0.5rem;">📞</div>
+                        <div style="font-size: 1.1rem; font-weight: 700; color: #92400e; margin-bottom: 0.5rem;">
+                            Configure suas chamadas
+                        </div>
+                        <div style="font-size: 0.9rem; color: #9a3412; margin-bottom: 1rem;">
+                            Acesse a página de Chamadas para visualizar e agendar suas reuniões com os mentores
+                        </div>
+                        <a href="/landmarks" style="display: inline-block; padding: 0.5rem 1rem; background: #d97706; color: white; border-radius: 6px; text-decoration: none; font-weight: 600;">
+                            Ir para Chamadas →
+                        </a>
+                    </div>
+                `;
+                return;
+            }
+
+            // Now load only uncompleted landmarks
+            const { data: landmarks } = await WardApp.db
+                .from('landmarks')
+                .select('*')
+                .eq('user_id', userData.id)
+                .eq('completed', false)
+                .order('order_position', { ascending: true })
+                .limit(5);
+
+            // If no uncompleted landmarks, all are done
+            if (!landmarks || landmarks.length === 0) {
+                container.innerHTML = `
+                    <div style="padding: 1.5rem; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 8px; border-left: 4px solid #22c55e; text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎉</div>
+                        <div style="font-size: 1.1rem; font-weight: 700; color: #166534; margin-bottom: 0.5rem;">
+                            Todas as chamadas concluídas!
+                        </div>
+                        <div style="font-size: 0.9rem; color: #15803d;">
+                            Você pode agendar novas chamadas com os mentores a qualquer momento
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Load scheduled calls for these landmarks
+            const landmarkIds = landmarks.map(lm => lm.id);
+            const { data: scheduledCalls } = await WardApp.db
+                .from('scheduled_calls')
+                .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, name)')
+                .in('landmark_id', landmarkIds)
+                .eq('status', 'scheduled');
+
+            // Map scheduled calls to landmarks
+            const callsMap = {};
+            if (scheduledCalls) {
+                scheduledCalls.forEach(call => {
+                    if (!callsMap[call.landmark_id]) {
+                        callsMap[call.landmark_id] = [];
+                    }
+                    callsMap[call.landmark_id].push(call);
+                });
+            }
+
+            container.innerHTML = landmarks.map(lm => {
+                const hasScheduledCall = callsMap[lm.id] && callsMap[lm.id].length > 0;
+                const scheduledCall = hasScheduledCall ? callsMap[lm.id][0] : null;
+
+                let scheduledInfo = '';
+                if (scheduledCall) {
+                    const callDate = new Date(scheduledCall.scheduled_date + 'T' + scheduledCall.scheduled_time);
+                    const dateStr = callDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+                    const timeStr = callDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    const mentorName = _dn(scheduledCall.mentor?.full_name) || _dn(scheduledCall.mentor?.name) || 'Mentor';
+                    scheduledInfo = `📹 ${dateStr} às ${timeStr} - ${mentorName}`;
+                }
+
+                return `
+                    <div class="landmark-item ${lm.is_urgent ? 'landmark-urgent' : ''}" style="cursor: pointer;" onclick="window.location.href='/landmarks'">
+                        <span class="landmark-status" style="font-size: 1.5rem;">
+                            ${hasScheduledCall ? '📹' : (lm.is_urgent ? '⚠️' : '📞')}
+                        </span>
+                        <div class="landmark-content">
+                            <div class="landmark-title" style="font-weight: 600;">
+                                ${lm.title}
+                                ${hasScheduledCall ? '<span style="color: #10b981; font-size: 0.7rem; margin-left: 0.5rem; background: #d1fae5; padding: 0.15rem 0.4rem; border-radius: 3px;">✓ AGENDADA</span>' : ''}
+                            </div>
+                            <div class="landmark-meta" style="font-size: 0.85rem; margin-top: 0.25rem;">
+                                ${scheduledInfo ? scheduledInfo : '⏳ Aguardando agendamento'}
+                            </div>
+                        </div>
+                    </div>
+                `
+            }).join('');
+        }
+
+        async function loadPrepStatus() {
+            const { data } = await WardApp.db
+                .from('user_preparation_status')
+                .select('*')
+                .eq('user_id', userData.id)
+                .maybeSingle();
+
+            const displayDiv = document.getElementById('prep-status-display');
+            const formDiv = document.getElementById('prep-status-form');
+
+            if (data?.currently_preparing_for) {
+                // Show display mode
+                const prepLabels = {
+                    'step1': 'Step 1',
+                    'step2ck': 'Step 2 CK',
+                    'step3': 'Step 3',
+                    'oet': 'OET',
+                    'other': 'Outro'
+                };
+                document.getElementById('prep-status-value').textContent = prepLabels[data.currently_preparing_for] || data.currently_preparing_for;
+                displayDiv.style.display = 'block';
+                formDiv.style.display = 'none';
+
+                // Also check the radio for when editing
+                const radio = document.querySelector(`input[name="current_prep"][value="${data.currently_preparing_for}"]`);
+                if (radio) radio.checked = true;
+            } else {
+                // Show form mode (first time filling)
+                displayDiv.style.display = 'none';
+                formDiv.style.display = 'block';
+            }
+        }
+
+        function editPrepStatus() {
+            document.getElementById('prep-status-display').style.display = 'none';
+            document.getElementById('prep-status-form').style.display = 'block';
+            document.getElementById('cancel-prep-btn').style.display = 'inline-block';
+        }
+
+        function cancelPrepStatusEdit() {
+            document.getElementById('prep-status-display').style.display = 'block';
+            document.getElementById('prep-status-form').style.display = 'none';
+            document.getElementById('cancel-prep-btn').style.display = 'none';
+        }
+
+        // Preparation status form
+        document.getElementById('prep-status-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const value = document.querySelector('input[name="current_prep"]:checked')?.value;
+            if (!value) {
+                WardApp.showToast('Selecione uma opcao', 'warning');
+                return;
+            }
+
+            const { error } = await WardApp.db
+                .from('user_preparation_status')
+                .upsert({
+                    user_id: userData.id,
+                    currently_preparing_for: value,
+                    updated_at: new Date().toISOString()
+                });
+
+            if (!error) {
+                WardApp.showToast('Status atualizado!');
+                // Reload to show display mode
+                await loadPrepStatus();
+            }
+        });
+
+        // Toggle handlers
+        async function loadToggleStates() {
+            // Load from database
+            const { data: userPrefs } = await WardApp.db
+                .from('users')
+                .select('diaries_enabled')
+                .eq('id', userData.id)
+                .single();
+
+            const diariesEnabled = userPrefs?.diaries_enabled || false;
+
+            // Update UI
+            document.getElementById('toggle-diaries').checked = diariesEnabled;
+
+            // Also sync to localStorage for compatibility with diary pages
+            localStorage.setItem('study_diary_enabled', diariesEnabled);
+            localStorage.setItem('uworld_diary_enabled', diariesEnabled);
+
+            updateDiaryLink();
+        }
+
+        function updateDiaryLink() {
+            const diariesEnabled = localStorage.getItem('study_diary_enabled') === 'true';
+            const diaryLink = document.getElementById('nav-diary');
+            const diaryButton = document.getElementById('diary-button-container');
+
+            if (diariesEnabled) {
+                diaryLink.style.display = 'block';
+                diaryButton.style.display = 'block';
+            } else {
+                diaryLink.style.display = 'none';
+                diaryButton.style.display = 'none';
+            }
+        }
+
+        document.getElementById('toggle-diaries').addEventListener('change', async function() {
+            const enabled = this.checked;
+
+            // Save to database
+            const { error } = await WardApp.db
+                .from('users')
+                .update({ diaries_enabled: enabled })
+                .eq('id', userData.id);
+
+            if (error) {
+                console.error('Error updating diaries preference:', error);
+                WardApp.showToast('Erro ao salvar preferência', 'error');
+                this.checked = !enabled; // Revert checkbox
+                return;
+            }
+
+            // Update localStorage for compatibility
+            localStorage.setItem('study_diary_enabled', enabled);
+            localStorage.setItem('uworld_diary_enabled', enabled);
+
+            updateDiaryLink();
+            WardApp.showToast(enabled ? 'Diários ativados!' : 'Diários desativados');
+        });
+
+        // Check-in functions - NEW LOGIC: Pre-created rows at 3 AM daily
+        // If 'filled' is NULL → show modal
+        // If 'filled' is 0 (skipped) or 1 (filled) → don't show modal
+        async function checkAndShowCheckIn() {
+            const today = new Date().toISOString().split('T')[0];
+
+            try {
+                // Simple query: check if 'filled' column is NULL
+                let { data: checkIn, error } = await WardApp.db
+                    .from('daily_checkins')
+                    .select('id, filled, status')
+                    .eq('user_id', targetUserId)
+                    .eq('date', today)
+                    .maybeSingle();
+
+                if (error) {
+                    console.error('[CHECK-IN] Erro ao buscar check-in:', error);
+                    return;
+                }
+
+                // IMPROVED LOGIC:
+                // - No record = create one with filled=NULL and show modal
+                // - filled = NULL → show modal (not filled yet)
+                // - filled = 0 or 1 → don't show (already interacted)
+                if (!checkIn) {
+                    // Create the check-in record if it doesn't exist (cron job fallback)
+                    const { data: newCheckIn, error: insertError } = await WardApp.db
+                        .from('daily_checkins')
+                        .insert({
+                            user_id: targetUserId,
+                            date: today,
+                            filled: null,
+                            status: null,
+                            message: null
+                        })
+                        .select('id, filled, status')
+                        .single();
+
+                    if (insertError) {
+                        console.error('[CHECK-IN] Erro ao criar check-in:', insertError);
+                        return;
+                    }
+
+                    checkIn = newCheckIn;
+                }
+
+                if (checkIn && checkIn.filled === null) {
+                    setTimeout(() => {
+                        openModal('checkin-modal');
+                    }, 500);
+                }
+
+            } catch (err) {
+                console.error('[CHECK-IN] Exceção ao verificar check-in:', err);
+            }
+        }
+
+        async function skipCheckIn() {
+            const today = new Date().toISOString().split('T')[0];
+
+            // UPSERT: creates if doesn't exist, updates if exists
+            const { error } = await WardApp.db
+                .from('daily_checkins')
+                .upsert({
+                    user_id: targetUserId,
+                    date: today,
+                    filled: 0,
+                    status: 'skipped',
+                    message: ''
+                }, {
+                    onConflict: 'user_id,date',
+                    ignoreDuplicates: false
+                });
+
+            if (error) {
+                console.error('[CHECK-IN] Erro ao salvar skip:', error);
+            }
+
+            closeModal('checkin-modal');
+        }
+
+        async function submitCheckIn() {
+            const submitBtn = document.getElementById('checkin-submit-btn');
+            const originalText = submitBtn.innerHTML;
+
+            const message = document.getElementById('checkin-message').value;
+            const status = document.querySelector('input[name="checkin_status"]:checked')?.value;
+
+            // Get progress data
+            const uworldQuestions = parseInt(document.getElementById('checkin-uworld-questions').value) || 0;
+            const uworldCorrect = parseInt(document.getElementById('checkin-uworld-correct').value) || 0;
+            const ankiToday = parseInt(document.getElementById('checkin-anki-today').value) || 0;
+            const ankiAvg = parseInt(document.getElementById('checkin-anki-avg').value) || 0;
+            const ankiStreak = parseInt(document.getElementById('checkin-anki-streak').value) || 0;
+
+            if (!message && !status) {
+                WardApp.showToast('Preencha algo antes de enviar', 'warning');
+                return;
+            }
+
+            // Enable loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '⏳ Enviando...';
+
+            const today = new Date().toISOString().split('T')[0];
+
+            try {
+                // UPSERT: creates if doesn't exist, updates if exists
+                const { error } = await WardApp.db
+                    .from('daily_checkins')
+                    .upsert({
+                        user_id: targetUserId,
+                        date: today,
+                        filled: 1,
+                        status: status || 'custom',
+                        message: message,
+                        uworld_questions_done: uworldQuestions,
+                        uworld_correct_answers: uworldCorrect,
+                        anki_cards_today: ankiToday,
+                        anki_avg_cards: ankiAvg,
+                        anki_current_streak: ankiStreak
+                    }, {
+                        onConflict: 'user_id,date',
+                        ignoreDuplicates: false
+                    });
+
+                if (!error) {
+                    closeModal('checkin-modal');
+                    WardApp.showToast('✅ Check-in salvo com sucesso!');
+
+                    // Clear form
+                    document.getElementById('checkin-message').value = '';
+                    document.getElementById('checkin-uworld-questions').value = '';
+                    document.getElementById('checkin-uworld-correct').value = '';
+                    document.getElementById('checkin-anki-today').value = '';
+                    document.getElementById('checkin-anki-avg').value = '';
+                    document.getElementById('checkin-anki-streak').value = '';
+                    document.querySelectorAll('input[name="checkin_status"]').forEach(r => r.checked = false);
+                } else {
+                    console.error('[CHECK-IN] Erro ao salvar check-in:', error);
+                    WardApp.showToast('Erro ao salvar check-in', 'error');
+                }
+            } catch (err) {
+                console.error('[CHECK-IN] Exceção ao salvar check-in:', err);
+                WardApp.showToast('Erro ao salvar check-in', 'error');
+            } finally {
+                // Restore button state
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        }
+
+        // Password change
+        async function changePassword() {
+            const oldPass = document.getElementById('old-password').value;
+            const newPass = document.getElementById('new-password').value;
+            const confirmPass = document.getElementById('confirm-password').value;
+
+            if (!oldPass || !newPass || !confirmPass) {
+                WardApp.showToast('Preencha todos os campos', 'warning');
+                return;
+            }
+
+            if (newPass.length < 4) {
+                WardApp.showToast('A nova senha deve ter pelo menos 4 caracteres', 'warning');
+                return;
+            }
+
+            if (newPass !== confirmPass) {
+                WardApp.showToast('As senhas nao conferem', 'error');
+                return;
+            }
+
+            // Check old password (support both plain and hashed)
+            const hashedOldPass = btoa(oldPass + '_ward_salt_2024');
+            if (userData.password_hash !== oldPass && userData.password_hash !== hashedOldPass) {
+                WardApp.showToast('Senha atual incorreta', 'error');
+                return;
+            }
+
+            // Hash the new password
+            const hashedNewPass = btoa(newPass + '_ward_salt_2024');
+
+            const { error } = await WardApp.db
+                .from('users')
+                .update({ password_hash: hashedNewPass })
+                .eq('id', userData.id);
+
+            if (!error) {
+                userData.password_hash = hashedNewPass;
+                localStorage.setItem('ward_user', JSON.stringify(userData));
+                document.getElementById('old-password').value = '';
+                document.getElementById('new-password').value = '';
+                document.getElementById('confirm-password').value = '';
+                closeModal('password-modal');
+                WardApp.showToast('Senha alterada com sucesso!');
+            } else {
+                WardApp.showToast('Erro ao alterar senha', 'error');
+            }
+        }
+
+        // Scheduled Calls Functions
+        async function loadScheduledCalls() {
+            const container = document.getElementById('scheduled-calls-list');
+
+            try {
+                const { data: calls, error } = await WardApp.db
+                    .from('scheduled_calls')
+                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, email, timezone), landmark:landmarks(title)')
+                    .eq('student_id', targetUserId)
+                    .in('status', ['scheduled', 'pending'])
+                    .order('scheduled_date', { ascending: true })
+                    .order('scheduled_time', { ascending: true });
+
+                if (error) {
+                    console.error('Error loading scheduled calls:', error);
+                    container.innerHTML = '<p class="text-muted">Erro ao carregar chamadas</p>';
+                    return;
+                }
+
+                if (!calls || calls.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><p class="text-muted">Nenhuma chamada agendada no momento</p></div>';
+                    return;
+                }
+
+                container.innerHTML = calls.map(call => {
+                    const datetime = getCallTimeDisplay(call);
+                    const statusColors = {
+                        scheduled: '#10b981',
+                        pending: '#f59e0b',
+                        completed: '#6b7280',
+                        cancelled: '#ef4444'
+                    };
+                    const statusLabels = {
+                        scheduled: 'Agendada',
+                        pending: 'Pendente',
+                        completed: 'Concluída',
+                        cancelled: 'Cancelada'
+                    };
+
+                    return `
+                        <div class="call-card" style="border-left: 4px solid ${statusColors[call.status] || '#6b7280'}; margin-bottom: 1rem; padding: 1rem; background: #f9fafb; border-radius: 8px; cursor: pointer;" onclick="viewCallDetails(${call.id})">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div>
+                                    <div style="font-weight: 600; color: #111827; margin-bottom: 0.25rem;">
+                                        ${call.landmark?.title || 'Chamada com mentor'}
+                                    </div>
+                                    <div style="color: #6b7280; font-size: 0.875rem;">
+                                        👤 ${_dn(call.mentor?.full_name) || 'Mentor'}<br>
+                                        📅 ${datetime}<br>
+                                        ${call.notes ? '📝 ' + (call.notes.length > 60 ? call.notes.substring(0, 60) + '...' : call.notes) : ''}
+                                    </div>
+                                </div>
+                                <div>
+                                    <span style="background: ${statusColors[call.status] || '#6b7280'}; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
+                                        ${statusLabels[call.status] || call.status}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                console.error('Error loading scheduled calls:', err);
+                container.innerHTML = '<p class="text-muted">Erro ao carregar chamadas</p>';
+            }
+        }
+
+        let currentCallData = null; // Store current call for adding observations
+
+        async function viewCallDetails(callId) {
+            try {
+                const { data: call, error } = await WardApp.db
+                    .from('scheduled_calls')
+                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, email, timezone), landmark:landmarks(id, title, notes)')
+                    .eq('id', callId)
+                    .single();
+
+                if (error || !call) {
+                    WardApp.showToast('Erro ao carregar detalhes da chamada', 'error');
+                    return;
+                }
+
+                currentCallData = call;
+
+                let datetime = '';
+                if (call.scheduled_date && call.scheduled_time) {
+                    const studentTz = call.student_timezone || 'America/Sao_Paulo';
+                    const mentorTz = call.mentor?.timezone || 'America/Sao_Paulo';
+                    const baseTime = call.scheduled_time.substring(0, 5);
+                    if (studentTz !== mentorTz) {
+                        const studentTime = convertTime(call.scheduled_date, baseTime, mentorTz, studentTz);
+                        const tzShort = studentTz.split('/').pop().replace(/_/g, ' ');
+                        datetime = `${WardApp.formatDate(call.scheduled_date)} às ${studentTime} (${tzShort})`;
+                    } else {
+                        datetime = `${WardApp.formatDate(call.scheduled_date)} às ${baseTime}`;
+                    }
+                } else {
+                    datetime = 'Data a definir';
+                }
+
+                const statusLabels = {
+                    scheduled: 'Agendada',
+                    pending: 'Pendente',
+                    completed: 'Concluída',
+                    cancelled: 'Cancelada'
+                };
+
+                document.getElementById('modal-call-id').value = call.id;
+                document.getElementById('modal-landmark-id').value = call.landmark_id || '';
+                document.getElementById('modal-mentor-name').textContent = _dn(call.mentor?.full_name) || 'Mentor';
+                document.getElementById('modal-call-title').textContent = call.landmark?.title || 'Chamada com mentor';
+                document.getElementById('modal-call-datetime').textContent = datetime;
+                document.getElementById('modal-call-status').textContent = statusLabels[call.status] || call.status;
+                document.getElementById('modal-new-note').value = '';
+
+                // Show landmark notes if available
+                const notesSection = document.getElementById('modal-landmark-notes-section');
+                const notesList = document.getElementById('modal-landmark-notes-list');
+                const addNoteSection = document.getElementById('modal-add-note-section');
+
+                if (call.landmark?.notes && Array.isArray(call.landmark.notes) && call.landmark.notes.length > 0) {
+                    notesSection.style.display = 'block';
+                    notesList.innerHTML = call.landmark.notes.map(n => `
+                        <div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.5); border-radius: 4px;">
+                            <div style="font-size: 0.75rem; color: #6b7280;">${n.author || 'Mentor'} - ${new Date(n.date).toLocaleDateString('pt-BR')}</div>
+                            <div style="white-space: pre-wrap;">${n.text}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    notesSection.style.display = 'none';
+                    notesList.innerHTML = '';
+                }
+
+                // Show/hide add note section based on whether call has a landmark
+                addNoteSection.style.display = call.landmark_id ? 'block' : 'none';
+
+                openModal('call-details-modal');
+            } catch (err) {
+                console.error('Error viewing call details:', err);
+                WardApp.showToast('Erro ao carregar detalhes da chamada', 'error');
+            }
+        }
+
+        async function addCallObservation() {
+            const landmarkId = document.getElementById('modal-landmark-id').value;
+            const noteText = document.getElementById('modal-new-note').value.trim();
+
+            if (!landmarkId) {
+                WardApp.showToast('Esta chamada não tem um landmark associado', 'warning');
+                return;
+            }
+
+            if (!noteText) {
+                WardApp.showToast('Digite uma observação', 'warning');
+                return;
+            }
+
+            try {
+                // Get current notes from landmark
+                const { data: landmark, error: fetchError } = await WardApp.db
+                    .from('landmarks')
+                    .select('notes')
+                    .eq('id', landmarkId)
+                    .single();
+
+                if (fetchError) {
+                    console.error('Error fetching landmark:', fetchError);
+                    WardApp.showToast('Erro ao carregar landmark', 'error');
+                    return;
+                }
+
+                // Build new notes array
+                const currentNotes = Array.isArray(landmark?.notes) ? landmark.notes : [];
+                const newNote = {
+                    text: noteText,
+                    author: _dn(userData.full_name) || userData.email,
+                    date: new Date().toISOString()
+                };
+                currentNotes.push(newNote);
+
+                // Update landmark with new notes
+                const { error: updateError } = await WardApp.db
+                    .from('landmarks')
+                    .update({
+                        notes: currentNotes,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', landmarkId);
+
+                if (updateError) {
+                    console.error('Error updating landmark:', updateError);
+                    WardApp.showToast('Erro ao salvar observação', 'error');
+                    return;
+                }
+
+                WardApp.showToast('Observação adicionada!', 'success');
+                document.getElementById('modal-new-note').value = '';
+
+                // Refresh the modal
+                if (currentCallData) {
+                    await viewCallDetails(currentCallData.id);
+                }
+
+                // Refresh calls list
+                await loadScheduledCalls();
+            } catch (err) {
+                console.error('Error adding observation:', err);
+                WardApp.showToast('Erro ao salvar observação', 'error');
+            }
+        }
+
+        async function cancelCall() {
+            const callId = document.getElementById('modal-call-id').value;
+
+            if (!confirm('Tem certeza que deseja desmarcar esta chamada?')) {
+                return;
+            }
+
+            try {
+                const { error } = await WardApp.db
+                    .from('scheduled_calls')
+                    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+                    .eq('id', callId);
+
+                if (error) {
+                    WardApp.showToast('Erro ao desmarcar chamada', 'error');
+                    return;
+                }
+
+                closeModal('call-details-modal');
+                WardApp.showToast('❌ Chamada desmarcada com sucesso');
+                await loadScheduledCalls();
+            } catch (err) {
+                console.error('Error cancelling call:', err);
+                WardApp.showToast('Erro ao desmarcar chamada', 'error');
+            }
+        }
+
+        function openRescheduleModal() {
+            if (!currentCallData) {
+                WardApp.showToast('Erro: dados da chamada não encontrados', 'error');
+                return;
+            }
+
+            // Pre-fill with current date/time
+            document.getElementById('reschedule-call-id').value = currentCallData.id;
+            document.getElementById('reschedule-date').value = currentCallData.scheduled_date || '';
+            document.getElementById('reschedule-time').value = currentCallData.scheduled_time || '';
+
+            openModal('reschedule-call-modal');
+        }
+
+        async function rescheduleCall() {
+            const callId = document.getElementById('reschedule-call-id').value;
+            const newDate = document.getElementById('reschedule-date').value;
+            const newTime = document.getElementById('reschedule-time').value;
+
+            if (!newDate || !newTime) {
+                WardApp.showToast('Por favor, preencha a data e horário', 'warning');
+                return;
+            }
+
+            try {
+                // UPDATE the existing call instead of creating a new one
+                const { error } = await WardApp.db
+                    .from('scheduled_calls')
+                    .update({
+                        scheduled_date: newDate,
+                        scheduled_time: newTime,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', callId);
+
+                if (error) {
+                    console.error('Error rescheduling call:', error);
+                    WardApp.showToast('Erro ao reagendar chamada', 'error');
+                    return;
+                }
+
+                closeModal('reschedule-call-modal');
+                closeModal('call-details-modal');
+                WardApp.showToast('🔄 Chamada reagendada com sucesso!', 'success');
+                await loadScheduledCalls();
+            } catch (err) {
+                console.error('Error rescheduling call:', err);
+                WardApp.showToast('Erro ao reagendar chamada', 'error');
+            }
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        // ======================
+        // TOOLBOX FAVORITES SYSTEM
+        // ======================
+
+        const AVAILABLE_APPS = [
+            { id: 'networking-sharing', name: 'Compartilhar Networking', icon: '🌐', category: 'networking' },
+            { id: 'mapa-observerships', name: 'Mapa Observerships', icon: '🗺️', category: 'estagios' },
+            { id: 'uworld-question-ids', name: 'UWorld QIDs', icon: '🎴', category: 'anki' },
+            { id: 'pubmed-analyzer', name: 'PubMed Analyzer', icon: '📊', category: 'pesquisa' },
+            { id: 'ai-screening', name: 'AI Screening', icon: '🤖', category: 'pesquisa' },
+            { id: 'data-extractor', name: 'Data Extractor', icon: '📋', category: 'pesquisa' },
+            { id: 'uworld-deduplicator', name: 'UWorld Deduplicador', icon: '🧹', category: 'anki' },
+            { id: 'literature-screening', name: 'Literature Screening', icon: '📚', category: 'pesquisa' },
+            { id: 'pubmed-to-csv', name: 'PubMed to CSV', icon: '📄', category: 'pesquisa' },
+            { id: 'study-data-extraction', name: 'Study Data Extraction', icon: '🔍', category: 'pesquisa' },
+            { id: 'abstract-classifier', name: 'Abstract Classifier', icon: '🏷️', category: 'pesquisa' },
+            { id: 'reference-formatter', name: 'Reference Formatter', icon: '📝', category: 'pesquisa' },
+            { id: 'meta-analysis-calculator', name: 'Meta-Analysis Calculator', icon: '📈', category: 'pesquisa' },
+            { id: 'bias-assessment', name: 'Bias Assessment', icon: '⚖️', category: 'pesquisa' },
+            { id: 'table-to-list', name: 'Conversor Tabela para Lista', icon: '📝', category: 'outras' },
+            { id: 'reddit-saver', name: 'Reddit Link Saver', icon: '🔖', category: 'outras' }
+        ];
+
+        const DEFAULT_FAVORITES = ['networking-sharing', 'uworld-question-ids', 'pubmed-analyzer', 'data-extractor', 'mapa-observerships'];
+
+        let userFavorites = [];
+        let selectedFavorites = [];
+
+        async function initializeToolboxFavorites() {
+            // Only show for aluno role
+            if (userData.role === 'aluno') {
+                document.getElementById('toolbox-favorites-card').style.display = 'block';
+                await loadUserFavorites();
+                renderFavoritesGrid();
+            } else if (userData.role === 'assessoria_avulsa') {
+                document.getElementById('toolbox-locked-card').style.display = 'block';
+            }
+        }
+
+        async function loadUserFavorites() {
+            try {
+                const { data, error } = await WardApp.db
+                    .from('users')
+                    .select('toolbox_favorites')
+                    .eq('id', userData.id)
+                    .single();
+
+                if (error) throw error;
+
+                userFavorites = data?.toolbox_favorites || DEFAULT_FAVORITES;
+
+                // Ensure it's an array
+                if (!Array.isArray(userFavorites)) {
+                    userFavorites = DEFAULT_FAVORITES;
+                }
+            } catch (err) {
+                console.error('Error loading favorites:', err);
+                userFavorites = DEFAULT_FAVORITES;
+            }
+        }
+
+        function renderFavoritesGrid() {
+            const grid = document.getElementById('favorites-grid');
+            if (!grid) return;
+
+            // Get favorite apps
+            const favoriteApps = userFavorites
+                .map(id => AVAILABLE_APPS.find(app => app.id === id))
+                .filter(app => app); // Remove null/undefined
+
+            if (favoriteApps.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: rgba(255, 255, 255, 0.7);">
+                        <p>Nenhum favorito selecionado ainda</p>
+                        <button onclick="openEditFavorites()" style="margin-top: 1rem; background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid rgba(255, 255, 255, 0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">
+                            Adicionar Favoritos
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = favoriteApps.map(app => `
+                <a href="/toolbox?app=${app.id}" style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); text-decoration: none; transition: all 0.2s; cursor: pointer; display: block;" onmouseover="this.style.background='rgba(255, 255, 255, 0.25)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.15)'; this.style.transform='translateY(0)'">
+                    <div style="font-size: 1.25rem; margin-bottom: 0.25rem;">${app.icon}</div>
+                    <div style="color: white; font-weight: 600; font-size: 0.8rem;">${app.name}</div>
+                </a>
+            `).join('');
+        }
+
+        async function openEditFavorites() {
+            selectedFavorites = [...userFavorites];
+            renderAllAppsGrid();
+            updateFavoritesCounter();
+            openModal('edit-favorites-modal');
+        }
+
+        function updateFavoritesCounter() {
+            const counterEl = document.getElementById('favorites-counter');
+            if (!counterEl) return;
+
+            const count = selectedFavorites.length;
+            const isAtLimit = count >= 6;
+
+            counterEl.innerHTML = `
+                <span style="font-size: 1.5rem; font-weight: 700; color: ${isAtLimit ? '#ef4444' : '#3b82f6'};">${count}</span>
+                <span style="font-size: 1rem; color: #6b7280;"> / 6 favoritos selecionados</span>
+                ${isAtLimit ? '<div style="margin-top: 0.5rem; color: #ef4444; font-size: 0.85rem; font-weight: 600;">⚠️ Limite máximo atingido</div>' : ''}
+            `;
+
+            counterEl.style.borderColor = isAtLimit ? '#ef4444' : '#e5e7eb';
+            counterEl.style.background = isAtLimit ? '#fee2e2' : '#f3f4f6';
+        }
+
+        function renderAllAppsGrid() {
+            const grid = document.getElementById('all-apps-grid');
+            if (!grid) return;
+
+            grid.innerHTML = AVAILABLE_APPS.map(app => {
+                const isSelected = selectedFavorites.includes(app.id);
+                return `
+                    <div
+                        onclick="toggleFavorite('${app.id}')"
+                        onmouseover="this.style.transform='translateY(-4px) scale(1.02)'; this.style.boxShadow='0 8px 16px rgba(0,0,0,0.15)';"
+                        onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';"
+                        style="
+                            background: ${isSelected ? '#dbeafe' : '#f9fafb'};
+                            border: 3px solid ${isSelected ? '#3b82f6' : '#e5e7eb'};
+                            border-radius: 12px;
+                            padding: 1.25rem;
+                            cursor: pointer;
+                            transition: all 0.3s ease;
+                            position: relative;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                        "
+                        id="app-card-${app.id}">
+                        <div style="position: absolute; top: 0.75rem; right: 0.75rem; font-size: 1.75rem; transition: transform 0.2s ease;">
+                            ${isSelected ? '⭐' : '☆'}
+                        </div>
+                        <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">${app.icon}</div>
+                        <div style="font-weight: 700; color: ${isSelected ? '#1e40af' : '#374151'}; font-size: 1rem; margin-bottom: 0.25rem;">${app.name}</div>
+                        <div style="font-size: 0.8rem; color: #6b7280; text-transform: capitalize; font-weight: 500;">${app.category}</div>
+                        ${isSelected ? '<div style="margin-top: 0.5rem; font-size: 0.75rem; color: #3b82f6; font-weight: 600;">✓ Selecionado</div>' : '<div style="margin-top: 0.5rem; font-size: 0.75rem; color: #9ca3af; font-weight: 500;">Clique para selecionar</div>'}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleFavorite(appId) {
+            const index = selectedFavorites.indexOf(appId);
+            const card = document.getElementById(`app-card-${appId}`);
+
+            if (index > -1) {
+                // Remove from favorites
+                selectedFavorites.splice(index, 1);
+
+                // Animate removal
+                if (card) {
+                    card.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        renderAllAppsGrid();
+                        updateFavoritesCounter();
+                    }, 150);
+                }
+            } else {
+                // Add to favorites (limit to 6)
+                if (selectedFavorites.length >= 6) {
+                    WardApp.showToast('⚠️ Você pode ter no máximo 6 favoritos. Remova algum para adicionar outro.', 'warning');
+
+                    // Shake animation on counter
+                    const counter = document.getElementById('favorites-counter');
+                    if (counter) {
+                        counter.style.animation = 'shake 0.5s';
+                        setTimeout(() => counter.style.animation = '', 500);
+                    }
+                    return;
+                }
+                selectedFavorites.push(appId);
+
+                // Animate addition
+                if (card) {
+                    card.style.transform = 'scale(1.05)';
+                    setTimeout(() => {
+                        renderAllAppsGrid();
+                        updateFavoritesCounter();
+                    }, 150);
+                }
+            }
+        }
+
+        async function saveFavorites() {
+            if (selectedFavorites.length === 0) {
+                WardApp.showToast('Selecione pelo menos um favorito', 'warning');
+                return;
+            }
+
+            try {
+                const { error } = await WardApp.db
+                    .from('users')
+                    .update({ toolbox_favorites: selectedFavorites })
+                    .eq('id', userData.id);
+
+                if (error) throw error;
+
+                userFavorites = selectedFavorites;
+                renderFavoritesGrid();
+                closeModal('edit-favorites-modal');
+                WardApp.showToast('✅ Favoritos salvos com sucesso!');
+            } catch (err) {
+                console.error('Error saving favorites:', err);
+                WardApp.showToast('Erro ao salvar favoritos', 'error');
+            }
+        }
+
+        function showViewingAsBanner(viewAsData) {
+            // Create banner element
+            const banner = document.createElement('div');
+            banner.id = 'viewing-as-banner';
+            banner.className = 'viewing-as-banner';
+            const studentName = viewAsData.name || viewAsData.studentName || 'Aluno';
+            const studentId = viewAsData.id || viewAsData.studentId;
+            banner.innerHTML = `
+                <span>👁️ Visualizando como: <strong>${studentName}</strong></span>
+                <button class="btn btn-sm" onclick="exitViewAsStudent()">✕ Sair desta visualizacao</button>
+            `;
+            document.body.insertBefore(banner, document.body.firstChild);
+
+            // Add padding to body to account for banner
+            document.body.style.paddingTop = '50px';
+
+            // Update all navbar links to include view_as parameter
+            updateNavbarForViewAs(studentId);
+        }
+
+        function updateNavbarForViewAs(studentId) {
+            const navLinks = document.querySelectorAll('.nav-menu a.nav-link, .nav-user a');
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && !href.startsWith('#') && !href.startsWith('javascript')) {
+                    // Use current page URL as base to preserve directory structure (e.g., /blogdaward/)
+                    const url = new URL(href, window.location.href);
+                    url.searchParams.set('view_as', studentId);
+                    link.setAttribute('href', url.href);
+                }
+            });
+        }
+
+        function exitViewAsStudent() {
+            const viewAsData = JSON.parse(localStorage.getItem('view_as_student') || 'null');
+            localStorage.removeItem('view_as_student');
+
+            // Redirect to mentor's dashboard based on their role
+            if (viewAsData && viewAsData.mentorRole) {
+                const mentorName = viewAsData.mentorRole.replace('mentor_', '');
+                window.location.href = `/mentor-dashboard-${mentorName}`;
+            } else {
+                // Fallback - try to close or go to main page
+                window.location.href = '/';
+            }
+        }
+
+        // Listen for fullscreen messages from Kanban iframe
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'toggleFullscreen') {
+                const iframe = document.querySelector('iframe[src="/kanban"]');
+                if (iframe) {
+                    iframe.classList.toggle('fullscreen-iframe');
+                }
+            }
+        });
+
+        // ================================================
+        // TUTORIAL VIDEO SYSTEM
+        // ================================================
+        const TUTORIAL_VIDEO_URL = 'https://www.youtube.com/embed/DLHPFOPdg0I';
+        let tutorialWatchedStatus = false;
+
+        // Check if user has watched the tutorial
+        async function checkTutorialStatus() {
+            try {
+                const { data } = await WardApp.db
+                    .from('user_tutorials')
+                    .select('watched')
+                    .eq('user_id', targetUserId)
+                    .eq('tutorial_key', 'dashboard_tutorial')
+                    .maybeSingle();
+
+                if (data) {
+                    tutorialWatchedStatus = data.watched;
+                    document.getElementById('tutorial-watched-checkbox').checked = data.watched;
+                }
+
+                // If not watched, show tutorial automatically
+                if (!tutorialWatchedStatus) {
+                    setTimeout(() => {
+                        openTutorialModal();
+                    }, 1000); // Small delay to let page load
+                }
+            } catch (e) {
+                // Record doesn't exist yet, show tutorial
+                setTimeout(() => {
+                    openTutorialModal();
+                }, 1000);
+            }
+        }
+
+        // Open tutorial modal
+        function openTutorialModal() {
+            const iframe = document.getElementById('tutorial-video-iframe');
+            iframe.src = TUTORIAL_VIDEO_URL + '?autoplay=1';
+            document.getElementById('tutorial-modal').classList.add('active');
+        }
+
+        // Close tutorial modal
+        function closeTutorialModal() {
+            const iframe = document.getElementById('tutorial-video-iframe');
+            iframe.src = ''; // Stop video
+            document.getElementById('tutorial-modal').classList.remove('active');
+
+            // If user hasn't opted out yet, show confirmation modal
+            if (!tutorialWatchedStatus) {
+                setTimeout(() => {
+                    document.getElementById('tutorial-confirm-modal').classList.add('active');
+                }, 300);
+            }
+        }
+
+        // Dismiss the tutorial confirmation modal
+        async function dismissTutorialConfirm(dontShowAgain) {
+            document.getElementById('tutorial-confirm-modal').classList.remove('active');
+            if (dontShowAgain) {
+                document.getElementById('tutorial-watched-checkbox').checked = true;
+                await toggleTutorialWatched();
+            }
+        }
+
+        // Toggle tutorial watched status
+        async function toggleTutorialWatched() {
+            const checkbox = document.getElementById('tutorial-watched-checkbox');
+            const watched = checkbox.checked;
+
+            try {
+                // Upsert the record
+                const { error } = await WardApp.db
+                    .from('user_tutorials')
+                    .upsert({
+                        user_id: targetUserId,
+                        tutorial_key: 'dashboard_tutorial',
+                        watched: watched,
+                        watched_at: watched ? new Date().toISOString() : null
+                    }, {
+                        onConflict: 'user_id,tutorial_key'
+                    });
+
+                if (error) throw error;
+
+                tutorialWatchedStatus = watched;
+                WardApp.showToast(watched ? 'Tutorial marcado como assistido!' : 'Tutorial será exibido novamente ao entrar na página');
+            } catch (e) {
+                console.error('Error saving tutorial status:', e);
+                checkbox.checked = !watched; // Revert on error
+                WardApp.showToast('Erro ao salvar preferência', 'error');
+            }
+        }
+    </script>
+
+    <style>
+        .fullscreen-iframe {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 9999 !important;
+            border: none !important;
+        }
+    </style>
+</body>
+</html>

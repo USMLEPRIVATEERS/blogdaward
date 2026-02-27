@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="../js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - UWorld Progress</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="questionnaire-container">
+        <!-- Progress Bar -->
+        <div class="progress-container">
+            <div class="progress-header">
+                <span class="progress-title">UWorld - Progress Tracking</span>
+                <span class="progress-text">4/11</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 36%"></div>
+            </div>
+        </div>
+
+        <!-- Header -->
+        <div class="questionnaire-header">
+            <div class="login-logo">🎓</div>
+            <h1 class="questionnaire-title">UWorld - Progress Tracking</h1>
+            <p class="questionnaire-step">Etapa 4 de 11</p>
+            <p class="form-hint mt-2" id="hint-text">Marque os Systems e Subjects que ja finalizou</p>
+        </div>
+
+        <!-- Form -->
+        <form id="step4-form" class="questionnaire-form">
+            <div class="questionnaire-section">
+                <h3 class="section-title" id="section-title">📋 Systems e Subjects Concluidos</h3>
+
+                <!-- Toggle between Subject and Category view -->
+                <div class="view-toggle-container" style="margin-bottom: 1rem; display: flex; justify-content: center; gap: 0.5rem;">
+                    <button type="button" class="btn btn-sm view-toggle-btn active" id="btn-subject-view" onclick="switchView('subject')">
+                        📚 Por Subject
+                    </button>
+                    <button type="button" class="btn btn-sm view-toggle-btn" id="btn-category-view" onclick="switchView('category')">
+                        📂 Por Category
+                    </button>
+                </div>
+
+                <p class="form-hint mb-3" id="view-hint">Clique em um System para expandir e marcar os subjects concluidos. Use o icone 🆘 para marcar dificuldade.</p>
+
+                <div class="accordion" id="systems-accordion">
+                    <!-- Will be populated by JavaScript based on selected exam -->
+                </div>
+            </div>
+
+            <!-- Difficulty Notes Modal -->
+            <div id="difficulty-modal" class="modal-overlay">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3 class="modal-title">🆘 Area de Dificuldade</h3>
+                        <button type="button" class="modal-close" onclick="closeDifficultyModal()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <p id="difficulty-category-name" class="mb-2"></p>
+                        <div class="form-group">
+                            <label class="form-label">O que achou mais dificil? (opcional)</label>
+                            <textarea id="difficulty-notes" class="form-textarea" rows="4" placeholder="Descreva suas dificuldades..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeDifficultyModal()">Cancelar</button>
+                        <button type="button" class="btn btn-primary" onclick="saveDifficulty()">Salvar</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="questionnaire-nav">
+                <button type="button" class="btn btn-secondary" onclick="window.location.href=addViewAsToUrl('/questionnaire/step3-uworld-prep')">
+                    ← Voltar
+                </button>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-secondary" onclick="continueLater()">
+                        Continuar Depois →
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        Avancar →
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <style>
+        .accordion-item {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            overflow: hidden;
+        }
+        .accordion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            cursor: pointer;
+            background: var(--gray-50);
+            border-bottom: 1px solid transparent;
+            transition: all 0.2s;
+            font-weight: 600;
+        }
+        .accordion-header:hover {
+            background: var(--gray-100);
+        }
+        .accordion-item.active .accordion-header {
+            border-bottom-color: var(--gray-200);
+        }
+        .accordion-icon {
+            color: var(--gray-500);
+            transition: transform 0.2s;
+            font-size: 0.85rem;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            padding: 0 1rem;
+        }
+        .accordion-item.active .accordion-content {
+            max-height: 2000px;
+            padding: 1rem;
+        }
+        .category-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--gray-100);
+        }
+        .category-item:last-child {
+            border-bottom: none;
+        }
+        .category-item label {
+            flex: 1;
+            cursor: pointer;
+        }
+        .sos-btn {
+            background: transparent;
+            border: 1px solid var(--gray-300);
+            opacity: 0.5;
+        }
+        .sos-btn.active {
+            background: #fff3cd;
+            border-color: #ffc107;
+            opacity: 1;
+        }
+        .view-toggle-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--gray-300);
+            background: white;
+            color: var(--gray-600);
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .view-toggle-btn:hover {
+            background: var(--gray-100);
+        }
+        .view-toggle-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+    </style>
+
+    <script src="../js/app.js"></script>
+    <script>
+        // Helper function to preserve view_as parameter in URLs
+        function getViewAsParam() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('view_as');
+        }
+
+        function addViewAsToUrl(url) {
+            const viewAs = getViewAsParam();
+            if (viewAs) {
+                const separator = url.includes('?') ? '&' : '?';
+                return url + separator + 'view_as=' + viewAs;
+            }
+            return url;
+        }
+    </script>
+
+    <script src="uworld-systems-data.js"></script>
+    <script>
+        let difficulties = {};
+        let currentDifficultyCategory = null;
+        let selectedExam = 'step1'; // Default
+        let currentViewMode = 'subject'; // Default to subject view
+
+        // Load saved data on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            // First, load step 2 data to get selected exam
+            const step2Data = await WardApp.loadQuestionnaireData(2);
+            if (step2Data && step2Data.next_exam) {
+                selectedExam = step2Data.next_exam;
+            }
+
+            // Load step 4 saved data to check if there's a saved view mode
+            const savedData = await WardApp.loadQuestionnaireData(4);
+            if (savedData && savedData.view_mode) {
+                currentViewMode = savedData.view_mode;
+            }
+
+            // Update toggle buttons
+            updateToggleButtons();
+
+            // Build the accordion based on selected exam and view mode
+            buildSystemsAccordion(selectedExam, currentViewMode);
+
+            // Load saved categories
+            if (savedData && savedData.completed_categories) {
+                try {
+                    const categories = JSON.parse(savedData.completed_categories);
+                    categories.forEach(cat => {
+                        // Check the category checkbox
+                        const checkbox = document.querySelector(
+                            `.category-checkbox[data-system="${cat.system}"][data-category="${cat.category}"]`
+                        );
+                        if (checkbox) {
+                            checkbox.checked = true;
+                        }
+
+                        // Load difficulty notes
+                        if (cat.difficulty_notes) {
+                            difficulties[cat.category] = cat.difficulty_notes;
+                            const sosBtn = document.querySelector(`.sos-btn[data-category="${cat.category}"]`);
+                            if (sosBtn) sosBtn.classList.add('active');
+                        }
+                    });
+
+                    // Update system checkboxes if all categories are checked
+                    document.querySelectorAll('.system-checkbox').forEach(sysCheckbox => {
+                        const system = sysCheckbox.dataset.system;
+                        const allCats = document.querySelectorAll(`.category-checkbox[data-system="${system}"]`);
+                        const checkedCats = document.querySelectorAll(`.category-checkbox[data-system="${system}"]:checked`);
+                        sysCheckbox.checked = allCats.length === checkedCats.length && allCats.length > 0;
+                    });
+                } catch (e) {
+                    console.error('Error loading saved categories:', e);
+                }
+            }
+
+            // Setup event listeners after building accordion
+            setupEventListeners();
+        });
+
+        function switchView(mode) {
+            if (mode === currentViewMode) return;
+
+            currentViewMode = mode;
+            updateToggleButtons();
+            buildSystemsAccordion(selectedExam, currentViewMode);
+            setupEventListeners();
+        }
+
+        function updateToggleButtons() {
+            const subjectBtn = document.getElementById('btn-subject-view');
+            const categoryBtn = document.getElementById('btn-category-view');
+            const hintText = document.getElementById('hint-text');
+            const sectionTitle = document.getElementById('section-title');
+            const viewHint = document.getElementById('view-hint');
+
+            if (currentViewMode === 'subject') {
+                subjectBtn.classList.add('active');
+                categoryBtn.classList.remove('active');
+                hintText.textContent = 'Marque os Systems e Subjects que ja finalizou';
+                sectionTitle.textContent = '📋 Systems e Subjects Concluidos';
+                viewHint.textContent = 'Clique em um System para expandir e marcar os subjects concluidos. Use o icone 🆘 para marcar dificuldade.';
+            } else {
+                subjectBtn.classList.remove('active');
+                categoryBtn.classList.add('active');
+                hintText.textContent = 'Marque os Systems e Categories que ja finalizou';
+                sectionTitle.textContent = '📋 Systems e Categories Concluidos';
+                viewHint.textContent = 'Clique em um System para expandir e marcar as categories concluidas. Use o icone 🆘 para marcar dificuldade.';
+            }
+        }
+
+        function buildSystemsAccordion(exam, viewMode = 'subject') {
+            const container = document.getElementById('systems-accordion');
+
+            // Choose data source based on view mode
+            let systems;
+            if (viewMode === 'subject') {
+                systems = UWORLD_SYSTEMS_BY_SUBJECT[exam] || UWORLD_SYSTEMS_BY_SUBJECT['step1'];
+            } else {
+                systems = UWORLD_SYSTEMS[exam] || UWORLD_SYSTEMS['step1'];
+            }
+
+            container.innerHTML = systems.map(system => `
+                <div class="accordion-item">
+                    <div class="accordion-header">
+                        <span>
+                            <input type="checkbox" class="system-checkbox" data-system="${system.id}">
+                            ${system.name}
+                        </span>
+                        <span class="accordion-icon">▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        ${system.categories.map(cat => `
+                            <div class="category-item">
+                                <input type="checkbox" class="category-checkbox" data-system="${system.id}" data-category="${cat.id}">
+                                <label>${cat.name}</label>
+                                <button type="button" class="btn btn-sm sos-btn" data-category="${cat.id}">🆘</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function setupEventListeners() {
+            // Accordion toggle - expand/collapse
+            document.querySelectorAll('.accordion-header').forEach(header => {
+                header.addEventListener('click', function(e) {
+                    // Don't toggle if clicking on checkbox
+                    if (e.target.classList.contains('system-checkbox')) {
+                        return;
+                    }
+
+                    const accordionItem = this.parentElement;
+                    const content = accordionItem.querySelector('.accordion-content');
+                    const icon = this.querySelector('.accordion-icon');
+
+                    // Toggle active class
+                    accordionItem.classList.toggle('active');
+
+                    // Toggle icon rotation
+                    if (accordionItem.classList.contains('active')) {
+                        icon.textContent = '▲';
+                    } else {
+                        icon.textContent = '▼';
+                    }
+                });
+            });
+
+            // System checkbox - check all categories
+            document.querySelectorAll('.system-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    const system = this.dataset.system;
+                    const categories = document.querySelectorAll(`.category-checkbox[data-system="${system}"]`);
+                    categories.forEach(cat => cat.checked = this.checked);
+                });
+            });
+
+            // SOS buttons
+            document.querySelectorAll('.sos-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    currentDifficultyCategory = this.dataset.category;
+                    document.getElementById('difficulty-category-name').textContent =
+                        this.previousElementSibling.textContent;
+                    document.getElementById('difficulty-notes').value = difficulties[currentDifficultyCategory] || '';
+                    document.getElementById('difficulty-modal').classList.add('active');
+                });
+            });
+        }
+
+        function closeDifficultyModal() {
+            document.getElementById('difficulty-modal').classList.remove('active');
+            currentDifficultyCategory = null;
+        }
+
+        function saveDifficulty() {
+            const notes = document.getElementById('difficulty-notes').value;
+            if (currentDifficultyCategory) {
+                difficulties[currentDifficultyCategory] = notes;
+                const btn = document.querySelector(`.sos-btn[data-category="${currentDifficultyCategory}"]`);
+                btn.classList.toggle('active', notes.trim() !== '');
+            }
+            closeDifficultyModal();
+        }
+
+        // Form submission
+        document.getElementById('step4-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const completedCategories = [];
+            document.querySelectorAll('.category-checkbox:checked').forEach(cb => {
+                completedCategories.push({
+                    system: cb.dataset.system,
+                    category: cb.dataset.category,
+                    difficulty_marked: difficulties[cb.dataset.category] ? true : false,
+                    difficulty_notes: difficulties[cb.dataset.category] || null
+                });
+            });
+
+            WardApp.showLoading();
+            const success = await WardApp.saveQuestionnaireProgress(4, {
+                completed_categories: JSON.stringify(completedCategories),
+                exam_type: selectedExam,
+                view_mode: currentViewMode
+            });
+            WardApp.hideLoading();
+
+            if (success) {
+                window.location.href = addViewAsToUrl('/questionnaire/step5-english');
+            }
+        });
+
+        async function continueLater() {
+            const completedCategories = [];
+            document.querySelectorAll('.category-checkbox:checked').forEach(cb => {
+                completedCategories.push({
+                    system: cb.dataset.system,
+                    category: cb.dataset.category,
+                    difficulty_marked: difficulties[cb.dataset.category] ? true : false,
+                    difficulty_notes: difficulties[cb.dataset.category] || null
+                });
+            });
+
+            await WardApp.saveQuestionnaireProgress(4, {
+                completed_categories: JSON.stringify(completedCategories),
+                exam_type: selectedExam,
+                view_mode: currentViewMode
+            });
+            // Redirect to correct dashboard based on role
+            let userData = JSON.parse(localStorage.getItem('userData') || 'null');
+
+            // If no userData, try to get from checkAuth
+            if (!userData || !userData.role) {
+                const userId = localStorage.getItem('userId');
+                if (userId) {
+                    // Fetch from database
+                    const { data } = await WardApp.db.from('users').select('role').eq('id', userId).single();
+                    if (data) userData = data;
+                }
+            }
+
+            const dashboardUrl = (userData?.role === 'assessoria') ? '/dashboard-assessoria-avulsa' : '/dashboard';
+            window.location.href = addViewAsToUrl(dashboardUrl);
+        }
+    </script>
+</body>
+</html>

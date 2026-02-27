@@ -1,0 +1,2251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="../js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced PubMed Research Analyzer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      #filters {
+    overflow-y: auto;
+    max-height: calc(100vh - 4rem);
+    scrollbar-width: thin; /* For Firefox */
+    scrollbar-color: var(--border-color) var(--surface-color);
+}
+
+#filters::-webkit-scrollbar {
+    width: 6px; /* Thin width */
+}
+
+#filters::-webkit-scrollbar-track {
+    background: var(--surface-color); /* Darker track */
+    border-radius: 10px;
+}
+
+#filters::-webkit-scrollbar-thumb {
+    background: var(--border-color); /* Dark thumb */
+    border-radius: 10px;
+}
+
+#filters::-webkit-scrollbar-thumb:hover {
+    background: #555; /* Slightly lighter on hover for better UX */
+}
+        :root {
+            --bg-color: #0a0e27;
+            --bg-gradient: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+            --surface-color: #1a1f3a;
+            --surface-gradient: linear-gradient(135deg, #1a1f3a 0%, #252b4a 100%);
+            --primary-color: #4a9eff;
+            --primary-hover: #357abd;
+            --primary-gradient: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
+            --accent-color: #9d4edd;
+            --accent-hover: #7b2cbf;
+            --text-color: #ffffff;
+            --text-muted-color: #a8b2d1;
+            --border-color: #2d3454;
+            --shadow-color: rgba(0, 0, 0, 0.7);
+            --glow-color: rgba(74, 158, 255, 0.3);
+            --font-family: 'Inter', sans-serif;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background: var(--bg-gradient);
+            background-attachment: fixed;
+            color: var(--text-color);
+            margin: 0;
+            padding: 2rem;
+            font-size: 16px;
+            min-height: 100vh;
+        }
+
+        /* --- Main Layout & Header --- */
+        .container {
+            max-width: 1600px;
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        header {
+            text-align: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        header h1 {
+            font-size: 3rem;
+            margin: 0;
+            background: linear-gradient(135deg, #4a9eff 0%, #9d4edd 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            text-shadow: 0 0 40px var(--glow-color);
+            animation: glow 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { filter: drop-shadow(0 0 10px var(--glow-color)); }
+            to { filter: drop-shadow(0 0 20px var(--glow-color)); }
+        }
+
+        header p {
+            font-size: 1.15rem;
+            color: var(--text-muted-color);
+            max-width: 750px;
+            margin: 1rem auto 0;
+            line-height: 1.6;
+        }
+        
+        /* --- Search Section --- */
+        .search-section {
+            background: var(--surface-gradient);
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px var(--shadow-color), 0 0 0 1px var(--border-color);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .search-section:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px var(--shadow-color), 0 0 0 1px var(--primary-color);
+        }
+
+        .search-header {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .search-method-btn {
+            padding: 12px 28px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 2px solid var(--border-color);
+            color: var(--text-color);
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .search-method-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--primary-gradient);
+            transition: left 0.3s ease;
+            z-index: -1;
+        }
+
+        .search-method-btn:hover::before {
+            left: 0;
+        }
+
+        .search-method-btn:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--glow-color);
+        }
+
+        .search-method-btn.active {
+            background: var(--primary-gradient);
+            border-color: var(--primary-color);
+            box-shadow: 0 4px 20px var(--glow-color);
+        }
+
+        .search-method-btn.active::before {
+            left: 0;
+        }
+
+        .search-content {
+            display: none;
+        }
+
+        .search-content.active {
+            display: block;
+        }
+
+        .search-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 1.25rem;
+            background: rgba(10, 14, 39, 0.6);
+            color: var(--text-color);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            font-size: 1rem;
+            font-family: 'Monaco', 'Courier New', monospace;
+            resize: vertical;
+            min-height: 120px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px var(--glow-color), 0 4px 12px var(--shadow-color);
+            background: rgba(10, 14, 39, 0.8);
+        }
+
+        .search-input:hover {
+            border-color: rgba(74, 158, 255, 0.5);
+        }
+
+        .search-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .search-btn {
+            background: var(--primary-gradient);
+            color: white;
+            padding: 14px 32px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 1.05rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 4px 15px var(--glow-color);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .search-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .search-btn:hover::after {
+            width: 300px;
+            height: 300px;
+        }
+
+        .search-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px var(--glow-color);
+        }
+
+        .search-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .search-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .search-info {
+            color: var(--text-muted-color);
+            font-size: 0.9rem;
+        }
+
+        .search-progress {
+            display: none;
+            background-color: var(--bg-color);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .search-progress.active {
+            display: block;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: var(--border-color);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 0.5rem 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--primary-color);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8rem;
+        }
+
+        .search-status {
+            text-align: center;
+            color: var(--text-muted-color);
+            margin-top: 0.5rem;
+        }
+
+        /* --- File Input with Drag & Drop --- */
+        .file-upload-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.25rem;
+            padding: 3rem 2rem;
+            background: linear-gradient(135deg, rgba(74, 158, 255, 0.05) 0%, rgba(157, 78, 221, 0.05) 100%);
+            border: 3px dashed var(--border-color);
+            border-radius: 20px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .file-upload-area::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(74, 158, 255, 0.1) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .file-upload-area:hover::before {
+            opacity: 1;
+            animation: rotate 10s linear infinite;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .file-upload-area:hover {
+            background: linear-gradient(135deg, rgba(74, 158, 255, 0.1) 0%, rgba(157, 78, 221, 0.1) 100%);
+            border-color: var(--primary-color);
+            transform: translateY(-4px) scale(1.01);
+            box-shadow: 0 12px 40px var(--glow-color);
+        }
+
+        .file-upload-area.drag-over {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(74, 158, 255, 0.15) 100%);
+            border-color: var(--success-color);
+            border-style: solid;
+            transform: scale(1.02);
+            box-shadow: 0 12px 50px rgba(16, 185, 129, 0.3);
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            background: linear-gradient(135deg, #4a9eff 0%, #9d4edd 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+            transition: transform 0.3s ease;
+        }
+
+        .file-upload-area:hover .upload-icon {
+            transform: scale(1.1) translateY(-5px);
+        }
+
+        .file-label {
+            background: var(--primary-gradient);
+            color: white;
+            padding: 14px 32px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 1.05rem;
+            transition: all 0.3s ease;
+            border: none;
+            box-shadow: 0 4px 15px var(--glow-color);
+            position: relative;
+            z-index: 1;
+        }
+
+        .file-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px var(--glow-color);
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        #file-list {
+            color: var(--text-muted-color);
+            font-style: italic;
+        }
+
+        /* --- Action Buttons --- */
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .action-btn {
+            background: var(--surface-gradient);
+            border: 2px solid var(--border-color);
+            color: var(--text-color);
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .action-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s, height 0.4s;
+            z-index: -1;
+        }
+
+        .action-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .action-btn:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px var(--glow-color);
+            color: white;
+        }
+
+        .action-btn:active {
+            transform: translateY(0);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* --- Dashboard --- */
+        #dashboard {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        /* --- Filters --- */
+        #filters {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            position: sticky;
+            top: 2rem;
+        }
+
+        .filter-group {
+            background: var(--surface-gradient);
+            padding: 1.75rem;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px var(--shadow-color);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .filter-group:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px var(--shadow-color);
+            border-color: rgba(74, 158, 255, 0.3);
+        }
+
+        .filter-group h3 {
+            margin-top: 0;
+            margin-bottom: 1.25rem;
+            background: linear-gradient(135deg, #4a9eff 0%, #9d4edd 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.75rem;
+            font-weight: 700;
+        }
+        
+        .filter-group select{
+            width: 100%;
+            padding: 12px 14px;
+            background: rgba(10, 14, 39, 0.6);
+            color: var(--text-color);
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 1rem;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .filter-group select:hover {
+            border-color: rgba(74, 158, 255, 0.5);
+            background: rgba(10, 14, 39, 0.8);
+        }
+
+        .filter-group select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px var(--glow-color);
+            background: rgba(10, 14, 39, 0.9);
+        }
+        
+        /* --- Main Content --- */
+        #main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            min-width: 0;
+        }
+
+        /* --- View Toggle --- */
+        .view-toggle {
+            display: flex;
+            background-color: var(--surface-color);
+            border-radius: 12px;
+            padding: 0.5rem;
+            gap: 0.5rem;
+        }
+
+        .view-btn {
+            flex: 1;
+            padding: 10px;
+            background: none;
+            border: none;
+            color: var(--text-muted-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .view-btn.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        /* --- Charts --- */
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+        }
+
+        .chart-wrapper {
+            background: var(--surface-gradient);
+            padding: 1.75rem;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px var(--shadow-color);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }
+
+        .chart-wrapper::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--primary-gradient);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s ease;
+        }
+
+        .chart-wrapper:hover::before {
+            transform: scaleX(1);
+        }
+
+        .chart-wrapper:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 48px var(--shadow-color);
+            border-color: rgba(74, 158, 255, 0.3);
+        }
+
+        .chart-expand-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(52, 152, 219, 0.8);
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        /* --- Map --- */
+        #mapView {
+            height: 600px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px var(--shadow-color);
+        }
+
+        /* --- Results List --- */
+        #results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            background: var(--surface-gradient);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px var(--shadow-color);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        #results-count {
+            font-weight: 500;
+        }
+
+        #results-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .study-item {
+            background: var(--surface-gradient);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px var(--shadow-color);
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .study-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--primary-gradient);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s ease;
+        }
+
+        .study-item:hover::before {
+            transform: scaleX(1);
+        }
+
+        .study-item:hover {
+            border-color: rgba(74, 158, 255, 0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px var(--shadow-color);
+        }
+
+        .study-header {
+            padding: 1.5rem;
+        }
+
+        .study-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0 0 0.75rem 0;
+        }
+        
+        .study-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .study-link:hover {
+            text-decoration: underline;
+        }
+
+        .abstract-toggle {
+            display: block;
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            font-size: 1rem;
+            color: var(--text-muted-color);
+            background-color: rgba(255, 255, 255, 0.03);
+            border-top: 1px solid var(--border-color);
+            transition: background-color 0.3s;
+        }
+
+        .abstract-toggle:hover {
+            background-color: rgba(255, 255, 255, 0.07);
+        }
+        
+        .abstract-toggle::after {
+            content: '▼';
+            float: right;
+            transition: transform 0.3s;
+        }
+        
+        .abstract-toggle.open::after {
+            transform: rotate(180deg);
+        }
+
+        .abstract-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out, padding 0.5s ease-in-out;
+            padding: 0 1.5rem;
+            line-height: 1.6;
+        }
+
+        .abstract-content.open {
+            max-height: 1000px;
+            padding: 1.5rem;
+        }
+
+        /* --- Modal --- */
+        .modal {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        
+        .modal.open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background-color: var(--surface-color);
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 5px 25px var(--shadow-color);
+            width: 90%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: scale(0.95);
+            transition: transform 0.3s;
+        }
+        
+        .modal.open .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.8rem;
+            color: var(--primary-color);
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            font-size: 2.5rem;
+            color: var(--text-muted-color);
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .close-button:hover {
+            color: var(--text-color);
+        }
+        
+        .modal-body p {
+            line-height: 1.7;
+            color: var(--text-muted-color);
+        }
+        .modal-body strong {
+            color: var(--text-color);
+        }
+
+        .chart-modal-content {
+            height: 70vh;
+            width: 100%;
+        }
+        
+        /* --- Loader --- */
+        #loader {
+            display: none;
+            text-align: center;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: var(--primary-color);
+            animation: spin 1s ease infinite;
+            margin: 1rem auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* --- Hidden class --- */
+        .hidden {
+            display: none !important;
+        }
+
+        /* --- Responsive Design --- */
+        @media (max-width: 768px) {
+            #dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .charts-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+
+        /* --- Error Message --- */
+        .error-message {
+            background-color: rgba(231, 76, 60, 0.1);
+            border: 1px solid var(--error-color);
+            color: var(--error-color);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .error-message.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Welcome Modal -->
+    <div id="welcomeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🚀 Advanced PubMed Research Analyzer</h2>
+                <button class="close-button" id="closeModalBtn">×</button>
+            </div>
+            <div class="modal-body">
+                <p>Welcome to the <strong>Advanced PubMed Research Analyzer</strong> - your comprehensive tool for exploring scientific literature!</p>
+                <p><strong>✨ New Features:</strong></p>
+                <ul>
+                    <li><strong>🔍 Direct PubMed Search:</strong> Search PubMed directly with complex queries</li>
+                    <li><strong>📥 Bulk Download:</strong> Fetch unlimited results (even > 10,000 articles)</li>
+                    <li><strong>🎯 Drag & Drop:</strong> Simply drag PubMed .txt files to upload</li>
+                    <li><strong>🗺️ Interactive Map:</strong> Visualize research locations with clickable pins</li>
+                    <li><strong>📊 Expandable Charts:</strong> Click any chart to view in full screen</li>
+                    <li><strong>👥 Author Analytics:</strong> Discover top researchers and collaborations</li>
+                    <li><strong>📁 Excel Export:</strong> Download your filtered results as XLSX</li>
+                    <li><strong>🔍 Advanced Filtering:</strong> Filter by USA author criteria and more</li>
+                </ul>
+                <p><strong>How to get started:</strong></p>
+                <ol>
+                    <li>Use PubMed search or upload .txt files</li>
+                    <li>Explore data with interactive charts and map</li>
+                    <li>Use filters to narrow down results</li>
+                    <li>Export your findings to Excel</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart Expansion Modal -->
+    <div id="chartModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="chartModalTitle">Chart View</h2>
+                <button class="close-button" id="closeChartModalBtn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="chart-modal-content">
+                    <canvas id="expandedChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>🧬 Advanced PubMed Research Analyzer</h1>
+            <p>Search, Discover, Analyze, and Export Scientific Research Trends Across the United States</p>
+        </header>
+
+        <!-- Search Section -->
+        <div class="search-section">
+            <div class="search-header">
+                <button class="search-method-btn" data-method="search">🔍 PubMed Search</button>
+                <button class="search-method-btn active" data-method="upload">📁 Upload Files</button>
+            </div>
+
+            <!-- PubMed Search -->
+            <div class="search-content" id="searchContent">
+                <div class="search-input-group">
+                    <textarea class="search-input" id="searchQuery" placeholder='Enter your PubMed search query. Example:
+("XEN45" OR "XEN 45" OR "Xen gel stent")
+AND
+("ab interno" OR "ab externo")
+AND
+(glaucoma)'></textarea>
+                    <div class="search-controls">
+                        <button class="search-btn" id="searchBtn">
+                            <span>🔍</span>
+                            <span>Search PubMed</span>
+                        </button>
+                        <div class="search-info">
+                            <span id="searchInfo">Use boolean operators (AND, OR, NOT) and quotes for exact phrases</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="search-progress" id="searchProgress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill" style="width: 0%">0%</div>
+                    </div>
+                    <div class="search-status" id="searchStatus">Initializing search...</div>
+                </div>
+                <div class="error-message" id="errorMessage"></div>
+            </div>
+
+            <!-- File Upload -->
+            <div class="search-content active" id="uploadContent">
+                <div class="file-upload-area" id="fileUploadArea">
+                    <div class="upload-icon">📁</div>
+                    <button class="file-label" onclick="document.getElementById('fileInput').click()">
+                        Select PubMed Files
+                    </button>
+                    <p>or drag and drop .txt files here</p>
+                    <input type="file" id="fileInput" multiple accept=".txt">
+                    <p id="file-list">No files selected.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-buttons hidden" id="actionButtons">
+            <button class="action-btn" id="exportBtn">
+                📊 Export to Excel
+            </button>
+            <button class="action-btn" id="statsBtn">
+                📈 View Statistics
+            </button>
+            <button class="action-btn" id="resetBtn">
+                🔄 Reset Filters
+            </button>
+            <button class="action-btn" id="clearBtn">
+                🗑️ Clear Data
+            </button>
+        </div>
+        
+        <div id="loader">
+            <div class="spinner"></div>
+            <p>Analyzing data...</p>
+        </div>
+
+        <div id="dashboard" class="hidden">
+            <aside id="filters" style="overflow-y: auto; max-height: calc(100vh - 4rem); padding-right: 15px;">
+                <div class="filter-group">
+                    <h3>🇺🇸 USA Authors</h3>
+                    <select id="usaAuthorFilter" class="filter-select">
+                        <option value="any">Any USA Authors (Default)</option>
+                        <option value="at-least-one">At Least One USA Author</option>
+                        <option value="first">First Author from USA</option>
+                        <option value="last">Last Author from USA</option>
+                        <option value="all">All Authors from USA</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <h3>📍 Location</h3>
+                    <select id="stateFilter" class="filter-select">
+                        <option value="all">All States</option>
+                    </select>
+                    <select id="cityFilter" class="filter-select">
+                        <option value="all">All Cities</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <h3>🏛️ Department</h3>
+                    <select id="deptFilter" class="filter-select">
+                        <option value="all">All Departments</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <h3>👨‍🔬 Researcher</h3>
+                    <select id="researcherFilter" class="filter-select">
+                        <option value="all">All Researchers</option>
+                    </select>
+                </div>
+            </aside>
+            <main id="main-content">
+                <div class="view-toggle">
+                    <button class="view-btn active" data-view="charts">📊 Charts</button>
+                    <button class="view-btn" data-view="map">🗺️ Map</button>
+                    <button class="view-btn" data-view="authors">👥 Authors</button>
+                </div>
+
+                <div id="chartsView">
+                    <div class="charts-container">
+                        <div class="chart-wrapper" data-chart="state">
+                            <button class="chart-expand-btn">🔍 Expand</button>
+                            <canvas id="stateChart"></canvas>
+                        </div>
+                        <div class="chart-wrapper" data-chart="city">
+                            <button class="chart-expand-btn">🔍 Expand</button>
+                            <canvas id="cityChart"></canvas>
+                        </div>
+                        <div class="chart-wrapper" data-chart="department">
+                            <button class="chart-expand-btn">🔍 Expand</button>
+                            <canvas id="deptChart"></canvas>
+                        </div>
+                        <div class="chart-wrapper" data-chart="timeline">
+                            <button class="chart-expand-btn">🔍 Expand</button>
+                            <canvas id="timelineChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="mapView" class="hidden"></div>
+
+                <div id="authorsView" class="hidden">
+                    <div class="charts-container">
+                        <div class="chart-wrapper" data-chart="top-authors">
+                            <button class="chart-expand-btn">🔍 Expand</button>
+                            <canvas id="topAuthorsChart"></canvas>
+                        </div>
+                        <div class="chart-wrapper" data-chart="collaboration">
+                            <button class="chart-expand-btn">🔍 Expand</button>
+                            <canvas id="collaborationChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="results-header">
+                    <h2 id="results-count">Showing 0 Studies</h2>
+                </div>
+                <div id="results-list"></div>
+            </main>
+        </div>
+
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // --- DOM Elements ---
+        const fileInput = document.getElementById('fileInput');
+        const fileUploadArea = document.getElementById('fileUploadArea');
+        const fileListDisplay = document.getElementById('file-list');
+        const loader = document.getElementById('loader');
+        const dashboard = document.getElementById('dashboard');
+        const actionButtons = document.getElementById('actionButtons');
+        const resultsCountEl = document.getElementById('results-count');
+        const resultsListEl = document.getElementById('results-list');
+
+        // Search elements
+        const searchMethodBtns = document.querySelectorAll('.search-method-btn');
+        const searchContent = document.getElementById('searchContent');
+        const uploadContent = document.getElementById('uploadContent');
+        const searchQuery = document.getElementById('searchQuery');
+        const searchBtn = document.getElementById('searchBtn');
+        const searchProgress = document.getElementById('searchProgress');
+        const progressFill = document.getElementById('progressFill');
+        const searchStatus = document.getElementById('searchStatus');
+        const errorMessage = document.getElementById('errorMessage');
+
+        // Filters
+        const usaAuthorFilter = document.getElementById('usaAuthorFilter');
+        const stateFilter = document.getElementById('stateFilter');
+        const cityFilter = document.getElementById('cityFilter');
+        const deptFilter = document.getElementById('deptFilter');
+        const researcherFilter = document.getElementById('researcherFilter');
+
+        // Views
+        const viewBtns = document.querySelectorAll('.view-btn');
+        const chartsView = document.getElementById('chartsView');
+        const mapView = document.getElementById('mapView');
+        const authorsView = document.getElementById('authorsView');
+
+        // Modals
+        const welcomeModal = document.getElementById('welcomeModal');
+        const chartModal = document.getElementById('chartModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const closeChartModalBtn = document.getElementById('closeChartModalBtn');
+
+        // Action buttons
+        const exportBtn = document.getElementById('exportBtn');
+        const statsBtn = document.getElementById('statsBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const clearBtn = document.getElementById('clearBtn');
+
+        // --- State ---
+        let allStudies = [];
+        let filteredStudies = [];
+        let charts = {};
+        let chartData = {}; // Store chart data for expansion
+        let map = null;
+        let currentView = 'charts';
+        let isSearching = false;
+
+        // --- Constants ---
+        const USA_SYNONYMS = ['USA', 'U.S.A', 'U.S.', 'US', 'United States of America', 'United States'];
+        const US_STATES = {
+            "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
+            "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware", "FL": "Florida", "GA": "Georgia",
+            "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa",
+            "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+            "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi",
+            "MO": "Missouri", "MT": "Montana", "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire",
+            "NJ": "New Jersey", "NM": "New Mexico", "NY": "New York", "NC": "North Carolina",
+            "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania",
+            "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota", "TN": "Tennessee",
+            "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": "Washington",
+            "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming", "DC": "District of Columbia"
+        };
+        const STATE_ABBREVIATIONS = Object.keys(US_STATES);
+
+        // State coordinates for map
+        const STATE_COORDS = {
+            "Alabama": [32.806671, -86.79113], "Alaska": [61.370716, -152.404419], "Arizona": [33.729759, -111.431221],
+            "Arkansas": [34.969704, -92.373123], "California": [36.116203, -119.681564], "Colorado": [39.059811, -105.311104],
+            "Connecticut": [41.767, -72.677], "Delaware": [39.161921, -75.526755], "Florida": [27.4518, -81.5158],
+            "Georgia": [32.9866, -83.6487], "Hawaii": [21.1098, -157.5311], "Idaho": [44.2394, -114.5103],
+            "Illinois": [40.349457, -88.986137], "Indiana": [39.790942, -86.147685], "Iowa": [42.031974, -93.581543],
+            "Kansas": [38.572954, -98.580493], "Kentucky": [37.669037, -84.670067], "Louisiana": [31.1801, -91.8749],
+            "Maine": [44.323535, -69.765261], "Maryland": [39.063946, -76.802101], "Massachusetts": [42.2352, -71.0275],
+            "Michigan": [43.326618, -84.536095], "Minnesota": [45.7326, -93.9196], "Mississippi": [32.7673, -89.6812],
+            "Missouri": [38.572954, -92.189283], "Montana": [47.052952, -110.454353], "Nebraska": [41.590939, -99.675285],
+            "Nevada": [39.161921, -117.055374], "New Hampshire": [43.452492, -71.563896], "New Jersey": [40.314100, -74.756138],
+            "New Mexico": [34.97273, -105.030889], "New York": [42.659829, -75.615], "North Carolina": [35.771, -78.638],
+            "North Dakota": [47.518169, -99.930811], "Ohio": [40.367474, -82.996216], "Oklahoma": [35.482309, -97.534994],
+            "Oregon": [44.931109, -120.768204], "Pennsylvania": [40.269789, -76.875613], "Rhode Island": [41.82355, -71.422132],
+            "South Carolina": [33.836082, -81.163727], "South Dakota": [44.268543, -99.756012], "Tennessee": [35.771, -86.25],
+            "Texas": [31.106, -97.6475], "Utah": [39.161921, -111.892622], "Vermont": [44.26639, -72.58133],
+            "Virginia": [37.54, -78.64], "Washington": [47.042418, -120.81], "West Virginia": [38.349497, -81.633294],
+            "Wisconsin": [44.95, -89.5], "Wyoming": [42.7475, -107.2085], "District of Columbia": [38.8974, -77.0365]
+        };
+
+        // PubMed API configuration
+        const PUBMED_API_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
+        const BATCH_SIZE = 500; // Number of IDs to fetch per request
+        const DELAY_MS = 350; // Delay between API calls (3 requests per second limit)
+
+        // --- Modal Logic ---
+        const showModal = (modal) => modal.classList.add('open');
+        const closeModal = (modal) => modal.classList.remove('open');
+
+        closeModalBtn.addEventListener('click', () => closeModal(welcomeModal));
+        closeChartModalBtn.addEventListener('click', () => closeModal(chartModal));
+        [welcomeModal, chartModal].forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeModal(modal);
+            });
+        });
+
+        showModal(welcomeModal);
+
+        // --- Search Method Toggle ---
+        searchMethodBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const method = btn.dataset.method;
+                searchMethodBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                if (method === 'search') {
+                    searchContent.classList.add('active');
+                    uploadContent.classList.remove('active');
+                } else {
+                    searchContent.classList.remove('active');
+                    uploadContent.classList.add('active');
+                }
+            });
+        });
+
+        // --- PubMed Search Logic ---
+        searchBtn.addEventListener('click', performPubMedSearch);
+        searchQuery.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                performPubMedSearch();
+            }
+        });
+
+        async function performPubMedSearch() {
+            const query = searchQuery.value.trim();
+            if (!query) {
+                showError('Please enter a search query');
+                return;
+            }
+
+            if (isSearching) {
+                showError('Search already in progress');
+                return;
+            }
+
+            isSearching = true;
+            searchBtn.disabled = true;
+            searchProgress.classList.add('active');
+            errorMessage.classList.remove('active');
+            dashboard.classList.add('hidden');
+            actionButtons.classList.add('hidden');
+
+            try {
+                updateProgress(0, 'Searching PubMed...');
+
+                // Step 1: Search for PMIDs with history server
+                const searchUrl = `${PUBMED_API_BASE}esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=0&retmode=json&usehistory=y`;
+                const searchResponse = await fetch(searchUrl);
+
+                if (!searchResponse.ok) {
+                    throw new Error(`Search request failed: ${searchResponse.status}`);
+                }
+
+                const searchData = await searchResponse.json();
+
+                if (!searchData.esearchresult) {
+                    throw new Error('Invalid search response from PubMed');
+                }
+
+                const totalResults = parseInt(searchData.esearchresult.count);
+                const webenv = searchData.esearchresult.webenv;
+                const querykey = searchData.esearchresult.querykey;
+
+                if (!webenv || !querykey) {
+                    throw new Error('Failed to get history session from PubMed');
+                }
+
+                updateProgress(10, `Found ${totalResults.toLocaleString()} articles. Fetching details...`);
+
+                if (totalResults === 0) {
+                    showError('No results found for your query');
+                    return;
+                }
+
+                // Step 2: Fetch article details in batches using WebEnv and query_key
+                // This is much more efficient than fetching IDs first
+                const allMedlineTexts = [];
+                const maxResults = Math.min(totalResults, 100000); // Limit to 100k for performance
+                const totalBatches = Math.ceil(maxResults / BATCH_SIZE);
+
+                for (let start = 0; start < maxResults; start += BATCH_SIZE) {
+                    const retmax = Math.min(BATCH_SIZE, maxResults - start);
+                    const batchNum = Math.floor(start / BATCH_SIZE) + 1;
+
+                    const progress = 10 + (start / maxResults) * 85;
+                    updateProgress(progress, `Fetching batch ${batchNum} of ${totalBatches} (${start + retmax}/${maxResults})...`);
+
+                    // Use WebEnv and query_key directly in efetch - more efficient for large result sets
+                    const fetchUrl = `${PUBMED_API_BASE}efetch.fcgi?db=pubmed&query_key=${querykey}&WebEnv=${webenv}&retstart=${start}&retmax=${retmax}&rettype=medline&retmode=text`;
+
+                    let retries = 3;
+                    let success = false;
+
+                    while (retries > 0 && !success) {
+                        try {
+                            const fetchResponse = await fetch(fetchUrl);
+
+                            if (!fetchResponse.ok) {
+                                throw new Error(`Fetch request failed: ${fetchResponse.status}`);
+                            }
+
+                            const medlineText = await fetchResponse.text();
+
+                            if (medlineText && medlineText.trim().length > 0) {
+                                allMedlineTexts.push(medlineText);
+                                success = true;
+                            } else {
+                                throw new Error('Empty response from PubMed');
+                            }
+                        } catch (fetchError) {
+                            retries--;
+                            if (retries > 0) {
+                                console.warn(`Batch ${batchNum} failed, retrying... (${retries} attempts left)`);
+                                await sleep(DELAY_MS * 2); // Longer delay on retry
+                            } else {
+                                console.error(`Batch ${batchNum} failed after all retries:`, fetchError);
+                                // Continue with next batch instead of failing completely
+                            }
+                        }
+                    }
+
+                    if (start + BATCH_SIZE < maxResults) {
+                        await sleep(DELAY_MS);
+                    }
+                }
+
+                // Step 3: Parse results
+                updateProgress(95, 'Parsing results...');
+
+                if (allMedlineTexts.length === 0) {
+                    throw new Error('Failed to fetch any data from PubMed');
+                }
+
+                const combinedText = allMedlineTexts.join('\n\n');
+                allStudies = parsePubmedText(combinedText);
+
+                updateProgress(100, `Found ${allStudies.length} USA-based studies`);
+
+                if (allStudies.length > 0) {
+                    setTimeout(() => {
+                        searchProgress.classList.remove('active');
+                        dashboard.classList.remove('hidden');
+                        actionButtons.classList.remove('hidden');
+                        resetFilters();
+                        initializeMap();
+                    }, 1000);
+                } else {
+                    showError('No USA-based studies found in the search results');
+                }
+
+            } catch (error) {
+                console.error('Search error:', error);
+                showError(`Search failed: ${error.message}. Please try again.`);
+            } finally {
+                isSearching = false;
+                searchBtn.disabled = false;
+            }
+        }
+
+        function updateProgress(percentage, message) {
+            progressFill.style.width = `${percentage}%`;
+            progressFill.textContent = `${Math.round(percentage)}%`;
+            searchStatus.textContent = message;
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('active');
+            setTimeout(() => {
+                errorMessage.classList.remove('active');
+            }, 5000);
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // --- Clear Data ---
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                if (confirm('Are you sure you want to clear all data?')) {
+                    allStudies = [];
+                    filteredStudies = [];
+                    dashboard.classList.add('hidden');
+                    actionButtons.classList.add('hidden');
+                    searchQuery.value = '';
+                    fileListDisplay.textContent = 'No files selected.';
+                }
+            });
+        }
+
+        // --- Drag & Drop File Handling ---
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            fileUploadArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            fileUploadArea.addEventListener(eventName, () => {
+                fileUploadArea.classList.add('drag-over');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            fileUploadArea.addEventListener(eventName, () => {
+                fileUploadArea.classList.remove('drag-over');
+            });
+        });
+
+        fileUploadArea.addEventListener('drop', handleDrop);
+        fileUploadArea.addEventListener('click', () => fileInput.click());
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            processFiles(files);
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            processFiles(e.target.files);
+        });
+
+        async function processFiles(files) {
+            if (files.length === 0) {
+                fileListDisplay.textContent = 'No files selected.';
+                return;
+            }
+            
+            fileListDisplay.textContent = `${files.length} file(s) selected: ${[...files].map(f => f.name).join(', ')}`;
+            loader.style.display = 'block';
+            dashboard.classList.add('hidden');
+            actionButtons.classList.add('hidden');
+
+            // Reset state
+            allStudies = [];
+            filteredStudies = [];
+            
+            // Artificial delay to show loader
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            try {
+                const allTexts = await Promise.all([...files].map(file => file.text()));
+                const combinedText = allTexts.join('\n\n');
+                
+                allStudies = parsePubmedText(combinedText);
+                
+                loader.style.display = 'none';
+                if(allStudies.length > 0) {
+                    dashboard.classList.remove('hidden');
+                    actionButtons.classList.remove('hidden');
+                    resetFilters();
+                    initializeMap();
+                } else {
+                    fileListDisplay.textContent = 'No USA-based studies found in the selected files.';
+                }
+            } catch (error) {
+                loader.style.display = 'none';
+                fileListDisplay.textContent = 'Error processing files. Please try again.';
+                console.error('File processing error:', error);
+            }
+        }
+
+        function parsePubmedText(text) {
+            const records = text.split('PMID- ').slice(1);
+            const studies = [];
+
+            for (const record of records) {
+                const lines = record.split('\n');
+                let currentStudy = { pmid: lines[0].trim(), authors: [], isUSAResearch: false, year: null };
+                let currentField = '';
+                let lastFauAuthor = null;
+
+                for (const line of lines.slice(1)) {
+                    const tagMatch = line.match(/^([A-Z]{2,4}) {1,2}- /);
+                    if (tagMatch) {
+                        currentField = tagMatch[1];
+                        const content = line.substring(tagMatch[0].length).trim();
+                        
+                        switch(currentField) {
+                            case 'TI':
+                                currentStudy.title = (currentStudy.title || '') + content + ' ';
+                                break;
+                            case 'AB':
+                                currentStudy.abstract = (currentStudy.abstract || '') + content + ' ';
+                                break;
+                            case 'FAU':
+                                lastFauAuthor = { name: content, affiliations: [] };
+                                currentStudy.authors.push(lastFauAuthor);
+                                break;
+                            case 'AD':
+                                if (lastFauAuthor) {
+                                    const affiliation = parseAffiliation(content);
+                                    if (affiliation.isUSA) {
+                                        currentStudy.isUSAResearch = true;
+                                    }
+                                    lastFauAuthor.affiliations.push(affiliation);
+                                }
+                                break;
+                            case 'DP':
+                                // Extract year from date
+                                const yearMatch = content.match(/(\d{4})/);
+                                if (yearMatch) {
+                                    currentStudy.year = parseInt(yearMatch[1]);
+                                }
+                                break;
+                        }
+                    } else if (line.trim()) { // Handle continuation lines
+                        switch(currentField) {
+                            case 'TI':
+                                currentStudy.title = (currentStudy.title || '') + line.trim() + ' ';
+                                break;
+                            case 'AB':
+                                currentStudy.abstract = (currentStudy.abstract || '') + line.trim() + ' ';
+                                break;
+                            case 'AD': // Multi-line affiliations
+                                if (lastFauAuthor && lastFauAuthor.affiliations.length > 0) {
+                                    const lastAffiliation = lastFauAuthor.affiliations[lastFauAuthor.affiliations.length - 1];
+                                    lastAffiliation.full += ' ' + line.trim();
+                                    // Re-parse with the added text
+                                    const reparsedAffiliation = parseAffiliation(lastAffiliation.full);
+                                    if (reparsedAffiliation.isUSA) currentStudy.isUSAResearch = true;
+                                    lastFauAuthor.affiliations[lastFauAuthor.affiliations.length - 1] = reparsedAffiliation;
+                                }
+                                break;
+                        }
+                    }
+                }
+                
+                if (currentStudy.isUSAResearch) {
+                    if (currentStudy.title) currentStudy.title = currentStudy.title.trim();
+                    if (currentStudy.abstract) currentStudy.abstract = currentStudy.abstract.trim();
+                    currentStudy.link = `https://pubmed.ncbi.nlm.nih.gov/${currentStudy.pmid}/`;
+                    studies.push(currentStudy);
+                }
+            }
+            return studies;
+        }
+
+        function parseAffiliation(affiliationText) {
+            const result = { full: affiliationText.trim(), isUSA: false, country: null, state: null, city: null, department: null };
+            const parts = result.full.split(',').map(p => p.trim());
+            
+            // Check for USA
+            const countryPart = parts.find(p => USA_SYNONYMS.some(syn => p.includes(syn)));
+            if(countryPart) {
+                result.isUSA = true;
+                result.country = 'USA';
+            }
+            
+            // Very simple heuristic to find state, city, and department
+            if (result.isUSA) {
+                for (let i = parts.length - 1; i >= 0; i--) {
+                    const part = parts[i].split(' ')[0]; // e.g., "NJ," or "NJ" from "Piscataway, NJ, USA"
+                    if (!result.state && STATE_ABBREVIATIONS.includes(part)) {
+                        result.state = US_STATES[part];
+                        if(i > 0 && !result.city) {
+                           result.city = parts[i-1];
+                        }
+                    }
+                }
+                // Assume the rest is the department/institution
+                const cityIndex = result.city ? parts.indexOf(result.city) : -1;
+                if(cityIndex > 0) {
+                    result.department = parts.slice(0, cityIndex).join(', ');
+                } else {
+                    result.department = parts.slice(0, parts.length - (result.state ? 2 : 1)).join(', ');
+                }
+            }
+
+            return result;
+        }
+
+        // --- Helper Functions for USA Author Filter ---
+        function authorHasUSAAffiliation(author) {
+            return author.affiliations.some(aff => aff.isUSA);
+        }
+
+        function checkUSAAuthorCriteria(study, criteria) {
+            const usaAuthors = study.authors.filter(authorHasUSAAffiliation);
+            
+            switch(criteria) {
+                case 'any':
+                    return usaAuthors.length > 0; // Default - any USA authors
+                case 'at-least-one':
+                    return usaAuthors.length > 0;
+                case 'first':
+                    return study.authors.length > 0 && authorHasUSAAffiliation(study.authors[0]);
+                case 'last':
+                    // The last author is the senior/corresponding author
+                    const lastAuthorIndex = study.authors.length - 1;
+                    return study.authors.length > 0 && lastAuthorIndex >= 0 && authorHasUSAAffiliation(study.authors[lastAuthorIndex]);
+                case 'all':
+                    return study.authors.length > 0 && study.authors.every(authorHasUSAAffiliation);
+                default:
+                    return true;
+            }
+        }
+
+        // --- View Toggle Logic ---
+        viewBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+                switchView(view);
+            });
+        });
+
+        function switchView(view) {
+            // Update buttons
+            viewBtns.forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`[data-view="${view}"]`).classList.add('active');
+            
+            // Hide all views
+            chartsView.classList.add('hidden');
+            mapView.classList.add('hidden');
+            authorsView.classList.add('hidden');
+            
+            // Show selected view
+            currentView = view;
+            switch(view) {
+                case 'charts':
+                    chartsView.classList.remove('hidden');
+                    updateCharts(filteredStudies);
+                    break;
+                case 'map':
+                    mapView.classList.remove('hidden');
+                    updateMap(filteredStudies);
+                    break;
+                case 'authors':
+                    authorsView.classList.remove('hidden');
+                    updateAuthorCharts(filteredStudies);
+                    break;
+            }
+        }
+
+        // --- Filtering Logic ---
+        function getFilteredStudiesIgnoring(ignoreField) {
+            const criteria = usaAuthorFilter.value;
+            const selectedState = stateFilter.value;
+            const selectedCity = cityFilter.value;
+            const selectedDept = deptFilter.value;
+            const selectedResearcher = researcherFilter.value;
+
+            return allStudies.filter(study => {
+                let match = checkUSAAuthorCriteria(study, criteria);
+
+                if (ignoreField !== 'state') {
+                    match = match && (selectedState === 'all' || study.authors.some(a => a.affiliations.some(aff => aff.state === selectedState)));
+                }
+                if (ignoreField !== 'city') {
+                    match = match && (selectedCity === 'all' || study.authors.some(a => a.affiliations.some(aff => aff.city === selectedCity)));
+                }
+                if (ignoreField !== 'dept') {
+                    match = match && (selectedDept === 'all' || study.authors.some(a => a.affiliations.some(aff => aff.department === selectedDept)));
+                }
+                if (ignoreField !== 'researcher') {
+                    match = match && (selectedResearcher === 'all' || study.authors.some(a => a.name === selectedResearcher));
+                }
+
+                return match;
+            });
+        }
+
+        function getAvailableStates() {
+            const studies = getFilteredStudiesIgnoring('state');
+            const states = new Set();
+            studies.forEach(study => {
+                study.authors.forEach(author => {
+                    author.affiliations.forEach(aff => {
+                        if (aff.isUSA && aff.state) states.add(aff.state);
+                    });
+                });
+            });
+            return [...states].sort();
+        }
+
+        function getAvailableCities() {
+            const studies = getFilteredStudiesIgnoring('city');
+            const cities = new Set();
+            studies.forEach(study => {
+                study.authors.forEach(author => {
+                    author.affiliations.forEach(aff => {
+                        if (aff.isUSA && aff.city) cities.add(aff.city);
+                    });
+                });
+            });
+            return [...cities].sort();
+        }
+
+        function getAvailableDepts() {
+            const studies = getFilteredStudiesIgnoring('dept');
+            const departments = new Set();
+            studies.forEach(study => {
+                study.authors.forEach(author => {
+                    author.affiliations.forEach(aff => {
+                        if (aff.isUSA && aff.department) departments.add(aff.department);
+                    });
+                });
+            });
+            return [...departments].sort();
+        }
+
+        function getAvailableResearchers() {
+            const studies = getFilteredStudiesIgnoring('researcher');
+            const researchers = new Set();
+            studies.forEach(study => {
+                study.authors.forEach(author => {
+                    researchers.add(author.name);
+                });
+            });
+            return [...researchers].sort();
+        }
+
+        function populateSelect(element, items, plural) {
+            const currentValue = element.value;
+            element.innerHTML = `<option value="all">All ${plural}</option>`;
+            items.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item;
+                option.textContent = item;
+                element.appendChild(option);
+            });
+            if (currentValue === 'all' || items.includes(currentValue)) {
+                element.value = currentValue;
+                return false; // no reset
+            } else {
+                element.value = 'all';
+                return true; // reset happened
+            }
+        }
+
+        function updateFilterOptions() {
+            let needsReapply = false;
+
+            const availableStates = getAvailableStates();
+            if (populateSelect(stateFilter, availableStates, 'States')) needsReapply = true;
+
+            const availableCities = getAvailableCities();
+            if (populateSelect(cityFilter, availableCities, 'Cities')) needsReapply = true;
+
+            const availableDepts = getAvailableDepts();
+            if (populateSelect(deptFilter, availableDepts, 'Departments')) needsReapply = true;
+
+            const availableResearchers = getAvailableResearchers();
+            if (populateSelect(researcherFilter, availableResearchers, 'Researchers')) needsReapply = true;
+
+            if (needsReapply) {
+                applyFilters();
+            }
+        }
+
+        function applyFilters() {
+            const selectedUSAAuthor = usaAuthorFilter.value;
+            const selectedState = stateFilter.value;
+            const selectedCity = cityFilter.value;
+            const selectedDept = deptFilter.value;
+            const selectedResearcher = researcherFilter.value;
+            
+            filteredStudies = allStudies.filter(study => {
+                const usaAuthorMatch = checkUSAAuthorCriteria(study, selectedUSAAuthor);
+                const stateMatch = selectedState === 'all' || study.authors.some(a => a.affiliations.some(aff => aff.state === selectedState));
+                const cityMatch = selectedCity === 'all' || study.authors.some(a => a.affiliations.some(aff => aff.city === selectedCity));
+                const deptMatch = selectedDept === 'all' || study.authors.some(a => a.affiliations.some(aff => aff.department === selectedDept));
+                const researcherMatch = selectedResearcher === 'all' || study.authors.some(a => a.name === selectedResearcher);
+
+                return usaAuthorMatch && stateMatch && cityMatch && deptMatch && researcherMatch;
+            });
+
+            renderResults(filteredStudies);
+            
+            // Update current view
+            switch(currentView) {
+                case 'charts':
+                    updateCharts(filteredStudies);
+                    break;
+                case 'map':
+                    updateMap(filteredStudies);
+                    break;
+                case 'authors':
+                    updateAuthorCharts(filteredStudies);
+                    break;
+            }
+
+            updateFilterOptions();
+        }
+
+        [usaAuthorFilter, stateFilter, cityFilter, deptFilter, researcherFilter].forEach(filter => {
+            filter.addEventListener('change', applyFilters);
+        });
+
+        // --- Action Button Logic ---
+        exportBtn.addEventListener('click', exportToExcel);
+        resetBtn.addEventListener('click', resetFilters);
+        statsBtn.addEventListener('click', showStatistics);
+
+        function exportToExcel() {
+            if (filteredStudies.length === 0) {
+                alert('No data to export. Please load some files first.');
+                return;
+            }
+
+            const data = filteredStudies.map(study => ({
+                PMID: study.pmid,
+                Title: study.title || '',
+                Abstract: study.abstract || '',
+                Year: study.year || '',
+                Authors: study.authors.map(a => a.name).join('; '),
+                'USA States': [...new Set(study.authors.flatMap(a => 
+                    a.affiliations.filter(aff => aff.isUSA && aff.state).map(aff => aff.state)
+                ))].join('; '),
+                'USA Cities': [...new Set(study.authors.flatMap(a => 
+                    a.affiliations.filter(aff => aff.isUSA && aff.city).map(aff => aff.city)
+                ))].join('; '),
+                Departments: [...new Set(study.authors.flatMap(a => 
+                    a.affiliations.filter(aff => aff.isUSA && aff.department).map(aff => aff.department)
+                ))].join('; '),
+                'PubMed Link': study.link
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'PubMed Studies');
+            XLSX.writeFile(wb, `pubmed_analysis_${new Date().toISOString().split('T')[0]}.xlsx`);
+        }
+
+        function resetFilters() {
+            usaAuthorFilter.value = 'any';
+            stateFilter.value = 'all';
+            cityFilter.value = 'all';
+            deptFilter.value = 'all';
+            researcherFilter.value = 'all';
+            applyFilters();
+        }
+
+        function showStatistics() {
+            const stats = calculateStatistics(filteredStudies);
+            alert(`📊 Dataset Statistics:\n\n` +
+                  `Total Studies: ${stats.totalStudies}\n` +
+                  `Total Authors: ${stats.totalAuthors}\n` +
+                  `Unique USA States: ${stats.uniqueStates}\n` +
+                  `Unique USA Cities: ${stats.uniqueCities}\n` +
+                  `Year Range: ${stats.yearRange}\n` +
+                  `Most Productive State: ${stats.topState}\n` +
+                  `Most Productive Author: ${stats.topAuthor}`);
+        }
+
+        function calculateStatistics(studies) {
+            const stats = {};
+            stats.totalStudies = studies.length;
+            const authors = new Set();
+            const states = new Set();
+            const cities = new Set();
+            const years = [];
+            const stateCounts = {};
+            const authorCounts = {};
+
+            studies.forEach(study => {
+                if (study.year) years.push(study.year);
+                study.authors.forEach(author => {
+                    authors.add(author.name);
+                    authorCounts[author.name] = (authorCounts[author.name] || 0) + 1;
+                    author.affiliations.forEach(aff => {
+                        if (aff.isUSA) {
+                            if (aff.state) {
+                                states.add(aff.state);
+                                stateCounts[aff.state] = (stateCounts[aff.state] || 0) + 1;
+                            }
+                            if (aff.city) cities.add(aff.city);
+                        }
+                    });
+                });
+            });
+
+            const topState = Object.entries(stateCounts).sort((a,b) => b[1] - a[1])[0];
+            const topAuthor = Object.entries(authorCounts).sort((a,b) => b[1] - a[1])[0];
+
+            stats.totalAuthors = authors.size;
+            stats.uniqueStates = states.size;
+            stats.uniqueCities = cities.size;
+            stats.yearRange = years.length > 0 ? `${Math.min(...years)} - ${Math.max(...years)}` : 'N/A';
+            stats.topState = topState ? `${topState[0]} (${topState[1]} studies)` : 'N/A';
+            stats.topAuthor = topAuthor ? `${topAuthor[0]} (${topAuthor[1]} studies)` : 'N/A';
+
+            return stats;
+        }
+
+        // --- Map Logic ---
+        function initializeMap() {
+            if (map) {
+                map.remove();
+            }
+            map = L.map('mapView').setView([39.8283, -98.5795], 4); // Center of USA
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+        }
+
+        function updateMap(studies) {
+            if (!map) return;
+            
+            // Clear existing markers
+            map.eachLayer(layer => {
+                if (layer instanceof L.Marker) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            const stateCounts = {};
+            studies.forEach(study => {
+                study.authors.forEach(author => {
+                    author.affiliations.forEach(aff => {
+                        if (aff.isUSA && aff.state) {
+                            stateCounts[aff.state] = (stateCounts[aff.state] || 0) + 1;
+                        }
+                    });
+                });
+            });
+
+            Object.entries(stateCounts).forEach(([state, count]) => {
+                const coords = STATE_COORDS[state];
+                if (coords) {
+                    const marker = L.marker(coords).addTo(map);
+                    marker.bindPopup(`<b>${state}</b><br>${count} studies<br><button onclick="filterByState('${state}')">Filter by this state</button>`);
+                }
+            });
+        }
+
+        // Global function for map popup buttons
+        window.filterByState = function(state) {
+            stateFilter.value = state;
+            applyFilters();
+            switchView('charts');
+        };
+
+        // --- Rendering Logic ---
+        function renderResults(studies) {
+            resultsCountEl.textContent = `Showing ${studies.length} Studies`;
+            resultsListEl.innerHTML = '';
+            
+            if (studies.length === 0) {
+                 resultsListEl.innerHTML = '<p style="text-align:center; color: var(--text-muted-color);">No studies match the current filters.</p>';
+                 return;
+            }
+
+            studies.forEach(study => {
+                const item = document.createElement('div');
+                item.className = 'study-item';
+                
+                // Get USA authors info
+                const usaAuthors = study.authors.filter(authorHasUSAAffiliation);
+                const authorInfo = usaAuthors.length > 0 ? 
+                    `<p><strong>USA Authors:</strong> ${usaAuthors.map(a => a.name).join(', ')}</p>` : '';
+                
+                item.innerHTML = `
+                    <div class="study-header">
+                        <h3 class="study-title">${study.title || 'No Title Available'}</h3>
+                        ${study.year ? `<p><strong>Year:</strong> ${study.year}</p>` : ''}
+                        ${authorInfo}
+                        <a href="${study.link}" target="_blank" class="study-link">View on PubMed</a>
+                    </div>
+                    ${study.abstract ? `
+                    <button class="abstract-toggle">Show Abstract</button>
+                    <div class="abstract-content">
+                        <p>${study.abstract}</p>
+                    </div>` : ''}
+                `;
+                resultsListEl.appendChild(item);
+            });
+        }
+        
+        resultsListEl.addEventListener('click', (e) => {
+            if (e.target.classList.contains('abstract-toggle')) {
+                const button = e.target;
+                const content = button.nextElementSibling;
+                button.classList.toggle('open');
+                content.classList.toggle('open');
+                button.textContent = button.classList.contains('open') ? 'Hide Abstract' : 'Show Abstract';
+            }
+        });
+
+        // --- Chart Logic ---
+        function updateCharts(studies) {
+            const stateCounts = {};
+            const cityCounts = {};
+            const deptCounts = {};
+            const yearCounts = {};
+
+            studies.forEach(study => {
+                const studyStates = new Set();
+                const studyCities = new Set();
+                const studyDepts = new Set();
+                
+                if (study.year) {
+                    yearCounts[study.year] = (yearCounts[study.year] || 0) + 1;
+                }
+                
+                study.authors.forEach(author => {
+                    author.affiliations.forEach(aff => {
+                        if (aff.isUSA) {
+                            if (aff.state) studyStates.add(aff.state);
+                            if (aff.city) studyCities.add(aff.city);
+                            if (aff.department) studyDepts.add(aff.department);
+                        }
+                    });
+                });
+                
+                studyStates.forEach(state => stateCounts[state] = (stateCounts[state] || 0) + 1);
+                studyCities.forEach(city => cityCounts[city] = (cityCounts[city] || 0) + 1);
+                studyDepts.forEach(dept => deptCounts[dept] = (deptCounts[dept] || 0) + 1);
+            });
+
+            // Get top data for charts
+            const topCities = Object.entries(cityCounts).sort((a, b) => b[1] - a[1]).slice(0, 15);
+            const topDepts = Object.entries(deptCounts).sort((a, b) => b[1] - a[1]).slice(0, 15);
+            const sortedStates = Object.entries(stateCounts).sort((a,b) => b[1] - a[1]);
+            const sortedYears = Object.entries(yearCounts).sort((a,b) => parseInt(a[0]) - parseInt(b[0]));
+
+            // Store chart data for expansion
+            chartData.state = {
+                title: 'Studies per State',
+                labels: sortedStates.map(s => s[0]),
+                data: sortedStates.map(s => s[1]),
+                type: 'bar'
+            };
+            chartData.city = {
+                title: 'Top 15 Cities by Study Count',
+                labels: topCities.map(c => c[0]),
+                data: topCities.map(c => c[1]),
+                type: 'bar'
+            };
+            chartData.department = {
+                title: 'Top 15 Departments',
+                labels: topDepts.map(d => d[0]),
+                data: topDepts.map(d => d[1]),
+                type: 'bar'
+            };
+            chartData.timeline = {
+                title: 'Studies by Year',
+                labels: sortedYears.map(y => y[0]),
+                data: sortedYears.map(y => y[1]),
+                type: 'line'
+            };
+
+            // Destroy existing charts
+            Object.values(charts).forEach(chart => {
+                if (chart && typeof chart.destroy === 'function') {
+                    chart.destroy();
+                }
+            });
+
+            charts.state = createBarChart('stateChart', chartData.state.title, chartData.state.labels, chartData.state.data);
+            charts.city = createBarChart('cityChart', chartData.city.title, chartData.city.labels, chartData.city.data);
+            charts.department = createBarChart('deptChart', chartData.department.title, chartData.department.labels, chartData.department.data);
+            charts.timeline = createLineChart('timelineChart', chartData.timeline.title, chartData.timeline.labels, chartData.timeline.data);
+        }
+
+        function updateAuthorCharts(studies) {
+            const authorCounts = {};
+            const collaborationData = {};
+
+            studies.forEach(study => {
+                const usaAuthors = study.authors.filter(authorHasUSAAffiliation);
+                usaAuthors.forEach(author => {
+                    authorCounts[author.name] = (authorCounts[author.name] || 0) + 1;
+                });
+
+                // Track collaborations (studies with multiple USA authors)
+                if (usaAuthors.length > 1) {
+                    const colabKey = usaAuthors.length;
+                    collaborationData[colabKey] = (collaborationData[colabKey] || 0) + 1;
+                }
+            });
+
+            const topAuthors = Object.entries(authorCounts).sort((a, b) => b[1] - a[1]).slice(0, 20);
+            const collaborationEntries = Object.entries(collaborationData).sort((a,b) => parseInt(a[0]) - parseInt(b[0]));
+
+            // Store chart data for expansion
+            chartData['top-authors'] = {
+                title: 'Top 20 Authors by Study Count',
+                labels: topAuthors.map(a => a[0]),
+                data: topAuthors.map(a => a[1]),
+                type: 'bar'
+            };
+            chartData.collaboration = {
+                title: 'Collaboration Patterns (Authors per Study)',
+                labels: collaborationEntries.map(c => `${c[0]} authors`),
+                data: collaborationEntries.map(c => c[1]),
+                type: 'bar'
+            };
+
+            if (charts.topAuthors) charts.topAuthors.destroy();
+            if (charts.collaboration) charts.collaboration.destroy();
+
+            charts.topAuthors = createBarChart('topAuthorsChart', chartData['top-authors'].title, 
+                chartData['top-authors'].labels, chartData['top-authors'].data);
+            charts.collaboration = createBarChart('collaborationChart', chartData.collaboration.title, 
+                chartData.collaboration.labels, chartData.collaboration.data);
+        }
+
+        function createBarChart(canvasId, title, labels, data) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Count',
+                        data: data,
+                        backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        title: {
+                            display: true,
+                            text: title,
+                            color: 'white',
+                            font: { size: 16 }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: 'white' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        y: {
+                            ticks: { color: 'white' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createLineChart(canvasId, title, labels, data) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Studies',
+                        data: data,
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        title: {
+                            display: true,
+                            text: title,
+                            color: 'white',
+                            font: { size: 16 }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: 'white' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        y: {
+                            ticks: { color: 'white' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- Chart Expansion Logic ---
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('chart-expand-btn')) {
+                const wrapper = e.target.closest('.chart-wrapper');
+                const chartType = wrapper.dataset.chart;
+                expandChart(chartType);
+            }
+        });
+
+        function expandChart(chartType) {
+            const data = chartData[chartType];
+            if (!data) return;
+
+            const expandedCanvas = document.getElementById('expandedChart');
+            const modalTitle = document.getElementById('chartModalTitle');
+            
+            modalTitle.textContent = data.title;
+            
+            // Destroy any existing chart in modal
+            if (charts.expanded) {
+                charts.expanded.destroy();
+            }
+
+            // Create new chart in modal
+            const ctx = expandedCanvas.getContext('2d');
+            
+            if (data.type === 'line') {
+                charts.expanded = createLineChart('expandedChart', data.title, data.labels, data.data);
+            } else {
+                charts.expanded = createBarChart('expandedChart', data.title, data.labels, data.data);
+            }
+
+            showModal(chartModal);
+        }
+    });
+    </script>
+</body>
+</html>

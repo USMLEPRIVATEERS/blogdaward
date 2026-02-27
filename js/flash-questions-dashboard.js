@@ -1,0 +1,406 @@
+// ============================================
+// FLASH QUESTIONS DASHBOARD
+// ============================================
+
+// Wait for Supabase to be ready
+async function ensureSupabase() {
+    if (window.supabase && window.supabase.from) return;
+    // Wait for app.js proxy to initialize
+    let attempts = 0;
+    while ((!window.supabase || !window.supabase.from) && attempts < 50) {
+        await new Promise(r => setTimeout(r, 100));
+        attempts++;
+    }
+    if (!window.supabase || !window.supabase.from) {
+        throw new Error('App not initialized');
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        await ensureSupabase();
+        await checkAuth();
+        await loadUserName();
+        await loadStatistics();
+        await loadPerformanceData();
+        await loadRecentTests();
+    } catch (error) {
+        console.error('Error initializing:', error);
+        showToast('Erro ao carregar dashboard', 'error');
+    }
+});
+
+// Check authentication
+async function checkAuth() {
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) {
+        if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/') {
+            window.location.href = 'index.html';
+        }
+        return null;
+    }
+    return user;
+}
+
+// Load user name
+async function loadUserName() {
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) return;
+
+    const nameElement = document.getElementById('user-name');
+    if (nameElement) {
+        const firstName = (user.name || user.full_name || user.cpf).split(' ')[0];
+        nameElement.textContent = firstName;
+    }
+}
+
+// Load statistics
+async function loadStatistics() {
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) return;
+
+    try {
+        // Total questions available
+        const { count: totalQuestions } = await window.supabase
+            .from('flash_questions')
+            .select('*', { count: 'exact', head: true });
+
+        document.getElementById('total-questions').textContent = totalQuestions || 0;
+
+        // Questions answered by user
+        const { count: questionsAnswered } = await window.supabase
+            .from('flash_question_responses')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id);
+
+        document.getElementById('questions-answered').textContent = questionsAnswered || 0;
+
+        // Calculate accuracy rate
+        const { data: responses } = await window.supabase
+            .from('flash_question_responses')
+            .select('is_correct')
+            .eq('user_id', user.id);
+
+        if (responses && responses.length > 0) {
+            const correctCount = responses.filter(r => r.is_correct).length;
+            const accuracy = Math.round((correctCount / responses.length) * 100);
+            document.getElementById('accuracy-rate').textContent = `${accuracy}%`;
+        } else {
+            document.getElementById('accuracy-rate').textContent = '0%';
+        }
+
+        // Tests completed
+        const { count: testsCompleted } = await window.supabase
+            .from('flash_tests')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .eq('status', 'completed');
+
+        document.getElementById('tests-completed').textContent = testsCompleted || 0;
+
+    } catch (error) {
+        console.error('Error loading statistics:', error);
+        showToast('Erro ao carregar estatísticas', 'error');
+    }
+}
+
+// Load recent tests
+async function loadRecentTests() {
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) return;
+
+    const listContainer = document.getElementById('recent-tests-list');
+
+    try {
+        const { data: tests, error } = await window.supabase
+            .from('flash_tests')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('started_at', { ascending: false })
+            .limit(5);
+
+        if (error) throw error;
+
+        if (!tests || tests.length === 0) {
+            listContainer.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📝</div>
+                    <p>Nenhum teste realizado ainda</p>
+                    <a href="flash-questions-create.html" style="color: #d97706; text-decoration: underline;">
+                        Criar seu primeiro teste
+                    </a>
+                </div>
+            `;
+            return;
+        }
+
+        listContainer.innerHTML = tests.map(test => {
+            const percentage = test.total_questions > 0
+                ? Math.round((test.correct_answers / test.total_questions) * 100)
+                : 0;
+
+            const date = new Date(test.started_at);
+            const dateStr = date.toLocaleDateString('pt-BR');
+            const timeStr = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+            const statusBadge = test.status === 'completed'
+                ? '<span style="color: #22c55e;">✓ Completo</span>'
+                : '<span style="color: #f59e0b;">⏸ Pausado</span>';
+
+            const actionButton = test.status === 'completed'
+                ? `<a href="flash-questions-test.html?test_id=${test.id}" style="padding: 0.5rem 1rem; background: white; color: #d97706; border: 2px solid #d97706; border-radius: 8px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block; margin-right: 0.5rem;">👁️ Revisar</a>
+                   <button onclick="retakeTest(${test.id})" style="padding: 0.5rem 1rem; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;">🔄 Refazer</button>`
+                : `<a href="flash-questions-test.html?test_id=${test.id}" style="padding: 0.5rem 1rem; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; border: none; border-radius: 8px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">▶️ Continuar</a>`;
+
+            return `
+                <div class="test-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1.2rem; margin-bottom: 1rem; background: white; border: 2px solid #f0f0f0; border-radius: 12px;">
+                    <div class="test-info" style="flex: 1;">
+                        <h4 style="margin: 0 0 0.5rem 0; font-size: 1.1rem;">Flash Test - ${test.total_questions} questões</h4>
+                        <p style="margin: 0; color: #666; font-size: 0.9rem;">${dateStr} às ${timeStr} | ${statusBadge}</p>
+                    </div>
+                    <div class="test-score" style="text-align: center; margin: 0 2rem;">
+                        <div class="percentage" style="font-size: 1.8rem; font-weight: 700; color: #d97706;">${percentage}%</div>
+                        <div class="details" style="font-size: 0.85rem; color: #666;">
+                            ${test.correct_answers || 0}/${test.total_questions} corretas
+                        </div>
+                    </div>
+                    <div class="test-actions">
+                        ${actionButton}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+    } catch (error) {
+        console.error('Error loading recent tests:', error);
+        listContainer.innerHTML = `
+            <div class="empty-state">
+                <p style="color: #ef4444;">Erro ao carregar testes recentes</p>
+            </div>
+        `;
+    }
+}
+
+// Retake test (create new test with SAME questions for comparison)
+async function retakeTest(testId) {
+    try {
+        const { data: originalTest, error } = await window.supabase
+            .from('flash_tests')
+            .select('*')
+            .eq('id', testId)
+            .single();
+
+        if (error) throw error;
+
+        const user = JSON.parse(localStorage.getItem('ward_user'));
+        if (!user) {
+            window.location.href = 'index.html';
+            return;
+        }
+
+        // Create new test with SAME question_ids
+        const { data: newTest, error: createError } = await window.supabase
+            .from('flash_tests')
+            .insert({
+                user_id: user.id,
+                question_ids: originalTest.question_ids, // Same questions!
+                total_questions: originalTest.total_questions,
+                filters: originalTest.filters,
+                status: 'in_progress',
+                retake_of_test_id: testId // Track which test this is retaking
+            })
+            .select()
+            .single();
+
+        if (createError) throw createError;
+
+        // Redirect to the new test
+        window.location.href = `flash-questions-test.html?test_id=${newTest.id}`;
+
+    } catch (error) {
+        console.error('Error retaking test:', error);
+        alert('Erro ao refazer teste');
+    }
+}
+
+// Switch performance tab
+function switchPerformanceTab(tab) {
+    // Update tab buttons
+    document.querySelectorAll('.performance-tab').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+
+    // Update content visibility
+    document.querySelectorAll('.performance-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    document.getElementById(`performance-${tab}`).classList.add('active');
+}
+
+// Load performance data
+async function loadPerformanceData() {
+    const user = JSON.parse(localStorage.getItem('ward_user'));
+    if (!user) return;
+
+    try {
+        // Get all user responses with question details
+        const { data: responses, error } = await window.supabase
+            .from('flash_question_responses')
+            .select(`
+                *,
+                flash_questions!inner (
+                    question_tags
+                )
+            `)
+            .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        console.log('Loaded responses:', responses);
+
+        if (!responses || responses.length === 0) {
+            console.log('No responses found');
+            showNoData();
+            return;
+        }
+
+        // Parse question tags and calculate performance
+        const subjectsPerf = {};
+        const systemsPerf = {};
+        const categoriesPerf = {};
+
+        responses.forEach(response => {
+            const tags = response.flash_questions.question_tags;
+            console.log('Processing tags:', tags);
+            const parts = tags.split('::');
+
+            // Parse: "Subject::System::Category" (simple format)
+            const subject = parts.length >= 1 ? parts[0] : null;
+            const system = parts.length >= 2 ? parts[1] : null;
+            const category = parts.length >= 3 ? parts[2] : null;
+
+            console.log('Parsed:', { subject, system, category });
+
+            // Track subject performance
+            if (subject) {
+                if (!subjectsPerf[subject]) {
+                    subjectsPerf[subject] = { correct: 0, total: 0 };
+                }
+                subjectsPerf[subject].total++;
+                if (response.is_correct) subjectsPerf[subject].correct++;
+            }
+
+            // Track system performance
+            if (system) {
+                if (!systemsPerf[system]) {
+                    systemsPerf[system] = { correct: 0, total: 0 };
+                }
+                systemsPerf[system].total++;
+                if (response.is_correct) systemsPerf[system].correct++;
+            }
+
+            // Track category performance
+            if (category) {
+                if (!categoriesPerf[category]) {
+                    categoriesPerf[category] = { correct: 0, total: 0 };
+                }
+                categoriesPerf[category].total++;
+                if (response.is_correct) categoriesPerf[category].correct++;
+            }
+        });
+
+        // Render performance data
+        renderPerformanceData('subjects', subjectsPerf);
+        renderPerformanceData('systems', systemsPerf);
+        renderPerformanceData('categories', categoriesPerf);
+
+    } catch (error) {
+        console.error('Error loading performance data:', error);
+        showNoData();
+    }
+}
+
+// Render performance data
+function renderPerformanceData(type, performanceData) {
+    // Convert to array and calculate percentages
+    const items = Object.entries(performanceData).map(([name, stats]) => ({
+        name,
+        correct: stats.correct,
+        total: stats.total,
+        incorrect: stats.total - stats.correct,
+        percentage: Math.round((stats.correct / stats.total) * 100)
+    }));
+
+    // Filter out items with less than 1 question
+    const filtered = items.filter(item => item.total >= 1);
+
+    console.log(`Performance data for ${type}:`, filtered);
+
+    if (filtered.length === 0) {
+        document.getElementById(`best-${type}`).innerHTML = '<div class="no-data">Dados insuficientes</div>';
+        document.getElementById(`worst-${type}`).innerHTML = '<div class="no-data">Dados insuficientes</div>';
+        return;
+    }
+
+    // Sort for BEST: by number of correct answers (descending), then by percentage (descending)
+    const sortedForBest = [...filtered].sort((a, b) => {
+        if (b.correct !== a.correct) {
+            return b.correct - a.correct; // More correct answers first
+        }
+        return b.percentage - a.percentage; // If tied, higher percentage first
+    });
+
+    // Sort for WORST: by number of incorrect answers (descending), then by percentage (ascending)
+    const sortedForWorst = [...filtered].sort((a, b) => {
+        if (b.incorrect !== a.incorrect) {
+            return b.incorrect - a.incorrect; // More incorrect answers first
+        }
+        return a.percentage - b.percentage; // If tied, lower percentage first
+    });
+
+    // Get best (top 5)
+    const best = sortedForBest.slice(0, 5);
+    const bestHTML = best.map(item => `
+        <div class="performance-item">
+            <div class="performance-item-name">${escapeHtml(item.name)}</div>
+            <div class="performance-item-stats">
+                <div class="performance-item-percentage">${item.percentage}%</div>
+                <div class="performance-item-count">${item.correct}/${item.total}</div>
+            </div>
+        </div>
+    `).join('');
+
+    document.getElementById(`best-${type}`).innerHTML = bestHTML || '<div class="no-data">Sem dados</div>';
+
+    // Get worst (top 5)
+    const worst = sortedForWorst.slice(0, 5);
+    const worstHTML = worst.map(item => `
+        <div class="performance-item">
+            <div class="performance-item-name">${escapeHtml(item.name)}</div>
+            <div class="performance-item-stats">
+                <div class="performance-item-percentage">${item.percentage}%</div>
+                <div class="performance-item-count">${item.correct}/${item.total}</div>
+            </div>
+        </div>
+    `).join('');
+
+    document.getElementById(`worst-${type}`).innerHTML = worstHTML || '<div class="no-data">Sem dados</div>';
+}
+
+// Show no data message
+function showNoData() {
+    const types = ['subjects', 'systems', 'categories'];
+    types.forEach(type => {
+        document.getElementById(`best-${type}`).innerHTML = '<div class="no-data">Nenhuma questão respondida ainda</div>';
+        document.getElementById(`worst-${type}`).innerHTML = '<div class="no-data">Nenhuma questão respondida ainda</div>';
+    });
+}
+
+// Escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}

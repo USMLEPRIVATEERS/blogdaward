@@ -1,0 +1,2959 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Networking - Ward Academy Toolbox</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Vis.js for network graph -->
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f8fafc;
+        }
+
+        /* Floating Action Button */
+        .fab {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            color: white;
+            border: none;
+            font-size: 1.75rem;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(14, 165, 233, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .fab:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 25px rgba(14, 165, 233, 0.5);
+        }
+
+        .fab:active {
+            transform: scale(0.95);
+        }
+
+        @media (max-width: 768px) {
+            .fab {
+                bottom: 1.5rem;
+                right: 1.5rem;
+                width: 56px;
+                height: 56px;
+            }
+        }
+
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            font-size: 0.9rem;
+        }
+
+        .btn-primary {
+            background: white;
+            color: #0284c7;
+        }
+
+        .btn-primary:hover {
+            background: #f0f9ff;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .btn-success {
+            background: #22c55e;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #16a34a;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid #e2e8f0;
+            color: #64748b;
+        }
+
+        .btn-outline:hover {
+            border-color: #0ea5e9;
+            color: #0ea5e9;
+        }
+
+        .btn-sm {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+        }
+
+        /* Main Layout */
+        .main-container {
+            display: grid;
+            grid-template-columns: 320px 1fr 400px;
+            height: 100%;
+            overflow: hidden;
+            transition: grid-template-columns 0.3s ease;
+        }
+
+        /* When network is hidden, contacts expand */
+        .main-container.network-hidden {
+            grid-template-columns: 320px 1fr;
+        }
+
+        @media (max-width: 1200px) {
+            .main-container {
+                grid-template-columns: 280px 1fr;
+            }
+            .main-container.network-hidden {
+                grid-template-columns: 280px 1fr;
+            }
+            .network-panel {
+                display: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                height: 100%;
+            }
+            .filters-panel {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 85%;
+                max-width: 320px;
+                height: 100%;
+                z-index: 200;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                box-shadow: 4px 0 20px rgba(0,0,0,0.1);
+            }
+            .filters-panel.open {
+                transform: translateX(0);
+                display: block;
+            }
+            .contacts-panel {
+                padding-bottom: 5rem;
+                overflow-y: auto;
+            }
+        }
+
+        /* Filters Panel */
+        .filters-panel {
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            padding: 1.5rem;
+            overflow-y: auto;
+            min-height: 0; /* Allow shrinking in grid */
+        }
+
+        .filter-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .filter-section h3 {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            color: #64748b;
+            margin: 0 0 0.75rem 0;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-select {
+            width: 100%;
+            padding: 0.6rem 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: #0ea5e9;
+        }
+
+        .filter-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .filter-tag {
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 0.25rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .filter-tag button {
+            background: none;
+            border: none;
+            color: #0369a1;
+            cursor: pointer;
+            font-size: 1rem;
+            line-height: 1;
+            padding: 0;
+        }
+
+        .clear-filters {
+            background: #fef2f2;
+            color: #dc2626;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 1rem;
+            font-weight: 500;
+        }
+
+        .clear-filters:hover {
+            background: #fee2e2;
+        }
+
+        /* Stats Panel in Filters */
+        .stats-panel {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #0284c7;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+
+        /* Contacts Panel (Center) */
+        .contacts-panel {
+            background: #f8fafc;
+            overflow-y: auto;
+            padding: 1.5rem;
+            min-height: 0; /* Allow shrinking in flex/grid */
+        }
+
+        .contacts-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .contacts-header h2 {
+            margin: 0;
+            font-size: 1.25rem;
+            color: #1e293b;
+        }
+
+        .search-box {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 0.75rem 1rem 0.75rem 2.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #0ea5e9;
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        }
+
+        .search-box::before {
+            content: '🔍';
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1rem;
+        }
+
+        /* Contact Card */
+        .contact-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid #e2e8f0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .contact-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            border-color: #0ea5e9;
+        }
+
+        .contact-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+        }
+
+        .contact-name {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0;
+        }
+
+        .contact-position {
+            font-size: 0.85rem;
+            color: #0284c7;
+            font-weight: 600;
+            background: #e0f2fe;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+        }
+
+        .contact-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+
+        .contact-info span {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .contact-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        .connection-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .connection-type {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        .connection-type.personal { background: #dcfce7; color: #166534; }
+        .connection-type.email { background: #e0f2fe; color: #0369a1; }
+        .connection-type.phone { background: #fef3c7; color: #92400e; }
+        .connection-type.knows { background: #f3e8ff; color: #7c3aed; }
+        .connection-type.other { background: #f1f5f9; color: #475569; }
+
+        .connection-count {
+            font-size: 0.8rem;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .date-added {
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+
+        /* Network Panel (Right) */
+        .network-panel {
+            background: white;
+            border-left: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+            min-height: 0; /* Allow shrinking in grid */
+            overflow: hidden;
+            position: relative;
+        }
+
+        .network-panel.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1000;
+            border: none;
+        }
+
+        .network-panel.hidden {
+            display: none !important;
+        }
+
+        /* Toggle button for showing network when hidden */
+        /* Botão circular posicionado acima do botão + (FAB) */
+        .show-network-btn {
+            position: fixed;
+            bottom: 7rem;
+            right: 2rem;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            color: white;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .show-network-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 25px rgba(59, 130, 246, 0.5);
+        }
+
+        .show-network-btn:active {
+            transform: scale(0.95);
+        }
+
+        .show-network-btn.visible {
+            display: flex;
+        }
+
+        /* Mobile: botão acima do FAB */
+        @media (max-width: 768px) {
+            .show-network-btn {
+                bottom: 6rem;
+                right: 1.5rem;
+                width: 56px;
+                height: 56px;
+            }
+        }
+
+        .network-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .network-header h3 {
+            margin: 0;
+            font-size: 1rem;
+            color: #1e293b;
+        }
+
+        .network-header-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        #network-graph {
+            flex: 1;
+            min-height: 0; /* Allow shrinking */
+            position: relative;
+        }
+
+        /* Zoom Controls */
+        .zoom-controls {
+            position: absolute;
+            bottom: 1rem;
+            right: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            z-index: 10;
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            border: none;
+            background: white;
+            color: #475569;
+            font-size: 1.25rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .zoom-btn:hover {
+            background: #f0f9ff;
+            color: #0284c7;
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.25);
+        }
+
+        .zoom-btn:active {
+            transform: scale(0.95);
+        }
+
+        .network-legend {
+            padding: 1rem;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 1rem;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 16px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90%;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+        }
+
+        .modal-lg {
+            max-width: 800px;
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.25rem;
+            color: #1e293b;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #94a3b8;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover {
+            color: #1e293b;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #0ea5e9;
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .form-hint {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 0.35rem;
+        }
+
+        .form-section {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .form-section h4 {
+            margin: 0 0 1rem 0;
+            font-size: 0.95rem;
+            color: #475569;
+            font-weight: 600;
+        }
+
+        /* Connection Type Selector */
+        .connection-type-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+        }
+
+        .connection-type-option {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .connection-type-option:hover {
+            border-color: #0ea5e9;
+        }
+
+        .connection-type-option.selected {
+            border-color: #0ea5e9;
+            background: #f0f9ff;
+        }
+
+        .connection-type-option input {
+            display: none;
+        }
+
+        .connection-type-icon {
+            font-size: 1.25rem;
+        }
+
+        .connection-type-label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        /* Contact Detail Modal */
+        .contact-detail-header {
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            padding: 2rem;
+            color: white;
+            text-align: center;
+        }
+
+        .contact-detail-header h2 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1.5rem;
+        }
+
+        .contact-detail-position {
+            opacity: 0.9;
+            font-size: 1rem;
+        }
+
+        .contact-detail-info {
+            padding: 1.5rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .info-item {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+
+        .info-item-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: #64748b;
+            font-weight: 600;
+            margin-bottom: 0.35rem;
+        }
+
+        .info-item-value {
+            font-size: 0.95rem;
+            color: #1e293b;
+            font-weight: 500;
+        }
+
+        .connections-list {
+            margin-top: 1.5rem;
+        }
+
+        .connections-list h4 {
+            font-size: 0.95rem;
+            color: #475569;
+            margin: 0 0 1rem 0;
+        }
+
+        .connection-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem;
+            background: #f8fafc;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+
+        .connection-user {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .connection-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .recommendation-box {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-top: 1.5rem;
+        }
+
+        .recommendation-box h4 {
+            margin: 0 0 0.75rem 0;
+            color: #92400e;
+            font-size: 0.95rem;
+        }
+
+        .recommendation-box p {
+            margin: 0 0 1rem 0;
+            color: #78350f;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 9999;
+        }
+
+        .toast {
+            background: #1e293b;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 0.75rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.success { background: #22c55e; }
+        .toast.error { background: #ef4444; }
+        .toast.warning { background: #f59e0b; }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Loading */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #e2e8f0;
+            border-top-color: #0ea5e9;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #64748b;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .empty-state h3 {
+            margin: 0 0 0.5rem 0;
+            color: #1e293b;
+        }
+
+        /* Add Custom Option */
+        .add-custom-option {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .add-custom-option input {
+            flex: 1;
+            padding: 0.5rem;
+            border: 1px dashed #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .add-custom-option button {
+            padding: 0.5rem 0.75rem;
+            background: #22c55e;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        /* Strength Slider */
+        .strength-slider {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .strength-slider input[type="range"] {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: #e2e8f0;
+            appearance: none;
+            cursor: pointer;
+        }
+
+        .strength-slider input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #0ea5e9;
+            cursor: pointer;
+        }
+
+        .strength-value {
+            font-weight: 700;
+            color: #0284c7;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        /* Mobile Toggle Button */
+        .mobile-filter-btn {
+            display: none;
+            position: fixed;
+            bottom: 2rem;
+            left: 1.5rem;
+            width: 50px;
+            height: 50px;
+            padding: 0;
+            background: #64748b;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            box-shadow: 0 4px 15px rgba(100, 116, 139, 0.4);
+            cursor: pointer;
+            font-size: 1.25rem;
+            z-index: 99;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mobile-filter-btn:hover {
+            background: #475569;
+        }
+
+        /* Mobile Overlay */
+        .mobile-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 199;
+        }
+
+        .mobile-overlay.active {
+            display: block;
+        }
+
+        /* Close button for mobile filters */
+        .filters-close-btn {
+            display: none;
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #f1f5f9;
+            border: none;
+            font-size: 1.25rem;
+            cursor: pointer;
+            color: #64748b;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-filter-btn {
+                display: flex;
+            }
+            .filters-close-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .filters-panel {
+                padding-top: 3.5rem;
+            }
+        }
+
+        /* Autocomplete suggestions */
+        .name-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .suggestion-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+            transition: background 0.15s;
+        }
+
+        .suggestion-item:hover {
+            background: #f8fafc;
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        .suggestion-name {
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .suggestion-details {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+
+        .suggestion-hint {
+            padding: 0.5rem 1rem;
+            background: #fef3c7;
+            color: #92400e;
+            font-size: 0.8rem;
+            border-bottom: 1px solid #fde68a;
+        }
+    </style>
+</head>
+<body>
+    <!-- Floating Action Button -->
+    <button class="fab" onclick="openAddContactModal()" title="Adicionar Contato">
+        +
+    </button>
+
+    <!-- Mobile Filter Button -->
+    <button class="mobile-filter-btn" onclick="toggleFilters()" title="Filtros">
+        🔍
+    </button>
+
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay" id="mobile-overlay" onclick="toggleFilters()"></div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Filters Panel (Left) -->
+        <div class="filters-panel" id="filters-panel">
+            <button class="filters-close-btn" onclick="toggleFilters()">✕</button>
+            <!-- Stats -->
+            <div class="stats-panel">
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-contacts">0</div>
+                        <div class="stat-label">Contatos</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-connections">0</div>
+                        <div class="stat-label">Conexões</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-members">0</div>
+                        <div class="stat-label">Membros</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-states">0</div>
+                        <div class="stat-label">Estados</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Specialty Filter -->
+            <div class="filter-section">
+                <h3>🏥 Especialidade</h3>
+                <select class="filter-select" id="filter-specialty" onchange="applyFilters()">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+
+            <!-- Position Filter -->
+            <div class="filter-section">
+                <h3>👔 Posição</h3>
+                <select class="filter-select" id="filter-position" onchange="applyFilters()">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+
+            <!-- State Filter -->
+            <div class="filter-section">
+                <h3>📍 Estado</h3>
+                <select class="filter-select" id="filter-state" onchange="loadCities(); applyFilters()">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+
+            <!-- City Filter -->
+            <div class="filter-section">
+                <h3>🏙️ Cidade</h3>
+                <select class="filter-select" id="filter-city" onchange="applyFilters()">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+
+            <!-- Active Filters -->
+            <div class="filter-tags" id="active-filters"></div>
+
+            <button class="clear-filters" onclick="clearFilters()">
+                ✕ Limpar Filtros
+            </button>
+
+            <!-- My Contacts Toggle -->
+            <div class="form-section" style="margin-top: 1.5rem;">
+                <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                    <input type="checkbox" id="filter-my-contacts" onchange="applyFilters()" style="width: 18px; height: 18px;">
+                    <span style="font-weight: 500;">Apenas meus contatos</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Contacts Panel (Center) -->
+        <div class="contacts-panel">
+            <div class="contacts-header">
+                <h2>📋 Contatos de Networking</h2>
+                <span id="contacts-count" style="color: #64748b; font-size: 0.9rem;">0 resultados</span>
+            </div>
+
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Buscar por nome, instituição..." oninput="applyFilters()">
+            </div>
+
+            <div id="contacts-list">
+                <div class="empty-state">
+                    <div class="empty-state-icon">🤝</div>
+                    <h3>Nenhum contato ainda</h3>
+                    <p>Seja o primeiro a adicionar um contato de networking!</p>
+                    <button class="btn btn-primary" onclick="openAddContactModal()" style="margin-top: 1rem;">
+                        + Adicionar Contato
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Network Graph Panel (Right) -->
+        <div class="network-panel" id="network-panel">
+            <div class="network-header">
+                <h3>🌐 Rede de Conexões</h3>
+                <div class="network-header-actions">
+                    <button class="btn btn-sm btn-outline" onclick="resetNetworkView()" title="Centralizar">↺</button>
+                    <button class="btn btn-sm btn-outline" onclick="toggleNetworkFullscreen()" id="network-fullscreen-btn" title="Maximizar">⛶</button>
+                    <button class="btn btn-sm btn-outline" onclick="toggleNetworkPanel()" title="Ocultar">━</button>
+                </div>
+            </div>
+            <div id="network-graph"></div>
+            <!-- Zoom Controls -->
+            <div class="zoom-controls">
+                <button class="zoom-btn" onclick="zoomIn()" title="Zoom In">+</button>
+                <button class="zoom-btn" onclick="zoomOut()" title="Zoom Out">−</button>
+                <button class="zoom-btn" onclick="resetNetworkView()" title="Fit">⊙</button>
+            </div>
+            <div class="network-legend">
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #3b82f6;"></div>
+                    <span>Membros Ward</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #22c55e;"></div>
+                    <span>Contatos</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Button to show network when hidden -->
+    <button class="show-network-btn" id="show-network-btn" onclick="toggleNetworkPanel()" title="Mostrar Rede">
+        🌐
+    </button>
+
+    <!-- Add/Edit Contact Modal -->
+    <div id="add-contact-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 id="modal-title">➕ Adicionar Novo Contato</h3>
+                <button class="modal-close" onclick="closeModal('add-contact-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Privacy guarantee message -->
+                <div id="add-contact-privacy-message" style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border: 2px solid #22c55e; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                    <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+                        <span style="font-size: 1.5rem;">🔒</span>
+                        <div>
+                            <h4 style="margin: 0 0 0.35rem 0; color: #166534; font-size: 0.95rem;">Sua privacidade é garantida!</h4>
+                            <p style="margin: 0; color: #15803d; font-size: 0.85rem; line-height: 1.5;">
+                                <strong>Nome, email, telefone e LinkedIn</strong> ficarão em sigilo. Outros membros verão apenas a <strong>especialidade</strong> e <strong>localização</strong> do contato, e podem entrar em contato com você para mais informações.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="contact-form">
+                    <input type="hidden" id="contact-id">
+
+                    <!-- Basic Info -->
+                    <div class="form-section">
+                        <h4>📝 Informações Básicas</h4>
+                        <div class="form-group" style="position: relative;">
+                            <label class="form-label">Nome Completo *</label>
+                            <input type="text" class="form-input" id="contact-name" required placeholder="Ex: Dr. John Smith" autocomplete="off">
+                            <div id="name-suggestions" class="name-suggestions" style="display: none;"></div>
+                        </div>
+                        <div class="form-group" style="margin-top: 0.5rem;">
+                            <label class="form-check" style="cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" id="show-contact-details" onchange="toggleContactDetails()">
+                                <span style="font-size: 0.9rem; color: #64748b;">Adicionar informações de contato (email, telefone, LinkedIn)</span>
+                            </label>
+                        </div>
+                        <div id="contact-details-section" style="display: none;">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" class="form-input" id="contact-email" placeholder="john@hospital.com">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Telefone</label>
+                                    <input type="text" class="form-input" id="contact-phone" placeholder="+1 (555) 123-4567">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">LinkedIn</label>
+                                <input type="url" class="form-input" id="contact-linkedin" placeholder="https://linkedin.com/in/...">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Professional Info -->
+                    <div class="form-section">
+                        <h4>🏥 Informações Profissionais</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Especialidade *</label>
+                                <select class="form-select" id="contact-specialty" required>
+                                    <option value="">Selecione...</option>
+                                </select>
+                                <div class="add-custom-option">
+                                    <input type="text" id="new-specialty" placeholder="Adicionar nova...">
+                                    <button type="button" onclick="addNewSpecialty()">+</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Posição/Cargo *</label>
+                                <select class="form-select" id="contact-position" required>
+                                    <option value="">Selecione...</option>
+                                </select>
+                                <div class="add-custom-option">
+                                    <input type="text" id="new-position" placeholder="Adicionar nova...">
+                                    <button type="button" onclick="addNewPosition()">+</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Instituição</label>
+                            <input type="text" class="form-input" id="contact-institution" placeholder="Ex: Johns Hopkins Hospital">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Departamento</label>
+                            <input type="text" class="form-input" id="contact-department" placeholder="Ex: Department of Internal Medicine">
+                        </div>
+                    </div>
+
+                    <!-- Location -->
+                    <div class="form-section">
+                        <h4>📍 Localização</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Estado *</label>
+                                <select class="form-select" id="contact-state" required onchange="loadFormCities()">
+                                    <option value="">Selecione...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Cidade</label>
+                                <select class="form-select" id="contact-city">
+                                    <option value="">Selecione o estado primeiro</option>
+                                </select>
+                                <div class="add-custom-option">
+                                    <input type="text" id="new-city" placeholder="Adicionar cidade...">
+                                    <button type="button" onclick="addNewCity()">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Connection Type -->
+                    <div class="form-section">
+                        <h4>🔗 Tipo de Conexão</h4>
+                        <p class="form-hint" style="margin-bottom: 1rem;">Como você conhece essa pessoa? (selecione todos que se aplicam)</p>
+                        <div class="connection-type-grid">
+                            <label class="connection-type-option">
+                                <input type="checkbox" name="connection-type" value="personal_friend">
+                                <span class="connection-type-icon">👥</span>
+                                <span class="connection-type-label">Amigo Pessoal</span>
+                            </label>
+                            <label class="connection-type-option">
+                                <input type="checkbox" name="connection-type" value="email_contact">
+                                <span class="connection-type-icon">📧</span>
+                                <span class="connection-type-label">Contato por Email</span>
+                            </label>
+                            <label class="connection-type-option">
+                                <input type="checkbox" name="connection-type" value="phone_contact">
+                                <span class="connection-type-icon">📱</span>
+                                <span class="connection-type-label">Contato por Telefone</span>
+                            </label>
+                            <label class="connection-type-option">
+                                <input type="checkbox" name="connection-type" value="knows_someone">
+                                <span class="connection-type-icon">🔗</span>
+                                <span class="connection-type-label">Conhece Alguém que Conhece</span>
+                            </label>
+                            <label class="connection-type-option">
+                                <input type="checkbox" name="connection-type" value="worked_together">
+                                <span class="connection-type-icon">🏢</span>
+                                <span class="connection-type-label">Trabalhou Junto</span>
+                            </label>
+                            <label class="connection-type-option">
+                                <input type="checkbox" name="connection-type" value="met_at_event">
+                                <span class="connection-type-icon">🎪</span>
+                                <span class="connection-type-label">Conheceu em Evento</span>
+                            </label>
+                            <label class="connection-type-option">
+                                <input type="checkbox" name="connection-type" value="research_colleague">
+                                <span class="connection-type-icon">🔬</span>
+                                <span class="connection-type-label">Colega de Pesquisa</span>
+                            </label>
+                            <label class="connection-type-option">
+                                <input type="checkbox" name="connection-type" value="mentor_mentee">
+                                <span class="connection-type-icon">🎓</span>
+                                <span class="connection-type-label">Mentor/Mentee</span>
+                            </label>
+                            <label class="connection-type-option">
+                                <input type="checkbox" name="connection-type" value="instagram">
+                                <span class="connection-type-icon">📸</span>
+                                <span class="connection-type-label">Instagram</span>
+                            </label>
+                            <label class="connection-type-option">
+                                <input type="checkbox" name="connection-type" value="x_twitter">
+                                <span class="connection-type-icon">𝕏</span>
+                                <span class="connection-type-label">X (Twitter)</span>
+                            </label>
+                            <label class="connection-type-option">
+                                <input type="checkbox" name="connection-type" value="other_social">
+                                <span class="connection-type-icon">🌐</span>
+                                <span class="connection-type-label">Outras Redes Sociais</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Intermediary (conditional) -->
+                    <div class="form-section" id="intermediary-section" style="display: none;">
+                        <h4>🔗 Intermediário</h4>
+                        <div class="form-group">
+                            <label class="form-label">Quem é a pessoa que conhece?</label>
+                            <input type="text" class="form-input" id="contact-intermediary" placeholder="Nome da pessoa que pode fazer a conexão">
+                        </div>
+                    </div>
+
+                    <!-- Connection Strength -->
+                    <div class="form-section">
+                        <h4>💪 Força da Conexão</h4>
+                        <div class="strength-slider">
+                            <span>Fraca</span>
+                            <input type="range" id="connection-strength" min="1" max="5" value="3" oninput="updateStrengthValue()">
+                            <span>Forte</span>
+                            <span class="strength-value" id="strength-value">3</span>
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="form-group">
+                        <label class="form-label">Notas Adicionais</label>
+                        <textarea class="form-textarea" id="contact-notes" rows="3" placeholder="Observações sobre este contato..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('add-contact-modal')">Cancelar</button>
+                <button class="btn btn-success" onclick="saveContact()">💾 Salvar Contato</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact Detail Modal -->
+    <div id="contact-detail-modal" class="modal-overlay">
+        <div class="modal">
+            <!-- Contribution encouragement message (shown for students who haven't added contacts) -->
+            <div id="contribution-message-container" style="display: none; padding: 1rem 1rem 0 1rem;"></div>
+
+            <div class="contact-detail-header" id="detail-header">
+                <h2 id="detail-name">Nome do Contato</h2>
+                <div class="contact-detail-position" id="detail-position">Posição</div>
+            </div>
+            <div class="contact-detail-info">
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-item-label">Especialidade</div>
+                        <div class="info-item-value" id="detail-specialty">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-item-label">Instituição</div>
+                        <div class="info-item-value" id="detail-institution">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-item-label">Localização</div>
+                        <div class="info-item-value" id="detail-location">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-item-label">Adicionado em</div>
+                        <div class="info-item-value" id="detail-date">-</div>
+                    </div>
+                </div>
+
+                <div id="detail-contact-info" style="margin-bottom: 1.5rem;">
+                    <!-- Email/Phone will be shown here -->
+                </div>
+
+                <div class="connections-list">
+                    <h4>👥 Membros que conhecem este contato</h4>
+                    <div id="detail-connections">
+                        <!-- Connections will be loaded here -->
+                    </div>
+                </div>
+
+                <div class="recommendation-box">
+                    <h4>💡 Como entrar em contato</h4>
+                    <p id="recommendation-text">
+                        Vá no grupo de WhatsApp da Ward Academy e pergunte para <strong id="rec-member-name">o membro</strong> se ele pode te colocar em contato com esta pessoa.
+                    </p>
+                    <button class="btn btn-primary" onclick="requestMentorHelp()" style="width: 100%;">
+                        📣 Sinalizar para os Mentores
+                    </button>
+                </div>
+
+                <!-- Add My Connection -->
+                <div class="form-section" style="margin-top: 1.5rem;">
+                    <h4>🤝 Você também conhece esta pessoa?</h4>
+                    <button class="btn btn-outline" onclick="openAddMyConnection()" id="add-my-connection-btn" style="width: 100%;">
+                        + Adicionar minha conexão
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="edit-contact-btn" onclick="editCurrentContact()">✏️ Editar</button>
+                <button class="btn btn-danger" id="delete-contact-btn" onclick="deleteCurrentContact()">🗑️ Excluir</button>
+                <button class="btn btn-primary" onclick="closeModal('contact-detail-modal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add My Connection Modal -->
+    <div id="add-my-connection-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>🤝 Adicionar Minha Conexão</h3>
+                <button class="modal-close" onclick="closeModal('add-my-connection-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 1.5rem; color: #64748b;">
+                    Você também conhece <strong id="my-conn-contact-name">este contato</strong>? Adicione seu vínculo!
+                </p>
+
+                <div class="form-section">
+                    <h4>🔗 Tipo de Conexão</h4>
+                    <p class="form-hint" style="margin-bottom: 1rem;">Selecione todos que se aplicam</p>
+                    <div class="connection-type-grid">
+                        <label class="connection-type-option">
+                            <input type="checkbox" name="my-connection-type" value="personal_friend">
+                            <span class="connection-type-icon">👥</span>
+                            <span class="connection-type-label">Amigo Pessoal</span>
+                        </label>
+                        <label class="connection-type-option">
+                            <input type="checkbox" name="my-connection-type" value="email_contact">
+                            <span class="connection-type-icon">📧</span>
+                            <span class="connection-type-label">Contato por Email</span>
+                        </label>
+                        <label class="connection-type-option">
+                            <input type="checkbox" name="my-connection-type" value="phone_contact">
+                            <span class="connection-type-icon">📱</span>
+                            <span class="connection-type-label">Contato por Telefone</span>
+                        </label>
+                        <label class="connection-type-option">
+                            <input type="checkbox" name="my-connection-type" value="knows_someone">
+                            <span class="connection-type-icon">🔗</span>
+                            <span class="connection-type-label">Conhece Alguém que Conhece</span>
+                        </label>
+                        <label class="connection-type-option">
+                            <input type="checkbox" name="my-connection-type" value="instagram">
+                            <span class="connection-type-icon">📸</span>
+                            <span class="connection-type-label">Instagram</span>
+                        </label>
+                        <label class="connection-type-option">
+                            <input type="checkbox" name="my-connection-type" value="x_twitter">
+                            <span class="connection-type-icon">𝕏</span>
+                            <span class="connection-type-label">X (Twitter)</span>
+                        </label>
+                        <label class="connection-type-option">
+                            <input type="checkbox" name="my-connection-type" value="other_social">
+                            <span class="connection-type-icon">🌐</span>
+                            <span class="connection-type-label">Outras Redes Sociais</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Descrição da conexão</label>
+                    <textarea class="form-textarea" id="my-conn-description" rows="2" placeholder="Descreva como você conhece esta pessoa..."></textarea>
+                </div>
+
+                <div class="form-section">
+                    <h4>💪 Força da Conexão</h4>
+                    <div class="strength-slider">
+                        <span>Fraca</span>
+                        <input type="range" id="my-conn-strength" min="1" max="5" value="3">
+                        <span>Forte</span>
+                        <span class="strength-value">3</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('add-my-connection-modal')">Cancelar</button>
+                <button class="btn btn-success" onclick="saveMyConnection()">💾 Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        // ================================================
+        // NETWORKING APP - Ward Academy
+        // ================================================
+
+        let userData = null;
+        let allContacts = [];
+        let allConnections = [];
+        let specialties = [];
+        let positions = [];
+        let states = [];
+        let cities = [];
+        let currentContactId = null;
+        let network = null;
+        let isMentor = false;
+
+        // Abbreviate name for privacy (students only see abbreviated names)
+        function abbreviateName(fullName) {
+            if (!fullName) return '?';
+            const parts = fullName.trim().split(' ').filter(p => p.length > 0);
+            if (parts.length === 0) return '?';
+            if (parts.length === 1) return parts[0].charAt(0) + '.';
+            // First name initial + Last name initial: "John Smith" -> "J. S."
+            const firstInitial = parts[0].charAt(0);
+            const lastInitial = parts[parts.length - 1].charAt(0);
+            return `${firstInitial}. ${lastInitial}.`;
+        }
+
+        // Get display name based on user role (mentors see full name, students see abbreviated)
+        function getDisplayName(fullName) {
+            if (isMentor) return fullName;
+            return abbreviateName(fullName);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Check if user is mentor
+            isMentor = userData.role && userData.role.startsWith('mentor_');
+
+            showLoading();
+            initNetwork(); // Initialize network FIRST before loading contacts
+            restoreNetworkPanelState(); // Restore user preference for network visibility
+            await loadFilterOptions();
+            await loadContacts();
+            hideLoading();
+
+            // Setup connection type toggle (checkboxes)
+            document.querySelectorAll('input[name="connection-type"]').forEach(input => {
+                input.addEventListener('change', (e) => {
+                    // Toggle selected class on the parent option
+                    const option = e.target.closest('.connection-type-option');
+                    if (e.target.checked) {
+                        option.classList.add('selected');
+                    } else {
+                        option.classList.remove('selected');
+                    }
+
+                    // Show intermediary section if "knows_someone" is checked
+                    const knowsSomeoneChecked = document.querySelector('input[name="connection-type"][value="knows_someone"]').checked;
+                    const intermediarySection = document.getElementById('intermediary-section');
+                    intermediarySection.style.display = knowsSomeoneChecked ? 'block' : 'none';
+                });
+            });
+
+            // My connection modal (checkboxes)
+            document.querySelectorAll('input[name="my-connection-type"]').forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const option = e.target.closest('.connection-type-option');
+                    if (e.target.checked) {
+                        option.classList.add('selected');
+                    } else {
+                        option.classList.remove('selected');
+                    }
+                });
+            });
+        });
+
+        // ================================================
+        // DATA LOADING
+        // ================================================
+
+        async function loadFilterOptions() {
+            // Load specialties
+            const { data: specs } = await WardApp.db
+                .from('networking_specialties')
+                .select('*')
+                .order('name');
+            specialties = specs || [];
+            populateSelect('filter-specialty', specialties, 'id', 'name');
+            populateSelect('contact-specialty', specialties, 'id', 'name');
+
+            // Load positions
+            const { data: pos } = await WardApp.db
+                .from('networking_positions')
+                .select('*')
+                .order('sort_order');
+            positions = pos || [];
+            populateSelect('filter-position', positions, 'id', 'name');
+            populateSelect('contact-position', positions, 'id', 'name');
+
+            // Load states
+            const { data: st } = await WardApp.db
+                .from('networking_states')
+                .select('*')
+                .order('name');
+            states = st || [];
+            populateSelect('filter-state', states, 'code', 'name');
+            populateSelect('contact-state', states, 'code', 'name');
+        }
+
+        async function loadCities() {
+            const stateCode = document.getElementById('filter-state').value;
+            if (!stateCode) {
+                document.getElementById('filter-city').innerHTML = '<option value="">Todas</option>';
+                return;
+            }
+
+            const { data } = await WardApp.db
+                .from('networking_cities')
+                .select('*')
+                .eq('state_code', stateCode)
+                .order('name');
+
+            cities = data || [];
+            populateSelect('filter-city', cities, 'id', 'name');
+        }
+
+        async function loadFormCities() {
+            const stateCode = document.getElementById('contact-state').value;
+            if (!stateCode) {
+                document.getElementById('contact-city').innerHTML = '<option value="">Selecione o estado primeiro</option>';
+                return;
+            }
+
+            const { data } = await WardApp.db
+                .from('networking_cities')
+                .select('*')
+                .eq('state_code', stateCode)
+                .order('name');
+
+            const citySelect = document.getElementById('contact-city');
+            citySelect.innerHTML = '<option value="">Selecione...</option>';
+            (data || []).forEach(city => {
+                citySelect.innerHTML += `<option value="${city.id}">${city.name}</option>`;
+            });
+        }
+
+        async function loadContacts() {
+            // Load contacts with full info
+            const { data: contacts } = await WardApp.db
+                .from('networking_contacts')
+                .select(`
+                    *,
+                    specialty:networking_specialties(id, name),
+                    position:networking_positions(id, name),
+                    state:networking_states(code, name),
+                    city:networking_cities(id, name),
+                    created_by_user:users!networking_contacts_created_by_fkey(id, full_name)
+                `)
+                .eq('is_active', true)
+                .order('name');
+
+            // Load all connections
+            const { data: connections } = await WardApp.db
+                .from('networking_connections')
+                .select(`
+                    *,
+                    user:users(id, full_name, email)
+                `);
+
+            allContacts = contacts || [];
+            allConnections = connections || [];
+
+            // Decrypt user names in connections and contacts
+            const _dn = (v) => WardApp._prs ? WardApp._prs(v) : v;
+            allConnections.forEach(c => {
+                if (c.user?.full_name) c.user.full_name = _dn(c.user.full_name);
+            });
+            allContacts.forEach(c => {
+                if (c.created_by_user?.full_name) c.created_by_user.full_name = _dn(c.created_by_user.full_name);
+            });
+
+            // Calculate stats
+            updateStats();
+            applyFilters();
+        }
+
+        function populateSelect(selectId, items, valueField, labelField) {
+            const select = document.getElementById(selectId);
+            const currentValue = select.value;
+            const isFilter = selectId.startsWith('filter-');
+
+            select.innerHTML = `<option value="">${isFilter ? 'Todos' : 'Selecione...'}</option>`;
+            items.forEach(item => {
+                select.innerHTML += `<option value="${item[valueField]}">${item[labelField]}</option>`;
+            });
+
+            select.value = currentValue;
+        }
+
+        function updateStats() {
+            document.getElementById('total-contacts').textContent = allContacts.length;
+            document.getElementById('total-connections').textContent = allConnections.length;
+
+            const uniqueMembers = [...new Set(allConnections.map(c => c.user_id))];
+            document.getElementById('total-members').textContent = uniqueMembers.length;
+
+            const uniqueStates = [...new Set(allContacts.map(c => c.state_code).filter(Boolean))];
+            document.getElementById('total-states').textContent = uniqueStates.length;
+        }
+
+        // ================================================
+        // FILTERING
+        // ================================================
+
+        function applyFilters() {
+            const specialty = document.getElementById('filter-specialty').value;
+            const position = document.getElementById('filter-position').value;
+            const state = document.getElementById('filter-state').value;
+            const city = document.getElementById('filter-city').value;
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const myContactsOnly = document.getElementById('filter-my-contacts').checked;
+
+            let filtered = [...allContacts];
+
+            if (specialty) {
+                filtered = filtered.filter(c => c.specialty_id == specialty);
+            }
+            if (position) {
+                filtered = filtered.filter(c => c.position_id == position);
+            }
+            if (state) {
+                filtered = filtered.filter(c => c.state_code === state);
+            }
+            if (city) {
+                filtered = filtered.filter(c => c.city_id == city);
+            }
+            if (search) {
+                filtered = filtered.filter(c =>
+                    c.name.toLowerCase().includes(search) ||
+                    (c.institution && c.institution.toLowerCase().includes(search)) ||
+                    (c.department && c.department.toLowerCase().includes(search))
+                );
+            }
+            if (myContactsOnly) {
+                const myContactIds = allConnections
+                    .filter(conn => conn.user_id === userData.id)
+                    .map(conn => conn.contact_id);
+                filtered = filtered.filter(c => c.created_by === userData.id || myContactIds.includes(c.id));
+            }
+
+            renderContacts(filtered);
+            updateNetwork(filtered);
+            updateActiveFilters();
+        }
+
+        function clearFilters() {
+            document.getElementById('filter-specialty').value = '';
+            document.getElementById('filter-position').value = '';
+            document.getElementById('filter-state').value = '';
+            document.getElementById('filter-city').value = '';
+            document.getElementById('search-input').value = '';
+            document.getElementById('filter-my-contacts').checked = false;
+            applyFilters();
+        }
+
+        function updateActiveFilters() {
+            const container = document.getElementById('active-filters');
+            container.innerHTML = '';
+
+            const filters = [
+                { id: 'filter-specialty', label: 'Especialidade' },
+                { id: 'filter-position', label: 'Posição' },
+                { id: 'filter-state', label: 'Estado' },
+                { id: 'filter-city', label: 'Cidade' }
+            ];
+
+            filters.forEach(f => {
+                const select = document.getElementById(f.id);
+                if (select.value) {
+                    const text = select.options[select.selectedIndex].text;
+                    container.innerHTML += `
+                        <span class="filter-tag">
+                            ${text}
+                            <button onclick="document.getElementById('${f.id}').value=''; applyFilters();">&times;</button>
+                        </span>
+                    `;
+                }
+            });
+        }
+
+        // ================================================
+        // RENDERING
+        // ================================================
+
+        function renderContacts(contacts) {
+            const container = document.getElementById('contacts-list');
+            document.getElementById('contacts-count').textContent = `${contacts.length} resultado${contacts.length !== 1 ? 's' : ''}`;
+
+            if (contacts.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <h3>Nenhum contato encontrado</h3>
+                        <p>Tente ajustar os filtros ou adicione um novo contato</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = contacts.map(contact => {
+                const connections = allConnections.filter(c => c.contact_id === contact.id);
+                const myConnection = connections.find(c => c.user_id === userData.id);
+                const connectionTypes = [...new Set(connections.map(c => c.connection_type))];
+
+                const addedDate = new Date(contact.created_at).toLocaleDateString('pt-BR', {
+                    day: '2-digit', month: 'short', year: 'numeric'
+                });
+
+                return `
+                    <div class="contact-card" onclick="openContactDetail(${contact.id})">
+                        <div class="contact-card-header">
+                            <h3 class="contact-name">${escapeHtml(getDisplayName(contact.name))}</h3>
+                            ${contact.position ? `<span class="contact-position">${contact.position.name}</span>` : ''}
+                        </div>
+                        <div class="contact-info">
+                            ${contact.specialty ? `<span>🏥 ${contact.specialty.name}</span>` : ''}
+                            ${contact.institution ? `<span>🏢 ${escapeHtml(contact.institution)}</span>` : ''}
+                            ${contact.state ? `<span>📍 ${contact.city ? contact.city.name + ', ' : ''}${contact.state.name}</span>` : ''}
+                        </div>
+                        <div class="contact-meta">
+                            <div class="connection-badge">
+                                ${connectionTypes.slice(0, 3).map(type => `
+                                    <span class="connection-type ${getConnectionClass(type)}">${getConnectionLabel(type)}</span>
+                                `).join('')}
+                            </div>
+                            <div>
+                                <span class="connection-count">👥 ${connections.length}</span>
+                                <span class="date-added">· ${addedDate}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getConnectionClass(type) {
+            const classes = {
+                personal_friend: 'personal',
+                email_contact: 'email',
+                phone_contact: 'phone',
+                knows_someone: 'knows'
+            };
+            return classes[type] || 'other';
+        }
+
+        function getConnectionLabel(type) {
+            const labels = {
+                personal_friend: '👥 Amigo',
+                email_contact: '📧 Email',
+                phone_contact: '📱 Telefone',
+                knows_someone: '🔗 Conhece Alguém que Conhece',
+                met_at_event: '🎪 Evento',
+                worked_together: '🏢 Trabalho',
+                research_colleague: '🔬 Pesquisa',
+                mentor_mentee: '🎓 Mentor',
+                linkedin: '💼 LinkedIn',
+                instagram: '📸 Instagram',
+                x_twitter: '𝕏 X (Twitter)',
+                other_social: '🌐 Outras Redes',
+                other: '📋 Outro'
+            };
+            return labels[type] || type;
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ================================================
+        // NETWORK GRAPH
+        // ================================================
+
+        function initNetwork() {
+            const container = document.getElementById('network-graph');
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    size: 28,
+                    font: {
+                        size: 12,
+                        face: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                        color: '#475569',
+                        strokeWidth: 4,
+                        strokeColor: 'rgba(255, 255, 255, 0.95)',
+                        vadjust: 32
+                    },
+                    borderWidth: 3,
+                    borderWidthSelected: 4,
+                    shadow: {
+                        enabled: true,
+                        color: 'rgba(0, 0, 0, 0.15)',
+                        size: 8,
+                        x: 0,
+                        y: 3
+                    },
+                    chosen: {
+                        node: function(values, id, selected, hovering) {
+                            if (hovering || selected) {
+                                values.size = 32;
+                                values.shadowSize = 12;
+                            }
+                        }
+                    }
+                },
+                edges: {
+                    color: {
+                        color: '#cbd5e1',
+                        highlight: '#0ea5e9',
+                        hover: '#94a3b8'
+                    },
+                    width: 2,
+                    smooth: {
+                        type: 'curvedCW',
+                        roundness: 0.15
+                    },
+                    shadow: {
+                        enabled: true,
+                        color: 'rgba(0, 0, 0, 0.08)',
+                        size: 3
+                    },
+                    hoverWidth: 0.5
+                },
+                physics: {
+                    stabilization: {
+                        iterations: 600,
+                        updateInterval: 25
+                    },
+                    barnesHut: {
+                        gravitationalConstant: -30000,
+                        centralGravity: 0.05,
+                        springLength: 700,
+                        springConstant: 0.004,
+                        damping: 0.2,
+                        avoidOverlap: 1
+                    },
+                    minVelocity: 0.75
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 150,
+                    zoomView: true,
+                    dragView: true,
+                    navigationButtons: false,
+                    keyboard: {
+                        enabled: true,
+                        speed: { x: 10, y: 10, zoom: 0.02 }
+                    }
+                }
+            };
+
+            network = new vis.Network(container, { nodes: [], edges: [] }, options);
+
+            network.on('click', (params) => {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    if (nodeId.startsWith('contact-')) {
+                        const contactId = parseInt(nodeId.replace('contact-', ''));
+                        openContactDetail(contactId);
+                    }
+                }
+            });
+        }
+
+        function updateNetwork(contacts) {
+            const nodes = [];
+            const edges = [];
+            const addedUsers = new Set();
+
+            // Elegant name formatting
+            function formatName(fullName) {
+                if (!fullName) return '?';
+                const parts = fullName.trim().split(' ').filter(p => p.length > 0);
+                if (parts.length === 0) return '?';
+                if (parts.length === 1) return parts[0];
+                // First name + Last name initial
+                return parts[0] + ' ' + parts[parts.length - 1].charAt(0) + '.';
+            }
+
+            function shortText(str, len = 15) {
+                if (!str) return '';
+                return str.length > len ? str.slice(0, len - 1) + '…' : str;
+            }
+
+            // Contact nodes (green - external contacts)
+            contacts.forEach(contact => {
+                // For students, use abbreviated name; for mentors, use formatted name
+                const displayName = isMentor ? formatName(contact.name) : abbreviateName(contact.name);
+                let subtitle = '';
+
+                // Create subtitle with institution (priority) or specialty
+                if (contact.institution) {
+                    subtitle = shortText(contact.institution, 18);
+                } else if (contact.specialty?.name) {
+                    subtitle = shortText(contact.specialty.name, 18);
+                }
+
+                // Label with name on top
+                const label = subtitle ? `${displayName}\n${subtitle}` : displayName;
+
+                // Detailed tooltip (also abbreviated for students)
+                let tooltip = `👤 ${getDisplayName(contact.name)}`;
+                if (contact.position?.name) tooltip += `\n💼 ${contact.position.name}`;
+                if (contact.specialty?.name) tooltip += `\n🏥 ${contact.specialty.name}`;
+                if (contact.institution) tooltip += `\n🏛️ ${contact.institution}`;
+                if (contact.state?.name) {
+                    const location = contact.city?.name ? `${contact.city.name}, ${contact.state.name}` : contact.state.name;
+                    tooltip += `\n📍 ${location}`;
+                }
+                tooltip += '\n\n🖱️ Clique para ver detalhes';
+
+                nodes.push({
+                    id: `contact-${contact.id}`,
+                    label: label,
+                    title: tooltip,
+                    color: {
+                        background: '#22c55e',
+                        border: '#15803d',
+                        highlight: { background: '#16a34a', border: '#166534' },
+                        hover: { background: '#4ade80', border: '#22c55e' }
+                    },
+                    font: {
+                        color: '#166534',
+                        strokeColor: 'rgba(255, 255, 255, 0.95)',
+                        strokeWidth: 4
+                    },
+                    size: 26
+                });
+
+                // Add member connections
+                const connections = allConnections.filter(c => c.contact_id === contact.id);
+                connections.forEach(conn => {
+                    if (!addedUsers.has(conn.user_id)) {
+                        addedUsers.add(conn.user_id);
+                        const memberName = formatName(conn.user?.full_name);
+
+                        nodes.push({
+                            id: `user-${conn.user_id}`,
+                            label: `${memberName}\nWard`,
+                            title: `🎓 ${conn.user?.full_name || 'Membro'}\n📚 Membro Ward Academy`,
+                            color: {
+                                background: '#3b82f6',
+                                border: '#1d4ed8',
+                                highlight: { background: '#2563eb', border: '#1e40af' },
+                                hover: { background: '#60a5fa', border: '#3b82f6' }
+                            },
+                            font: {
+                                color: '#1e40af',
+                                strokeColor: 'rgba(255, 255, 255, 0.95)',
+                                strokeWidth: 4
+                            },
+                            size: 24
+                        });
+                    }
+
+                    edges.push({
+                        from: `user-${conn.user_id}`,
+                        to: `contact-${contact.id}`,
+                        title: getConnectionLabel(conn.connection_type),
+                        color: {
+                            color: '#94a3b8',
+                            highlight: '#0ea5e9'
+                        }
+                    });
+                });
+            });
+
+            network.setData({ nodes, edges });
+
+            // Smooth auto-fit after stabilization
+            if (nodes.length > 0) {
+                network.once('stabilizationIterationsDone', () => {
+                    network.fit({
+                        animation: {
+                            duration: 600,
+                            easingFunction: 'easeInOutQuad'
+                        }
+                    });
+                });
+            }
+        }
+
+        // Zoom functions
+        function zoomIn() {
+            if (!network) return;
+            const scale = network.getScale();
+            network.moveTo({
+                scale: scale * 1.3,
+                animation: { duration: 200, easingFunction: 'easeOutQuad' }
+            });
+        }
+
+        function zoomOut() {
+            if (!network) return;
+            const scale = network.getScale();
+            network.moveTo({
+                scale: scale / 1.3,
+                animation: { duration: 200, easingFunction: 'easeOutQuad' }
+            });
+        }
+
+        function resetNetworkView() {
+            if (!network) return;
+            network.fit({
+                animation: {
+                    duration: 400,
+                    easingFunction: 'easeInOutQuad'
+                },
+                maxZoomLevel: 0.9
+            });
+        }
+
+        function toggleNetworkPanel() {
+            const panel = document.getElementById('network-panel');
+            const showBtn = document.getElementById('show-network-btn');
+            const mainContainer = document.querySelector('.main-container');
+
+            if (panel.classList.contains('hidden')) {
+                // Show the network
+                panel.classList.remove('hidden');
+                showBtn.classList.remove('visible');
+                mainContainer.classList.remove('network-hidden');
+                // Refresh network after showing
+                setTimeout(() => {
+                    if (network) {
+                        network.redraw();
+                        resetNetworkView();
+                    }
+                }, 100);
+            } else {
+                // Hide the network
+                panel.classList.add('hidden');
+                showBtn.classList.add('visible');
+                mainContainer.classList.add('network-hidden');
+            }
+
+            // Save preference
+            localStorage.setItem('networkPanelHidden', panel.classList.contains('hidden'));
+        }
+
+        // Restore network panel visibility preference
+        function restoreNetworkPanelState() {
+            const isHidden = localStorage.getItem('networkPanelHidden') === 'true';
+            if (isHidden) {
+                const panel = document.getElementById('network-panel');
+                const showBtn = document.getElementById('show-network-btn');
+                const mainContainer = document.querySelector('.main-container');
+                panel.classList.add('hidden');
+                showBtn.classList.add('visible');
+                mainContainer.classList.add('network-hidden');
+            }
+        }
+
+        // ================================================
+        // CONTACT DETAIL
+        // ================================================
+
+        // Check if current user has contributed any contact
+        function userHasContributedContacts() {
+            return allConnections.some(conn => conn.user_id === userData.id);
+        }
+
+        // Contribution encouragement message HTML
+        function getContributionMessage() {
+            return `
+                <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); border: 2px solid #3b82f6; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+                        <span style="font-size: 2rem;">🤝</span>
+                        <div>
+                            <h4 style="margin: 0 0 0.5rem 0; color: #1e40af; font-size: 1rem;">Fortaleça nossa rede!</h4>
+                            <p style="margin: 0 0 0.75rem 0; color: #1e3a8a; font-size: 0.9rem; line-height: 1.5;">
+                                Você ainda não compartilhou nenhum contato. Seria muito importante você adicionar algum contato seu nos Estados Unidos para fortalecer a rede de networking da Ward Academy!
+                            </p>
+                            <div style="background: rgba(255,255,255,0.7); border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem;">
+                                <p style="margin: 0; color: #1e40af; font-size: 0.85rem;">
+                                    🔒 <strong>Privacidade garantida:</strong> Nome, telefone, email e LinkedIn serão mantidos em sigilo.
+                                    Outros membros verão apenas especialidade e localização, e podem entrar em contato com você para mais informações.
+                                </p>
+                            </div>
+                            <button onclick="closeModal('contact-detail-modal'); openAddContactModal();" class="btn btn-sm" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; border: none; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                                ➕ Adicionar meu contato
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function openContactDetail(contactId) {
+            currentContactId = contactId;
+            const contact = allContacts.find(c => c.id === contactId);
+            if (!contact) return;
+
+            // Show contribution message for students who haven't added any contacts
+            const contributionContainer = document.getElementById('contribution-message-container');
+            if (!isMentor && !userHasContributedContacts()) {
+                contributionContainer.innerHTML = getContributionMessage();
+                contributionContainer.style.display = 'block';
+            } else {
+                contributionContainer.style.display = 'none';
+            }
+
+            // Fill detail info (students see abbreviated name, mentors see full name)
+            document.getElementById('detail-name').textContent = getDisplayName(contact.name);
+            document.getElementById('detail-position').textContent = contact.position?.name || 'Não informado';
+            document.getElementById('detail-specialty').textContent = contact.specialty?.name || '-';
+            document.getElementById('detail-institution').textContent = contact.institution || '-';
+            document.getElementById('detail-location').textContent = contact.state
+                ? `${contact.city?.name ? contact.city.name + ', ' : ''}${contact.state.name}`
+                : '-';
+            document.getElementById('detail-date').textContent = new Date(contact.created_at).toLocaleDateString('pt-BR');
+
+            // Contact info (only visible to mentors for privacy)
+            const contactInfo = document.getElementById('detail-contact-info');
+            let infoHtml = '';
+            if (isMentor) {
+                if (contact.email) {
+                    infoHtml += `<div class="info-item"><div class="info-item-label">Email</div><div class="info-item-value">${contact.email}</div></div>`;
+                }
+                if (contact.phone) {
+                    infoHtml += `<div class="info-item"><div class="info-item-label">Telefone</div><div class="info-item-value">${contact.phone}</div></div>`;
+                }
+                if (contact.linkedin_url) {
+                    infoHtml += `<div class="info-item"><div class="info-item-label">LinkedIn</div><div class="info-item-value"><a href="${contact.linkedin_url}" target="_blank">Ver Perfil</a></div></div>`;
+                }
+            } else {
+                // For students, show a message to contact mentor for details
+                if (contact.email || contact.phone || contact.linkedin_url) {
+                    infoHtml = `<div style="padding: 0.75rem; background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 8px; font-size: 0.85rem; color: #92400e;">
+                        🔒 <strong>Informações de contato protegidas.</strong><br>
+                        <span style="font-size: 0.8rem;">Pergunte no grupo ou contate um mentor para obter os dados deste contato.</span>
+                    </div>`;
+                }
+            }
+            contactInfo.innerHTML = infoHtml ? `<div class="info-grid">${infoHtml}</div>` : '';
+
+            // Connections
+            const connections = allConnections.filter(c => c.contact_id === contactId);
+            const connectionsHtml = connections.map(conn => `
+                <div class="connection-item">
+                    <div class="connection-user">
+                        <div class="connection-avatar">${(conn.user?.full_name || 'M')[0].toUpperCase()}</div>
+                        <div>
+                            <div style="font-weight: 600;">${conn.user?.full_name || 'Membro'}</div>
+                            <div style="font-size: 0.8rem; color: #64748b;">${getConnectionLabel(conn.connection_type)}</div>
+                        </div>
+                    </div>
+                    <div style="font-size: 0.75rem; color: #94a3b8;">
+                        ${new Date(conn.added_at).toLocaleDateString('pt-BR')}
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('detail-connections').innerHTML = connectionsHtml || '<p style="color: #94a3b8;">Nenhuma conexão registrada</p>';
+
+            // Recommendation
+            const firstConnection = connections[0];
+            if (firstConnection) {
+                document.getElementById('rec-member-name').textContent = firstConnection.user?.full_name || 'o membro';
+            }
+
+            // Show/hide edit/delete buttons (for creator or mentor_marcos)
+            const isCreator = contact.created_by === userData.id;
+            const canEdit = isCreator || userData.role === 'mentor_marcos';
+            document.getElementById('edit-contact-btn').style.display = canEdit ? 'inline-block' : 'none';
+            document.getElementById('delete-contact-btn').style.display = canEdit ? 'inline-block' : 'none';
+
+            // Check if user already has connection
+            const myConnection = connections.find(c => c.user_id === userData.id);
+            document.getElementById('add-my-connection-btn').style.display = myConnection ? 'none' : 'block';
+
+            openModal('contact-detail-modal');
+        }
+
+        // ================================================
+        // ADD/EDIT CONTACT
+        // ================================================
+
+        // Toggle contact details section visibility
+        function toggleContactDetails() {
+            const checkbox = document.getElementById('show-contact-details');
+            const section = document.getElementById('contact-details-section');
+            section.style.display = checkbox.checked ? 'block' : 'none';
+        }
+
+        function openAddContactModal() {
+            document.getElementById('modal-title').textContent = '➕ Adicionar Novo Contato';
+            document.getElementById('contact-form').reset();
+            document.getElementById('contact-id').value = '';
+            // Uncheck all connection type checkboxes and remove selected class
+            document.querySelectorAll('input[name="connection-type"]').forEach(input => input.checked = false);
+            document.querySelectorAll('#add-contact-modal .connection-type-option').forEach(opt => opt.classList.remove('selected'));
+            document.getElementById('intermediary-section').style.display = 'none';
+            document.getElementById('strength-value').textContent = '3';
+            // Reset contact details checkbox and hide section
+            document.getElementById('show-contact-details').checked = false;
+            document.getElementById('contact-details-section').style.display = 'none';
+            // Hide suggestions
+            document.getElementById('name-suggestions').style.display = 'none';
+            openModal('add-contact-modal');
+        }
+
+        // ================================================
+        // AUTOCOMPLETE - SUGESTOES DE CONTATOS EXISTENTES
+        // ================================================
+
+        let suggestionTimeout = null;
+
+        function initNameAutocomplete() {
+            const nameInput = document.getElementById('contact-name');
+            const suggestionsContainer = document.getElementById('name-suggestions');
+
+            nameInput.addEventListener('input', function() {
+                const query = this.value.trim();
+
+                // Limpar timeout anterior
+                if (suggestionTimeout) clearTimeout(suggestionTimeout);
+
+                // Esconder se query muito curta
+                if (query.length < 2) {
+                    suggestionsContainer.style.display = 'none';
+                    return;
+                }
+
+                // Debounce - esperar 300ms após parar de digitar
+                suggestionTimeout = setTimeout(() => {
+                    showNameSuggestions(query);
+                }, 300);
+            });
+
+            // Esconder sugestões ao clicar fora
+            document.addEventListener('click', function(e) {
+                if (!nameInput.contains(e.target) && !suggestionsContainer.contains(e.target)) {
+                    suggestionsContainer.style.display = 'none';
+                }
+            });
+        }
+
+        function showNameSuggestions(query) {
+            const suggestionsContainer = document.getElementById('name-suggestions');
+            const queryLower = query.toLowerCase();
+
+            // Buscar contatos que contenham o texto digitado
+            const matches = allContacts.filter(contact => {
+                const name = (contact.name || '').toLowerCase();
+                return name.includes(queryLower);
+            }).slice(0, 5); // Limitar a 5 sugestões
+
+            if (matches.length === 0) {
+                suggestionsContainer.style.display = 'none';
+                return;
+            }
+
+            // Renderizar sugestões
+            let html = `<div class="suggestion-hint">⚠️ Contatos existentes encontrados. Clique para adicionar sua conexão:</div>`;
+
+            html += matches.map(contact => {
+                const specialty = contact.specialty?.name || '';
+                const institution = contact.institution || '';
+                const details = [specialty, institution].filter(Boolean).join(' • ');
+
+                return `
+                    <div class="suggestion-item" onclick="selectSuggestedContact(${contact.id})">
+                        <div class="suggestion-name">${escapeHtml(contact.name)}</div>
+                        ${details ? `<div class="suggestion-details">${escapeHtml(details)}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            suggestionsContainer.innerHTML = html;
+            suggestionsContainer.style.display = 'block';
+        }
+
+        function selectSuggestedContact(contactId) {
+            const contact = allContacts.find(c => c.id === contactId);
+            if (!contact) return;
+
+            // Esconder sugestões e fechar modal de adicionar
+            document.getElementById('name-suggestions').style.display = 'none';
+            closeModal('add-contact-modal');
+
+            // Verificar se usuário já tem conexão com este contato
+            const myConnection = allConnections.find(c => c.contact_id === contactId && c.user_id === userData.id);
+
+            if (myConnection) {
+                showToast('Você já está conectado a este contato!', 'warning');
+                openContactDetail(contactId);
+                return;
+            }
+
+            // Abrir modal para adicionar conexão ao contato existente
+            currentContactId = contactId;
+            document.getElementById('my-conn-contact-name').textContent = getDisplayName(contact.name);
+            document.getElementById('my-conn-description').value = '';
+            document.getElementById('my-conn-strength').value = 3;
+            // Uncheck all checkboxes and remove selected class
+            document.querySelectorAll('input[name="my-connection-type"]').forEach(input => input.checked = false);
+            document.querySelectorAll('#add-my-connection-modal .connection-type-option').forEach(opt => opt.classList.remove('selected'));
+
+            openModal('add-my-connection-modal');
+            showToast('Contato já existe! Adicione sua conexão.', 'info');
+        }
+
+        // Inicializar autocomplete quando a página carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            // Esperar um pouco para garantir que os elementos existam
+            setTimeout(initNameAutocomplete, 500);
+        });
+
+        function editCurrentContact() {
+            const contact = allContacts.find(c => c.id === currentContactId);
+            if (!contact) return;
+
+            document.getElementById('modal-title').textContent = '✏️ Editar Contato';
+            document.getElementById('contact-id').value = contact.id;
+            document.getElementById('contact-name').value = contact.name || '';
+            document.getElementById('contact-email').value = contact.email || '';
+            document.getElementById('contact-phone').value = contact.phone || '';
+            document.getElementById('contact-linkedin').value = contact.linkedin_url || '';
+            document.getElementById('contact-specialty').value = contact.specialty_id || '';
+            document.getElementById('contact-position').value = contact.position_id || '';
+            document.getElementById('contact-institution').value = contact.institution || '';
+            document.getElementById('contact-department').value = contact.department || '';
+            document.getElementById('contact-state').value = contact.state_code || '';
+            document.getElementById('contact-notes').value = contact.notes || '';
+
+            // Show contact details section if contact has any of email, phone, or linkedin
+            const hasContactDetails = contact.email || contact.phone || contact.linkedin_url;
+            document.getElementById('show-contact-details').checked = hasContactDetails;
+            document.getElementById('contact-details-section').style.display = hasContactDetails ? 'block' : 'none';
+
+            // Load cities for state
+            if (contact.state_code) {
+                loadFormCities().then(() => {
+                    document.getElementById('contact-city').value = contact.city_id || '';
+                });
+            }
+
+            closeModal('contact-detail-modal');
+            openModal('add-contact-modal');
+        }
+
+        async function saveContact() {
+            const contactId = document.getElementById('contact-id').value;
+            const name = document.getElementById('contact-name').value.trim();
+            const specialty = document.getElementById('contact-specialty').value;
+            const position = document.getElementById('contact-position').value;
+            const state = document.getElementById('contact-state').value;
+
+            if (!name || !specialty || !position || !state) {
+                showToast('Preencha os campos obrigatórios', 'error');
+                return;
+            }
+
+            // Get all selected connection types
+            const connectionTypes = Array.from(document.querySelectorAll('input[name="connection-type"]:checked'))
+                .map(input => input.value);
+
+            if (!contactId && connectionTypes.length === 0) {
+                showToast('Selecione pelo menos um tipo de conexão', 'error');
+                return;
+            }
+
+            showLoading();
+
+            const contactData = {
+                name,
+                email: document.getElementById('contact-email').value.trim() || null,
+                phone: document.getElementById('contact-phone').value.trim() || null,
+                linkedin_url: document.getElementById('contact-linkedin').value.trim() || null,
+                specialty_id: parseInt(specialty),
+                position_id: parseInt(position),
+                institution: document.getElementById('contact-institution').value.trim() || null,
+                department: document.getElementById('contact-department').value.trim() || null,
+                state_code: state,
+                city_id: document.getElementById('contact-city').value ? parseInt(document.getElementById('contact-city').value) : null,
+                notes: document.getElementById('contact-notes').value.trim() || null,
+                updated_at: new Date().toISOString()
+            };
+
+            try {
+                let savedContactId = contactId;
+
+                if (contactId) {
+                    // Update existing
+                    const { error } = await WardApp.db
+                        .from('networking_contacts')
+                        .update(contactData)
+                        .eq('id', contactId);
+
+                    if (error) throw error;
+                } else {
+                    // Create new
+                    contactData.created_by = userData.id;
+                    contactData.created_at = new Date().toISOString();
+
+                    const { data, error } = await WardApp.db
+                        .from('networking_contacts')
+                        .insert(contactData)
+                        .select()
+                        .single();
+
+                    if (error) throw error;
+                    if (!data || !data.id) {
+                        console.error('Insert returned no data:', data);
+                        throw new Error('Contato criado mas ID não retornado');
+                    }
+                    savedContactId = data.id;
+
+                    // Add connections for each selected type
+                    const connectionStrength = parseInt(document.getElementById('connection-strength').value);
+                    const intermediaryName = document.getElementById('contact-intermediary').value.trim() || null;
+
+                    const connectionsToInsert = connectionTypes.map(type => ({
+                        user_id: userData.id,
+                        contact_id: savedContactId,
+                        connection_type: type,
+                        connection_strength: connectionStrength,
+                        intermediary_name: type === 'knows_someone' ? intermediaryName : null,
+                        added_at: new Date().toISOString()
+                    }));
+
+                    const connResult = await WardApp.db
+                        .from('networking_connections')
+                        .insert(connectionsToInsert);
+
+                    if (connResult.error) {
+                        showToast('Contato criado, mas erro ao vincular conexão: ' + (connResult.error.message || connResult.error.details || 'erro desconhecido'), 'warning');
+                    }
+                }
+
+                closeModal('add-contact-modal');
+                await loadContacts();
+                showToast('Contato salvo com sucesso!', 'success');
+            } catch (error) {
+                console.error('Error saving contact:', error);
+                showToast('Erro ao salvar contato', 'error');
+            }
+
+            hideLoading();
+        }
+
+        async function deleteCurrentContact() {
+            if (!confirm('Tem certeza que deseja excluir este contato?')) return;
+
+            showLoading();
+            try {
+                // Soft delete
+                await WardApp.db
+                    .from('networking_contacts')
+                    .update({ is_active: false })
+                    .eq('id', currentContactId);
+
+                closeModal('contact-detail-modal');
+                await loadContacts();
+                showToast('Contato excluído', 'success');
+            } catch (error) {
+                console.error('Error deleting contact:', error);
+                showToast('Erro ao excluir contato', 'error');
+            }
+            hideLoading();
+        }
+
+        // ================================================
+        // ADD MY CONNECTION
+        // ================================================
+
+        function openAddMyConnection() {
+            const contact = allContacts.find(c => c.id === currentContactId);
+            if (!contact) return;
+
+            document.getElementById('my-conn-contact-name').textContent = getDisplayName(contact.name);
+            document.getElementById('my-conn-description').value = '';
+            document.getElementById('my-conn-strength').value = 3;
+            // Uncheck all checkboxes and remove selected class
+            document.querySelectorAll('input[name="my-connection-type"]').forEach(input => input.checked = false);
+            document.querySelectorAll('#add-my-connection-modal .connection-type-option').forEach(opt => opt.classList.remove('selected'));
+
+            closeModal('contact-detail-modal');
+            openModal('add-my-connection-modal');
+        }
+
+        async function saveMyConnection() {
+            // Get all selected connection types
+            const connectionTypes = Array.from(document.querySelectorAll('input[name="my-connection-type"]:checked'))
+                .map(input => input.value);
+
+            if (connectionTypes.length === 0) {
+                showToast('Selecione pelo menos um tipo de conexão', 'error');
+                return;
+            }
+
+            showLoading();
+            try {
+                const connectionStrength = parseInt(document.getElementById('my-conn-strength').value);
+                const connectionDescription = document.getElementById('my-conn-description').value.trim() || null;
+
+                const connectionsToInsert = connectionTypes.map(type => ({
+                    user_id: userData.id,
+                    contact_id: currentContactId,
+                    connection_type: type,
+                    connection_description: connectionDescription,
+                    connection_strength: connectionStrength,
+                    added_at: new Date().toISOString()
+                }));
+
+                await WardApp.db
+                    .from('networking_connections')
+                    .insert(connectionsToInsert);
+
+                closeModal('add-my-connection-modal');
+                await loadContacts();
+                openContactDetail(currentContactId);
+                showToast('Conexão adicionada!', 'success');
+            } catch (error) {
+                console.error('Error adding connection:', error);
+                showToast('Erro ao adicionar conexão', 'error');
+            }
+            hideLoading();
+        }
+
+        // ================================================
+        // MENTOR REQUEST
+        // ================================================
+
+        async function requestMentorHelp() {
+            const contact = allContacts.find(c => c.id === currentContactId);
+            const connections = allConnections.filter(c => c.contact_id === currentContactId);
+            const firstConnection = connections[0];
+
+            if (!firstConnection) {
+                showToast('Nenhuma conexão encontrada', 'error');
+                return;
+            }
+
+            const message = prompt('Deseja adicionar uma mensagem para os mentores? (opcional)');
+
+            showLoading();
+            try {
+                await WardApp.db
+                    .from('networking_mentor_requests')
+                    .insert({
+                        requested_by: userData.id,
+                        contact_id: currentContactId,
+                        connection_owner_id: firstConnection.user_id,
+                        message: message || null,
+                        status: 'pending',
+                        created_at: new Date().toISOString()
+                    });
+
+                showToast('Solicitação enviada aos mentores!', 'success');
+            } catch (error) {
+                console.error('Error requesting mentor help:', error);
+                showToast('Erro ao enviar solicitação', 'error');
+            }
+            hideLoading();
+        }
+
+        // ================================================
+        // ADD NEW OPTIONS
+        // ================================================
+
+        async function addNewSpecialty() {
+            const name = document.getElementById('new-specialty').value.trim();
+            if (!name) return;
+
+            try {
+                const { data } = await WardApp.db.rpc('add_networking_specialty', {
+                    p_name: name,
+                    p_user_id: userData.id
+                });
+
+                if (data) {
+                    specialties.push({ id: data, name });
+                    specialties.sort((a, b) => a.name.localeCompare(b.name));
+                    populateSelect('contact-specialty', specialties, 'id', 'name');
+                    populateSelect('filter-specialty', specialties, 'id', 'name');
+                    document.getElementById('contact-specialty').value = data;
+                    document.getElementById('new-specialty').value = '';
+                    showToast('Especialidade adicionada!', 'success');
+                }
+            } catch (error) {
+                console.error('Error adding specialty:', error);
+                showToast('Erro ao adicionar', 'error');
+            }
+        }
+
+        async function addNewPosition() {
+            const name = document.getElementById('new-position').value.trim();
+            if (!name) return;
+
+            try {
+                const { data } = await WardApp.db.rpc('add_networking_position', {
+                    p_name: name,
+                    p_user_id: userData.id
+                });
+
+                if (data) {
+                    positions.push({ id: data, name, sort_order: 100 });
+                    populateSelect('contact-position', positions, 'id', 'name');
+                    populateSelect('filter-position', positions, 'id', 'name');
+                    document.getElementById('contact-position').value = data;
+                    document.getElementById('new-position').value = '';
+                    showToast('Posição adicionada!', 'success');
+                }
+            } catch (error) {
+                console.error('Error adding position:', error);
+                showToast('Erro ao adicionar', 'error');
+            }
+        }
+
+        async function addNewCity() {
+            const name = document.getElementById('new-city').value.trim();
+            const stateCode = document.getElementById('contact-state').value;
+
+            if (!name || !stateCode) {
+                showToast('Selecione o estado primeiro', 'warning');
+                return;
+            }
+
+            try {
+                const { data } = await WardApp.db.rpc('add_networking_city', {
+                    p_name: name,
+                    p_state_code: stateCode,
+                    p_user_id: userData.id
+                });
+
+                if (data) {
+                    await loadFormCities();
+                    document.getElementById('contact-city').value = data;
+                    document.getElementById('new-city').value = '';
+                    showToast('Cidade adicionada!', 'success');
+                }
+            } catch (error) {
+                console.error('Error adding city:', error);
+                showToast('Erro ao adicionar', 'error');
+            }
+        }
+
+        // ================================================
+        // UTILS
+        // ================================================
+
+        function updateStrengthValue() {
+            const value = document.getElementById('connection-strength').value;
+            document.getElementById('strength-value').textContent = value;
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        function showLoading() {
+            document.getElementById('loading-overlay').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-overlay').classList.remove('active');
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `<span>${type === 'success' ? '✓' : type === 'error' ? '✕' : '!'}</span> ${message}`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function toggleFilters() {
+            const panel = document.getElementById('filters-panel');
+            const overlay = document.getElementById('mobile-overlay');
+            panel.classList.toggle('open');
+            overlay.classList.toggle('active');
+        }
+
+        function toggleNetworkFullscreen() {
+            const panel = document.getElementById('network-panel');
+            const btn = document.getElementById('network-fullscreen-btn');
+            panel.classList.toggle('fullscreen');
+
+            if (panel.classList.contains('fullscreen')) {
+                btn.textContent = '✕';
+                btn.title = 'Minimizar';
+            } else {
+                btn.textContent = '⛶';
+                btn.title = 'Maximizar';
+            }
+
+            // Redraw network to fit new size
+            if (network) {
+                setTimeout(() => {
+                    network.fit({ animation: true });
+                }, 100);
+            }
+        }
+    </script>
+</body>
+</html>

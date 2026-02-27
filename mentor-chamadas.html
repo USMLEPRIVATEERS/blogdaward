@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Chamadas e Disponibilidades</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .availability-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .day-column {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            padding: 0.5rem;
+            min-height: 200px;
+        }
+
+        .day-header {
+            text-align: center;
+            font-weight: 600;
+            padding: 0.5rem;
+            background: var(--gray-100);
+            border-radius: var(--radius-sm);
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .time-slot {
+            background: var(--primary-light);
+            color: var(--primary-color);
+            padding: 0.35rem 0.5rem;
+            border-radius: var(--radius-sm);
+            margin-bottom: 0.25rem;
+            font-size: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .time-slot .remove-btn {
+            background: none;
+            border: none;
+            color: var(--danger-color);
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .time-slot.unavailable {
+            background: #fee2e2;
+            color: #991b1b;
+            text-decoration: line-through;
+        }
+
+        .scheduled-calls-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .call-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .call-card.pending {
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .call-card.completed {
+            border-left: 4px solid var(--success-color);
+            opacity: 0.7;
+        }
+
+        .call-card.cancelled {
+            border-left: 4px solid var(--danger-color);
+            opacity: 0.5;
+        }
+
+        .call-icon {
+            font-size: 2rem;
+        }
+
+        .call-info {
+            flex: 1;
+        }
+
+        .call-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .call-meta {
+            font-size: 0.875rem;
+            color: var(--gray-600);
+        }
+
+        .call-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .add-slot-btn {
+            width: 100%;
+            padding: 0.5rem;
+            background: var(--gray-100);
+            border: 2px dashed var(--gray-300);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            color: var(--gray-500);
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+
+        .add-slot-btn:hover {
+            background: var(--primary-light);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .specific-date-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .specific-date-card.unavailable {
+            background: #fee2e2;
+            border-color: #fca5a5;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .tab-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 0.95rem;
+            color: var(--gray-600);
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            color: var(--primary-color);
+        }
+
+        .tab-btn.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .availability-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .day-column {
+                min-height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </a>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="#" class="nav-link" id="nav-dashboard">Dashboard</a>
+                <a href="/mentor-cronograma" class="nav-link">Cronograma</a>
+                <a href="/mentor-chamadas" class="nav-link active">Chamadas</a>
+                <a href="/links" class="nav-link">Links</a>
+                <a href="/blog" class="nav-link">Blog</a>
+                <a href="/pesquisa" class="nav-link">Pesquisa</a>
+            </nav>
+            <div class="nav-user">
+                <span class="user-name" id="mentor-name">Mentor</span>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="d-flex justify-between align-center flex-wrap gap-2 mb-4">
+            <h1>📞 Chamadas e Disponibilidades</h1>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('scheduled')">📅 Chamadas Agendadas</button>
+            <button class="tab-btn" onclick="showTab('availability')">🕐 Minhas Disponibilidades</button>
+            <button class="tab-btn" onclick="showTab('specific')">📆 Datas Especificas</button>
+        </div>
+
+        <!-- Tab: Scheduled Calls -->
+        <div id="tab-scheduled" class="tab-content active">
+            <div class="card">
+                <div class="card-header d-flex justify-between align-center flex-wrap gap-2">
+                    <span>📅 Chamadas</span>
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+                        <button class="btn btn-primary btn-sm" onclick="openNewCallModal()" style="white-space: nowrap;">+ Nova Chamada</button>
+                        <div class="form-group" style="margin: 0; min-width: 200px;">
+                            <input type="text" id="filter-student" class="form-input" placeholder="🔍 Filtrar por aluno..." oninput="loadScheduledCalls()">
+                        </div>
+                        <div class="form-group" style="margin: 0; min-width: 150px;">
+                            <select id="filter-status" class="form-input" onchange="loadScheduledCalls()">
+                                <option value="all">Todas</option>
+                                <option value="scheduled" selected>Agendadas</option>
+                                <option value="completed">Concluidas</option>
+                                <option value="cancelled">Canceladas</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="scheduled-calls-list" class="scheduled-calls-list">
+                        <!-- Filled by JS -->
+                    </div>
+                    <div id="no-calls" class="empty-state" style="display: none;">
+                        <p class="text-muted">Nenhuma chamada encontrada</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Previous Calls Section -->
+            <div class="card mt-4">
+                <div class="card-header d-flex justify-between align-center">
+                    <span>📜 Historico de Chamadas</span>
+                    <button class="btn btn-sm btn-outline" onclick="togglePreviousCalls()">
+                        <span id="toggle-previous-btn">▼ Mostrar</span>
+                    </button>
+                </div>
+                <div id="previous-calls-container" class="card-body" style="display: none;">
+                    <p class="text-muted mb-3">Chamadas concluídas ou canceladas dos últimos 90 dias</p>
+                    <div id="previous-calls-list" class="scheduled-calls-list">
+                        <!-- Filled by JS -->
+                    </div>
+                    <div id="no-previous-calls" class="empty-state" style="display: none;">
+                        <p class="text-muted">Nenhuma chamada anterior encontrada</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Regular Availability -->
+        <div id="tab-availability" class="tab-content">
+            <!-- Settings Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <span>⚙️ Configuracoes de Agendamento</span>
+                </div>
+                <div class="card-body">
+                    <div class="input-group" style="max-width: 600px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">Minimo de dias para agendamento</label>
+                            <select id="min-days-ahead" class="form-input" onchange="saveMinDaysAhead()">
+                                <option value="1">1 dia</option>
+                                <option value="2">2 dias (recomendado)</option>
+                                <option value="3">3 dias</option>
+                                <option value="5">5 dias</option>
+                                <option value="7">7 dias (1 semana)</option>
+                            </select>
+                            <small class="text-muted">Alunos so podem agendar chamadas com pelo menos este tempo de antecedencia</small>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">Seu fuso horario</label>
+                            <select id="mentor-timezone" class="form-input" onchange="saveMentorTimezone()">
+                                <optgroup label="🇧🇷 Brasil">
+                                    <option value="America/Sao_Paulo">Horario de Brasilia (UTC-3)</option>
+                                    <option value="America/Manaus">Amazonas / Manaus (UTC-4)</option>
+                                    <option value="America/Rio_Branco">Acre / Rio Branco (UTC-5)</option>
+                                    <option value="America/Noronha">Fernando de Noronha (UTC-2)</option>
+                                </optgroup>
+                                <optgroup label="🇺🇸 Estados Unidos">
+                                    <option value="America/New_York">Eastern - New York / Miami / Boston (UTC-5)</option>
+                                    <option value="America/Chicago">Central - Chicago / Houston / Dallas (UTC-6)</option>
+                                    <option value="America/Denver">Mountain - Denver / Salt Lake City (UTC-7)</option>
+                                    <option value="America/Los_Angeles">Pacific - Los Angeles / San Francisco (UTC-8)</option>
+                                    <option value="America/Phoenix">Arizona - Phoenix (UTC-7, sem horario de verao)</option>
+                                    <option value="America/Anchorage">Alaska - Anchorage (UTC-9)</option>
+                                    <option value="Pacific/Honolulu">Hawaii - Honolulu (UTC-10)</option>
+                                </optgroup>
+                                <optgroup label="🇪🇺 Europa">
+                                    <option value="Europe/London">Reino Unido / Irlanda - Londres (UTC+0)</option>
+                                    <option value="Europe/Lisbon">Portugal - Lisboa (UTC+0)</option>
+                                    <option value="Europe/Paris">Europa Central - Paris / Berlim / Madrid / Roma (UTC+1)</option>
+                                    <option value="Europe/Athens">Europa Oriental - Atenas / Helsinki / Bucareste (UTC+2)</option>
+                                    <option value="Europe/Istanbul">Turquia - Istambul (UTC+3)</option>
+                                    <option value="Europe/Moscow">Russia - Moscou (UTC+3)</option>
+                                </optgroup>
+                                <optgroup label="🇦🇺 Australia">
+                                    <option value="Australia/Perth">Oeste - Perth (UTC+8)</option>
+                                    <option value="Australia/Adelaide">Central - Adelaide / Darwin (UTC+9:30)</option>
+                                    <option value="Australia/Sydney">Leste - Sydney / Melbourne / Brisbane (UTC+10)</option>
+                                </optgroup>
+                                <optgroup label="🌍 Outros (UTC)">
+                                    <option value="Etc/GMT+12">UTC-12</option>
+                                    <option value="Etc/GMT+11">UTC-11</option>
+                                    <option value="Etc/GMT+10">UTC-10</option>
+                                    <option value="Etc/GMT+9">UTC-9</option>
+                                    <option value="Etc/GMT+8">UTC-8</option>
+                                    <option value="Etc/GMT+7">UTC-7</option>
+                                    <option value="Etc/GMT+6">UTC-6</option>
+                                    <option value="Etc/GMT+5">UTC-5</option>
+                                    <option value="Etc/GMT+4">UTC-4</option>
+                                    <option value="Etc/GMT+3">UTC-3</option>
+                                    <option value="Etc/GMT+2">UTC-2</option>
+                                    <option value="Etc/GMT+1">UTC-1</option>
+                                    <option value="Etc/GMT">UTC+0</option>
+                                    <option value="Etc/GMT-1">UTC+1</option>
+                                    <option value="Etc/GMT-2">UTC+2</option>
+                                    <option value="Etc/GMT-3">UTC+3</option>
+                                    <option value="Etc/GMT-4">UTC+4</option>
+                                    <option value="Etc/GMT-5">UTC+5</option>
+                                    <option value="Etc/GMT-6">UTC+6</option>
+                                    <option value="Etc/GMT-7">UTC+7</option>
+                                    <option value="Etc/GMT-8">UTC+8</option>
+                                    <option value="Etc/GMT-9">UTC+9</option>
+                                    <option value="Etc/GMT-10">UTC+10</option>
+                                    <option value="Etc/GMT-11">UTC+11</option>
+                                    <option value="Etc/GMT-12">UTC+12</option>
+                                    <option value="Etc/GMT-13">UTC+13</option>
+                                </optgroup>
+                            </select>
+                            <small class="text-muted">Todos os horarios serao exibidos neste fuso</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <span>🕐 Disponibilidade Regular (Recorrente)</span>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">Configure seus horarios regulares de disponibilidade. Estes horarios se repetem toda semana.</p>
+
+                    <div class="availability-grid" id="availability-grid">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Specific Dates -->
+        <div id="tab-specific" class="tab-content">
+            <div class="card">
+                <div class="card-header d-flex justify-between align-center">
+                    <span>📆 Datas Especificas</span>
+                    <div class="btn-group">
+                        <button class="btn btn-primary btn-sm" onclick="openAddSpecificModal(false)">+ Adicionar Disponibilidade</button>
+                        <button class="btn btn-danger btn-sm" onclick="openAddSpecificModal(true)">+ Marcar Indisponibilidade</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">Adicione datas especificas de disponibilidade ou indisponibilidade que sobrescrevem sua agenda regular.</p>
+
+                    <div id="specific-dates-list">
+                        <!-- Filled by JS -->
+                    </div>
+                    <div id="no-specific" class="empty-state" style="display: none;">
+                        <p class="text-muted">Nenhuma data especifica cadastrada</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Add Regular Slot Modal -->
+    <div id="add-slot-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="slot-modal-title">➕ Adicionar Horario</h3>
+                <button class="modal-close" onclick="closeModal('add-slot-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="slot-day">
+                <input type="hidden" id="slot-edit-id" value="">
+                <p class="text-muted mb-3">Adicionando horario para: <strong id="slot-day-name"></strong></p>
+
+                <div class="input-group">
+                    <div class="form-group">
+                        <label class="form-label">Inicio *</label>
+                        <input type="time" id="slot-start" class="form-input" value="09:00">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Fim *</label>
+                        <input type="time" id="slot-end" class="form-input" value="12:00">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Duracao de cada chamada</label>
+                    <select id="slot-duration" class="form-input">
+                        <option value="30">30 minutos</option>
+                        <option value="45">45 minutos</option>
+                        <option value="60" selected>60 minutos (1 hora)</option>
+                        <option value="90">90 minutos (1h30)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Intervalo entre chamadas</label>
+                    <select id="slot-break" class="form-input">
+                        <option value="0" selected>Sem intervalo</option>
+                        <option value="5">5 minutos</option>
+                        <option value="10">10 minutos</option>
+                        <option value="15">15 minutos</option>
+                        <option value="20">20 minutos</option>
+                        <option value="30">30 minutos</option>
+                    </select>
+                </div>
+                <div id="slot-preview" class="mt-3 p-2" style="background: var(--gray-100); border-radius: var(--radius-sm); font-size: 0.85rem;">
+                    <!-- Preview will be shown here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('add-slot-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveRegularSlot()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Specific Date Modal -->
+    <div id="add-specific-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="specific-modal-title">📆 Adicionar Data</h3>
+                <button class="modal-close" onclick="closeModal('add-specific-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="specific-is-unavailable">
+
+                <div class="form-group">
+                    <label class="form-label">Data *</label>
+                    <input type="date" id="specific-date" class="form-input">
+                </div>
+                <div id="specific-times-group">
+                    <div class="input-group">
+                        <div class="form-group">
+                            <label class="form-label">Inicio</label>
+                            <input type="time" id="specific-start" class="form-input" value="09:00">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Fim</label>
+                            <input type="time" id="specific-end" class="form-input" value="12:00">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Duracao de cada chamada</label>
+                        <select id="specific-duration" class="form-input">
+                            <option value="30">30 minutos</option>
+                            <option value="45">45 minutos</option>
+                            <option value="60" selected>60 minutos (1 hora)</option>
+                            <option value="90">90 minutos (1h30)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Intervalo entre chamadas</label>
+                        <select id="specific-break" class="form-input">
+                            <option value="0" selected>Sem intervalo</option>
+                            <option value="5">5 minutos</option>
+                            <option value="10">10 minutos</option>
+                            <option value="15">15 minutos</option>
+                            <option value="20">20 minutos</option>
+                            <option value="30">30 minutos</option>
+                        </select>
+                    </div>
+                    <div id="specific-preview" class="mt-2 p-2" style="background: var(--gray-100); border-radius: var(--radius-sm); font-size: 0.85rem;">
+                        <!-- Preview will be shown here -->
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Observacao (opcional)</label>
+                    <input type="text" id="specific-notes" class="form-input" placeholder="Ex: Congresso, Ferias, etc.">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('add-specific-modal')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveSpecificDate()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Call Modal (Mentor schedules with student) -->
+    <div id="new-call-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">📞 Agendar Chamada com Aluno</h3>
+                <button class="modal-close" onclick="closeModal('new-call-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Titulo da Chamada *</label>
+                    <input type="text" id="new-call-title" class="form-input" placeholder="Ex: Chamada de acompanhamento, Revisao de cronograma...">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Aluno *</label>
+                    <select id="new-call-student" class="form-input">
+                        <option value="">Selecione o aluno...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Data *</label>
+                    <input type="date" id="new-call-date" class="form-input" onchange="loadNewCallTimeSlots()">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Horario *</label>
+                    <input type="time" id="new-call-time" class="form-input" value="09:00">
+                    <div id="new-call-time-hint" style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Observacoes</label>
+                    <textarea id="new-call-notes" class="form-textarea" rows="2" placeholder="Observacoes sobre a chamada (opcional)..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('new-call-modal')">Cancelar</button>
+                <button class="btn btn-primary" id="new-call-submit-btn" onclick="submitNewCall()">📞 Agendar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Call Details Modal -->
+    <div id="call-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">📞 Detalhes da Chamada</h3>
+                <button class="modal-close" onclick="closeModal('call-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="call-id">
+                <div id="call-details">
+                    <!-- Filled by JS -->
+                </div>
+
+                <!-- Add Note Section -->
+                <div id="add-landmark-note-section" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--gray-200);">
+                    <h4 style="margin: 0 0 0.75rem; font-size: 0.95rem; color: var(--gray-700);">➕ Adicionar Observação</h4>
+                    <textarea id="new-landmark-note" class="form-textarea" rows="3" placeholder="Escreva uma observação sobre esta chamada..."></textarea>
+                    <button class="btn btn-primary btn-sm" onclick="addLandmarkNote()" style="margin-top: 0.5rem;">💾 Salvar Observação</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="cancelCall()">Cancelar Chamada</button>
+                <button class="btn btn-success" onclick="completeCall()">Marcar Concluida</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let regularAvailability = [];
+        let specificDates = [];
+        let scheduledCalls = [];
+        let currentCall = null; // Current call being viewed in modal
+        let editingSpecificId = null; // ID of specific date being edited (null = new)
+
+        const dayNames = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
+        const dayNamesShort = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
+
+        // Helper to decrypt user name if encrypted
+        function _dn(name) {
+            if (!name) return name;
+            return WardApp._prs ? WardApp._prs(name) : name;
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            // Check if mentor
+            if (!userData.role || !userData.role.startsWith('mentor_')) {
+                WardApp.showToast('Acesso negado', 'error');
+                window.location.href = '/dashboard';
+                return;
+            }
+
+            // Verificacao adicional via Supabase Auth
+            const { data: { user: authUser } } = await WardApp.db.auth.getUser();
+            if (!authUser) {
+                WardApp.showToast('Sessao invalida. Faca login novamente.', 'error');
+                WardApp.logout();
+                return;
+            }
+
+            // Verificar se o auth_id corresponde ao usuario logado
+            if (userData.auth_id && userData.auth_id !== authUser.id) {
+                WardApp.showToast('Acesso negado: autenticacao invalida', 'error');
+                WardApp.logout();
+                return;
+            }
+
+            // Set dashboard link based on role
+            const dashboardLinks = {
+                'mentor_marcos': '/mentor-dashboard-marcos',
+                'mentor_iria': '/mentor-dashboard-iria',
+                'mentor_guilherme': '/mentor-dashboard-guilherme',
+                'mentor_romulo': '/mentor-dashboard-romulo'
+            };
+            document.getElementById('nav-dashboard').href = dashboardLinks[userData.role] || '/dashboard';
+            const mentorFullName = _dn(userData.full_name) || userData.email;
+            document.getElementById('mentor-name').textContent = mentorFullName ? mentorFullName.split(' ')[0] : mentorFullName;
+
+            await loadAllData();
+        });
+
+        async function loadAllData() {
+            await Promise.all([
+                loadMentorSettings(),
+                loadRegularAvailability(),
+                loadSpecificDates(),
+                loadScheduledCalls()
+            ]);
+        }
+
+        async function loadMentorSettings() {
+            const { data: settings } = await WardApp.db
+                .from('mentor_settings')
+                .select('min_days_ahead')
+                .eq('mentor_id', userData.id)
+                .maybeSingle();
+
+            const minDays = settings?.min_days_ahead ?? 2;
+            document.getElementById('min-days-ahead').value = minDays;
+
+            // Load mentor timezone from users table
+            const { data: userRow } = await WardApp.db
+                .from('users')
+                .select('timezone')
+                .eq('id', userData.id)
+                .maybeSingle();
+
+            const tz = userRow?.timezone || 'America/Sao_Paulo';
+            document.getElementById('mentor-timezone').value = tz;
+        }
+
+        async function saveMinDaysAhead() {
+            const minDays = parseInt(document.getElementById('min-days-ahead').value);
+
+            const { error } = await WardApp.db
+                .from('mentor_settings')
+                .upsert({
+                    mentor_id: userData.id,
+                    min_days_ahead: minDays,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'mentor_id' });
+
+            if (error) {
+                console.error('Error saving settings:', error);
+                WardApp.showToast('Erro ao salvar', 'error');
+                return;
+            }
+
+            WardApp.showToast('Configuracao salva!');
+        }
+
+        async function saveMentorTimezone() {
+            const tz = document.getElementById('mentor-timezone').value;
+
+            const { error } = await WardApp.db
+                .from('users')
+                .update({ timezone: tz })
+                .eq('id', userData.id);
+
+            if (error) {
+                console.error('Error saving timezone:', error);
+                WardApp.showToast('Erro ao salvar fuso horario', 'error');
+                return;
+            }
+
+            // Also update localStorage
+            const stored = JSON.parse(localStorage.getItem('ward_user') || '{}');
+            stored.timezone = tz;
+            localStorage.setItem('ward_user', JSON.stringify(stored));
+
+            WardApp.showToast('Fuso horario salvo!');
+        }
+
+        function showTab(tab) {
+            // Update buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.add('active');
+        }
+
+        // ===== Regular Availability =====
+        async function loadRegularAvailability() {
+            const { data } = await WardApp.db
+                .from('mentor_availability_regular')
+                .select('*')
+                .eq('mentor_id', userData.id)
+                .eq('is_active', true)
+                .order('day_of_week')
+                .order('start_time');
+
+            regularAvailability = data || [];
+            renderAvailabilityGrid();
+        }
+
+        function renderAvailabilityGrid() {
+            const grid = document.getElementById('availability-grid');
+
+            grid.innerHTML = dayNames.map((day, index) => {
+                const availabilitySlots = regularAvailability.filter(s => s.day_of_week === index);
+
+                // Generate individual meeting slots for each availability block
+                let slotsHtml = '';
+                availabilitySlots.forEach(avail => {
+                    const duration = avail.duration_minutes || 60;
+                    const breakMinutes = avail.break_minutes || 0;
+                    const meetingSlots = generateTimeSlots(avail.start_time, avail.end_time, duration, breakMinutes);
+
+                    slotsHtml += `
+                        <div class="availability-block" style="margin-bottom: 0.5rem; padding: 0.25rem; background: var(--gray-50); border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; font-size: 0.7rem; color: var(--gray-500);">
+                                <span>${formatTime(avail.start_time)}-${formatTime(avail.end_time)} (${duration}min)</span>
+                                <div style="display: flex; gap: 0.3rem;">
+                                    <button class="remove-btn" onclick="editRegularSlot('${avail.id}')" style="font-size: 0.7rem; color: var(--primary-color);" title="Editar">✎</button>
+                                    <button class="remove-btn" onclick="removeRegularSlot('${avail.id}')" style="font-size: 0.7rem;" title="Remover">✕</button>
+                                </div>
+                            </div>
+                            ${meetingSlots.map(slot => `
+                                <div class="time-slot" style="font-size: 0.7rem; padding: 0.2rem 0.35rem;">
+                                    <span>${slot.start} - ${slot.end}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                });
+
+                return `
+                    <div class="day-column">
+                        <div class="day-header">${dayNamesShort[index]}</div>
+                        ${slotsHtml || '<p class="text-muted" style="font-size: 0.75rem; text-align: center;">-</p>'}
+                        <button class="add-slot-btn" onclick="openAddSlotModal(${index})">+ Adicionar</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Convert time from one timezone to another
+        // date: 'YYYY-MM-DD', time: 'HH:MM', fromTz/toTz: IANA timezone strings
+        function convertTime(date, time, fromTz, toTz) {
+            if (!date || !time || !fromTz || !toTz || fromTz === toTz) return time;
+            try {
+                const dt = new Date(`${date}T${time.substring(0,5)}:00`);
+                const fromStr = dt.toLocaleString('en-US', { timeZone: fromTz });
+                const toStr = dt.toLocaleString('en-US', { timeZone: toTz });
+                const fromDate = new Date(fromStr);
+                const toDate = new Date(toStr);
+                const diffMs = toDate - fromDate;
+                const result = new Date(dt.getTime() + diffMs);
+                return result.toTimeString().substring(0, 5);
+            } catch (e) { return time; }
+        }
+
+        function getStudentTimezoneLabel(call) {
+            const studentTz = call.student_timezone || call.student?.timezone || 'America/Sao_Paulo';
+            const mentorTz = document.getElementById('mentor-timezone')?.value || 'America/Sao_Paulo';
+            if (studentTz === mentorTz) return '';
+            const convertedTime = convertTime(call.scheduled_date, call.scheduled_time, mentorTz, studentTz);
+            const tzShort = studentTz.split('/').pop().replace(/_/g, ' ');
+            return `<br><span style="font-size: 0.75rem; color: var(--gray-500);">🌍 ${convertedTime} no horario do aluno (${tzShort})</span>`;
+        }
+
+        function formatTime(time) {
+            if (!time) return '';
+            return time.substring(0, 5);
+        }
+
+        function openAddSlotModal(dayIndex) {
+            document.getElementById('slot-edit-id').value = '';
+            document.getElementById('slot-modal-title').textContent = '➕ Adicionar Horario';
+            document.getElementById('slot-day').value = dayIndex;
+            document.getElementById('slot-day-name').textContent = dayNames[dayIndex];
+            document.getElementById('slot-start').value = '09:00';
+            document.getElementById('slot-end').value = '12:00';
+            document.getElementById('slot-duration').value = '60';
+            document.getElementById('slot-break').value = '0';
+            updateSlotPreview();
+            openModal('add-slot-modal');
+        }
+
+        function editRegularSlot(slotId) {
+            const slot = regularAvailability.find(s => s.id === slotId);
+            if (!slot) return;
+            document.getElementById('slot-edit-id').value = slotId;
+            document.getElementById('slot-modal-title').textContent = '✏️ Editar Horario';
+            document.getElementById('slot-day').value = slot.day_of_week;
+            document.getElementById('slot-day-name').textContent = dayNames[slot.day_of_week];
+            document.getElementById('slot-start').value = slot.start_time.substring(0, 5);
+            document.getElementById('slot-end').value = slot.end_time.substring(0, 5);
+            document.getElementById('slot-duration').value = slot.duration_minutes || 60;
+            document.getElementById('slot-break').value = slot.break_minutes || 0;
+            updateSlotPreview();
+            openModal('add-slot-modal');
+        }
+
+        function updateSlotPreview() {
+            const start = document.getElementById('slot-start').value;
+            const end = document.getElementById('slot-end').value;
+            const duration = parseInt(document.getElementById('slot-duration').value);
+            const breakMinutes = parseInt(document.getElementById('slot-break').value);
+            const preview = document.getElementById('slot-preview');
+
+            if (!start || !end) {
+                preview.innerHTML = '';
+                return;
+            }
+
+            const slots = generateTimeSlots(start, end, duration, breakMinutes);
+            if (slots.length === 0) {
+                preview.innerHTML = '<span class="text-danger">Intervalo muito curto para a duracao selecionada</span>';
+            } else {
+                preview.innerHTML = `
+                    <strong>Chamadas disponiveis (${slots.length}):</strong><br>
+                    ${slots.map(s => `<span class="badge badge-primary" style="margin: 2px; display: inline-block; padding: 2px 6px; background: var(--primary-light); color: var(--primary-color); border-radius: 4px; font-size: 0.75rem;">${s.start} - ${s.end}</span>`).join('')}
+                `;
+            }
+        }
+
+        function generateTimeSlots(startTime, endTime, durationMinutes, breakMinutes = 0) {
+            const slots = [];
+            let current = timeToMinutes(startTime);
+            const end = timeToMinutes(endTime);
+
+            while (current + durationMinutes <= end) {
+                const slotStart = minutesToTime(current);
+                const slotEnd = minutesToTime(current + durationMinutes);
+                slots.push({ start: slotStart, end: slotEnd });
+                current += durationMinutes + breakMinutes; // Add break time between calls
+            }
+
+            return slots;
+        }
+
+        function timeToMinutes(time) {
+            const [h, m] = time.split(':').map(Number);
+            return h * 60 + m;
+        }
+
+        function minutesToTime(mins) {
+            const h = Math.floor(mins / 60).toString().padStart(2, '0');
+            const m = (mins % 60).toString().padStart(2, '0');
+            return h + ':' + m;
+        }
+
+        // Add event listeners for preview updates
+        document.addEventListener('DOMContentLoaded', () => {
+            ['slot-start', 'slot-end', 'slot-duration', 'slot-break'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('change', updateSlotPreview);
+            });
+            ['specific-start', 'specific-end', 'specific-duration', 'specific-break'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('change', updateSpecificPreview);
+            });
+        });
+
+        function updateSpecificPreview() {
+            const start = document.getElementById('specific-start').value;
+            const end = document.getElementById('specific-end').value;
+            const duration = parseInt(document.getElementById('specific-duration').value);
+            const breakMinutes = parseInt(document.getElementById('specific-break').value);
+            const preview = document.getElementById('specific-preview');
+
+            if (!start || !end) {
+                preview.innerHTML = '';
+                return;
+            }
+
+            const slots = generateTimeSlots(start, end, duration, breakMinutes);
+            if (slots.length === 0) {
+                preview.innerHTML = '<span class="text-danger">Intervalo muito curto para a duracao selecionada</span>';
+            } else {
+                preview.innerHTML = `
+                    <strong>Chamadas disponiveis (${slots.length}):</strong><br>
+                    ${slots.map(s => `<span style="margin: 2px; display: inline-block; padding: 2px 6px; background: var(--primary-light); color: var(--primary-color); border-radius: 4px; font-size: 0.75rem;">${s.start} - ${s.end}</span>`).join('')}
+                `;
+            }
+        }
+
+        async function saveRegularSlot() {
+            const editId = document.getElementById('slot-edit-id').value;
+            const dayOfWeek = parseInt(document.getElementById('slot-day').value);
+            const startTime = document.getElementById('slot-start').value;
+            const endTime = document.getElementById('slot-end').value;
+            const duration = parseInt(document.getElementById('slot-duration').value);
+            const breakMinutes = parseInt(document.getElementById('slot-break').value);
+
+            if (!startTime || !endTime) {
+                WardApp.showToast('Preencha os horarios', 'warning');
+                return;
+            }
+
+            if (startTime >= endTime) {
+                WardApp.showToast('Horario de fim deve ser maior que inicio', 'warning');
+                return;
+            }
+
+            const payload = {
+                mentor_id: userData.id,
+                day_of_week: dayOfWeek,
+                start_time: startTime,
+                end_time: endTime,
+                duration_minutes: duration,
+                break_minutes: breakMinutes
+            };
+
+            let error;
+            if (editId) {
+                ({ error } = await WardApp.db
+                    .from('mentor_availability_regular')
+                    .update(payload)
+                    .eq('id', parseInt(editId)));
+            } else {
+                ({ error } = await WardApp.db
+                    .from('mentor_availability_regular')
+                    .insert(payload));
+            }
+
+            if (error) {
+                console.error('Error saving:', error);
+                WardApp.showToast('Erro ao salvar', 'error');
+                return;
+            }
+
+            closeModal('add-slot-modal');
+            WardApp.showToast(editId ? 'Horario atualizado!' : 'Horario adicionado!');
+            await loadRegularAvailability();
+        }
+
+        async function removeRegularSlot(slotId) {
+            if (!confirm('Remover este horario?')) return;
+
+            await WardApp.db
+                .from('mentor_availability_regular')
+                .delete()
+                .eq('id', slotId);
+
+            WardApp.showToast('Horario removido');
+            await loadRegularAvailability();
+        }
+
+        // ===== Specific Dates =====
+        async function loadSpecificDates() {
+            const today = WardApp.getTodayString();
+
+            const { data } = await WardApp.db
+                .from('mentor_availability_specific')
+                .select('*')
+                .eq('mentor_id', userData.id)
+                .gte('available_date', today)
+                .order('available_date')
+                .order('start_time');
+
+            specificDates = data || [];
+            renderSpecificDates();
+        }
+
+        function renderSpecificDates() {
+            const container = document.getElementById('specific-dates-list');
+            const noSpecific = document.getElementById('no-specific');
+
+            if (specificDates.length === 0) {
+                container.innerHTML = '';
+                noSpecific.style.display = 'block';
+                return;
+            }
+
+            noSpecific.style.display = 'none';
+
+            container.innerHTML = specificDates.map(item => {
+                const dateObj = WardApp.parseLocalDate(item.available_date);
+                const dayName = dayNames[dateObj.getDay()];
+
+                let slotsHtml = '';
+                if (!item.is_unavailable) {
+                    const duration = item.duration_minutes || 60;
+                    const breakMinutes = item.break_minutes || 0;
+                    const meetingSlots = generateTimeSlots(item.start_time, item.end_time, duration, breakMinutes);
+                    slotsHtml = meetingSlots.map(s =>
+                        `<span style="display: inline-block; margin: 2px; padding: 2px 6px; background: var(--primary-light); color: var(--primary-color); border-radius: 4px; font-size: 0.7rem;">${s.start}-${s.end}</span>`
+                    ).join('');
+                }
+
+                return `
+                    <div class="specific-date-card ${item.is_unavailable ? 'unavailable' : ''}">
+                        <div style="flex: 1;">
+                            <strong>${WardApp.formatDate(item.available_date)}</strong> (${dayName})
+                            ${item.notes ? `<span class="text-muted"> - ${item.notes}</span>` : ''}
+                            <br>
+                            ${item.is_unavailable ? '<span class="text-danger">❌ Indisponivel o dia todo</span>' : `
+                                <span class="text-muted" style="font-size: 0.8rem;">🕐 ${formatTime(item.start_time)} - ${formatTime(item.end_time)} (${item.duration_minutes || 60}min)</span>
+                                <div style="margin-top: 0.25rem;">${slotsHtml}</div>
+                            `}
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-sm btn-outline" onclick="editSpecificDate('${item.id}')">✏️</button>
+                            <button class="btn btn-sm btn-outline" onclick="removeSpecificDate('${item.id}')">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openAddSpecificModal(isUnavailable) {
+            editingSpecificId = null; // Clear editing mode
+            document.getElementById('specific-is-unavailable').value = isUnavailable ? '1' : '0';
+            document.getElementById('specific-modal-title').textContent = isUnavailable ?
+                '❌ Marcar Indisponibilidade' : '📆 Adicionar Disponibilidade';
+            document.getElementById('specific-times-group').style.display = isUnavailable ? 'none' : 'block';
+            document.getElementById('specific-date').value = '';
+            document.getElementById('specific-notes').value = '';
+            document.getElementById('specific-start').value = '09:00';
+            document.getElementById('specific-end').value = '12:00';
+            document.getElementById('specific-duration').value = '60';
+            document.getElementById('specific-break').value = '0';
+            if (!isUnavailable) {
+                updateSpecificPreview();
+            } else {
+                document.getElementById('specific-preview').innerHTML = '';
+            }
+            openModal('add-specific-modal');
+        }
+
+        function editSpecificDate(id) {
+            const item = specificDates.find(d => d.id === id);
+            if (!item) {
+                WardApp.showToast('Data não encontrada', 'error');
+                return;
+            }
+
+            editingSpecificId = id; // Set editing mode
+            const isUnavailable = item.is_unavailable;
+
+            document.getElementById('specific-is-unavailable').value = isUnavailable ? '1' : '0';
+            document.getElementById('specific-modal-title').textContent = isUnavailable ?
+                '✏️ Editar Indisponibilidade' : '✏️ Editar Disponibilidade';
+            document.getElementById('specific-times-group').style.display = isUnavailable ? 'none' : 'block';
+            document.getElementById('specific-date').value = item.available_date;
+            document.getElementById('specific-notes').value = item.notes || '';
+
+            if (!isUnavailable) {
+                document.getElementById('specific-start').value = formatTime(item.start_time);
+                document.getElementById('specific-end').value = formatTime(item.end_time);
+                document.getElementById('specific-duration').value = item.duration_minutes || 60;
+                document.getElementById('specific-break').value = item.break_minutes || 0;
+                updateSpecificPreview();
+            } else {
+                document.getElementById('specific-preview').innerHTML = '';
+            }
+
+            openModal('add-specific-modal');
+        }
+
+        async function saveSpecificDate() {
+            const isUnavailable = document.getElementById('specific-is-unavailable').value === '1';
+            const date = document.getElementById('specific-date').value;
+            const notes = document.getElementById('specific-notes').value.trim();
+
+            if (!date) {
+                WardApp.showToast('Selecione uma data', 'warning');
+                return;
+            }
+
+            const saveData = {
+                mentor_id: userData.id,
+                available_date: date,
+                is_unavailable: isUnavailable,
+                notes: notes || null
+            };
+
+            if (!isUnavailable) {
+                saveData.start_time = document.getElementById('specific-start').value;
+                saveData.end_time = document.getElementById('specific-end').value;
+                saveData.duration_minutes = parseInt(document.getElementById('specific-duration').value);
+                saveData.break_minutes = parseInt(document.getElementById('specific-break').value);
+            } else {
+                saveData.start_time = '00:00';
+                saveData.end_time = '23:59';
+                saveData.duration_minutes = 60;
+                saveData.break_minutes = 0;
+            }
+
+            let error;
+
+            if (editingSpecificId) {
+                // Update existing
+                const result = await WardApp.db
+                    .from('mentor_availability_specific')
+                    .update(saveData)
+                    .eq('id', editingSpecificId);
+                error = result.error;
+            } else {
+                // Insert new
+                const result = await WardApp.db
+                    .from('mentor_availability_specific')
+                    .insert(saveData);
+                error = result.error;
+            }
+
+            if (error) {
+                console.error('Error saving:', error);
+                WardApp.showToast('Erro ao salvar', 'error');
+                return;
+            }
+
+            closeModal('add-specific-modal');
+            WardApp.showToast(editingSpecificId ? 'Data atualizada!' : 'Data adicionada!');
+            editingSpecificId = null; // Reset editing mode
+            await loadSpecificDates();
+        }
+
+        async function removeSpecificDate(id) {
+            if (!confirm('Remover esta data?')) return;
+
+            await WardApp.db
+                .from('mentor_availability_specific')
+                .delete()
+                .eq('id', id);
+
+            WardApp.showToast('Data removida');
+            await loadSpecificDates();
+        }
+
+        // ===== Scheduled Calls =====
+        async function loadScheduledCalls() {
+            const filter = document.getElementById('filter-status').value;
+            const studentSearch = (document.getElementById('filter-student').value || '').toLowerCase().trim();
+
+            let query = WardApp.db
+                .from('scheduled_calls')
+                .select('*, student:student_id(full_name, email, timezone), landmark:landmark_id(title, notes)')
+                .eq('mentor_id', userData.id)
+                .order('scheduled_date')
+                .order('scheduled_time');
+
+            if (filter !== 'all') {
+                query = query.eq('status', filter);
+            }
+
+            const { data } = await query;
+            let calls = data || [];
+
+            // Filter by student name if search term is provided
+            if (studentSearch) {
+                calls = calls.filter(call => {
+                    const studentName = (_dn(call.student?.full_name) || '').toLowerCase();
+                    const studentEmail = (call.student?.email || '').toLowerCase();
+                    return studentName.includes(studentSearch) || studentEmail.includes(studentSearch);
+                });
+            }
+
+            scheduledCalls = calls;
+            renderScheduledCalls();
+        }
+
+        let previousCallsLoaded = false;
+
+        async function togglePreviousCalls() {
+            const container = document.getElementById('previous-calls-container');
+            const btn = document.getElementById('toggle-previous-btn');
+
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                btn.textContent = '▲ Ocultar';
+                if (!previousCallsLoaded) {
+                    await loadPreviousCalls();
+                }
+            } else {
+                container.style.display = 'none';
+                btn.textContent = '▼ Mostrar';
+            }
+        }
+
+        async function loadPreviousCalls() {
+            const container = document.getElementById('previous-calls-list');
+            const noCalls = document.getElementById('no-previous-calls');
+
+            container.innerHTML = '<p class="text-muted">Carregando histórico...</p>';
+
+            // Get calls from last 90 days that are completed or cancelled
+            const ninetyDaysAgo = new Date();
+            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+            const dateStr = ninetyDaysAgo.toISOString().split('T')[0];
+
+            const { data, error } = await WardApp.db
+                .from('scheduled_calls')
+                .select('*, student:student_id(full_name, email), landmark:landmark_id(title, notes)')
+                .eq('mentor_id', userData.id)
+                .in('status', ['completed', 'cancelled'])
+                .gte('scheduled_date', dateStr)
+                .order('scheduled_date', { ascending: false })
+                .order('scheduled_time', { ascending: false });
+
+            if (error) {
+                container.innerHTML = '<p class="text-danger">Erro ao carregar histórico</p>';
+                return;
+            }
+
+            previousCallsLoaded = true;
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '';
+                noCalls.style.display = 'block';
+                return;
+            }
+
+            noCalls.style.display = 'none';
+
+            container.innerHTML = data.map(call => {
+                const statusClass = call.status === 'completed' ? 'completed' : 'cancelled';
+                const statusIcon = call.status === 'completed' ? '✅' : '❌';
+                const hasNotes = call.notes && call.notes.trim();
+                const landmarkHasNotes = call.landmark?.notes && Array.isArray(call.landmark.notes) && call.landmark.notes.length > 0;
+                const notesIndicator = (hasNotes || landmarkHasNotes) ? '📝 ' : '';
+
+                return `
+                    <div class="call-card ${statusClass}" style="cursor: pointer;" onclick="openCallModal('${call.id}')">
+                        <div class="call-icon">${statusIcon}</div>
+                        <div class="call-info">
+                            <div class="call-title">${notesIndicator}${call.landmark?.title || 'Chamada'}</div>
+                            <div class="call-meta">
+                                <strong>${_dn(call.student?.full_name) || call.student?.email}</strong><br>
+                                📅 ${WardApp.formatDate(call.scheduled_date)} às ${formatTime(call.scheduled_time)}
+                                ${call.notes ? `<br>📝 ${call.notes.length > 80 ? call.notes.substring(0, 80) + '...' : call.notes}` : ''}
+                            </div>
+                        </div>
+                        <div class="call-actions">
+                            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openCallModal('${call.id}')">Ver</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderScheduledCalls() {
+            const container = document.getElementById('scheduled-calls-list');
+            const noCalls = document.getElementById('no-calls');
+
+            if (scheduledCalls.length === 0) {
+                container.innerHTML = '';
+                noCalls.style.display = 'block';
+                return;
+            }
+
+            noCalls.style.display = 'none';
+
+            container.innerHTML = scheduledCalls.map(call => {
+                const statusClass = call.status === 'completed' ? 'completed' :
+                                   call.status === 'cancelled' ? 'cancelled' : 'pending';
+                const statusIcon = call.status === 'completed' ? '✅' :
+                                  call.status === 'cancelled' ? '❌' : '📞';
+                const hasNotes = call.notes && call.notes.trim();
+                const landmarkHasNotes = call.landmark?.notes && Array.isArray(call.landmark.notes) && call.landmark.notes.length > 0;
+                const notesIndicator = (hasNotes || landmarkHasNotes) ? '📝 ' : '';
+
+                return `
+                    <div class="call-card ${statusClass}" style="cursor: pointer;" onclick="openCallModal('${call.id}')">
+                        <div class="call-icon">${statusIcon}</div>
+                        <div class="call-info">
+                            <div class="call-title">${notesIndicator}${call.landmark?.title || 'Chamada'}</div>
+                            <div class="call-meta">
+                                <strong>${_dn(call.student?.full_name) || call.student?.email}</strong><br>
+                                📅 ${WardApp.formatDate(call.scheduled_date)} às ${formatTime(call.scheduled_time)}
+                                ${getStudentTimezoneLabel(call)}
+                                ${call.notes ? `<br>📝 ${call.notes.length > 80 ? call.notes.substring(0, 80) + '...' : call.notes}` : ''}
+                            </div>
+                        </div>
+                        <div class="call-actions">
+                            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openCallModal('${call.id}')">👁️ Ver</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function openCallModal(callId) {
+            // First try to find in current scheduled calls
+            let call = scheduledCalls.find(c => c.id === callId);
+
+            // If not found, fetch from database (e.g., previous calls)
+            if (!call) {
+                const { data, error } = await WardApp.db
+                    .from('scheduled_calls')
+                    .select('*, student:student_id(full_name, email), landmark:landmark_id(id, title, notes)')
+                    .eq('id', callId)
+                    .single();
+
+                if (error || !data) {
+                    WardApp.showToast('Erro ao carregar chamada', 'error');
+                    return;
+                }
+                call = data;
+            }
+
+            // Store current call for adding notes
+            currentCall = call;
+
+            document.getElementById('call-id').value = callId;
+            document.getElementById('new-landmark-note').value = '';
+
+            // Build notes section from landmark if available
+            let landmarkNotesHtml = '';
+            if (call.landmark?.notes && Array.isArray(call.landmark.notes) && call.landmark.notes.length > 0) {
+                landmarkNotesHtml = `
+                    <div style="background: #dbeafe; padding: 0.75rem; border-radius: 8px; margin-top: 0.5rem;">
+                        <strong style="color: #1e40af;">📋 Observações do Landmark:</strong>
+                        ${call.landmark.notes.map(n => `
+                            <div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.5); border-radius: 4px;">
+                                <div style="font-size: 0.75rem; color: #6b7280;">${n.author || 'Mentor'} - ${new Date(n.date).toLocaleDateString('pt-BR')}</div>
+                                <div style="white-space: pre-wrap;">${n.text}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            const statusLabels = {
+                scheduled: 'Agendada',
+                completed: 'Concluída',
+                cancelled: 'Cancelada',
+                pending: 'Pendente'
+            };
+
+            document.getElementById('call-details').innerHTML = `
+                <p><strong>👤 Aluno:</strong> ${_dn(call.student?.full_name) || call.student?.email}</p>
+                <p><strong>📞 Chamada:</strong> ${call.landmark?.title || 'Chamada'}</p>
+                <p><strong>📅 Data:</strong> ${WardApp.formatDate(call.scheduled_date)}</p>
+                <p><strong>🕐 Horário:</strong> ${formatTime(call.scheduled_time)}${getStudentTimezoneLabel(call)}</p>
+                <p><strong>📊 Status:</strong> ${statusLabels[call.status] || call.status}</p>
+                ${landmarkNotesHtml}
+            `;
+
+            // Show/hide add note section based on whether call has a landmark
+            const addNoteSection = document.getElementById('add-landmark-note-section');
+            if (call.landmark_id) {
+                addNoteSection.style.display = 'block';
+            } else {
+                addNoteSection.style.display = 'none';
+            }
+
+            openModal('call-modal');
+        }
+
+        async function completeCall() {
+            const callId = document.getElementById('call-id').value;
+
+            await WardApp.db
+                .from('scheduled_calls')
+                .update({ status: 'completed', updated_at: new Date().toISOString() })
+                .eq('id', callId);
+
+            // Also update the landmark if linked
+            const call = scheduledCalls.find(c => c.id == callId);
+            if (call?.landmark_id) {
+                await WardApp.db
+                    .from('landmarks')
+                    .update({ completed: true, completion_date: new Date().toISOString() })
+                    .eq('id', call.landmark_id);
+            }
+
+            closeModal('call-modal');
+            WardApp.showToast('Chamada marcada como concluida!');
+            await loadScheduledCalls();
+        }
+
+        async function cancelCall() {
+            if (!confirm('Cancelar esta chamada?')) return;
+
+            const callId = document.getElementById('call-id').value;
+
+            await WardApp.db
+                .from('scheduled_calls')
+                .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+                .eq('id', callId);
+
+            closeModal('call-modal');
+            WardApp.showToast('Chamada cancelada');
+            await loadScheduledCalls();
+        }
+
+        async function addLandmarkNote() {
+            if (!currentCall || !currentCall.landmark_id) {
+                WardApp.showToast('Esta chamada não tem um landmark associado', 'warning');
+                return;
+            }
+
+            const noteText = document.getElementById('new-landmark-note').value.trim();
+            if (!noteText) {
+                WardApp.showToast('Digite uma observação', 'warning');
+                return;
+            }
+
+            // Get current notes from landmark
+            const { data: landmark, error: fetchError } = await WardApp.db
+                .from('landmarks')
+                .select('notes')
+                .eq('id', currentCall.landmark_id)
+                .single();
+
+            if (fetchError) {
+                console.error('Error fetching landmark:', fetchError);
+                WardApp.showToast('Erro ao carregar landmark', 'error');
+                return;
+            }
+
+            // Build new notes array
+            const currentNotes = Array.isArray(landmark?.notes) ? landmark.notes : [];
+            const newNote = {
+                text: noteText,
+                author: _dn(userData.full_name) || userData.email,
+                date: new Date().toISOString()
+            };
+            currentNotes.push(newNote);
+
+            // Update landmark with new notes
+            const { error: updateError } = await WardApp.db
+                .from('landmarks')
+                .update({
+                    notes: currentNotes,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', currentCall.landmark_id);
+
+            if (updateError) {
+                console.error('Error updating landmark:', updateError);
+                WardApp.showToast('Erro ao salvar observação', 'error');
+                return;
+            }
+
+            WardApp.showToast('Observação adicionada!', 'success');
+            document.getElementById('new-landmark-note').value = '';
+
+            // Refresh the modal to show the new note
+            await openCallModal(currentCall.id);
+
+            // Also refresh the calls lists
+            await loadScheduledCalls();
+            if (previousCallsLoaded) {
+                await loadPreviousCalls();
+            }
+        }
+
+        // ===== New Call (Mentor → Student) =====
+        let allStudents = [];
+
+        async function loadStudentsList() {
+            if (allStudents.length > 0) return;
+            const { data } = await WardApp.db
+                .from('users')
+                .select('id, full_name, email, timezone, role')
+                .in('role', ['aluno', 'assessoria']);
+            allStudents = (data || []).map(s => ({ ...s, _displayName: _dn(s.full_name) || s.email || '' }))
+                .sort((a, b) => a._displayName.localeCompare(b._displayName, 'pt-BR'));
+        }
+
+        async function openNewCallModal() {
+            await loadStudentsList();
+
+            // Populate student dropdown
+            const select = document.getElementById('new-call-student');
+            select.innerHTML = '<option value="">Selecione o aluno...</option>' +
+                allStudents.map(s => `<option value="${s.id}">${s._displayName}</option>`).join('');
+
+            // Reset fields
+            document.getElementById('new-call-title').value = '';
+            document.getElementById('new-call-notes').value = '';
+            document.getElementById('new-call-time').value = '09:00';
+            document.getElementById('new-call-time-hint').textContent = '';
+
+            // Set date input min to today
+            loadNewCallDates();
+
+            openModal('new-call-modal');
+        }
+
+        function loadNewCallDates() {
+            const dateInput = document.getElementById('new-call-date');
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.min = today;
+            if (!dateInput.value) dateInput.value = today;
+        }
+
+        async function loadNewCallTimeSlots() {
+            const dateStr = document.getElementById('new-call-date').value;
+            const hint = document.getElementById('new-call-time-hint');
+
+            if (!dateStr) {
+                hint.textContent = '';
+                return;
+            }
+
+            // Check for already booked slots on this date
+            const { data: booked } = await WardApp.db
+                .from('scheduled_calls')
+                .select('scheduled_time')
+                .eq('mentor_id', userData.id)
+                .eq('scheduled_date', dateStr)
+                .eq('status', 'scheduled');
+
+            const bookedTimes = (booked || []).map(b => b.scheduled_time.substring(0, 5));
+
+            if (bookedTimes.length > 0) {
+                hint.innerHTML = `<span style="color: #d97706;">Horários já ocupados neste dia: ${bookedTimes.join(', ')}</span>`;
+            } else {
+                hint.textContent = 'Nenhuma chamada agendada neste dia';
+            }
+        }
+
+        async function submitNewCall() {
+            const title = document.getElementById('new-call-title').value.trim();
+            const studentId = document.getElementById('new-call-student').value;
+            const dateStr = document.getElementById('new-call-date').value;
+            const time = document.getElementById('new-call-time').value;
+            const notes = document.getElementById('new-call-notes').value.trim();
+
+            if (!title || !studentId || !dateStr || !time) {
+                WardApp.showToast('Preencha todos os campos obrigatorios', 'warning');
+                return;
+            }
+
+            const btn = document.getElementById('new-call-submit-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Agendando...';
+
+            try {
+                // Double-booking check
+                const { data: existing } = await WardApp.db
+                    .from('scheduled_calls')
+                    .select('id')
+                    .eq('mentor_id', userData.id)
+                    .eq('scheduled_date', dateStr)
+                    .eq('scheduled_time', time)
+                    .eq('status', 'scheduled')
+                    .maybeSingle();
+
+                if (existing) {
+                    WardApp.showToast('Este horario ja foi reservado. Escolha outro.', 'error');
+                    await loadNewCallTimeSlots();
+                    return;
+                }
+
+                // Determine landmark_type based on mentor role
+                const mentorKey = (userData.role || '').replace('mentor_', '');
+                const landmarkType = `call_extra_${mentorKey}`;
+
+                // Create a landmark so the call shows on student's landmarks page
+                const { data: landmark, error: lmError } = await WardApp.db
+                    .from('landmarks')
+                    .insert({
+                        user_id: studentId,
+                        landmark_type: landmarkType,
+                        title: title,
+                        completed: false,
+                        is_urgent: false,
+                        order_position: 999,
+                        group_name: 'extras',
+                        notes: notes ? [{ text: notes, author: _dn(userData.full_name) || userData.email, date: new Date().toISOString() }] : [],
+                        created_at: new Date().toISOString()
+                    })
+                    .select('id')
+                    .single();
+
+                if (lmError) {
+                    console.error('Error creating landmark:', lmError);
+                    WardApp.showToast('Erro ao criar landmark: ' + (lmError.message || ''), 'error');
+                    return;
+                }
+
+                // Get student timezone
+                const student = allStudents.find(s => String(s.id) === String(studentId));
+                const studentTz = student?.timezone || 'America/Sao_Paulo';
+
+                // Create the scheduled call
+                const { error: callError } = await WardApp.db
+                    .from('scheduled_calls')
+                    .insert({
+                        landmark_id: landmark.id,
+                        student_id: studentId,
+                        mentor_id: userData.id,
+                        scheduled_date: dateStr,
+                        scheduled_time: time,
+                        status: 'scheduled',
+                        notes: notes || null,
+                        student_timezone: studentTz
+                    });
+
+                if (callError) {
+                    console.error('Error creating call:', callError);
+                    WardApp.showToast('Erro ao agendar chamada: ' + (callError.message || ''), 'error');
+                    return;
+                }
+
+                closeModal('new-call-modal');
+                WardApp.showToast('Chamada agendada com sucesso!', 'success');
+                await loadScheduledCalls();
+
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📞 Agendar';
+            }
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+    </script>
+</body>
+</html>

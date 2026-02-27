@@ -1,0 +1,2459 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Relatórios de Chamadas</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #d97706;
+            --primary-dark: #b45309;
+            --primary-light: #fef3c7;
+            --secondary: #6366f1;
+            --success: #10b981;
+            --dark: #1e293b;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-500: #6b7280;
+            --gray-700: #374151;
+            --gray-900: #111827;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            min-height: 100vh;
+        }
+
+        /* Page Header */
+        .page-header {
+            background: linear-gradient(135deg, var(--dark) 0%, #0f172a 100%);
+            padding: 2rem;
+            border-radius: 20px;
+            margin-bottom: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .page-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -10%;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(217, 119, 6, 0.15) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+
+        .page-header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .page-header h1 {
+            color: white;
+            font-size: 1.75rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin: 0;
+        }
+
+        .page-header h1 span {
+            font-size: 2rem;
+        }
+
+        .page-header-stats {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 800;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.7);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6rem 1.25rem;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .back-btn:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateX(-3px);
+        }
+
+        /* Main Container */
+        .reports-container {
+            display: flex;
+            gap: 1.5rem;
+            min-height: calc(100vh - 280px);
+        }
+
+        /* Sidebar */
+        .students-sidebar {
+            width: 320px;
+            flex-shrink: 0;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100vh - 280px);
+        }
+
+        .sidebar-header {
+            padding: 1.25rem 1.5rem;
+            background: linear-gradient(135deg, var(--secondary) 0%, #4f46e5 100%);
+            color: white;
+            font-weight: 700;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .sidebar-header span {
+            font-size: 1.25rem;
+        }
+
+        .sidebar-search {
+            padding: 1rem;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .sidebar-search input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            padding-left: 2.5rem;
+            border: 2px solid var(--gray-200);
+            border-radius: 10px;
+            font-size: 0.9rem;
+            background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/%3E%3C/svg%3E") no-repeat 0.75rem center;
+            background-size: 1.25rem;
+            transition: all 0.2s;
+        }
+
+        .sidebar-search input:focus {
+            outline: none;
+            border-color: var(--secondary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .role-filters {
+            display: flex;
+            gap: 0.35rem;
+            margin-top: 0.6rem;
+        }
+
+        .role-filter-btn {
+            flex: 1;
+            padding: 0.35rem 0.5rem;
+            border: 1.5px solid var(--gray-300);
+            border-radius: 8px;
+            background: white;
+            color: var(--gray-600);
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .role-filter-btn:hover {
+            border-color: var(--secondary);
+            color: var(--secondary);
+        }
+
+        .role-filter-btn.active {
+            background: var(--secondary);
+            border-color: var(--secondary);
+            color: white;
+        }
+
+        .students-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .student-item {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--gray-100);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .student-item:hover {
+            background: var(--gray-50);
+        }
+
+        .student-item.active {
+            background: linear-gradient(135deg, var(--primary-light) 0%, #fef9c3 100%);
+            border-left: 4px solid var(--primary);
+        }
+
+        .student-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--secondary) 0%, #818cf8 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .student-item.active .student-avatar {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        }
+
+        .student-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .student-item .student-name {
+            font-weight: 600;
+            color: var(--gray-900);
+            font-size: 0.95rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .student-item .student-email {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .student-item .reports-count {
+            font-size: 0.7rem;
+            background: var(--gray-200);
+            color: var(--gray-700);
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            margin-top: 0.25rem;
+            display: inline-block;
+            font-weight: 500;
+        }
+
+        .student-item.active .reports-count {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Main Content */
+        .reports-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            min-width: 0;
+        }
+
+        /* Empty State - No Student Selected */
+        .no-student-state {
+            background: white;
+            border-radius: 20px;
+            padding: 4rem 2rem;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .no-student-state .icon {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, var(--gray-100) 0%, var(--gray-200) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .no-student-state h3 {
+            font-size: 1.5rem;
+            color: var(--gray-900);
+            margin: 0 0 0.5rem;
+        }
+
+        .no-student-state p {
+            color: var(--gray-500);
+            margin: 0;
+        }
+
+        /* Reports Header */
+        .reports-header {
+            background: white;
+            border-radius: 16px;
+            padding: 1.25rem 1.5rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .selected-student-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .selected-avatar {
+            width: 55px;
+            height: 55px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.25rem;
+        }
+
+        .selected-student-name {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin: 0;
+        }
+
+        .selected-student-email {
+            font-size: 0.85rem;
+            color: var(--gray-500);
+            margin: 0;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        /* Mentor Filters */
+        .mentor-filters {
+            display: flex;
+            gap: 0.5rem;
+            background: var(--gray-100);
+            padding: 0.35rem;
+            border-radius: 12px;
+        }
+
+        .mentor-filter-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.2s;
+            color: var(--gray-500);
+        }
+
+        .mentor-filter-btn:hover {
+            color: var(--gray-700);
+        }
+
+        .mentor-filter-btn.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .add-report-btn {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(217, 119, 6, 0.3);
+        }
+
+        .add-report-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(217, 119, 6, 0.4);
+        }
+
+        /* Reports Grid */
+        #reports-container {
+            margin-top: 1.25rem;
+        }
+
+        .reports-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.25rem;
+        }
+
+        .report-card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            cursor: pointer;
+            transition: all 0.3s;
+            border-left: 5px solid var(--primary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .report-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, rgba(217, 119, 6, 0.05) 0%, transparent 70%);
+        }
+
+        .report-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+        }
+
+        .report-card .report-title {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--gray-900);
+            margin-bottom: 0.75rem;
+            position: relative;
+        }
+
+        .report-card .report-meta {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .report-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+            color: var(--gray-500);
+            background: var(--gray-100);
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
+        }
+
+        .report-card .report-preview {
+            font-size: 0.9rem;
+            color: var(--gray-700);
+            line-height: 1.6;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        .empty-state-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--primary-light) 0%, #fef9c3 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            margin: 0 auto 1.5rem;
+        }
+
+        .empty-state h3 {
+            font-size: 1.25rem;
+            color: var(--gray-900);
+            margin: 0 0 0.5rem;
+        }
+
+        .empty-state p {
+            color: var(--gray-500);
+            margin: 0;
+        }
+
+        /* Modal Styles */
+        .report-modal .modal {
+            max-width: 850px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            border-radius: 20px;
+        }
+
+        .report-modal .modal-header {
+            background: linear-gradient(135deg, var(--dark) 0%, #0f172a 100%);
+            padding: 1.5rem 2rem;
+            border-radius: 20px 20px 0 0;
+        }
+
+        .report-modal .modal-title {
+            color: white;
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .report-modal .modal-close {
+            color: white;
+            opacity: 0.7;
+        }
+
+        .report-modal .modal-close:hover {
+            opacity: 1;
+        }
+
+        .report-modal .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem;
+            background: var(--gray-50);
+        }
+
+        .report-modal .modal-footer {
+            padding: 1.25rem 2rem;
+            background: white;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .modal-fullscreen-btn {
+            font-size: 1rem !important;
+            padding: 0.25rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .report-modal.fullscreen .modal {
+            max-width: 100%;
+            max-height: 100%;
+            width: 100%;
+            height: 100%;
+            border-radius: 0;
+            margin: 0;
+        }
+
+        .report-modal.fullscreen .modal-header {
+            border-radius: 0;
+        }
+
+        .report-modal.fullscreen .modal-body {
+            flex: 1;
+        }
+
+        .view-meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .view-meta-item {
+            background: white;
+            padding: 1rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .view-meta-item label {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        .view-meta-item .value {
+            font-weight: 600;
+            color: var(--gray-900);
+            font-size: 1rem;
+        }
+
+        /* Report Content */
+        .report-content {
+            background: white !important;
+            color: var(--gray-900) !important;
+            padding: 2rem;
+            border-radius: 12px;
+            line-height: 1.7;
+            font-size: 0.95rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .report-content * {
+            background: transparent !important;
+            background-color: transparent !important;
+            color: var(--gray-900) !important;
+        }
+
+        .report-content h1 {
+            color: var(--gray-900) !important;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--gray-200);
+            white-space: normal;
+        }
+
+        .report-content h2 {
+            color: var(--gray-900) !important;
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+            white-space: normal;
+        }
+
+        .report-content h3 {
+            color: var(--gray-700) !important;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            white-space: normal;
+        }
+
+        .report-content h4, .report-content h5, .report-content h6 {
+            color: var(--gray-700) !important;
+            font-size: 1rem;
+            font-weight: 600;
+            margin-top: 0.75rem;
+            margin-bottom: 0.5rem;
+            white-space: normal;
+        }
+
+        .report-content ul, .report-content ol {
+            margin-left: 0;
+            margin-bottom: 1rem;
+            padding-left: 2rem;
+            white-space: normal;
+        }
+
+        .report-content ul { list-style-type: disc; }
+        .report-content ol { list-style-type: decimal; }
+
+        .report-content li {
+            margin-bottom: 0.4rem;
+            line-height: 1.6;
+            padding-left: 0.5rem;
+        }
+
+        .report-content ul ul,
+        .report-content ol ul,
+        .report-content ul ol,
+        .report-content ol ol {
+            margin-top: 0.4rem;
+            margin-bottom: 0.4rem;
+            margin-left: 0;
+            padding-left: 2rem;
+        }
+
+        .report-content ul ul { list-style-type: circle; }
+        .report-content ul ul ul { list-style-type: square; }
+        .report-content ol ol { list-style-type: lower-alpha; }
+        .report-content ol ol ol { list-style-type: lower-roman; }
+
+        .report-content p {
+            margin-bottom: 1rem;
+            white-space: pre-wrap;
+        }
+
+        .report-content strong, .report-content b {
+            font-weight: 700;
+            color: var(--gray-900) !important;
+        }
+
+        .report-content em, .report-content i { font-style: italic; }
+
+        .report-content code {
+            background: var(--gray-100) !important;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+        }
+
+        .report-content pre {
+            background: var(--gray-100) !important;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+
+        .report-content blockquote {
+            border-left: 4px solid var(--primary);
+            padding-left: 1rem;
+            margin: 1rem 0;
+            color: var(--gray-700) !important;
+            font-style: italic;
+        }
+
+        .report-content a {
+            color: var(--secondary) !important;
+            text-decoration: underline;
+        }
+
+        /* Tables in report content */
+        .report-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.88rem;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--gray-200) !important;
+        }
+
+        .report-content thead tr {
+            background: var(--gray-100) !important;
+        }
+
+        .report-content th {
+            background: var(--gray-100) !important;
+            font-weight: 700 !important;
+            text-align: left;
+            padding: 0.65rem 0.85rem;
+            border-bottom: 2px solid var(--gray-300) !important;
+            border-right: 1px solid var(--gray-200) !important;
+            white-space: normal;
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .report-content th:last-child {
+            border-right: none !important;
+        }
+
+        .report-content td {
+            padding: 0.55rem 0.85rem;
+            border-bottom: 1px solid var(--gray-100) !important;
+            border-right: 1px solid var(--gray-100) !important;
+            white-space: normal;
+            vertical-align: top;
+            line-height: 1.5;
+        }
+
+        .report-content td:last-child {
+            border-right: none !important;
+        }
+
+        .report-content tbody tr:nth-child(even) {
+            background: var(--gray-50) !important;
+        }
+
+        .report-content tbody tr:hover {
+            background: #fef9c3 !important;
+        }
+
+        .report-content tbody tr:last-child td {
+            border-bottom: none !important;
+        }
+
+        /* Rich text editor tables */
+        .rich-text-editor table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0.75rem 0;
+            border: 1px solid var(--gray-300);
+        }
+
+        .rich-text-editor th,
+        .rich-text-editor td {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--gray-300);
+            white-space: normal;
+        }
+
+        .rich-text-editor th {
+            background: var(--gray-100) !important;
+            font-weight: 600;
+        }
+
+        /* Rich Text Editor */
+        .rich-text-editor {
+            min-height: 250px;
+            padding: 1.25rem;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            background: white !important;
+            color: var(--gray-900) !important;
+            overflow-y: auto;
+            line-height: 1.7;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .rich-text-editor:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
+        }
+
+        .rich-text-editor[contenteditable="true"]:empty:before {
+            content: attr(placeholder);
+            color: var(--gray-400);
+        }
+
+        .rich-text-editor * {
+            background: transparent !important;
+            background-color: transparent !important;
+        }
+
+        .rich-text-editor h1, .rich-text-editor h2, .rich-text-editor h3,
+        .rich-text-editor h4, .rich-text-editor h5, .rich-text-editor h6 {
+            white-space: normal;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .rich-text-editor h1 { font-size: 1.5rem; }
+        .rich-text-editor h2 { font-size: 1.25rem; }
+        .rich-text-editor h3 { font-size: 1.1rem; }
+
+        .rich-text-editor ul, .rich-text-editor ol {
+            margin-left: 0;
+            padding-left: 2rem;
+            white-space: normal;
+            margin-bottom: 0.75rem;
+        }
+
+        .rich-text-editor ul { list-style-type: disc; }
+        .rich-text-editor ol { list-style-type: decimal; }
+
+        .rich-text-editor li {
+            margin-bottom: 0.3rem;
+            padding-left: 0.5rem;
+        }
+
+        .rich-text-editor ul ul,
+        .rich-text-editor ol ul,
+        .rich-text-editor ul ol,
+        .rich-text-editor ol ol {
+            margin-left: 0;
+            padding-left: 2rem;
+            margin-top: 0.3rem;
+        }
+
+        .rich-text-editor ul ul { list-style-type: circle; }
+        .rich-text-editor ol ol { list-style-type: lower-alpha; }
+
+        .rich-text-editor p {
+            margin-bottom: 0.75rem;
+            white-space: pre-wrap;
+        }
+
+        .rich-text-editor strong, .rich-text-editor b {
+            font-weight: 700;
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            color: var(--gray-700);
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--gray-200);
+            border-radius: 10px;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.7rem 1.25rem;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(217, 119, 6, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--gray-200);
+            color: var(--gray-700);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-300);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--gray-300);
+            color: var(--gray-700);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-1px);
+        }
+
+        .btn-share {
+            background: linear-gradient(135deg, var(--secondary) 0%, #4f46e5 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-share:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-download {
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-download:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+        }
+
+        /* Image Action Button Group */
+        .image-action-group {
+            display: inline-flex;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .image-action-group .btn-image-action {
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 0.6rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: all 0.2s;
+            border-radius: 0;
+        }
+
+        .image-action-group .btn-image-action:hover {
+            filter: brightness(1.1);
+        }
+
+        .image-action-group .btn-toggle-mode {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: white;
+            border: none;
+            border-left: 1px solid rgba(255,255,255,0.2);
+            padding: 0.6rem 0.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .image-action-group .btn-toggle-mode:hover {
+            background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+        }
+
+        .image-action-group .btn-toggle-mode svg {
+            width: 14px;
+            height: 14px;
+            transition: transform 0.2s;
+        }
+
+        .image-action-group.download-mode .btn-toggle-mode svg {
+            transform: rotate(180deg);
+        }
+
+        .image-action-group.pdf-mode .btn-image-action {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        }
+
+        .image-action-group.pdf-mode .btn-toggle-mode {
+            background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+        }
+
+        .image-action-group.pdf-mode .btn-toggle-mode:hover {
+            background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
+        }
+
+        .image-action-group.pdf-mode .btn-toggle-mode svg {
+            transform: rotate(180deg);
+        }
+
+        .image-action-group.pdf-mode {
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+        }
+
+        /* Recent reports toggle */
+        .recent-limit-btn {
+            padding: 0.3rem 0.75rem; border: 1px solid var(--gray-200); border-radius: 8px;
+            background: white; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+            color: var(--gray-500); transition: all 0.15s;
+        }
+        .recent-limit-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .recent-limit-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        .recent-report-row {
+            display: flex; align-items: center; gap: 1rem; padding: 0.85rem 1.25rem;
+            border-bottom: 1px solid var(--gray-100); cursor: pointer; transition: background 0.15s;
+            text-decoration: none; color: inherit;
+        }
+        .recent-report-row:hover { background: var(--gray-50); }
+        .recent-report-row:last-child { border-bottom: none; }
+
+        .recent-report-mentor {
+            padding: 0.2rem 0.6rem; border-radius: 10px; font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .reports-container {
+                flex-direction: column;
+            }
+
+            .students-sidebar {
+                width: 100%;
+                max-height: 350px;
+            }
+
+            .page-header-stats {
+                display: none;
+            }
+
+            .report-modal .modal {
+                max-width: 95%;
+                margin: 1rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 1rem;
+            }
+
+            .page-header {
+                padding: 1.25rem;
+                border-radius: 12px;
+                margin-bottom: 1rem;
+            }
+
+            .page-header h1 {
+                font-size: 1.25rem;
+            }
+
+            .page-header h1 span {
+                font-size: 1.5rem;
+            }
+
+            .back-btn {
+                padding: 0.5rem 1rem;
+                font-size: 0.8rem;
+            }
+
+            .reports-container {
+                gap: 1rem;
+            }
+
+            .students-sidebar {
+                border-radius: 12px;
+                max-height: 280px;
+            }
+
+            .sidebar-header {
+                padding: 1rem;
+                font-size: 0.9rem;
+            }
+
+            .sidebar-search {
+                padding: 0.75rem;
+            }
+
+            .student-item {
+                padding: 0.75rem 1rem;
+            }
+
+            .student-avatar {
+                width: 38px;
+                height: 38px;
+                font-size: 0.85rem;
+            }
+
+            .reports-header {
+                padding: 1rem;
+                border-radius: 12px;
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .selected-student-info {
+                width: 100%;
+            }
+
+            .selected-avatar {
+                width: 45px;
+                height: 45px;
+                font-size: 1rem;
+            }
+
+            .selected-student-name {
+                font-size: 1.1rem;
+            }
+
+            .header-actions {
+                width: 100%;
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+
+            .mentor-filters {
+                width: 100%;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            .mentor-filter-btn {
+                padding: 0.4rem 0.75rem;
+                font-size: 0.8rem;
+            }
+
+            .add-report-btn {
+                width: 100%;
+                justify-content: center;
+                padding: 0.65rem 1rem;
+                font-size: 0.9rem;
+            }
+
+            #reports-container {
+                margin-top: 1rem;
+            }
+
+            .reports-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .report-card {
+                padding: 1.25rem;
+                border-radius: 12px;
+            }
+
+            .report-card .report-title {
+                font-size: 1rem;
+            }
+
+            .report-card .report-meta {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+
+            .report-meta-item {
+                font-size: 0.75rem;
+                padding: 0.25rem 0.5rem;
+            }
+
+            .view-meta-grid {
+                grid-template-columns: 1fr;
+            }
+
+            /* Modal Mobile */
+            .report-modal .modal {
+                max-width: 100%;
+                max-height: 100vh;
+                height: 100%;
+                margin: 0;
+                border-radius: 0;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .report-modal .modal-header {
+                border-radius: 0;
+                padding: 1rem 1.25rem;
+            }
+
+            .report-modal .modal-title {
+                font-size: 1rem;
+            }
+
+            .report-modal .modal-body {
+                padding: 1rem;
+                flex: 1;
+                overflow-y: auto;
+            }
+
+            .view-meta-item {
+                padding: 0.75rem;
+            }
+
+            .report-content {
+                padding: 1rem;
+                font-size: 0.9rem;
+            }
+
+            .report-modal .modal-footer {
+                padding: 1rem;
+                border-radius: 0;
+            }
+
+            #view-mode-buttons {
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 0.5rem !important;
+            }
+
+            #view-mode-buttons .btn {
+                flex: 1 1 auto;
+                min-width: 100px;
+                padding: 0.6rem 0.75rem;
+                font-size: 0.8rem;
+                text-align: center;
+                justify-content: center;
+            }
+
+            #edit-mode-buttons {
+                width: 100%;
+                justify-content: stretch !important;
+            }
+
+            #edit-mode-buttons .btn {
+                flex: 1;
+            }
+
+            .form-input, .form-select {
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+
+            .rich-text-editor {
+                min-height: 200px;
+                font-size: 16px;
+            }
+
+            .empty-state {
+                padding: 2rem 1rem;
+            }
+
+            .empty-state-icon {
+                width: 60px;
+                height: 60px;
+                font-size: 2rem;
+            }
+
+            .empty-state h3 {
+                font-size: 1.1rem;
+            }
+
+            .no-student-state {
+                padding: 2rem 1rem;
+                border-radius: 12px;
+            }
+
+            .no-student-state .icon {
+                width: 70px;
+                height: 70px;
+                font-size: 2rem;
+            }
+
+            .no-student-state h3 {
+                font-size: 1.2rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .page-header-content {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+
+            .back-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .student-item .student-name {
+                font-size: 0.9rem;
+            }
+
+            .student-item .student-email {
+                font-size: 0.7rem;
+            }
+
+            #view-mode-buttons .btn {
+                min-width: 80px;
+                font-size: 0.75rem;
+                padding: 0.5rem 0.5rem;
+            }
+
+            .report-card .report-preview {
+                font-size: 0.85rem;
+                -webkit-line-clamp: 2;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </a>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="nav-link">Dashboard</a>
+                <a href="/relatorios" class="nav-link active">Relatórios</a>
+                <a href="/mentor-cronograma" class="nav-link">Cronograma</a>
+                <a href="/mentor-chamadas" class="nav-link">Chamadas</a>
+            </nav>
+            <div class="nav-user">
+                <span class="user-name" id="user-name">Mentor</span>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="page-header-content">
+                <div>
+                    <h1><span>📝</span> Relatórios de Chamadas</h1>
+                </div>
+                <div class="page-header-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-reports">0</div>
+                        <div class="stat-label">Relatórios</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-alunos-count">0</div>
+                        <div class="stat-label">Alunos</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-assessoria-count">0</div>
+                        <div class="stat-label">Assessoria</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-externo-count">0</div>
+                        <div class="stat-label">Externo</div>
+                    </div>
+                </div>
+                <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="back-btn">
+                    ← Voltar ao Dashboard
+                </a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="reports-container">
+            <!-- Students Sidebar -->
+            <div class="students-sidebar">
+                <div class="sidebar-header">
+                    <span>👥</span> Selecione um Aluno
+                </div>
+                <div class="sidebar-search">
+                    <input type="text" id="student-search" placeholder="Buscar aluno..." oninput="filterStudents()">
+                    <div class="role-filters">
+                        <button class="role-filter-btn active" data-role="aluno" onclick="toggleRoleFilter('aluno', this)">Alunos</button>
+                        <button class="role-filter-btn" data-role="assessoria" onclick="toggleRoleFilter('assessoria', this)">Assessoria</button>
+                        <button class="role-filter-btn" data-role="externo" onclick="toggleRoleFilter('externo', this)">Externo</button>
+                    </div>
+                </div>
+                <div class="students-list" id="students-list">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+
+            <!-- Reports Main Area -->
+            <div class="reports-main">
+                <div id="no-student-selected">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h2 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--gray-900);">📝 Últimos Relatórios</h2>
+                        <div style="display: flex; gap: 0.35rem;">
+                            <button class="recent-limit-btn active" onclick="setRecentLimit(10)">10</button>
+                            <button class="recent-limit-btn" onclick="setRecentLimit(20)">20</button>
+                            <button class="recent-limit-btn" onclick="setRecentLimit(50)">50</button>
+                        </div>
+                    </div>
+                    <div id="recent-reports-list"></div>
+                </div>
+
+                <div id="student-reports-area" style="display: none;">
+                    <!-- Reports Header -->
+                    <div class="reports-header">
+                        <div class="selected-student-info">
+                            <div class="selected-avatar" id="selected-avatar">A</div>
+                            <div>
+                                <h2 class="selected-student-name" id="selected-student-name">Nome do Aluno</h2>
+                                <p class="selected-student-email" id="selected-student-email">email@exemplo.com</p>
+                            </div>
+                        </div>
+                        <div class="header-actions">
+                            <div class="mentor-filters">
+                                <button class="mentor-filter-btn active" data-mentor="all" onclick="filterByMentor('all')">Todos</button>
+                                <button class="mentor-filter-btn" data-mentor="iria" onclick="filterByMentor('iria')">👩‍⚕️ Iria</button>
+                                <button class="mentor-filter-btn" data-mentor="marcos" onclick="filterByMentor('marcos')">👨‍💼 Marcos</button>
+                                <button class="mentor-filter-btn" data-mentor="guilherme" onclick="filterByMentor('guilherme')">🃏 Guilherme</button>
+                            </div>
+                            <button class="add-report-btn" onclick="openNewReportModal()">
+                                ➕ Novo Relatório
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Reports Grid -->
+                    <div id="reports-container">
+                        <div class="reports-grid" id="reports-grid">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Report Modal (View/Edit) -->
+    <div id="report-modal" class="modal-overlay report-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="report-modal-title">Relatório</h3>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <button class="modal-close modal-fullscreen-btn" onclick="toggleReportFullscreen()" title="Expandir / Tela cheia">
+                        <svg id="fullscreen-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                        </svg>
+                    </button>
+                    <button class="modal-close" onclick="closeModal('report-modal')">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div id="report-view-mode">
+                    <div class="view-meta-grid">
+                        <div class="view-meta-item">
+                            <label>📅 Data da Chamada</label>
+                            <div class="value" id="view-report-date"></div>
+                        </div>
+                        <div class="view-meta-item">
+                            <label>👤 Mentor</label>
+                            <div class="value" id="view-report-mentor"></div>
+                        </div>
+                    </div>
+                    <div class="report-content" id="view-report-content"></div>
+                </div>
+                <div id="report-edit-mode" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Título da Chamada *</label>
+                        <input type="text" id="edit-report-title" class="form-input" placeholder="Ex: 1a Chamada - Organizando próximos passos">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Data da Chamada *</label>
+                        <input type="date" id="edit-report-date" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Mentor *</label>
+                        <select id="edit-report-mentor" class="form-input">
+                            <option value="">Selecione o mentor...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Relatório *</label>
+                        <div class="rich-text-editor"
+                             id="edit-report-text"
+                             contenteditable="true"
+                             placeholder="Cole aqui texto formatado do Claude ou escreva o relatório...">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                <div id="view-mode-buttons" style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                    <button class="btn btn-share" onclick="shareReport()" title="Copiar link">🔗 Compartilhar</button>
+                    <div class="image-action-group" id="image-action-group">
+                        <button class="btn-image-action" onclick="executeImageAction()" title="Copiar imagem">
+                            <span id="image-action-icon">📋</span>
+                            <span id="image-action-text">Copiar Imagem</span>
+                        </button>
+                        <button class="btn-toggle-mode" onclick="toggleImageMode()" title="Alternar modo">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M7 10l5 5 5-5H7z"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <button class="btn btn-secondary" onclick="closeModal('report-modal')">Fechar</button>
+                    <button class="btn btn-outline" onclick="toggleEditMode(true)">✏️ Editar</button>
+                    <button class="btn btn-danger" onclick="deleteReport()">🗑️ Excluir</button>
+                </div>
+                <div id="edit-mode-buttons" style="display: none; gap: 0.75rem;">
+                    <button class="btn btn-secondary" onclick="toggleEditMode(false)">Cancelar</button>
+                    <button class="btn btn-primary" onclick="saveReport()">💾 Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-confirm-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                <h3 class="modal-title" style="color: white;">🗑️ Confirmar Exclusão</h3>
+                <button class="modal-close" onclick="closeModal('delete-confirm-modal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 1rem; color: #374151;">
+                    Tem certeza que deseja excluir este relatório? Esta ação não pode ser desfeita.
+                </p>
+                <p style="margin-bottom: 1rem; color: #6b7280; font-size: 0.9rem;">
+                    Digite <strong style="color: #dc2626;">excluir</strong> para confirmar:
+                </p>
+                <input
+                    type="text"
+                    id="delete-confirm-input"
+                    class="form-input"
+                    placeholder="Digite 'excluir' aqui..."
+                    autocomplete="off"
+                    style="margin-bottom: 1rem;"
+                    oninput="checkDeleteConfirmation()"
+                >
+                <p id="delete-confirm-error" style="color: #dc2626; font-size: 0.85rem; display: none; margin-bottom: 1rem;">
+                    ⚠️ Digite "excluir" corretamente para confirmar
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('delete-confirm-modal')">Cancelar</button>
+                <button id="delete-confirm-btn" class="btn btn-danger" onclick="confirmDeleteReport()" disabled style="opacity: 0.5; cursor: not-allowed;">
+                    🗑️ Excluir Relatório
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        let userData = null;
+        let allStudents = [];
+        let allReports = [];
+        let selectedStudent = null;
+        let currentReportId = null;
+        let currentMentorFilter = 'all';
+        let mentorsMap = {};
+        let imageActionMode = 'copy'; // 'copy', 'download' or 'pdf'
+        let recentLimit = 10;
+        let activeRoleFilters = new Set(['aluno']);
+
+        // Helper to decrypt user data if encrypted
+        function _dn(val) {
+            if (!val) return val;
+            return WardApp._prs ? WardApp._prs(val) : val;
+        }
+
+        // Sort users alphabetically by decrypted name
+        function sortUsersByName(users) {
+            return users.sort((a, b) => {
+                const nameA = (_dn(a.full_name) || a.email || '').toLowerCase();
+                const nameB = (_dn(b.full_name) || b.email || '').toLowerCase();
+                return nameA.localeCompare(nameB, 'pt-BR');
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            const allowedRoles = ['mentor', 'admin', 'mentor_marcos', 'mentor_iria'];
+            if (!allowedRoles.includes(userData.role)) {
+                window.location.href = '/dashboard';
+                return;
+            }
+
+            const fullName = _dn(userData.full_name) || userData.email;
+            document.getElementById('user-name').textContent = fullName ? fullName.split(' ')[0] : fullName;
+
+            // Run loads in parallel so one failure doesn't block the others
+            const results = await Promise.allSettled([
+                loadMentors(),
+                loadStudents(),
+                loadAllReports()
+            ]);
+
+            // Log and show any errors
+            const failed = results.filter(r => r.status === 'rejected');
+            if (failed.length > 0) {
+                console.error('Relatorios load errors:', failed.map(r => r.reason));
+                WardApp.showToast('Erro ao carregar alguns dados. Tente recarregar a página.', 'error');
+            }
+
+            checkSharedReportLink();
+        });
+
+        async function loadMentors() {
+            try {
+                const { data: mentors, error } = await WardApp.db
+                    .from('users')
+                    .select('id, full_name, email, role')
+                    .in('role', ['mentor', 'admin', 'mentor_marcos', 'mentor_iria', 'mentor_guilherme', 'mentor_romulo']);
+
+                if (error) { console.error('loadMentors error:', error); return; }
+
+                const select = document.getElementById('edit-report-mentor');
+                select.innerHTML = '<option value="">Selecione o mentor...</option>';
+
+                (mentors || []).forEach(m => {
+                    mentorsMap[m.id] = m;
+                    const option = document.createElement('option');
+                    option.value = m.id;
+                    option.textContent = _dn(m.full_name) || m.email;
+                    select.appendChild(option);
+                });
+            } catch (err) { console.error('loadMentors exception:', err); }
+        }
+
+        async function loadStudents() {
+            try {
+                const { data: students, error } = await WardApp.db
+                    .from('users')
+                    .select('id, full_name, email, role')
+                    .in('role', ['aluno', 'assessoria', 'externo']);
+
+                if (error) { console.error('loadStudents error:', error); return; }
+
+                allStudents = sortUsersByName(students || []);
+                document.getElementById('total-alunos-count').textContent = allStudents.filter(s => s.role === 'aluno').length;
+                document.getElementById('total-assessoria-count').textContent = allStudents.filter(s => s.role === 'assessoria').length;
+                document.getElementById('total-externo-count').textContent = allStudents.filter(s => s.role === 'externo').length;
+                renderStudentsList();
+            } catch (err) { console.error('loadStudents exception:', err); }
+        }
+
+        async function loadAllReports() {
+            try {
+                const { data: reports, error } = await WardApp.db
+                    .from('call_reports')
+                    .select('*, student:student_id(full_name, email), mentor:mentor_id(full_name, email)')
+                    .order('call_date', { ascending: false });
+
+                if (error) { console.error('loadAllReports error:', error); return; }
+
+                allReports = reports || [];
+                document.getElementById('total-reports').textContent = allReports.length;
+                updateReportCounts();
+                if (!selectedStudent) renderRecentReports();
+            } catch (err) { console.error('loadAllReports exception:', err); }
+        }
+
+        function updateReportCounts() {
+            const counts = {};
+            allReports.forEach(r => {
+                counts[r.student_id] = (counts[r.student_id] || 0) + 1;
+            });
+
+            allStudents.forEach(s => {
+                const countEl = document.getElementById(`report-count-${s.id}`);
+                if (countEl) {
+                    const count = counts[s.id] || 0;
+                    countEl.textContent = count === 0 ? 'Sem relatórios' : `${count} relatório${count > 1 ? 's' : ''}`;
+                }
+            });
+        }
+
+        function getInitials(name) {
+            if (!name) return '?';
+            return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+        }
+
+        function toggleRoleFilter(role, btn) {
+            if (activeRoleFilters.has(role)) {
+                if (activeRoleFilters.size <= 1) return; // keep at least one active
+                activeRoleFilters.delete(role);
+                btn.classList.remove('active');
+            } else {
+                activeRoleFilters.add(role);
+                btn.classList.add('active');
+            }
+            renderStudentsList();
+        }
+
+        function renderStudentsList() {
+            const container = document.getElementById('students-list');
+            const searchTerm = document.getElementById('student-search').value.toLowerCase();
+
+            const filtered = allStudents.filter(s => {
+                if (!activeRoleFilters.has(s.role)) return false;
+                return (_dn(s.full_name) || '').toLowerCase().includes(searchTerm) ||
+                    (s.email || '').toLowerCase().includes(searchTerm);
+            });
+
+            container.innerHTML = filtered.map(s => `
+                <div class="student-item ${selectedStudent?.id === s.id ? 'active' : ''}" onclick="selectStudent(${s.id})">
+                    <div class="student-avatar">${getInitials(_dn(s.full_name))}</div>
+                    <div class="student-info">
+                        <div class="student-name">${_dn(s.full_name) || 'Sem nome'}</div>
+                        <div class="student-email">${s.email}</div>
+                        <div class="reports-count" id="report-count-${s.id}">Carregando...</div>
+                    </div>
+                </div>
+            `).join('');
+
+            updateReportCounts();
+        }
+
+        function filterStudents() {
+            renderStudentsList();
+        }
+
+        function selectStudent(studentId) {
+            selectedStudent = allStudents.find(s => s.id === studentId);
+            if (!selectedStudent) return;
+
+            document.getElementById('no-student-selected').style.display = 'none';
+            document.getElementById('student-reports-area').style.display = 'block';
+
+            document.getElementById('selected-student-name').textContent = _dn(selectedStudent.full_name) || 'Sem nome';
+            document.getElementById('selected-student-email').textContent = selectedStudent.email;
+            document.getElementById('selected-avatar').textContent = getInitials(_dn(selectedStudent.full_name));
+
+            renderStudentsList();
+            renderReports();
+        }
+
+        function filterByMentor(mentor) {
+            currentMentorFilter = mentor;
+
+            document.querySelectorAll('.mentor-filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.mentor === mentor);
+            });
+
+            renderReports();
+        }
+
+        // Helper para formatar data sem problemas de timezone
+        function formatDateBR(dateStr) {
+            if (!dateStr) return '-';
+            let datePart = String(dateStr);
+            if (datePart.includes('T')) {
+                datePart = datePart.split('T')[0];
+            }
+            const parts = datePart.split('-');
+            if (parts.length === 3) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            return dateStr;
+        }
+
+        function renderReports() {
+            if (!selectedStudent) return;
+
+            let studentReports = allReports.filter(r => r.student_id === selectedStudent.id);
+
+            if (currentMentorFilter !== 'all') {
+                studentReports = studentReports.filter(r => {
+                    const mentorName = (_dn(r.mentor?.full_name) || '').toLowerCase();
+                    return mentorName.includes(currentMentorFilter);
+                });
+            }
+
+            // Ordenar por data mais recente primeiro
+            studentReports.sort((a, b) => {
+                const dateA = a.call_date || '';
+                const dateB = b.call_date || '';
+                return dateB.localeCompare(dateA); // Descending order
+            });
+
+            const container = document.getElementById('reports-grid');
+
+            if (studentReports.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="grid-column: 1 / -1;">
+                        <div class="empty-state-icon">📋</div>
+                        <h3>Nenhum relatório encontrado</h3>
+                        <p>Clique em "Novo Relatório" para adicionar o primeiro relatório deste aluno.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = studentReports.map(r => {
+                const formattedDate = formatDateBR(r.call_date);
+                const mentorName = _dn(r.mentor?.full_name) || 'Mentor';
+                const preview = stripHtml(r.report_text).substring(0, 150);
+
+                return `
+                    <div class="report-card" onclick="viewReport(${r.id})">
+                        <div class="report-title">${r.title}</div>
+                        <div class="report-meta">
+                            <span class="report-meta-item">📅 ${formattedDate}</span>
+                            <span class="report-meta-item">👤 ${mentorName}</span>
+                        </div>
+                        <div class="report-preview">${preview}${preview.length >= 150 ? '...' : ''}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function stripHtml(html) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            return tmp.textContent || tmp.innerText || '';
+        }
+
+        function openNewReportModal() {
+            if (!selectedStudent) {
+                WardApp.showToast('Selecione um aluno primeiro', 'error');
+                return;
+            }
+
+            currentReportId = null;
+            document.getElementById('report-modal-title').textContent = 'Novo Relatório';
+            document.getElementById('edit-report-title').value = '';
+            document.getElementById('edit-report-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('edit-report-mentor').value = userData.id;
+            document.getElementById('edit-report-text').innerHTML = '';
+
+            toggleEditMode(true);
+            openModal('report-modal');
+        }
+
+        async function viewReport(reportId) {
+            const report = allReports.find(r => r.id === reportId);
+            if (!report) return;
+
+            currentReportId = reportId;
+
+            document.getElementById('report-modal-title').textContent = report.title;
+
+            const date = new Date(report.call_date + 'T12:00:00');
+            document.getElementById('view-report-date').textContent = date.toLocaleDateString('pt-BR');
+            document.getElementById('view-report-mentor').textContent = _dn(report.mentor?.full_name) || 'Mentor';
+
+            const contentEl = document.getElementById('view-report-content');
+            contentEl.innerHTML = report.report_text;
+
+            document.getElementById('edit-report-title').value = report.title;
+            document.getElementById('edit-report-date').value = report.call_date;
+            document.getElementById('edit-report-mentor').value = report.mentor_id;
+            document.getElementById('edit-report-text').innerHTML = report.report_text;
+
+            toggleEditMode(false);
+            openModal('report-modal');
+        }
+
+        function toggleEditMode(isEdit) {
+            document.getElementById('report-view-mode').style.display = isEdit ? 'none' : 'block';
+            document.getElementById('report-edit-mode').style.display = isEdit ? 'block' : 'none';
+            document.getElementById('view-mode-buttons').style.display = isEdit ? 'none' : 'flex';
+            document.getElementById('edit-mode-buttons').style.display = isEdit ? 'flex' : 'none';
+
+            if (isEdit && currentReportId === null) {
+                document.getElementById('view-mode-buttons').style.display = 'none';
+            }
+        }
+
+        async function saveReport() {
+            const title = document.getElementById('edit-report-title').value.trim();
+            const callDate = document.getElementById('edit-report-date').value;
+            const mentorId = document.getElementById('edit-report-mentor').value;
+            const reportText = document.getElementById('edit-report-text').innerHTML.trim();
+
+            if (!title || !callDate || !mentorId || !reportText) {
+                WardApp.showToast('Preencha todos os campos obrigatórios', 'error');
+                return;
+            }
+
+            const reportData = {
+                student_id: selectedStudent.id,
+                mentor_id: parseInt(mentorId),
+                title: title,
+                call_date: callDate,
+                report_text: reportText,
+                updated_at: new Date().toISOString()
+            };
+
+            try {
+                if (currentReportId) {
+                    const { error } = await WardApp.db
+                        .from('call_reports')
+                        .update(reportData)
+                        .eq('id', currentReportId);
+
+                    if (error) throw error;
+                    WardApp.showToast('Relatório atualizado!', 'success');
+                } else {
+                    reportData.created_at = new Date().toISOString();
+                    const { error } = await WardApp.db
+                        .from('call_reports')
+                        .insert(reportData);
+
+                    if (error) throw error;
+                    WardApp.showToast('Relatório criado!', 'success');
+                }
+
+                closeModal('report-modal');
+                await loadAllReports();
+                renderReports();
+
+            } catch (error) {
+                console.error('Error saving report:', error);
+                WardApp.showToast('Erro ao salvar relatório', 'error');
+            }
+        }
+
+        // Open delete confirmation modal
+        function deleteReport() {
+            if (!currentReportId) return;
+
+            // Reset the confirmation input
+            document.getElementById('delete-confirm-input').value = '';
+            document.getElementById('delete-confirm-error').style.display = 'none';
+            document.getElementById('delete-confirm-btn').disabled = true;
+            document.getElementById('delete-confirm-btn').style.opacity = '0.5';
+            document.getElementById('delete-confirm-btn').style.cursor = 'not-allowed';
+
+            openModal('delete-confirm-modal');
+        }
+
+        // Check if user typed "excluir" correctly
+        function checkDeleteConfirmation() {
+            const input = document.getElementById('delete-confirm-input');
+            const btn = document.getElementById('delete-confirm-btn');
+            const error = document.getElementById('delete-confirm-error');
+
+            if (input.value.toLowerCase().trim() === 'excluir') {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+                error.style.display = 'none';
+            } else {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+                if (input.value.length > 0) {
+                    error.style.display = 'block';
+                } else {
+                    error.style.display = 'none';
+                }
+            }
+        }
+
+        // Actually delete the report after confirmation
+        async function confirmDeleteReport() {
+            if (!currentReportId) return;
+
+            const input = document.getElementById('delete-confirm-input');
+            if (input.value.toLowerCase().trim() !== 'excluir') {
+                WardApp.showToast('Digite "excluir" para confirmar', 'warning');
+                return;
+            }
+
+            try {
+                const { error } = await WardApp.db
+                    .from('call_reports')
+                    .delete()
+                    .eq('id', currentReportId);
+
+                if (error) throw error;
+
+                WardApp.showToast('Relatório excluído!', 'success');
+                closeModal('delete-confirm-modal');
+                closeModal('report-modal');
+                await loadAllReports();
+                renderReports();
+
+            } catch (error) {
+                console.error('Error deleting report:', error);
+                WardApp.showToast('Erro ao excluir relatório', 'error');
+            }
+        }
+
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.remove('active');
+            // Exit fullscreen when closing
+            if (modalId === 'report-modal') {
+                modal.classList.remove('fullscreen');
+                updateFullscreenIcon(false);
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('report-modal');
+                if (modal.classList.contains('active')) {
+                    if (modal.classList.contains('fullscreen')) {
+                        modal.classList.remove('fullscreen');
+                        updateFullscreenIcon(false);
+                    } else {
+                        closeModal('report-modal');
+                    }
+                    e.preventDefault();
+                }
+            }
+        });
+
+        function toggleReportFullscreen() {
+            const modal = document.getElementById('report-modal');
+            const isFullscreen = modal.classList.toggle('fullscreen');
+            updateFullscreenIcon(isFullscreen);
+        }
+
+        function updateFullscreenIcon(isFullscreen) {
+            const icon = document.getElementById('fullscreen-icon');
+            if (isFullscreen) {
+                // Minimize icon (arrows pointing inward)
+                icon.innerHTML = '<path d="M4 14h6m0 0v6m0-6L3 21M20 10h-6m0 0V4m0 6l7-7"/>';
+            } else {
+                // Expand icon (arrows pointing outward)
+                icon.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>';
+            }
+        }
+
+        function shareReport() {
+            if (!currentReportId) return;
+
+            const report = allReports.find(r => r.id === currentReportId);
+            if (!report) return;
+
+            // Create shareable URL with report ID
+            const shareUrl = `${window.location.origin}/relatorios?report=${currentReportId}`;
+
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                WardApp.showToast('Link copiado para a área de transferência!', 'success');
+            }).catch(() => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = shareUrl;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                WardApp.showToast('Link copiado para a área de transferência!', 'success');
+            });
+        }
+
+        function toggleImageMode() {
+            const group = document.getElementById('image-action-group');
+            const icon = document.getElementById('image-action-icon');
+            const text = document.getElementById('image-action-text');
+
+            group.classList.remove('download-mode', 'pdf-mode');
+
+            if (imageActionMode === 'copy') {
+                imageActionMode = 'download';
+                icon.textContent = '📥';
+                text.textContent = 'Baixar Imagem';
+                group.classList.add('download-mode');
+            } else if (imageActionMode === 'download') {
+                imageActionMode = 'pdf';
+                icon.textContent = '📄';
+                text.textContent = 'Salvar como PDF';
+                group.classList.add('pdf-mode');
+            } else {
+                imageActionMode = 'copy';
+                icon.textContent = '📋';
+                text.textContent = 'Copiar Imagem';
+            }
+        }
+
+        function executeImageAction() {
+            if (imageActionMode === 'copy') {
+                copyReportAsImage();
+            } else if (imageActionMode === 'download') {
+                downloadReportAsImage();
+            } else {
+                downloadReportAsPdf();
+            }
+        }
+
+        async function generateReportCanvas(canvasScale) {
+            if (!currentReportId) return null;
+
+            const report = allReports.find(r => r.id === currentReportId);
+            if (!report) return null;
+
+            // Create a styled container for the screenshot
+            const container = document.createElement('div');
+            container.style.cssText = `
+                position: fixed;
+                left: -9999px;
+                top: 0;
+                width: 800px;
+                padding: 40px;
+                background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+                font-family: 'Inter', sans-serif;
+            `;
+
+            const date = new Date(report.call_date + 'T12:00:00');
+            const formattedDate = date.toLocaleDateString('pt-BR');
+            const mentorName = _dn(report.mentor?.full_name) || 'Mentor';
+            const studentName = _dn(selectedStudent?.full_name) || 'Aluno';
+
+            container.innerHTML = `
+                <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 30px; border-radius: 16px 16px 0 0; margin: -40px -40px 0 -40px;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                            <span style="font-size: 24px;">📝</span>
+                        </div>
+                        <div>
+                            <div style="font-size: 14px; color: rgba(255,255,255,0.7); margin-bottom: 4px;">Ward Academy - Relatório de Chamada</div>
+                            <div style="font-size: 22px; font-weight: 700; color: white;">${report.title}</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="background: white; padding: 30px; border-radius: 0 0 16px 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); margin: 0 -40px -40px -40px;">
+                    <div style="display: flex; gap: 30px; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 2px solid #f3f4f6;">
+                        <div>
+                            <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; margin-bottom: 4px;">👤 Aluno</div>
+                            <div style="font-weight: 600; color: #111827;">${studentName}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; margin-bottom: 4px;">👨‍⚕️ Mentor</div>
+                            <div style="font-weight: 600; color: #111827;">${mentorName}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; margin-bottom: 4px;">📅 Data</div>
+                            <div style="font-weight: 600; color: #111827;">${formattedDate}</div>
+                        </div>
+                    </div>
+                    <style>
+                        .rc-canvas { line-height: 1.7; color: #111827; font-size: 15px; white-space: pre-wrap; word-wrap: break-word; }
+                        .rc-canvas * { background: transparent !important; background-color: transparent !important; color: #111827 !important; }
+                        .rc-canvas h1 { font-size: 1.5rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 2px solid #e5e7eb; white-space: normal; }
+                        .rc-canvas h2 { font-size: 1.25rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.5rem; white-space: normal; }
+                        .rc-canvas h3 { color: #374151 !important; font-size: 1.1rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; white-space: normal; }
+                        .rc-canvas h4, .rc-canvas h5, .rc-canvas h6 { color: #374151 !important; font-size: 1rem; font-weight: 600; margin-top: 0.75rem; margin-bottom: 0.5rem; white-space: normal; }
+                        .rc-canvas ul, .rc-canvas ol { margin-left: 0; margin-bottom: 1rem; padding-left: 2rem; white-space: normal; }
+                        .rc-canvas ul { list-style-type: disc; }
+                        .rc-canvas ol { list-style-type: decimal; }
+                        .rc-canvas li { margin-bottom: 0.4rem; line-height: 1.6; padding-left: 0.5rem; }
+                        .rc-canvas ul ul, .rc-canvas ol ul, .rc-canvas ul ol, .rc-canvas ol ol { margin-top: 0.4rem; margin-bottom: 0.4rem; margin-left: 0; padding-left: 2rem; }
+                        .rc-canvas ul ul { list-style-type: circle; }
+                        .rc-canvas ul ul ul { list-style-type: square; }
+                        .rc-canvas ol ol { list-style-type: lower-alpha; }
+                        .rc-canvas ol ol ol { list-style-type: lower-roman; }
+                        .rc-canvas p { margin-bottom: 1rem; white-space: pre-wrap; }
+                        .rc-canvas strong, .rc-canvas b { font-weight: 700; }
+                        .rc-canvas em, .rc-canvas i { font-style: italic; }
+                        .rc-canvas code { background: #f3f4f6 !important; padding: 0.2rem 0.4rem; border-radius: 4px; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.9em; }
+                        .rc-canvas pre { background: #f3f4f6 !important; padding: 1rem; border-radius: 8px; overflow-x: auto; margin: 1rem 0; }
+                        .rc-canvas blockquote { border-left: 4px solid #d97706; padding-left: 1rem; margin: 1rem 0; color: #374151 !important; font-style: italic; }
+                        .rc-canvas a { color: #6366f1 !important; text-decoration: underline; }
+                    </style>
+                    <div class="rc-canvas">${report.report_text}</div>
+                    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center;">
+                        <div style="font-size: 12px; color: #9ca3af;">🎓 Ward Academy • wardacademy.org</div>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(container);
+
+            try {
+                const canvas = await html2canvas(container, {
+                    scale: canvasScale || 2,
+                    useCORS: true,
+                    backgroundColor: '#f8fafc',
+                    logging: false
+                });
+                return { canvas, container, studentName, report };
+            } catch (error) {
+                document.body.removeChild(container);
+                throw error;
+            }
+        }
+
+        async function copyReportAsImage() {
+            WardApp.showToast('Gerando imagem...', 'info');
+
+            try {
+                const result = await generateReportCanvas();
+                if (!result) return;
+
+                const { canvas, container } = result;
+
+                // Convert canvas to blob and copy to clipboard
+                canvas.toBlob(async (blob) => {
+                    try {
+                        await navigator.clipboard.write([
+                            new ClipboardItem({ 'image/png': blob })
+                        ]);
+                        WardApp.showToast('Imagem copiada para a área de transferência!', 'success');
+                    } catch (err) {
+                        console.error('Clipboard write failed:', err);
+                        // Fallback: download instead
+                        WardApp.showToast('Não foi possível copiar. Baixando imagem...', 'warning');
+                        const link = document.createElement('a');
+                        link.download = `relatorio-${result.studentName.replace(/\s+/g, '-').toLowerCase()}-${result.report.call_date}.png`;
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                    }
+                    document.body.removeChild(container);
+                }, 'image/png');
+
+            } catch (error) {
+                console.error('Error generating image:', error);
+                WardApp.showToast('Erro ao gerar imagem', 'error');
+            }
+        }
+
+        async function downloadReportAsImage() {
+            WardApp.showToast('Gerando imagem...', 'info');
+
+            try {
+                const result = await generateReportCanvas();
+                if (!result) return;
+
+                const { canvas, container, studentName, report } = result;
+
+                // Download the image
+                const link = document.createElement('a');
+                const filename = `relatorio-${studentName.replace(/\s+/g, '-').toLowerCase()}-${report.call_date}.png`;
+                link.download = filename;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+
+                WardApp.showToast('Imagem baixada com sucesso!', 'success');
+                document.body.removeChild(container);
+
+            } catch (error) {
+                console.error('Error generating image:', error);
+                WardApp.showToast('Erro ao gerar imagem', 'error');
+            }
+        }
+
+        async function downloadReportAsPdf() {
+            WardApp.showToast('Gerando PDF...', 'info');
+
+            try {
+                const result = await generateReportCanvas(1.5);
+                if (!result) return;
+
+                const { canvas, container, studentName, report } = result;
+                const { jsPDF } = window.jspdf;
+
+                const imgData = canvas.toDataURL('image/jpeg', 0.75);
+                const imgWidth = canvas.width;
+                const imgHeight = canvas.height;
+
+                const pdfWidth = 210;
+                const margin = 10;
+                const contentWidth = pdfWidth - (margin * 2);
+                const contentHeight = (imgHeight * contentWidth) / imgWidth;
+
+                const pdfHeight = Math.max(297, contentHeight + (margin * 2));
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: [pdfWidth, pdfHeight]
+                });
+
+                pdf.addImage(imgData, 'JPEG', margin, margin, contentWidth, contentHeight);
+
+                const filename = `relatorio-${studentName.replace(/\s+/g, '-').toLowerCase()}-${report.call_date}.pdf`;
+                pdf.save(filename);
+
+                WardApp.showToast('PDF salvo com sucesso!', 'success');
+                document.body.removeChild(container);
+
+            } catch (error) {
+                console.error('Error generating PDF:', error);
+                WardApp.showToast('Erro ao gerar PDF', 'error');
+            }
+        }
+
+        // Recent reports (when no student selected)
+        const MENTOR_COLORS = {
+            'iria': { bg: '#fef3c7', color: '#92400e' },
+            'marcos': { bg: '#dbeafe', color: '#1e40af' },
+            'guilherme': { bg: '#dcfce7', color: '#166534' }
+        };
+
+        function getMentorStyle(name) {
+            const lower = (name || '').toLowerCase();
+            for (const [key, style] of Object.entries(MENTOR_COLORS)) {
+                if (lower.includes(key)) return style;
+            }
+            return { bg: '#f1f5f9', color: '#475569' };
+        }
+
+        function renderRecentReports() {
+            const list = document.getElementById('recent-reports-list');
+            if (!list || selectedStudent) return;
+
+            if (allReports.length === 0) {
+                list.innerHTML = '<div style="text-align: center; padding: 3rem; color: var(--gray-500);">Nenhum relatório encontrado.</div>';
+                return;
+            }
+
+            const visible = allReports.slice(0, recentLimit);
+            list.innerHTML = `<div style="border: 1px solid var(--gray-200); border-radius: 16px; overflow: hidden; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.08);">
+                ${visible.map(r => {
+                    const studentName = _dn(r.student?.full_name) || r.student?.email || 'Aluno';
+                    const mentorName = _dn(r.mentor?.full_name) || 'Mentor';
+                    const mentorFirst = mentorName.split(' ')[0];
+                    const mStyle = getMentorStyle(mentorName);
+                    const date = formatDateBR(r.call_date);
+                    const initials = getInitials(studentName);
+                    return `<div class="recent-report-row" onclick="openRecentReport(${r.id})">
+                        <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, var(--secondary), #818cf8); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0;">${initials}</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 600; color: var(--gray-900); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${r.title || 'Sem título'}</div>
+                            <div style="font-size: 0.78rem; color: var(--gray-500); margin-top: 0.1rem;">${studentName.split(' ')[0]}</div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0;">
+                            <span class="recent-report-mentor" style="background: ${mStyle.bg}; color: ${mStyle.color};">${mentorFirst}</span>
+                            <span style="font-size: 0.8rem; color: var(--gray-500); white-space: nowrap;">${date}</span>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+            ${allReports.length > recentLimit ? `<div style="text-align: center; padding: 0.6rem; font-size: 0.85rem; color: var(--gray-500);">Mostrando ${recentLimit} de ${allReports.length}</div>` : ''}`;
+        }
+
+        function setRecentLimit(n) {
+            recentLimit = n;
+            document.querySelectorAll('.recent-limit-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.textContent) === n);
+            });
+            renderRecentReports();
+        }
+
+        function openRecentReport(reportId) {
+            const report = allReports.find(r => r.id === reportId);
+            if (!report) return;
+            selectStudent(report.student_id);
+            setTimeout(() => viewReport(reportId), 100);
+        }
+
+        // Handle shared report links
+        function checkSharedReportLink() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const reportId = urlParams.get('report');
+            if (reportId) {
+                const report = allReports.find(r => r.id === parseInt(reportId));
+                if (report) {
+                    // Select the student first
+                    selectStudent(report.student_id);
+                    // Then view the report
+                    setTimeout(() => viewReport(parseInt(reportId)), 100);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
