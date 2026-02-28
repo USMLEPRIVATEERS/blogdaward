@@ -4,7 +4,7 @@
 -- Main table: stores all user interactions with navigator resources
 CREATE TABLE IF NOT EXISTS usmle_navigator_progress (
     id BIGSERIAL PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     resource_id INTEGER NOT NULL, -- maps to the D[] array id in the navigator
     is_bookmarked BOOLEAN DEFAULT FALSE,
     is_read BOOLEAN DEFAULT FALSE,
@@ -24,7 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_usmle_nav_read ON usmle_navigator_progress(user_i
 -- Activity log: records each action for the global activity feed
 CREATE TABLE IF NOT EXISTS usmle_navigator_activity (
     id BIGSERIAL PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     resource_id INTEGER NOT NULL,
     resource_title TEXT NOT NULL,
     action_type TEXT NOT NULL CHECK (action_type IN ('bookmark', 'unbookmark', 'read', 'unread', 'doubt', 'undoubt', 'note')),
