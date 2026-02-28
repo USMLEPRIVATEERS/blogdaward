@@ -1,10 +1,14 @@
 -- USMLE Navigator - Tables for Supabase
 -- Stores student bookmarks, read status, doubts, and notes from the USMLE Navigator tool
 
+-- Drop old tables if they exist (fixes FK type mismatch from previous attempts)
+DROP TABLE IF EXISTS usmle_navigator_activity CASCADE;
+DROP TABLE IF EXISTS usmle_navigator_progress CASCADE;
+
 -- Main table: stores all user interactions with navigator resources
-CREATE TABLE IF NOT EXISTS usmle_navigator_progress (
+CREATE TABLE usmle_navigator_progress (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
+    user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
     resource_id INTEGER NOT NULL,
     is_bookmarked BOOLEAN DEFAULT FALSE,
     is_read BOOLEAN DEFAULT FALSE,
@@ -22,9 +26,9 @@ CREATE INDEX IF NOT EXISTS idx_usmle_nav_doubt ON usmle_navigator_progress(user_
 CREATE INDEX IF NOT EXISTS idx_usmle_nav_read ON usmle_navigator_progress(user_id, is_read) WHERE is_read = TRUE;
 
 -- Activity log: records each action for the global activity feed
-CREATE TABLE IF NOT EXISTS usmle_navigator_activity (
+CREATE TABLE usmle_navigator_activity (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
+    user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
     resource_id INTEGER NOT NULL,
     resource_title TEXT NOT NULL,
     action_type TEXT NOT NULL CHECK (action_type IN ('bookmark', 'unbookmark', 'read', 'unread', 'doubt', 'undoubt', 'note')),
@@ -34,11 +38,10 @@ CREATE TABLE IF NOT EXISTS usmle_navigator_activity (
 CREATE INDEX IF NOT EXISTS idx_usmle_nav_activity_user ON usmle_navigator_activity(user_id);
 CREATE INDEX IF NOT EXISTS idx_usmle_nav_activity_date ON usmle_navigator_activity(created_at DESC);
 
--- Disable RLS (consistent with the rest of the app)
+-- RLS
 ALTER TABLE usmle_navigator_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usmle_navigator_activity ENABLE ROW LEVEL SECURITY;
 
--- Policies: users can manage their own data, mentors can read all
 CREATE POLICY "Users can manage own navigator progress"
     ON usmle_navigator_progress FOR ALL
     USING (true)
