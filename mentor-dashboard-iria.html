@@ -1341,7 +1341,8 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                     watchedLessonsRes,
                     callReportsRes,
                     audioCommentsRes,
-                    mentorTasksRes
+                    mentorTasksRes,
+                    navigatorActivityRes
                 ] = await Promise.all([
                     // Links - new additions
                     WardApp.db.from('links_repository').select('*, users:added_by(full_name, email)').order('created_at', { ascending: false }).limit(20),
@@ -1400,7 +1401,9 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                     // Audio comments - comments on audio resumos
                     WardApp.db.from('course_audio_comments').select('*, users:user_id(full_name, email), audio:audio_id(title)').order('created_at', { ascending: false }).limit(30),
                     // Mentor student tasks (Guilherme to-do list)
-                    WardApp.db.from('mentor_student_tasks').select('*').order('updated_at', { ascending: false }).limit(30)
+                    WardApp.db.from('mentor_student_tasks').select('*').order('updated_at', { ascending: false }).limit(30),
+                    // USMLE Navigator activity
+                    WardApp.db.from('usmle_navigator_activity').select('*, users:user_id(full_name, email)').order('created_at', { ascending: false }).limit(30)
                 ]);
 
                 // Combine all activities into a single timeline
@@ -1931,6 +1934,29 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                         });
                     });
                 }
+
+                // USMLE Navigator activity
+                const navActionLabels = {
+                    bookmark: 'salvou recurso no USMLE Navigator',
+                    unbookmark: 'removeu recurso salvo no USMLE Navigator',
+                    read: 'marcou como lido no USMLE Navigator',
+                    unread: 'desmarcou leitura no USMLE Navigator',
+                    doubt: 'marcou dúvida no USMLE Navigator',
+                    undoubt: 'resolveu dúvida no USMLE Navigator',
+                    note: 'anotou no USMLE Navigator'
+                };
+                (navigatorActivityRes.data || []).forEach(item => {
+                    feed.push({
+                        type: 'usmle_navigator',
+                        icon: '🧭',
+                        color: '#C0582A',
+                        user: _dn(item.users?.full_name) || item.users?.email || 'Aluno',
+                        action: navActionLabels[item.action_type] || 'usou o USMLE Navigator',
+                        title: item.resource_title || '',
+                        detail: '',
+                        date: item.created_at
+                    });
+                });
 
                 // Sort by date descending
                 feed.sort((a, b) => new Date(b.date) - new Date(a.date));

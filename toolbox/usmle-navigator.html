@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Ward Academy — USMLE Navigator</title>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="/js/app.js"></script>
 <style>
 :root{--b:#C0582A;--bs:rgba(192,88,42,.07);--bm:rgba(192,88,42,.14);--bl:rgba(192,88,42,.25);--ink:#1D1D1F;--i2:#48484A;--i3:#8E8E93;--i4:#C7C7CC;--ln:#E5E5EA;--bg:#F5F5F7;--w:#fff;--g:#34C759;--gs:rgba(52,199,89,.09);--bu:#007AFF;--bus:rgba(0,122,255,.08);--y:#FF9F0A;--ys:rgba(255,159,10,.09)}
 *{margin:0;padding:0;box-sizing:border-box}html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}body{font-family:'Outfit',sans-serif;background:var(--w);color:var(--ink);-webkit-font-smoothing:antialiased;overflow-x:hidden}
@@ -190,7 +191,79 @@ dn:new Set(JSON.parse(localStorage.getItem('w5_dn')||'[]')),
 db:new Set(JSON.parse(localStorage.getItem('w5_db')||'[]')),
 nt:JSON.parse(localStorage.getItem('w5_nt')||'{}'),
 ex:new Set(),nv:new Set(),qVis:true,allEx:false};
-const sv=()=>{localStorage.setItem('w5_bk',JSON.stringify([...S.bk]));localStorage.setItem('w5_dn',JSON.stringify([...S.dn]));localStorage.setItem('w5_db',JSON.stringify([...S.db]));localStorage.setItem('w5_nt',JSON.stringify(S.nt))};
+
+// Get current user id
+let _uid = null;
+(async function(){
+    const u = JSON.parse(localStorage.getItem('ward_user'));
+    if (u && u.id) { _uid = u.id; await _loadFromDB(); }
+})();
+
+// Save to localStorage (instant) + Supabase (background)
+const sv=()=>{
+    localStorage.setItem('w5_bk',JSON.stringify([...S.bk]));
+    localStorage.setItem('w5_dn',JSON.stringify([...S.dn]));
+    localStorage.setItem('w5_db',JSON.stringify([...S.db]));
+    localStorage.setItem('w5_nt',JSON.stringify(S.nt));
+};
+
+// Sync a single resource to Supabase
+let _syncQueue = {};
+let _syncTimer = null;
+function _queueSync(rid) {
+    _syncQueue[rid] = true;
+    clearTimeout(_syncTimer);
+    _syncTimer = setTimeout(_flushSync, 500);
+}
+async function _flushSync() {
+    if (!_uid || !window.WardApp) return;
+    const ids = Object.keys(_syncQueue).map(Number);
+    _syncQueue = {};
+    for (const rid of ids) {
+        const row = {
+            user_id: _uid,
+            resource_id: rid,
+            is_bookmarked: S.bk.has(rid),
+            is_read: S.dn.has(rid),
+            has_doubt: S.db.has(rid),
+            notes: S.nt[rid] || '',
+            updated_at: new Date().toISOString()
+        };
+        await WardApp.db.from('usmle_navigator_progress').upsert(row, { onConflict: 'user_id,resource_id' });
+    }
+}
+
+// Log activity for the global feed
+async function _logActivity(rid, actionType) {
+    if (!_uid || !window.WardApp) return;
+    const r = D.find(x => x.id === rid);
+    await WardApp.db.from('usmle_navigator_activity').insert({
+        user_id: _uid,
+        resource_id: rid,
+        resource_title: r ? r.t : 'Recurso #' + rid,
+        action_type: actionType
+    });
+}
+
+// Load all user progress from Supabase on init
+async function _loadFromDB() {
+    if (!_uid || !window.WardApp) return;
+    try {
+        const { data } = await WardApp.db.from('usmle_navigator_progress')
+            .select('resource_id, is_bookmarked, is_read, has_doubt, notes')
+            .eq('user_id', _uid);
+        if (!data || !data.length) return;
+        S.bk = new Set(); S.dn = new Set(); S.db = new Set(); S.nt = {};
+        data.forEach(r => {
+            if (r.is_bookmarked) S.bk.add(r.resource_id);
+            if (r.is_read) S.dn.add(r.resource_id);
+            if (r.has_doubt) S.db.add(r.resource_id);
+            if (r.notes) S.nt[r.resource_id] = r.notes;
+        });
+        sv(); // update localStorage to match DB
+        render();
+    } catch(e) { console.log('Navigator DB load skipped:', e.message); }
+}
 
 function mt(r,q){if(!q.trim())return false;const w=q.toLowerCase(),p=[r.t,r.s,r.sum,...r.kw,...r.tg.map(t=>TG[t]||t),...r.qs].join(' ').toLowerCase();return w.split(/\s+/).every(x=>p.includes(x))}
 function fil(){return D.filter(r=>{if(S.mod!=='all'&&r.m!==S.mod)return false;if(S.tags.length&&!S.tags.some(t=>r.tg.includes(t)))return false;if(S.fm==='saved'&&!S.bk.has(r.id))return false;if(S.fm==='done'&&!S.dn.has(r.id))return false;if(S.fm==='doubt'&&!S.db.has(r.id))return false;if(S.qIdx!==null&&!aQ[S.qIdx].ids.includes(r.id))return false;if(S.q.trim())return mt(r,S.q);return true})}
@@ -223,11 +296,11 @@ row.innerHTML=`<div class="rh" onclick="tog(${r.id})"><div class="rn">${String(r
 w.appendChild(row)})}
 
 function tog(id){S.ex.has(id)?S.ex.delete(id):S.ex.add(id);render()}
-function tBk(id){S.bk.has(id)?S.bk.delete(id):S.bk.add(id);sv();render()}
-function tDn(id){S.dn.has(id)?S.dn.delete(id):S.dn.add(id);sv();render()}
-function tDb(id){S.db.has(id)?S.db.delete(id):S.db.add(id);sv();render()}
+function tBk(id){const was=S.bk.has(id);was?S.bk.delete(id):S.bk.add(id);sv();_queueSync(id);_logActivity(id,was?'unbookmark':'bookmark');render()}
+function tDn(id){const was=S.dn.has(id);was?S.dn.delete(id):S.dn.add(id);sv();_queueSync(id);_logActivity(id,was?'unread':'read');render()}
+function tDb(id){const was=S.db.has(id);was?S.db.delete(id):S.db.add(id);sv();_queueSync(id);_logActivity(id,was?'undoubt':'doubt');render()}
 function tNv(id){S.nv.has(id)?S.nv.delete(id):S.nv.add(id);render()}
-function sNt(id,v){S.nt[id]=v;sv()}
+function sNt(id,v){S.nt[id]=v;sv();_queueSync(id)}
 function filt(t){S.fm=S.fm===t?null:t;S.qIdx=null;S.tags=[];S.ex.clear();render()}
 function clr(){S.q='';document.getElementById('sI').value='';closeDD();S.ex.clear();render()}
 function togQ(){S.qVis=!S.qVis;document.getElementById('qW').classList.toggle('shut',!S.qVis);document.getElementById('qT').classList.toggle('flip',!S.qVis)}
