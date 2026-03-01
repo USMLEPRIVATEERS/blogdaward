@@ -229,7 +229,8 @@
                     <div class="comment-form mt-3">
                         <input type="hidden" id="current-post-id">
                         <div class="form-group">
-                            <textarea id="new-comment" class="form-textarea" rows="2" placeholder="Escreva um comentario..."></textarea>
+                            <div id="new-comment" class="comment-editor" contenteditable="true" data-placeholder="Escreva um comentario..."></div>
+                            <div class="comment-char-count"><span id="comment-char-used">0</span> / <span id="comment-char-limit">250</span></div>
                         </div>
                         <button class="btn btn-primary btn-sm" onclick="addComment()">Comentar</button>
                     </div>
@@ -382,8 +383,14 @@
             // Set character limit based on role
             const charLimit = isMentor ? CHAR_LIMIT_MENTOR : CHAR_LIMIT_ALUNO;
             document.getElementById('char-limit').textContent = charLimit;
-            const commentTextarea = document.getElementById('new-comment');
-            if (commentTextarea) commentTextarea.maxLength = charLimit;
+
+            // Setup comment editor (contenteditable)
+            const commentEditor = document.getElementById('new-comment');
+            if (commentEditor) {
+                document.getElementById('comment-char-limit').textContent = charLimit;
+                commentEditor.addEventListener('input', updateCommentCharCount);
+                commentEditor.addEventListener('paste', (e) => handleEditorPaste(e, 'new-comment'));
+            }
 
             // Update greeting
             const name = _dn(userData.name) || _dn(userData.full_name) || 'Usuario';
@@ -1004,9 +1011,9 @@
                                 </div>
                             ` : ''}
                         </div>
-                        <p class="comment-content" id="comment-content-${comment.id}">${sanitizePostContent(comment.content)}</p>
+                        <div class="comment-content" id="comment-content-${comment.id}">${sanitizePostContent(comment.content)}</div>
                         <div class="comment-edit-form" id="comment-edit-${comment.id}" style="display: none;">
-                            <textarea class="form-textarea" id="edit-comment-${comment.id}" rows="2" maxlength="${isMentor ? CHAR_LIMIT_MENTOR : CHAR_LIMIT_ALUNO}">${comment.content}</textarea>
+                            <div class="comment-editor" id="edit-comment-${comment.id}" contenteditable="true">${sanitizePostContent(comment.content)}</div>
                             <div class="d-flex gap-2 mt-1">
                                 <button class="btn btn-primary btn-xs" onclick="saveCommentEdit('${comment.id}', ${postId})">Salvar</button>
                                 <button class="btn btn-secondary btn-xs" onclick="cancelCommentEdit('${comment.id}')">Cancelar</button>
@@ -1051,7 +1058,9 @@
             const contentEl = document.getElementById(`comment-content-${commentId}`);
             contentEl.style.display = 'none';
             document.getElementById(`comment-edit-${commentId}`).style.display = 'block';
-            document.getElementById(`edit-comment-${commentId}`).value = contentEl.textContent;
+            const editEl = document.getElementById(`edit-comment-${commentId}`);
+            editEl.innerHTML = contentEl.innerHTML;
+            editEl.addEventListener('paste', (e) => handleEditorPaste(e, `edit-comment-${commentId}`));
         }
 
         function cancelCommentEdit(commentId) {
@@ -1060,9 +1069,17 @@
         }
 
         async function saveCommentEdit(commentId, postId) {
-            const newContent = document.getElementById(`edit-comment-${commentId}`).value.trim();
-            if (!newContent) {
+            const editEl = document.getElementById(`edit-comment-${commentId}`);
+            const plainText = (editEl.innerText || '').trim();
+            const newContent = editEl.innerHTML.trim();
+            if (!plainText) {
                 WardApp.showToast('O comentario nao pode estar vazio', 'warning');
+                return;
+            }
+
+            const charLimit = isMentor ? CHAR_LIMIT_MENTOR : CHAR_LIMIT_ALUNO;
+            if (plainText.length > charLimit) {
+                WardApp.showToast(`Limite de ${charLimit} caracteres excedido`, 'warning');
                 return;
             }
 
@@ -1099,6 +1116,18 @@
             await loadPosts();
         }
 
+        function updateCommentCharCount() {
+            const editor = document.getElementById('new-comment');
+            if (!editor) return;
+            const len = (editor.innerText || '').trim().length;
+            const charUsed = document.getElementById('comment-char-used');
+            if (charUsed) {
+                charUsed.textContent = len;
+                const limit = isMentor ? CHAR_LIMIT_MENTOR : CHAR_LIMIT_ALUNO;
+                charUsed.style.color = len > limit ? '#dc2626' : '';
+            }
+        }
+
         async function updateCommentCount(postId) {
             // Count actual non-deleted comments
             const { count, error } = await WardApp.db
@@ -1116,10 +1145,18 @@
 
         async function addComment() {
             const postId = document.getElementById('current-post-id').value;
-            const content = document.getElementById('new-comment').value.trim();
+            const editor = document.getElementById('new-comment');
+            const plainText = (editor.innerText || '').trim();
+            const content = editor.innerHTML.trim();
 
-            if (!content) {
+            if (!plainText) {
                 WardApp.showToast('Escreva um comentario', 'warning');
+                return;
+            }
+
+            const charLimit = isMentor ? CHAR_LIMIT_MENTOR : CHAR_LIMIT_ALUNO;
+            if (plainText.length > charLimit) {
+                WardApp.showToast(`Limite de ${charLimit} caracteres excedido`, 'warning');
                 return;
             }
 
@@ -1138,7 +1175,8 @@
             // Update comment count by counting actual comments
             await updateCommentCount(parseInt(postId));
 
-            document.getElementById('new-comment').value = '';
+            editor.innerHTML = '';
+            updateCommentCharCount();
             WardApp.showToast('Comentario adicionado!');
             await loadComments(postId);
             await loadPosts();
@@ -1323,8 +1361,13 @@
                 const cleanedHtml = cleanPastedHtml(html);
                 document.execCommand('insertHTML', false, cleanedHtml);
             } else if (text) {
+                // Check if it looks like a tab-separated table
+                if (isTabSeparatedTable(text)) {
+                    e.preventDefault();
+                    const tableHtml = tabToTable(text);
+                    document.execCommand('insertHTML', false, tableHtml);
                 // Check if it looks like markdown and convert it
-                if (isMarkdown(text)) {
+                } else if (isMarkdown(text)) {
                     e.preventDefault();
                     const htmlFromMd = markdownToHtml(text);
                     document.execCommand('insertHTML', false, htmlFromMd);
@@ -1381,6 +1424,30 @@
             nodesToClean.reverse().forEach(cleanNode);
 
             return temp.innerHTML;
+        }
+
+        // Check if text looks like a tab-separated table (e.g. pasted from spreadsheet)
+        function isTabSeparatedTable(text) {
+            const lines = text.trim().split('\n').filter(l => l.trim());
+            if (lines.length < 2) return false;
+            const tabCounts = lines.map(l => (l.match(/\t/g) || []).length);
+            return tabCounts[0] >= 1 && tabCounts.every(c => c === tabCounts[0]);
+        }
+
+        // Convert tab-separated text to HTML table
+        function tabToTable(text) {
+            const lines = text.trim().split('\n').filter(l => l.trim());
+            let html = '<table class="md-table"><thead><tr>';
+            const headerCells = lines[0].split('\t');
+            headerCells.forEach(c => { html += `<th>${c.trim()}</th>`; });
+            html += '</tr></thead><tbody>';
+            for (let i = 1; i < lines.length; i++) {
+                html += '<tr>';
+                lines[i].split('\t').forEach(c => { html += `<td>${c.trim()}</td>`; });
+                html += '</tr>';
+            }
+            html += '</tbody></table>';
+            return html;
         }
 
         // Check if text looks like markdown
@@ -1541,6 +1608,11 @@
 
             // Check if content looks like plain text (no HTML tags)
             if (!/<[^>]+>/.test(content)) {
+                // Check if plain text contains markdown or tab-separated tables
+                if (isMarkdown(content) || isTabSeparatedTable(content)) {
+                    if (isTabSeparatedTable(content)) return tabToTable(content);
+                    return markdownToHtml(content);
+                }
                 // Plain text - convert newlines to <br> and URLs to links
                 let result = content.replace(/\n/g, '<br>');
                 result = linkifyUrls(result);
@@ -2592,6 +2664,38 @@
             font-size: 0.9rem;
             margin: 0;
             padding-left: 2rem;
+            word-break: break-word;
+        }
+
+        .comment-editor {
+            min-height: 2.5rem;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            background: #fff;
+            outline: none;
+            word-break: break-word;
+        }
+
+        .comment-editor:focus {
+            border-color: var(--primary-color, #3b82f6);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+        }
+
+        .comment-editor:empty::before {
+            content: attr(data-placeholder);
+            color: var(--gray-400);
+            pointer-events: none;
+        }
+
+        .comment-char-count {
+            text-align: right;
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            margin-top: 0.25rem;
         }
 
         .comment-header {
