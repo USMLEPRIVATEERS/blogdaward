@@ -184,6 +184,9 @@ CREATE POLICY blog_comments_insert ON blog_comments
 CREATE POLICY blog_comments_update ON blog_comments
     FOR UPDATE USING (true);
 
+CREATE POLICY blog_comments_delete ON blog_comments
+    FOR DELETE USING (true);
+
 CREATE POLICY blog_reactions_all ON blog_reactions
     FOR ALL USING (true) WITH CHECK (true);
 

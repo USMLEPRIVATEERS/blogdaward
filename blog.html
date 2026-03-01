@@ -229,7 +229,7 @@
                     <div class="comment-form mt-3">
                         <input type="hidden" id="current-post-id">
                         <div class="form-group">
-                            <textarea id="new-comment" class="form-textarea" rows="2" placeholder="Escreva um comentario..." maxlength="250"></textarea>
+                            <textarea id="new-comment" class="form-textarea" rows="2" placeholder="Escreva um comentario..."></textarea>
                         </div>
                         <button class="btn btn-primary btn-sm" onclick="addComment()">Comentar</button>
                     </div>
@@ -382,6 +382,8 @@
             // Set character limit based on role
             const charLimit = isMentor ? CHAR_LIMIT_MENTOR : CHAR_LIMIT_ALUNO;
             document.getElementById('char-limit').textContent = charLimit;
+            const commentTextarea = document.getElementById('new-comment');
+            if (commentTextarea) commentTextarea.maxLength = charLimit;
 
             // Update greeting
             const name = _dn(userData.name) || _dn(userData.full_name) || 'Usuario';
@@ -970,7 +972,7 @@
                             commentLikesData[like.comment_id] = { count: 0, userLiked: false };
                         }
                         commentLikesData[like.comment_id].count++;
-                        if (like.user_id === userData.id) {
+                        if (String(like.user_id) === String(userData.id)) {
                             commentLikesData[like.comment_id].userLiked = true;
                         }
                     });
@@ -982,7 +984,7 @@
                 const authorName = _dn(author.full_name) || _dn(author.name) || 'Usuario';
                 const isMentorComment = author.role?.startsWith('mentor_');
                 const badge = isMentorComment ? '<span class="mentor-badge-sm">M</span>' : '';
-                const isOwnComment = comment.user_id === userData.id;
+                const isOwnComment = String(comment.user_id) === String(userData.id);
                 const canModify = isMentor || isOwnComment;
 
                 const likeData = commentLikesData[comment.id] || { count: 0, userLiked: false };
@@ -997,14 +999,14 @@
                             <span class="comment-date">${getTimeAgo(comment.created_at)}</span>
                             ${canModify ? `
                                 <div class="comment-actions">
-                                    <button class="btn-comment-action" onclick="startEditComment('${comment.id}', '${comment.content.replace(/'/g, "\\'")}')">✏️</button>
+                                    <button class="btn-comment-action" onclick="startEditComment('${comment.id}')">✏️</button>
                                     <button class="btn-comment-action" onclick="deleteComment('${comment.id}', ${postId})">🗑️</button>
                                 </div>
                             ` : ''}
                         </div>
                         <p class="comment-content" id="comment-content-${comment.id}">${sanitizePostContent(comment.content)}</p>
                         <div class="comment-edit-form" id="comment-edit-${comment.id}" style="display: none;">
-                            <textarea class="form-textarea" id="edit-comment-${comment.id}" rows="2">${comment.content}</textarea>
+                            <textarea class="form-textarea" id="edit-comment-${comment.id}" rows="2" maxlength="${isMentor ? CHAR_LIMIT_MENTOR : CHAR_LIMIT_ALUNO}">${comment.content}</textarea>
                             <div class="d-flex gap-2 mt-1">
                                 <button class="btn btn-primary btn-xs" onclick="saveCommentEdit('${comment.id}', ${postId})">Salvar</button>
                                 <button class="btn btn-secondary btn-xs" onclick="cancelCommentEdit('${comment.id}')">Cancelar</button>
@@ -1045,10 +1047,11 @@
             await loadPosts();
         }
 
-        function startEditComment(commentId, content) {
-            document.getElementById(`comment-content-${commentId}`).style.display = 'none';
+        function startEditComment(commentId) {
+            const contentEl = document.getElementById(`comment-content-${commentId}`);
+            contentEl.style.display = 'none';
             document.getElementById(`comment-edit-${commentId}`).style.display = 'block';
-            document.getElementById(`edit-comment-${commentId}`).value = content;
+            document.getElementById(`edit-comment-${commentId}`).value = contentEl.textContent;
         }
 
         function cancelCommentEdit(commentId) {
