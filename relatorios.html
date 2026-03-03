@@ -1012,6 +1012,38 @@
             box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
         }
 
+        .btn-copy-report {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-copy-report:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-copy-all-reports {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-copy-all-reports:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }
+
         .btn-download {
             background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
             color: white;
@@ -1507,6 +1539,9 @@
                                 <button class="mentor-filter-btn" data-mentor="marcos" onclick="filterByMentor('marcos')">👨‍💼 Marcos</button>
                                 <button class="mentor-filter-btn" data-mentor="guilherme" onclick="filterByMentor('guilherme')">🃏 Guilherme</button>
                             </div>
+                            <button class="btn-copy-all-reports" onclick="copyAllReports()" title="Copiar todos os relatórios deste aluno">
+                                📋 Copiar Todos
+                            </button>
                             <button class="add-report-btn" onclick="openNewReportModal()">
                                 ➕ Novo Relatório
                             </button>
@@ -1579,6 +1614,7 @@
             </div>
             <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end;">
                 <div id="view-mode-buttons" style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                    <button class="btn btn-copy-report" onclick="copyCurrentReport()" title="Copiar relatório para clipboard">📋 Copiar</button>
                     <button class="btn btn-share" onclick="shareReport()" title="Copiar link">🔗 Compartilhar</button>
                     <div class="image-action-group" id="image-action-group">
                         <button class="btn-image-action" onclick="executeImageAction()" title="Copiar imagem">
@@ -2144,6 +2180,87 @@
                 document.body.removeChild(textArea);
                 WardApp.showToast('Link copiado para a área de transferência!', 'success');
             });
+        }
+
+        function formatReportForCopy(report) {
+            const studentName = _dn(selectedStudent?.full_name) || 'Aluno';
+            const mentorName = _dn(report.mentor?.full_name) || 'Mentor';
+            const date = formatDateBR(report.call_date);
+            const plainContent = stripHtml(report.report_text);
+
+            const text = `${report.title}\nAluno: ${studentName} | Mentor: ${mentorName} | Data: ${date}\n${'─'.repeat(50)}\n${plainContent}`;
+
+            const html = `<h2 style="margin:0 0 4px">${report.title}</h2>` +
+                `<p style="color:#6b7280;margin:0 0 8px;font-size:0.9em">Aluno: <b>${studentName}</b> &nbsp;|&nbsp; Mentor: <b>${mentorName}</b> &nbsp;|&nbsp; Data: <b>${date}</b></p>` +
+                `<hr style="border:none;border-top:1px solid #e5e7eb;margin:8px 0">` +
+                report.report_text;
+
+            return { text, html };
+        }
+
+        function copyCurrentReport() {
+            if (!currentReportId) return;
+            const report = allReports.find(r => r.id === currentReportId);
+            if (!report) return;
+
+            const { text, html } = formatReportForCopy(report);
+
+            try {
+                const blob = new Blob([html], { type: 'text/html' });
+                const textBlob = new Blob([text], { type: 'text/plain' });
+                navigator.clipboard.write([
+                    new ClipboardItem({ 'text/html': blob, 'text/plain': textBlob })
+                ]).then(() => {
+                    WardApp.showToast('Relatório copiado!', 'success');
+                });
+            } catch (e) {
+                navigator.clipboard.writeText(text).then(() => {
+                    WardApp.showToast('Relatório copiado (texto)', 'success');
+                });
+            }
+        }
+
+        function copyAllReports() {
+            if (!selectedStudent) return;
+
+            let studentReports = allReports.filter(r => r.student_id === selectedStudent.id);
+
+            if (currentMentorFilter !== 'all') {
+                studentReports = studentReports.filter(r => {
+                    const mentorName = (_dn(r.mentor?.full_name) || '').toLowerCase();
+                    return mentorName.includes(currentMentorFilter);
+                });
+            }
+
+            studentReports.sort((a, b) => (b.call_date || '').localeCompare(a.call_date || ''));
+
+            if (studentReports.length === 0) {
+                WardApp.showToast('Nenhum relatório para copiar', 'warning');
+                return;
+            }
+
+            const studentName = _dn(selectedStudent.full_name) || 'Aluno';
+            const parts = studentReports.map(r => formatReportForCopy(r));
+
+            const allText = `RELATÓRIOS - ${studentName}\n${'═'.repeat(50)}\n\n` +
+                parts.map(p => p.text).join(`\n\n${'═'.repeat(50)}\n\n`);
+
+            const allHtml = `<h1 style="margin:0 0 12px">Relatórios — ${studentName}</h1>` +
+                parts.map(p => p.html).join('<hr style="border:none;border-top:3px solid #d97706;margin:24px 0">');
+
+            try {
+                const blob = new Blob([allHtml], { type: 'text/html' });
+                const textBlob = new Blob([allText], { type: 'text/plain' });
+                navigator.clipboard.write([
+                    new ClipboardItem({ 'text/html': blob, 'text/plain': textBlob })
+                ]).then(() => {
+                    WardApp.showToast(`${studentReports.length} relatório(s) copiado(s)!`, 'success');
+                });
+            } catch (e) {
+                navigator.clipboard.writeText(allText).then(() => {
+                    WardApp.showToast(`${studentReports.length} relatório(s) copiado(s) (texto)`, 'success');
+                });
+            }
         }
 
         function toggleImageMode() {
