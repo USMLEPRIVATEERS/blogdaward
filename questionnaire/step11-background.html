@@ -341,6 +341,10 @@
             if (success) {
                 // Mark questionnaire as complete
                 await WardApp.completeQuestionnaire();
+
+                // Create default landmarks for this student
+                await createDefaultLandmarksForNewStudent();
+
                 WardApp.hideLoading();
                 WardApp.showToast('Cadastro finalizado com sucesso!');
 
@@ -383,6 +387,77 @@
             
             const dashboardUrl = (userData?.role === 'assessoria') ? '/dashboard-assessoria-avulsa' : '/dashboard';
             window.location.href = addViewAsToUrl(dashboardUrl);
+        }
+
+        async function createDefaultLandmarksForNewStudent() {
+            try {
+                const userId = parseInt(localStorage.getItem('userId'));
+                if (!userId) return;
+
+                // Check if landmarks already exist
+                const { data: existing } = await WardApp.db
+                    .from('landmarks')
+                    .select('id')
+                    .eq('user_id', userId)
+                    .limit(1);
+
+                if (existing && existing.length > 0) return; // Already has landmarks
+
+                // Check research interest from step 9
+                const { data: researchData } = await WardApp.db
+                    .from('questionnaire_data')
+                    .select('data')
+                    .eq('user_id', userId)
+                    .eq('step', 9)
+                    .maybeSingle();
+
+                const wantsResearchWard = researchData?.data?.wants_research_ward;
+                const wantsResearch = wantsResearchWard === 'immediately' || wantsResearchWard === 'after_usmle';
+
+                const defaultLandmarks = [
+                    { group: 'setup', title: 'Entrada na Ward Academy', type: 'entry' },
+                    { group: 'first-round', title: '1a Chamada - Dra. Iria: Background e USMLE', type: 'call_iria_1' },
+                    { group: 'first-round', title: '1a Chamada - Guilherme: Configurando Anki', type: 'call_guilherme_1' },
+                    { group: 'first-round', title: '1a Chamada - Marcos: Organizando proximos passos', type: 'call_marcos_1' },
+                    { group: 'second-round', title: '2a Chamada - Dra. Iria: Como usar o UWorld', type: 'call_iria_2' },
+                    { group: 'second-round', title: '2a Chamada - Guilherme: Uso do Anki nas ultimas semanas', type: 'call_guilherme_2' },
+                    { group: 'second-round', title: '3a Chamada - Dra. Iria: Inscrição no MyIntealth', type: 'call_iria_3' },
+                    { group: 'second-round', title: '4a Chamada - Dra. Iria: Desempenho no Blocao', type: 'call_iria_4' },
+                    { group: 'research', title: '2a Chamada - Marcos: Conversa sobre pesquisa', type: 'call_marcos_research_2', conditional: true },
+                    { group: 'research', title: '3a Chamada - Marcos: Usar databases corretamente', type: 'call_marcos_research_3', conditional: true },
+                    { group: 'research', title: '4a Chamada - Marcos: Validando ideia de revisao', type: 'call_marcos_research_4', conditional: true },
+                    { group: 'research', title: '5a Chamada - Marcos: Triagem por titulo e resumo', type: 'call_marcos_research_5', conditional: true },
+                    { group: 'research', title: '6a Chamada - Marcos: Triagem por manuscritos', type: 'call_marcos_research_6', conditional: true },
+                    { group: 'research', title: '7a Chamada - Marcos: Extracao de dados', type: 'call_marcos_research_7', conditional: true },
+                    { group: 'research', title: '8a Chamada - Marcos: Risco de vies', type: 'call_marcos_research_8', conditional: true },
+                    { group: 'research', title: '9a Chamada - Marcos: Escrita cientifica', type: 'call_marcos_research_9', conditional: true },
+                    { group: 'research', title: '10a Chamada - Marcos: Submissao do manuscrito', type: 'call_marcos_research_10', conditional: true },
+                    { group: 'second-pass', title: 'Chamada - Dra. Iria: Second Pass', type: 'call_iria_second_pass' },
+                    { group: 'second-pass', title: 'Chamada - Dra. Iria: Simulados (NBMEs)', type: 'call_iria_nbmes' },
+                    { group: 'dedicated', title: 'Chamada - Dra. Iria: Dedicated', type: 'call_iria_dedicated' },
+                    { group: 'dedicated', title: 'Chamada - Dra. Iria: Agendar a prova', type: 'call_iria_schedule' },
+                    { group: 'dedicated', title: 'Chamada - Dra. Iria: Pre-prova', type: 'call_iria_pre_exam' },
+                    { group: 'dedicated', title: 'Chamada - Dra. Iria: Pos-prova', type: 'call_iria_post_exam' }
+                ];
+
+                const filtered = defaultLandmarks.filter(lm => !lm.conditional || wantsResearch);
+                const rows = filtered.map((lm, i) => ({
+                    user_id: userId,
+                    landmark_type: lm.type,
+                    title: lm.title,
+                    completed: lm.type === 'entry',
+                    completion_date: lm.type === 'entry' ? new Date().toISOString() : null,
+                    is_urgent: false,
+                    notes: [],
+                    order_position: i,
+                    group_name: lm.group
+                }));
+
+                await WardApp.db.from('landmarks').insert(rows);
+                console.log('Default landmarks created for new student');
+            } catch (err) {
+                console.error('Error creating default landmarks:', err);
+            }
         }
     </script>
 </body>
