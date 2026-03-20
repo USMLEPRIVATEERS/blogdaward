@@ -326,6 +326,7 @@ body.player-open .content { padding-bottom:100px; }
 
 <div class="content" id="content"></div>
 
+<audio id="audioEl" preload="none" style="display:none"></audio>
 <div class="player-bar" id="playerBar">
   <div class="player-inner">
     <button class="p-play-btn" id="pPlayBtn" onclick="togglePlay()">&#9654;</button>
@@ -596,9 +597,9 @@ searchEl.addEventListener('input',()=>{ clearTimeout(st); st=setTimeout(render,2
 render();
 
 // === AUDIO PLAYER ===
-const audio = new Audio();
-audio.preload = 'none';
+const audio = document.getElementById('audioEl');
 let currentMp3Btn = null;
+let currentMp3Url = '';
 const speeds = [1, 1.25, 1.5, 1.75, 2, 0.75];
 let speedIdx = 0;
 
@@ -611,10 +612,11 @@ function fmtTime(s) {
 function playEp(url, title, cat, btn) {
   const bar = document.getElementById('playerBar');
   // If clicking same episode that's playing, just toggle
-  if(audio.src && audio.src === url && !audio.paused) {
+  if(currentMp3Url === url && !audio.paused) {
     audio.pause(); return;
   }
-  if(audio.src !== url) {
+  if(currentMp3Url !== url) {
+    currentMp3Url = url;
     audio.src = url;
     audio.load();
     audio.playbackRate = speeds[speedIdx];
@@ -627,24 +629,40 @@ function playEp(url, title, cat, btn) {
   if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
   currentMp3Btn = btn;
   if(btn) btn.classList.add('playing');
-  audio.play().catch(function(err) {
-    console.error('Audio play failed:', err);
-    // Fallback: open MP3 in new tab
-    if(confirm('Nao foi possivel reproduzir o audio no player. Deseja abrir o MP3 numa nova aba?')) {
-      window.open(url, '_blank');
-    }
-  });
+
+  var playPromise = audio.play();
+  if(playPromise !== undefined) {
+    playPromise.then(function(){}).catch(function(err) {
+      console.error('Audio play failed:', err.name, err.message);
+      // If NotAllowedError, try once more on canplay
+      if(err.name === 'NotAllowedError') {
+        // Show native controls as fallback
+        audio.style.display = 'block';
+        audio.style.width = '100%';
+        audio.style.maxWidth = '400px';
+        audio.style.margin = '8px auto';
+        audio.controls = true;
+        document.getElementById('pTitle').textContent = title + ' (use os controles abaixo)';
+      } else {
+        window.open(url, '_blank');
+      }
+    });
+  }
 }
 
 function togglePlay() {
-  if(!audio.src) return;
-  if(audio.paused) audio.play().catch(()=>{});
+  if(!currentMp3Url) return;
+  if(audio.paused) audio.play().catch(function(){});
   else audio.pause();
 }
 
 function closePlayer() {
   audio.pause();
-  audio.src = '';
+  audio.removeAttribute('src');
+  audio.load();
+  audio.style.display = 'none';
+  audio.controls = false;
+  currentMp3Url = '';
   document.getElementById('playerBar').classList.remove('visible');
   document.body.classList.remove('player-open');
   if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
@@ -666,28 +684,28 @@ function cycleSpeed() {
   document.getElementById('pSpeed').textContent = speeds[speedIdx] + 'x';
 }
 
-audio.addEventListener('timeupdate', () => {
+audio.addEventListener('timeupdate', function() {
   if(!audio.duration) return;
-  const pct = (audio.currentTime / audio.duration) * 100;
+  var pct = (audio.currentTime / audio.duration) * 100;
   document.getElementById('pFill').style.width = pct + '%';
   document.getElementById('pCur').textContent = fmtTime(audio.currentTime);
   document.getElementById('pDur').textContent = fmtTime(audio.duration);
 });
 
-audio.addEventListener('play', () => {
+audio.addEventListener('play', function() {
   document.getElementById('pPlayBtn').innerHTML = '&#9646;&#9646;';
   if(currentMp3Btn) currentMp3Btn.classList.add('playing');
 });
-audio.addEventListener('pause', () => {
+audio.addEventListener('pause', function() {
   document.getElementById('pPlayBtn').innerHTML = '&#9654;';
   if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
 });
-audio.addEventListener('ended', () => {
+audio.addEventListener('ended', function() {
   document.getElementById('pPlayBtn').innerHTML = '&#9654;';
   if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
   document.getElementById('pFill').style.width = '0%';
 });
-audio.addEventListener('error', (e) => {
+audio.addEventListener('error', function() {
   console.error('Audio error:', audio.error);
   document.getElementById('pTitle').textContent = 'Erro ao carregar audio';
   if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
