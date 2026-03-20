@@ -938,26 +938,45 @@
 
                 switch (msg.type) {
                     case 'play':
-                        if (currentUrl !== msg.url) {
-                            currentUrl = msg.url;
-                            tbAudio.src = msg.url;
-                            tbAudio.load();
-                            tbAudio.playbackRate = speeds[speedIdx];
-                        }
                         tbTitle.textContent = msg.title || '';
                         tbCat.textContent = msg.category || '';
                         tbPlayer.classList.add('visible');
-                        tbAudio.play().catch(function(err) {
-                            console.error('Toolbox audio play failed:', err);
-                        });
+                        if (currentUrl !== msg.url) {
+                            currentUrl = msg.url;
+                            tbAudio.src = msg.url;
+                            tbAudio.playbackRate = speeds[speedIdx];
+                            // Wait for audio to be ready before playing
+                            tbAudio.oncanplay = function() {
+                                tbAudio.oncanplay = null;
+                                tbAudio.play().catch(function(err) {
+                                    console.error('Toolbox audio play failed:', err);
+                                });
+                            };
+                            tbAudio.load();
+                        } else {
+                            // Same URL, just play/resume
+                            tbAudio.play().catch(function(err) {
+                                console.error('Toolbox audio play failed:', err);
+                            });
+                        }
                         break;
                     case 'pause':
                         tbAudio.pause();
                         break;
                     case 'toggle':
                         if (!currentUrl) break;
-                        if (tbAudio.paused) tbAudio.play().catch(function(){});
-                        else tbAudio.pause();
+                        if (tbAudio.error) {
+                            tbAudio.src = currentUrl;
+                            tbAudio.oncanplay = function() {
+                                tbAudio.oncanplay = null;
+                                tbAudio.play().catch(function(){});
+                            };
+                            tbAudio.load();
+                        } else if (tbAudio.paused) {
+                            tbAudio.play().catch(function(){});
+                        } else {
+                            tbAudio.pause();
+                        }
                         break;
                     case 'seek':
                         if (tbAudio.duration) tbAudio.currentTime = msg.pct * tbAudio.duration;
@@ -986,6 +1005,16 @@
             // Player UI controls (for when user clicks on the toolbox player bar directly)
             tbPlayBtn.onclick = function() {
                 if (!currentUrl) return;
+                // If audio is in error state, reload it
+                if (tbAudio.error) {
+                    tbAudio.src = currentUrl;
+                    tbAudio.oncanplay = function() {
+                        tbAudio.oncanplay = null;
+                        tbAudio.play().catch(function(){});
+                    };
+                    tbAudio.load();
+                    return;
+                }
                 if (tbAudio.paused) tbAudio.play().catch(function(){});
                 else tbAudio.pause();
             };
