@@ -597,6 +597,7 @@ render();
 
 // === AUDIO PLAYER ===
 const audio = new Audio();
+audio.preload = 'none';
 let currentMp3Btn = null;
 const speeds = [1, 1.25, 1.5, 1.75, 2, 0.75];
 let speedIdx = 0;
@@ -615,6 +616,7 @@ function playEp(url, title, cat, btn) {
   }
   if(audio.src !== url) {
     audio.src = url;
+    audio.load();
     audio.playbackRate = speeds[speedIdx];
   }
   document.getElementById('pTitle').textContent = title;
@@ -625,7 +627,13 @@ function playEp(url, title, cat, btn) {
   if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
   currentMp3Btn = btn;
   if(btn) btn.classList.add('playing');
-  audio.play().catch(()=>{});
+  audio.play().catch(function(err) {
+    console.error('Audio play failed:', err);
+    // Fallback: open MP3 in new tab
+    if(confirm('Nao foi possivel reproduzir o audio no player. Deseja abrir o MP3 numa nova aba?')) {
+      window.open(url, '_blank');
+    }
+  });
 }
 
 function togglePlay() {
@@ -678,6 +686,11 @@ audio.addEventListener('ended', () => {
   document.getElementById('pPlayBtn').innerHTML = '&#9654;';
   if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
   document.getElementById('pFill').style.width = '0%';
+});
+audio.addEventListener('error', (e) => {
+  console.error('Audio error:', audio.error);
+  document.getElementById('pTitle').textContent = 'Erro ao carregar audio';
+  if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
 });
 </script>
 </body>
