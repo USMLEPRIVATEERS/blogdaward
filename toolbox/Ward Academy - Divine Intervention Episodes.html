@@ -222,7 +222,7 @@ body {
 .link-mp3.playing { background:#059669; color:#fff; border-color:#059669; animation:pulse-glow 2s infinite; }
 @keyframes pulse-glow { 0%,100%{box-shadow:0 0 0 0 rgba(5,150,105,0.3)} 50%{box-shadow:0 0 0 6px rgba(5,150,105,0)} }
 
-/* === PLAYER BAR (hidden when inside iframe, parent toolbox handles it) === */
+/* === PLAYER BAR (hidden when inside iframe, parent toolbox handles playback) === */
 .player-bar {
   position:fixed; bottom:0; left:0; right:0; z-index:200;
   background:var(--bg2); border-top:1.5px solid var(--border);
@@ -231,7 +231,7 @@ body {
   padding:0;
 }
 .player-bar.visible { transform:translateY(0); }
-.in-iframe .player-bar { display:none !important; }
+body.in-iframe .player-bar { display:none !important; }
 .player-inner {
   max-width:1200px; margin:0 auto;
   display:flex; align-items:center; gap:12px;
@@ -596,146 +596,92 @@ searchEl.addEventListener('input',()=>{ clearTimeout(st); st=setTimeout(render,2
 
 render();
 
-// === AUDIO PLAYER (postMessage bridge to parent toolbox) ===
+// === AUDIO PLAYER ===
 var isInIframe = window.parent !== window;
 if(isInIframe) document.body.classList.add('in-iframe');
 var currentMp3Btn = null;
-var currentMp3Url = '';
-var isPlaying = false;
 
-// Local audio fallback (when opened directly, not in iframe)
-var localAudio = isInIframe ? null : new Audio();
-var speeds = [1, 1.25, 1.5, 1.75, 2, 0.75];
-var speedIdx = 0;
+// In iframe: just send URL to parent toolbox, it handles everything
+// Standalone: use local audio + local player bar
+if(isInIframe) {
 
-function fmtTime(s) {
-  if(!s||isNaN(s)) return '0:00';
-  var m=Math.floor(s/60), sec=Math.floor(s%60);
-  return m+':'+(sec<10?'0':'')+sec;
-}
-
-function sendToParent(type, data) {
-  if(isInIframe) {
-    window.parent.postMessage(Object.assign({ source: 'divine-player', type: type }, data || {}), '*');
+  function playEp(url, title, cat, btn) {
+    if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
+    currentMp3Btn = btn;
+    if(btn) btn.classList.add('playing');
+    window.parent.postMessage({ source: 'divine-player', type: 'play', url: url, title: title, category: cat }, '*');
   }
-}
+  // These are no-ops in iframe mode (player bar is hidden)
+  function togglePlay() {}
+  function closePlayer() {}
+  function seekAudio() {}
+  function cycleSpeed() {}
 
-function playEp(url, title, cat, btn) {
-  var bar = document.getElementById('playerBar');
-  // Toggle if same episode playing
-  if(currentMp3Url === url && isPlaying) {
-    if(isInIframe) { sendToParent('pause'); }
-    else { localAudio.pause(); }
-    return;
+} else {
+
+  // Standalone mode - local audio player
+  var localAudio = new Audio();
+  var currentMp3Url = '';
+  var speeds = [1, 1.25, 1.5, 1.75, 2, 0.75];
+  var speedIdx = 0;
+
+  function fmtTime(s) {
+    if(!s||isNaN(s)) return '0:00';
+    var m=Math.floor(s/60), sec=Math.floor(s%60);
+    return m+':'+(sec<10?'0':'')+sec;
   }
 
-  currentMp3Url = url;
-  document.getElementById('pTitle').textContent = title;
-  document.getElementById('pCat').textContent = cat;
-  bar.classList.add('visible');
-  document.body.classList.add('player-open');
-
-  if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
-  currentMp3Btn = btn;
-  if(btn) btn.classList.add('playing');
-
-  if(isInIframe) {
-    sendToParent('play', { url: url, title: title, category: cat });
-  } else {
-    localAudio.src = url;
-    localAudio.playbackRate = speeds[speedIdx];
+  function playEp(url, title, cat, btn) {
+    var bar = document.getElementById('playerBar');
+    if(currentMp3Url === url && !localAudio.paused) {
+      localAudio.pause();
+      return;
+    }
+    currentMp3Url = url;
+    document.getElementById('pTitle').textContent = title;
+    document.getElementById('pCat').textContent = cat;
+    bar.classList.add('visible');
+    document.body.classList.add('player-open');
+    if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
+    currentMp3Btn = btn;
+    if(btn) btn.classList.add('playing');
+    if(localAudio.src !== url) {
+      localAudio.src = url;
+      localAudio.playbackRate = speeds[speedIdx];
+    }
     localAudio.play().catch(function(err) { console.error('Play failed:', err); });
   }
-}
 
-function togglePlay() {
-  if(!currentMp3Url) return;
-  if(isInIframe) {
-    sendToParent('toggle');
-  } else {
+  function togglePlay() {
+    if(!currentMp3Url) return;
     if(localAudio.paused) localAudio.play().catch(function(){});
     else localAudio.pause();
   }
-}
 
-function closePlayer() {
-  if(isInIframe) { sendToParent('close'); }
-  else { localAudio.pause(); localAudio.src = ''; }
-  currentMp3Url = '';
-  isPlaying = false;
-  document.getElementById('playerBar').classList.remove('visible');
-  document.body.classList.remove('player-open');
-  if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
-  currentMp3Btn = null;
-  document.getElementById('pPlayBtn').innerHTML = '&#9654;';
-  document.getElementById('pFill').style.width = '0%';
-}
+  function closePlayer() {
+    localAudio.pause();
+    localAudio.removeAttribute('src');
+    currentMp3Url = '';
+    document.getElementById('playerBar').classList.remove('visible');
+    document.body.classList.remove('player-open');
+    if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
+    currentMp3Btn = null;
+    document.getElementById('pPlayBtn').innerHTML = '&#9654;';
+    document.getElementById('pFill').style.width = '0%';
+  }
 
-function seekAudio(e) {
-  var rect = e.currentTarget.getBoundingClientRect();
-  var pct = (e.clientX - rect.left) / rect.width;
-  if(isInIframe) { sendToParent('seek', { pct: pct }); }
-  else if(localAudio.duration) { localAudio.currentTime = pct * localAudio.duration; }
-}
+  function seekAudio(e) {
+    var rect = e.currentTarget.getBoundingClientRect();
+    var pct = (e.clientX - rect.left) / rect.width;
+    if(localAudio.duration) localAudio.currentTime = pct * localAudio.duration;
+  }
 
-function cycleSpeed() {
-  if(isInIframe) {
-    sendToParent('speed');
-  } else {
+  function cycleSpeed() {
     speedIdx = (speedIdx + 1) % speeds.length;
     localAudio.playbackRate = speeds[speedIdx];
     document.getElementById('pSpeed').textContent = speeds[speedIdx] + 'x';
   }
-}
 
-// Listen for state updates from parent toolbox player
-window.addEventListener('message', function(e) {
-  if(!e.data || e.data.source !== 'toolbox-player') return;
-  var msg = e.data;
-  switch(msg.type) {
-    case 'timeupdate':
-      document.getElementById('pFill').style.width = msg.data.pct + '%';
-      document.getElementById('pCur').textContent = fmtTime(msg.data.currentTime);
-      document.getElementById('pDur').textContent = fmtTime(msg.data.duration);
-      break;
-    case 'playing':
-      isPlaying = true;
-      document.getElementById('pPlayBtn').innerHTML = '&#9646;&#9646;';
-      if(currentMp3Btn) currentMp3Btn.classList.add('playing');
-      break;
-    case 'paused':
-      isPlaying = false;
-      document.getElementById('pPlayBtn').innerHTML = '&#9654;';
-      if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
-      break;
-    case 'ended':
-      isPlaying = false;
-      document.getElementById('pPlayBtn').innerHTML = '&#9654;';
-      if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
-      document.getElementById('pFill').style.width = '0%';
-      break;
-    case 'speed':
-      document.getElementById('pSpeed').textContent = msg.data.speed + 'x';
-      break;
-    case 'closed':
-      currentMp3Url = '';
-      isPlaying = false;
-      document.getElementById('playerBar').classList.remove('visible');
-      document.body.classList.remove('player-open');
-      if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
-      currentMp3Btn = null;
-      document.getElementById('pPlayBtn').innerHTML = '&#9654;';
-      document.getElementById('pFill').style.width = '0%';
-      break;
-    case 'error':
-      document.getElementById('pTitle').textContent = 'Erro ao carregar audio';
-      if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
-      break;
-  }
-});
-
-// Local audio events (when not in iframe)
-if(localAudio) {
   localAudio.addEventListener('timeupdate', function() {
     if(!localAudio.duration) return;
     var pct = (localAudio.currentTime / localAudio.duration) * 100;
@@ -744,17 +690,14 @@ if(localAudio) {
     document.getElementById('pDur').textContent = fmtTime(localAudio.duration);
   });
   localAudio.addEventListener('play', function() {
-    isPlaying = true;
     document.getElementById('pPlayBtn').innerHTML = '&#9646;&#9646;';
     if(currentMp3Btn) currentMp3Btn.classList.add('playing');
   });
   localAudio.addEventListener('pause', function() {
-    isPlaying = false;
     document.getElementById('pPlayBtn').innerHTML = '&#9654;';
     if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
   });
   localAudio.addEventListener('ended', function() {
-    isPlaying = false;
     document.getElementById('pPlayBtn').innerHTML = '&#9654;';
     if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
     document.getElementById('pFill').style.width = '0%';

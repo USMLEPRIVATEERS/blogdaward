@@ -903,188 +903,119 @@
             }
         });
 
-        // === TOOLBOX AUDIO PLAYER (receives commands from iframe via postMessage) ===
+        // === TOOLBOX AUDIO PLAYER ===
+        // Simple: iframe sends URL+title, toolbox plays it. That's it.
         (function() {
-            var tbAudio = document.getElementById('tb-audio');
-            var tbPlayer = document.getElementById('tb-player');
-            var tbPlayBtn = document.getElementById('tb-p-play');
-            var tbTitle = document.getElementById('tb-p-title');
-            var tbCat = document.getElementById('tb-p-cat');
-            var tbCur = document.getElementById('tb-p-cur');
-            var tbDur = document.getElementById('tb-p-dur');
-            var tbFill = document.getElementById('tb-p-fill');
-            var tbSpeedBtn = document.getElementById('tb-p-speed');
+            var audio = document.getElementById('tb-audio');
+            var player = document.getElementById('tb-player');
+            var playBtn = document.getElementById('tb-p-play');
+            var title = document.getElementById('tb-p-title');
+            var cat = document.getElementById('tb-p-cat');
+            var cur = document.getElementById('tb-p-cur');
+            var dur = document.getElementById('tb-p-dur');
+            var fill = document.getElementById('tb-p-fill');
+            var speedBtn = document.getElementById('tb-p-speed');
             var speeds = [1, 1.25, 1.5, 1.75, 2, 0.75];
             var speedIdx = 0;
             var currentUrl = '';
 
-            function fmtTime(s) {
+            function fmt(s) {
                 if (!s || isNaN(s)) return '0:00';
                 var m = Math.floor(s / 60), sec = Math.floor(s % 60);
                 return m + ':' + (sec < 10 ? '0' : '') + sec;
             }
 
-            function sendStateToIframe(type, data) {
-                var iframe = document.getElementById('app-iframe');
-                if (iframe && iframe.contentWindow) {
-                    iframe.contentWindow.postMessage({ source: 'toolbox-player', type: type, data: data }, '*');
-                }
+            function resetPlayer() {
+                audio.pause();
+                audio.removeAttribute('src');
+                currentUrl = '';
+                player.classList.remove('visible');
+                fill.style.width = '0%';
+                playBtn.innerHTML = '&#9654;';
+                title.textContent = '';
+                cat.textContent = '';
+                cur.textContent = '0:00';
+                dur.textContent = '0:00';
             }
 
-            // Listen for commands from iframe
-            window.addEventListener('message', function(e) {
-                if (!e.data || e.data.source !== 'divine-player') return;
-                var msg = e.data;
+            function playUrl(url, t, c) {
+                title.textContent = t || '';
+                cat.textContent = c || '';
+                player.classList.add('visible');
 
-                switch (msg.type) {
-                    case 'play':
-                        tbTitle.textContent = msg.title || '';
-                        tbCat.textContent = msg.category || '';
-                        tbPlayer.classList.add('visible');
-                        if (currentUrl !== msg.url) {
-                            currentUrl = msg.url;
-                            tbAudio.src = msg.url;
-                            tbAudio.playbackRate = speeds[speedIdx];
-                            // Wait for audio to be ready before playing
-                            tbAudio.oncanplay = function() {
-                                tbAudio.oncanplay = null;
-                                tbAudio.play().catch(function(err) {
-                                    console.error('Toolbox audio play failed:', err);
-                                });
-                            };
-                            tbAudio.load();
-                        } else {
-                            // Same URL, just play/resume
-                            tbAudio.play().catch(function(err) {
-                                console.error('Toolbox audio play failed:', err);
-                            });
-                        }
-                        break;
-                    case 'pause':
-                        tbAudio.pause();
-                        break;
-                    case 'toggle':
-                        if (!currentUrl) break;
-                        if (tbAudio.error) {
-                            tbAudio.src = currentUrl;
-                            tbAudio.oncanplay = function() {
-                                tbAudio.oncanplay = null;
-                                tbAudio.play().catch(function(){});
-                            };
-                            tbAudio.load();
-                        } else if (tbAudio.paused) {
-                            tbAudio.play().catch(function(){});
-                        } else {
-                            tbAudio.pause();
-                        }
-                        break;
-                    case 'seek':
-                        if (tbAudio.duration) tbAudio.currentTime = msg.pct * tbAudio.duration;
-                        break;
-                    case 'speed':
-                        speedIdx = (speedIdx + 1) % speeds.length;
-                        tbAudio.playbackRate = speeds[speedIdx];
-                        tbSpeedBtn.textContent = speeds[speedIdx] + 'x';
-                        sendStateToIframe('speed', { speed: speeds[speedIdx] });
-                        break;
-                    case 'close':
-                        tbAudio.pause();
-                        tbAudio.removeAttribute('src');
-                        tbAudio.load();
-                        currentUrl = '';
-                        tbPlayer.classList.remove('visible');
-                        tbFill.style.width = '0%';
-                        tbPlayBtn.innerHTML = '&#9654;';
-                        tbTitle.textContent = '';
-                        tbCat.textContent = '';
-                        sendStateToIframe('closed', {});
-                        break;
-                }
-            });
-
-            // Player UI controls (for when user clicks on the toolbox player bar directly)
-            tbPlayBtn.onclick = function() {
-                if (!currentUrl) return;
-                // If audio is in error state, reload it
-                if (tbAudio.error) {
-                    tbAudio.src = currentUrl;
-                    tbAudio.oncanplay = function() {
-                        tbAudio.oncanplay = null;
-                        tbAudio.play().catch(function(){});
-                    };
-                    tbAudio.load();
+                if (currentUrl === url && !audio.paused) {
+                    // Same track playing -> pause
+                    audio.pause();
                     return;
                 }
-                if (tbAudio.paused) tbAudio.play().catch(function(){});
-                else tbAudio.pause();
+
+                if (currentUrl !== url) {
+                    // New track
+                    currentUrl = url;
+                    audio.src = url;
+                    audio.playbackRate = speeds[speedIdx];
+                }
+                audio.play().catch(function() {});
+            }
+
+            // Receive URL from iframe
+            window.addEventListener('message', function(e) {
+                if (!e.data || e.data.source !== 'divine-player') return;
+                if (e.data.type === 'play') {
+                    playUrl(e.data.url, e.data.title, e.data.category);
+                }
+            });
+
+            // Play/Pause button
+            playBtn.onclick = function() {
+                if (!currentUrl) return;
+                if (audio.paused) audio.play().catch(function() {});
+                else audio.pause();
             };
 
+            // Seek bar
             document.getElementById('tb-p-track').onclick = function(e) {
-                if (!tbAudio.duration) return;
+                if (!audio.duration) return;
                 var rect = e.currentTarget.getBoundingClientRect();
-                var pct = (e.clientX - rect.left) / rect.width;
-                tbAudio.currentTime = pct * tbAudio.duration;
+                audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
             };
 
-            tbSpeedBtn.onclick = function() {
+            // Speed
+            speedBtn.onclick = function() {
                 speedIdx = (speedIdx + 1) % speeds.length;
-                tbAudio.playbackRate = speeds[speedIdx];
-                tbSpeedBtn.textContent = speeds[speedIdx] + 'x';
-                sendStateToIframe('speed', { speed: speeds[speedIdx] });
+                audio.playbackRate = speeds[speedIdx];
+                speedBtn.textContent = speeds[speedIdx] + 'x';
             };
 
-            document.getElementById('tb-p-close').onclick = function() {
-                tbAudio.pause();
-                tbAudio.removeAttribute('src');
-                tbAudio.load();
-                currentUrl = '';
-                tbPlayer.classList.remove('visible');
-                tbFill.style.width = '0%';
-                tbPlayBtn.innerHTML = '&#9654;';
-                tbTitle.textContent = '';
-                tbCat.textContent = '';
-                sendStateToIframe('closed', {});
-            };
+            // Close
+            document.getElementById('tb-p-close').onclick = resetPlayer;
 
-            // Audio events -> update UI + notify iframe
-            tbAudio.addEventListener('timeupdate', function() {
-                if (!tbAudio.duration) return;
-                var pct = (tbAudio.currentTime / tbAudio.duration) * 100;
-                tbFill.style.width = pct + '%';
-                tbCur.textContent = fmtTime(tbAudio.currentTime);
-                tbDur.textContent = fmtTime(tbAudio.duration);
-                sendStateToIframe('timeupdate', { currentTime: tbAudio.currentTime, duration: tbAudio.duration, pct: pct });
+            // Audio events -> update UI
+            audio.addEventListener('timeupdate', function() {
+                if (!audio.duration) return;
+                fill.style.width = ((audio.currentTime / audio.duration) * 100) + '%';
+                cur.textContent = fmt(audio.currentTime);
+                dur.textContent = fmt(audio.duration);
             });
-            tbAudio.addEventListener('play', function() {
-                tbPlayBtn.innerHTML = '&#9646;&#9646;';
-                sendStateToIframe('playing', { url: currentUrl });
+            audio.addEventListener('play', function() {
+                playBtn.innerHTML = '&#9646;&#9646;';
             });
-            tbAudio.addEventListener('pause', function() {
-                tbPlayBtn.innerHTML = '&#9654;';
-                sendStateToIframe('paused', { url: currentUrl });
+            audio.addEventListener('pause', function() {
+                playBtn.innerHTML = '&#9654;';
             });
-            tbAudio.addEventListener('ended', function() {
-                tbPlayBtn.innerHTML = '&#9654;';
-                tbFill.style.width = '0%';
-                sendStateToIframe('ended', { url: currentUrl });
+            audio.addEventListener('ended', function() {
+                playBtn.innerHTML = '&#9654;';
+                fill.style.width = '0%';
             });
-            tbAudio.addEventListener('error', function() {
-                if(!currentUrl) return; // ignore errors when no audio loaded
-                tbTitle.textContent = 'Erro ao carregar audio';
-                sendStateToIframe('error', { url: currentUrl });
+            audio.addEventListener('error', function() {
+                if (!currentUrl) return;
+                title.textContent = 'Erro ao carregar audio';
             });
 
             // Stop audio when closing the app modal
             var origCloseApp = window.closeApp;
             window.closeApp = function() {
-                tbAudio.pause();
-                tbAudio.removeAttribute('src');
-                currentUrl = '';
-                tbPlayer.classList.remove('visible');
-                tbFill.style.width = '0%';
-                tbPlayBtn.innerHTML = '&#9654;';
-                tbTitle.textContent = '';
-                tbCat.textContent = '';
+                resetPlayer();
                 origCloseApp();
             };
         })();
