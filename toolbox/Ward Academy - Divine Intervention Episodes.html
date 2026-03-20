@@ -219,11 +219,7 @@ body {
   background:var(--green-bg); color:var(--green); border-color:#a7f3d0; cursor:pointer;
 }
 .link-mp3:hover { background:#d1fae5; border-color:var(--green); }
-.link-mp3.playing { background:#059669; color:#fff; border-color:#059669; animation:pulse-glow 2s infinite; }
-@keyframes pulse-glow { 0%,100%{box-shadow:0 0 0 0 rgba(5,150,105,0.3)} 50%{box-shadow:0 0 0 6px rgba(5,150,105,0)} }
 
-/* Native audio element inside cards */
-.ep-card audio { display:block; }
 
 /* === EMPTY === */
 .empty { text-align:center; padding:60px 24px; color:var(--text3); }
@@ -500,7 +496,7 @@ function renderDetail(cat) {
         +'<div class="ep-title">'+hl(ep.title,q)+'</div></div>'
         +'<div class="ep-links">';
       if(ep.page) h+='<a class="ep-link link-page" href="'+ep.page+'" target="_blank" rel="noopener">\ud83d\udcc4 Abrir Pagina</a>';
-      if(ep.mp3) h+='<a class="ep-link link-mp3" href="#" onclick="toggleAudio(this,\''+ep.mp3.replace(/'/g,"\\'")+'\');return false;">\ud83c\udfa7 Ouvir MP3</a>';
+      if(ep.mp3) h+='<a class="ep-link link-mp3" href="'+ep.mp3+'" target="_blank" rel="noopener">\ud83c\udfa7 Ouvir MP3</a>';
       if(!ep.page && !ep.mp3) h+='<span style="font-size:12px;color:var(--text3)">Links indisponiveis</span>';
       h+='</div></div>';
     });
@@ -523,52 +519,6 @@ searchEl.addEventListener('input',()=>{ clearTimeout(st); st=setTimeout(render,2
 
 render();
 
-// === AUDIO: native <audio controls> inline in each card ===
-var currentAudioEl = null;
-
-function toggleAudio(btn, url) {
-  // If there's already an audio element open, remove it
-  if(currentAudioEl) {
-    currentAudioEl.pause();
-    currentAudioEl.parentNode.removeChild(currentAudioEl);
-    var oldBtn = document.querySelector('.link-mp3.playing');
-    if(oldBtn) oldBtn.classList.remove('playing');
-
-    // If same button clicked, just close
-    if(currentAudioEl.dataset.url === url) {
-      currentAudioEl = null;
-      return;
-    }
-    currentAudioEl = null;
-  }
-
-  // Create native audio element right after the button's parent card
-  var card = btn.closest('.ep-card');
-  var el = document.createElement('audio');
-  el.controls = true;
-  el.autoplay = true;
-  el.preload = 'auto';
-  el.dataset.url = url;
-  el.src = url;
-  el.style.cssText = 'width:100%;margin-top:8px;border-radius:8px;';
-  card.appendChild(el);
-  btn.classList.add('playing');
-  currentAudioEl = el;
-
-  // When audio ends, clean up styling
-  el.addEventListener('ended', function() {
-    btn.classList.remove('playing');
-  });
-}
-
-// Stop audio if parent toolbox closes the modal
-window.addEventListener('message', function(e) {
-  if(e.data && e.data.action === 'stop-audio' && currentAudioEl) {
-    currentAudioEl.pause();
-    currentAudioEl.parentNode.removeChild(currentAudioEl);
-    currentAudioEl = null;
-  }
-});
 </script>
 </body>
 </html>
