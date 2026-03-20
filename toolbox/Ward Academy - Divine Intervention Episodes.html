@@ -222,64 +222,8 @@ body {
 .link-mp3.playing { background:#059669; color:#fff; border-color:#059669; animation:pulse-glow 2s infinite; }
 @keyframes pulse-glow { 0%,100%{box-shadow:0 0 0 0 rgba(5,150,105,0.3)} 50%{box-shadow:0 0 0 6px rgba(5,150,105,0)} }
 
-/* === PLAYER BAR === */
-.player-bar {
-  position:fixed; bottom:0; left:0; right:0; z-index:200;
-  background:var(--bg2); border-top:1.5px solid var(--border);
-  box-shadow:0 -4px 20px rgba(0,0,0,0.08);
-  transform:translateY(100%); transition:transform .35s ease;
-  padding:0;
-}
-.player-bar.visible { transform:translateY(0); }
-.player-inner {
-  max-width:1200px; margin:0 auto;
-  display:flex; align-items:center; gap:12px;
-  padding:12px 20px;
-}
-.p-play-btn {
-  width:44px; height:44px; border-radius:50%;
-  background:linear-gradient(135deg,#059669,#10b981);
-  border:none; cursor:pointer; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center;
-  color:#fff; font-size:18px; transition:all .15s;
-  box-shadow:0 2px 8px rgba(5,150,105,0.3);
-}
-.p-play-btn:hover { transform:scale(1.08); }
-.p-info { flex:1; min-width:0; }
-.p-title {
-  font-size:13px; font-weight:600; color:var(--text);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-.p-cat { font-size:11px; color:var(--text3); margin-top:1px; }
-.p-time-row { display:flex; align-items:center; gap:8px; margin-top:6px; }
-.p-time { font-size:11px; color:var(--text3); font-weight:600; font-variant-numeric:tabular-nums; min-width:36px; }
-.p-track {
-  flex:1; height:6px; background:var(--bg3); border-radius:100px;
-  cursor:pointer; position:relative; overflow:hidden;
-}
-.p-fill {
-  height:100%; border-radius:100px;
-  background:linear-gradient(90deg,#059669,#34d399);
-  transition:width .2s;
-  pointer-events:none;
-}
-.p-speed-btn {
-  padding:4px 10px; border-radius:6px; border:1.5px solid var(--border);
-  background:var(--bg2); font-size:11px; font-weight:700; color:var(--text2);
-  cursor:pointer; font-family:inherit; transition:all .15s; flex-shrink:0;
-}
-.p-speed-btn:hover { border-color:var(--accent); color:var(--accent); }
-.p-close-btn {
-  width:30px; height:30px; border-radius:8px; border:none;
-  background:var(--bg3); cursor:pointer; font-size:16px; color:var(--text3);
-  display:flex; align-items:center; justify-content:center;
-  transition:all .15s; flex-shrink:0;
-}
-.p-close-btn:hover { background:#fee2e2; color:#dc2626; }
-
-/* player visible -> add padding to body (not in iframe mode) */
-body.player-open:not(.in-iframe) .footer { padding-bottom:90px; }
-body.player-open:not(.in-iframe) .content { padding-bottom:100px; }
+/* Native audio element inside cards */
+.ep-card audio { display:block; }
 
 /* === EMPTY === */
 .empty { text-align:center; padding:60px 24px; color:var(--text3); }
@@ -326,22 +270,6 @@ body.player-open:not(.in-iframe) .content { padding-bottom:100px; }
 
 <div class="content" id="content"></div>
 
-<div class="player-bar" id="playerBar">
-  <div class="player-inner">
-    <button class="p-play-btn" id="pPlayBtn" onclick="togglePlay()">&#9654;</button>
-    <div class="p-info">
-      <div class="p-title" id="pTitle">—</div>
-      <div class="p-cat" id="pCat"></div>
-      <div class="p-time-row">
-        <span class="p-time" id="pCur">0:00</span>
-        <div class="p-track" id="pTrack" onclick="seekAudio(event)"><div class="p-fill" id="pFill"></div></div>
-        <span class="p-time" id="pDur">0:00</span>
-      </div>
-    </div>
-    <button class="p-speed-btn" id="pSpeed" onclick="cycleSpeed()">1x</button>
-    <button class="p-close-btn" onclick="closePlayer()" title="Fechar">&times;</button>
-  </div>
-</div>
 
 <footer class="footer">
   <strong>Ward Academy</strong> — Mentoria USMLE para Old Graduates brasileiros<br>
@@ -572,7 +500,7 @@ function renderDetail(cat) {
         +'<div class="ep-title">'+hl(ep.title,q)+'</div></div>'
         +'<div class="ep-links">';
       if(ep.page) h+='<a class="ep-link link-page" href="'+ep.page+'" target="_blank" rel="noopener">\ud83d\udcc4 Abrir Pagina</a>';
-      if(ep.mp3) h+='<a class="ep-link link-mp3" href="#" onclick="playEp(\''+ep.mp3.replace(/'/g,"\\'")+'\',\''+ep.title.replace(/'/g,"\\'")+'\',\''+ep.category.replace(/'/g,"\\'")+'\',this);return false;">\ud83c\udfa7 Ouvir MP3</a>';
+      if(ep.mp3) h+='<a class="ep-link link-mp3" href="#" onclick="toggleAudio(this,\''+ep.mp3.replace(/'/g,"\\'")+'\');return false;">\ud83c\udfa7 Ouvir MP3</a>';
       if(!ep.page && !ep.mp3) h+='<span style="font-size:12px;color:var(--text3)">Links indisponiveis</span>';
       h+='</div></div>';
     });
@@ -595,92 +523,51 @@ searchEl.addEventListener('input',()=>{ clearTimeout(st); st=setTimeout(render,2
 
 render();
 
-// === AUDIO PLAYER (self-contained, works everywhere) ===
-var audio = new Audio();
-var currentMp3Btn = null;
-var currentMp3Url = '';
-var speeds = [1, 1.25, 1.5, 1.75, 2, 0.75];
-var speedIdx = 0;
+// === AUDIO: native <audio controls> inline in each card ===
+var currentAudioEl = null;
 
-function fmtTime(s) {
-  if(!s||isNaN(s)) return '0:00';
-  var m=Math.floor(s/60), sec=Math.floor(s%60);
-  return m+':'+(sec<10?'0':'')+sec;
-}
+function toggleAudio(btn, url) {
+  // If there's already an audio element open, remove it
+  if(currentAudioEl) {
+    currentAudioEl.pause();
+    currentAudioEl.parentNode.removeChild(currentAudioEl);
+    var oldBtn = document.querySelector('.link-mp3.playing');
+    if(oldBtn) oldBtn.classList.remove('playing');
 
-function playEp(url, title, cat, btn) {
-  var bar = document.getElementById('playerBar');
-  if(currentMp3Url === url && !audio.paused) {
-    audio.pause();
-    return;
+    // If same button clicked, just close
+    if(currentAudioEl.dataset.url === url) {
+      currentAudioEl = null;
+      return;
+    }
+    currentAudioEl = null;
   }
-  currentMp3Url = url;
-  document.getElementById('pTitle').textContent = title;
-  document.getElementById('pCat').textContent = cat;
-  bar.classList.add('visible');
-  document.body.classList.add('player-open');
-  if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
-  currentMp3Btn = btn;
-  if(btn) btn.classList.add('playing');
-  audio.src = url;
-  audio.playbackRate = speeds[speedIdx];
-  audio.play().catch(function(err) { console.error('Play failed:', err); });
-}
 
-function togglePlay() {
-  if(!currentMp3Url) return;
-  if(audio.paused) audio.play().catch(function(){});
-  else audio.pause();
-}
+  // Create native audio element right after the button's parent card
+  var card = btn.closest('.ep-card');
+  var el = document.createElement('audio');
+  el.controls = true;
+  el.autoplay = true;
+  el.preload = 'auto';
+  el.dataset.url = url;
+  el.src = url;
+  el.style.cssText = 'width:100%;margin-top:8px;border-radius:8px;';
+  card.appendChild(el);
+  btn.classList.add('playing');
+  currentAudioEl = el;
 
-function closePlayer() {
-  audio.pause();
-  audio.removeAttribute('src');
-  currentMp3Url = '';
-  document.getElementById('playerBar').classList.remove('visible');
-  document.body.classList.remove('player-open');
-  if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
-  currentMp3Btn = null;
-  document.getElementById('pPlayBtn').innerHTML = '&#9654;';
-  document.getElementById('pFill').style.width = '0%';
+  // When audio ends, clean up styling
+  el.addEventListener('ended', function() {
+    btn.classList.remove('playing');
+  });
 }
-
-function seekAudio(e) {
-  var rect = e.currentTarget.getBoundingClientRect();
-  var pct = (e.clientX - rect.left) / rect.width;
-  if(audio.duration) audio.currentTime = pct * audio.duration;
-}
-
-function cycleSpeed() {
-  speedIdx = (speedIdx + 1) % speeds.length;
-  audio.playbackRate = speeds[speedIdx];
-  document.getElementById('pSpeed').textContent = speeds[speedIdx] + 'x';
-}
-
-audio.addEventListener('timeupdate', function() {
-  if(!audio.duration) return;
-  var pct = (audio.currentTime / audio.duration) * 100;
-  document.getElementById('pFill').style.width = pct + '%';
-  document.getElementById('pCur').textContent = fmtTime(audio.currentTime);
-  document.getElementById('pDur').textContent = fmtTime(audio.duration);
-});
-audio.addEventListener('play', function() {
-  document.getElementById('pPlayBtn').innerHTML = '&#9646;&#9646;';
-  if(currentMp3Btn) currentMp3Btn.classList.add('playing');
-});
-audio.addEventListener('pause', function() {
-  document.getElementById('pPlayBtn').innerHTML = '&#9654;';
-  if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
-});
-audio.addEventListener('ended', function() {
-  document.getElementById('pPlayBtn').innerHTML = '&#9654;';
-  if(currentMp3Btn) currentMp3Btn.classList.remove('playing');
-  document.getElementById('pFill').style.width = '0%';
-});
 
 // Stop audio if parent toolbox closes the modal
 window.addEventListener('message', function(e) {
-  if(e.data && e.data.action === 'stop-audio') closePlayer();
+  if(e.data && e.data.action === 'stop-audio' && currentAudioEl) {
+    currentAudioEl.pause();
+    currentAudioEl.parentNode.removeChild(currentAudioEl);
+    currentAudioEl = null;
+  }
 });
 </script>
 </body>
