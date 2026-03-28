@@ -2136,6 +2136,8 @@
 
             // Group current items by system so related topics stay together
             // instead of being interleaved by start_date
+            // Also build alerts for items whose start_date came before a later-grouped item
+            const currentItemAlerts = {};
             if (currentItems.length > 1) {
                 const systemOrder = [];
                 const systemGroups = {};
@@ -2150,6 +2152,31 @@
                 systemOrder.forEach(system => {
                     currentItems.push(...systemGroups[system]);
                 });
+
+                // Detect items from later groups that should have started earlier
+                // For each system group, find items in subsequent groups with earlier start_date
+                for (let g = 0; g < systemOrder.length - 1; g++) {
+                    const currentGroup = systemGroups[systemOrder[g]];
+                    const lastItemInGroup = currentGroup[currentGroup.length - 1];
+                    // Check all subsequent groups for items that start before items in this group
+                    for (let ng = g + 1; ng < systemOrder.length; ng++) {
+                        const nextGroup = systemGroups[systemOrder[ng]];
+                        nextGroup.forEach(nextItem => {
+                            const nextStart = parseLocalDate(nextItem.start_date);
+                            // Check against each item in current group
+                            currentGroup.forEach(curItem => {
+                                const curStart = parseLocalDate(curItem.start_date);
+                                if (nextStart < curStart) {
+                                    // This item in the current group started after a later-listed item
+                                    if (!currentItemAlerts[curItem.id]) {
+                                        const label = userScheduleType === 'subject' ? nextItem.category : nextItem.category;
+                                        currentItemAlerts[curItem.id] = `${nextItem.system} - ${label} comeca antes (${formatShortDate(nextItem.start_date)}), confira abaixo`;
+                                    }
+                                }
+                            });
+                        });
+                    }
+                }
             }
 
             // Check for delays (incomplete items with end_date before any current item's start_date)
@@ -2303,6 +2330,12 @@
                                 </button>
                             </div>
                         </div>
+                        ${currentItemAlerts[item.id] ? `
+                            <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 0.5rem 0.75rem; margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: #92400e;">
+                                <span style="font-size: 1rem; flex-shrink: 0;">&#x26A0;&#xFE0F;</span>
+                                <span>${currentItemAlerts[item.id]}</span>
+                            </div>
+                        ` : ''}
                         ${formatRecommendedLessons(item.recommended_lessons, item.id)}
                     </div>
                 `).join('');
