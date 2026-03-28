@@ -1596,6 +1596,8 @@
         let watchedLessons = new Set(); // Store watched lesson keys (course:lesson)
         let userPreparation = null; // User's current preparation focus
         let autocompleteOptions = { subject: [], system: [], category: [] };
+        let studentBlockedDays = new Set(); // Days of week the student doesn't study (0-6)
+        let studentBreaks = []; // Break periods [{start, end}]
 
         // Helper to decrypt user name if encrypted
         function _dn(name) {
@@ -1657,6 +1659,7 @@
             // Load schedule_type BEFORE loading schedule so Register button works correctly
             await loadUserScheduleType();
 
+            await loadStudentStudyConfig();
             await loadWatchedLessons();
             loadWardMethodLessons(); // Merge Ward Method lessons from localStorage
             await loadSchedule();
@@ -2078,6 +2081,69 @@
             }
         }
 
+        // Load student's no_study_days and break_periods from questionnaire
+        async function loadStudentStudyConfig() {
+            try {
+                const { data: step2Data } = await WardApp.db
+                    .from('questionnaire_data')
+                    .select('data')
+                    .eq('user_id', targetUserId)
+                    .eq('step', 2)
+                    .single();
+
+                if (step2Data && step2Data.data) {
+                    const d = step2Data.data;
+                    if (d.no_study_days && Array.isArray(d.no_study_days)) {
+                        d.no_study_days.forEach(day => studentBlockedDays.add(parseInt(day)));
+                    }
+                    if (d.break_periods && Array.isArray(d.break_periods)) {
+                        d.break_periods.forEach(period => {
+                            if (period.start_date && period.end_date) {
+                                studentBreaks.push({
+                                    start: parseLocalDate(period.start_date),
+                                    end: parseLocalDate(period.end_date)
+                                });
+                            }
+                        });
+                    }
+                }
+            } catch (e) {
+                console.log('Could not load study config');
+            }
+        }
+
+        // Count study days between two dates, excluding blocked weekdays and break periods
+        function countStudyDays(startDateStr, endDateStr) {
+            const start = parseLocalDate(startDateStr);
+            const end = parseLocalDate(endDateStr);
+            let count = 0;
+            const current = new Date(start);
+
+            while (current <= end) {
+                if (!studentBlockedDays.has(current.getDay())) {
+                    let inBreak = false;
+                    for (const b of studentBreaks) {
+                        if (current >= b.start && current <= b.end) {
+                            inBreak = true;
+                            break;
+                        }
+                    }
+                    if (!inBreak) count++;
+                }
+                current.setDate(current.getDate() + 1);
+            }
+
+            return count;
+        }
+
+        // Calculate approximate questions per study day for an item
+        function getQuestionsPerDay(item) {
+            if (!item.questions || !item.start_date || !item.end_date) return null;
+            const studyDays = countStudyDays(item.start_date, item.end_date);
+            if (studyDays <= 0) return null;
+            return Math.ceil(item.questions / studyDays);
+        }
+
         async function loadSchedule() {
             const { data: schedule, error } = await WardApp.db
                 .from('schedules')
@@ -2324,6 +2390,15 @@
                                 <div class="current-study-meta-label">🏁 Fim</div>
                                 <div class="current-study-meta-value">${formatShortDate(item.end_date)}</div>
                             </div>
+                            ${(() => {
+                                const qpd = getQuestionsPerDay(item);
+                                return qpd ? `
+                                    <div class="current-study-meta-item">
+                                        <div class="current-study-meta-label">📊 Média/dia</div>
+                                        <div class="current-study-meta-value" style="font-weight: 700; color: #7c3aed;">~${qpd} questoes</div>
+                                    </div>
+                                ` : '';
+                            })()}
                             <div class="current-study-meta-item current-study-register">
                                 <button class="current-study-register-btn" onclick="openRegisterModal('${item.system.replace(/'/g, "\\'")}', '${item.category.replace(/'/g, "\\'")}')">
                                     📝 Registrar
