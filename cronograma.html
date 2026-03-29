@@ -2349,7 +2349,34 @@
                 currentCard.querySelector('.card-header').style.background = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
                 currentCard.querySelector('.card-header').innerHTML = `📚 O que voce deveria estar estudando agora (${currentItems.length} ${currentItems.length === 1 ? 'item' : 'itens'})`;
 
-                contentDiv.innerHTML = currentItems.map((item, index) => `
+                // Calculate total questions per day across all current items
+                const dailyTotalParts = [];
+                let dailyTotal = 0;
+                currentItems.forEach(item => {
+                    const qpd = getQuestionsPerDay(item);
+                    if (qpd) {
+                        dailyTotalParts.push({ label: userScheduleType === 'subject' ? item.category : item.category, qpd });
+                        dailyTotal += qpd;
+                    }
+                });
+
+                const dailySummaryHtml = (dailyTotal > 0 && currentItems.length > 1) ? `
+                    <div style="background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); border: 1px solid #c4b5fd; border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1rem;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                            <div style="font-size: 0.85rem; color: #5b21b6;">
+                                <span style="font-weight: 600;">Total estimado para hoje:</span>
+                                <span style="display: inline-flex; align-items: center; gap: 0.25rem; margin-left: 0.25rem;">
+                                    ${dailyTotalParts.map(p => `<span style="background: #ddd6fe; padding: 0.15rem 0.5rem; border-radius: 6px; font-size: 0.78rem;">~${p.qpd}</span>`).join(' + ')}
+                                </span>
+                            </div>
+                            <div style="font-size: 1.1rem; font-weight: 800; color: #7c3aed;">
+                                ~${dailyTotal} questoes/dia
+                            </div>
+                        </div>
+                    </div>
+                ` : '';
+
+                contentDiv.innerHTML = dailySummaryHtml + currentItems.map((item, index) => `
                     <div class="current-study-item" style="margin-bottom: ${index === currentItems.length - 1 ? '0' : '1rem'};">
                         <div class="current-study-header">
                             <div class="current-study-title">
