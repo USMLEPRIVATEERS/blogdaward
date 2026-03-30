@@ -1424,6 +1424,8 @@ Cardiovascular	Physiology	62	FALSE
 
         // Call Tracking - students needing calls
         let callTrackingData = null;
+        let hiddenCallStudents = new Set(JSON.parse(localStorage.getItem('hidden_call_students') || '[]'));
+        let showHiddenCallStudents = false;
 
         async function openCallTrackingModal() {
             document.getElementById('call-tracking-modal').classList.add('active');
@@ -1480,6 +1482,21 @@ Cardiovascular	Physiology	62	FALSE
             renderCallTrackingResults(needsCall, lastCallMap);
         }
 
+        function toggleHideCallStudent(studentId) {
+            if (hiddenCallStudents.has(studentId)) {
+                hiddenCallStudents.delete(studentId);
+            } else {
+                hiddenCallStudents.add(studentId);
+            }
+            localStorage.setItem('hidden_call_students', JSON.stringify([...hiddenCallStudents]));
+            if (callTrackingData) filterCallTracking();
+        }
+
+        function toggleShowHiddenCallStudents() {
+            showHiddenCallStudents = !showHiddenCallStudents;
+            if (callTrackingData) filterCallTracking();
+        }
+
         function renderCallTrackingResults(students, lastCallMap) {
             const container = document.getElementById('call-tracking-results');
 
@@ -1488,10 +1505,13 @@ Cardiovascular	Physiology	62	FALSE
                 return;
             }
 
+            const hiddenCount = students.filter(s => hiddenCallStudents.has(s.id)).length;
+            const visibleStudents = showHiddenCallStudents ? students : students.filter(s => !hiddenCallStudents.has(s.id));
+
             const groups = {
-                overdue: students.filter(s => s.status === 'overdue'),
-                no_schedule: students.filter(s => s.status === 'no_schedule'),
-                on_track: students.filter(s => s.status === 'on_track')
+                overdue: visibleStudents.filter(s => s.status === 'overdue'),
+                no_schedule: visibleStudents.filter(s => s.status === 'no_schedule'),
+                on_track: visibleStudents.filter(s => s.status === 'on_track')
             };
 
             const groupLabels = {
@@ -1500,7 +1520,10 @@ Cardiovascular	Physiology	62	FALSE
                 on_track: { label: 'Em Dia', color: '#d1fae5', textColor: '#059669' }
             };
 
-            let html = `<div style="margin-bottom: 1rem; padding: 0.75rem; background: #eff6ff; border-radius: 8px; font-size: 0.9rem; color: #1e40af;"><strong>${students.length}</strong> aluno${students.length !== 1 ? 's' : ''} precisando de chamada</div>`;
+            let html = `<div style="margin-bottom: 1rem; padding: 0.75rem; background: #eff6ff; border-radius: 8px; font-size: 0.9rem; color: #1e40af; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                <span><strong>${visibleStudents.length}</strong> aluno${visibleStudents.length !== 1 ? 's' : ''} precisando de chamada</span>
+                ${hiddenCount > 0 ? `<button onclick="toggleShowHiddenCallStudents()" style="background: ${showHiddenCallStudents ? '#7c3aed' : '#e5e7eb'}; color: ${showHiddenCallStudents ? 'white' : '#374151'}; border: none; padding: 0.3rem 0.75rem; border-radius: 6px; font-size: 0.78rem; cursor: pointer;">${showHiddenCallStudents ? 'Ocultar escondidos' : 'Mostrar ' + hiddenCount + ' oculto' + (hiddenCount !== 1 ? 's' : '')}</button>` : ''}
+            </div>`;
 
             for (const [status, list] of Object.entries(groups)) {
                 if (list.length === 0) continue;
@@ -1526,8 +1549,11 @@ Cardiovascular	Physiology	62	FALSE
                         lastCallColor = '#6b7280';
                     }
 
-                    html += `<div style="background: white; border: 1px solid #e5e7eb; border-left: 4px solid ${textColor}; border-radius: 8px; padding: 0.75rem;">
-                        <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem;">${_dn(student.full_name) || student.email}</div>
+                    const isHidden = hiddenCallStudents.has(student.id);
+
+                    html += `<div style="background: ${isHidden ? '#f9fafb' : 'white'}; border: 1px solid #e5e7eb; border-left: 4px solid ${textColor}; border-radius: 8px; padding: 0.75rem; position: relative; ${isHidden ? 'opacity: 0.5;' : ''}">
+                        <button onclick="toggleHideCallStudent(${student.id})" title="${isHidden ? 'Mostrar aluno' : 'Ocultar aluno'}" style="position: absolute; top: 0.4rem; right: 0.4rem; background: none; border: none; cursor: pointer; font-size: 0.85rem; color: ${isHidden ? '#7c3aed' : '#9ca3af'}; padding: 0.1rem 0.3rem; border-radius: 4px; line-height: 1;">${isHidden ? '👁' : '&times;'}</button>
+                        <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem; padding-right: 1.5rem;">${_dn(student.full_name) || student.email}</div>
                         <div style="font-size: 0.75rem; color: ${lastCallColor};">${lastCallText}</div>
                     </div>`;
                 });
