@@ -2464,15 +2464,23 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             document.getElementById('call-tracking-results').innerHTML = '<p class="text-muted" style="text-align: center; padding: 2rem;">Carregando...</p>';
 
             try {
-                const [callReportsRes, scheduledCallsRes] = await Promise.all([
+                const [callReportsRes, completedCallsRes, scheduledCallsRes] = await Promise.all([
                     WardApp.db.from('call_reports').select('student_id, call_date').eq('mentor_id', userData.id).order('call_date', { ascending: false }),
+                    WardApp.db.from('scheduled_calls').select('student_id, scheduled_date').eq('mentor_id', userData.id).eq('status', 'completed'),
                     WardApp.db.from('scheduled_calls').select('student_id, scheduled_date').eq('mentor_id', userData.id).eq('status', 'scheduled').gte('scheduled_date', new Date().toISOString().split('T')[0])
                 ]);
 
                 const lastCallMap = {};
+                // From call_reports
                 (callReportsRes.data || []).forEach(cr => {
                     if (!lastCallMap[cr.student_id] || cr.call_date > lastCallMap[cr.student_id]) {
                         lastCallMap[cr.student_id] = cr.call_date;
+                    }
+                });
+                // From completed scheduled_calls (may not have a call_report)
+                (completedCallsRes.data || []).forEach(sc => {
+                    if (!lastCallMap[sc.student_id] || sc.scheduled_date > lastCallMap[sc.student_id]) {
+                        lastCallMap[sc.student_id] = sc.scheduled_date;
                     }
                 });
 
