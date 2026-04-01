@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
     <script src="../js/devtools-protection.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DOI to Sci-Hub Manager</title>
@@ -256,6 +258,109 @@
             color: #6c757d;
             font-size: 0.9em;
         }
+        .btn-download {
+            background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+            color: white;
+        }
+
+        .btn-download:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 184, 148, 0.4);
+        }
+
+        .btn-download:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .download-log {
+            margin: 15px 0;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            background: #1a1a2e;
+            color: #0f0;
+            padding: 12px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .download-log .log-error { color: #ff6b6b; }
+        .download-log .log-success { color: #51cf66; }
+        .download-log .log-info { color: #74b9ff; }
+        .download-log .log-warn { color: #ffeaa7; }
+
+        .download-progress {
+            margin: 15px 0;
+            display: none;
+        }
+
+        .download-progress .progress-bar {
+            width: 100%;
+            height: 24px;
+            background: #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .download-progress .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+            width: 0%;
+            transition: width 0.3s;
+            border-radius: 12px;
+        }
+
+        .download-progress .progress-text {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .download-summary {
+            display: none;
+            margin: 15px 0;
+            padding: 15px;
+            background: #f8f9fc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .download-summary .summary-grid {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .download-summary .summary-item {
+            flex: 1;
+            min-width: 80px;
+            text-align: center;
+            padding: 8px;
+            border-radius: 6px;
+        }
+
+        .download-summary .summary-item .num {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+
+        .download-summary .summary-item .lbl {
+            font-size: 0.8em;
+            color: #6c757d;
+        }
     </style>
 </head>
 <body>
@@ -292,10 +397,37 @@ doi.org/10.1234/example
         <div class="button-group">
             <button class="btn-primary" onclick="processDOIs()">🔄 Process DOIs</button>
             <button class="btn-secondary" onclick="openAllDOIs()">🚀 Open All (1/sec)</button>
+            <button class="btn-download" id="btnDownloadZip" onclick="downloadAllAsZip()">📦 Download ZIP</button>
             <button class="btn-danger" onclick="stopOpening()">⏹️ Stop</button>
             <button class="btn-primary" onclick="clearAll()">🗑️ Clear All</button>
         </div>
-        
+
+        <div class="download-progress" id="downloadProgressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="downloadProgressFill"></div>
+                <div class="progress-text" id="downloadProgressText">0/0</div>
+            </div>
+        </div>
+
+        <div class="download-summary" id="downloadSummary">
+            <div class="summary-grid">
+                <div class="summary-item" style="background: #d4edda;">
+                    <div class="num" id="dlSuccessCount" style="color: #155724;">0</div>
+                    <div class="lbl">Baixados</div>
+                </div>
+                <div class="summary-item" style="background: #f8d7da;">
+                    <div class="num" id="dlFailCount" style="color: #721c24;">0</div>
+                    <div class="lbl">Falharam</div>
+                </div>
+                <div class="summary-item" style="background: #cce7ff;">
+                    <div class="num" id="dlTotalCount" style="color: #004085;">0</div>
+                    <div class="lbl">Total</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="download-log" id="downloadLog"></div>
+
         <div class="progress" id="progressContainer">
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
@@ -326,6 +458,7 @@ doi.org/10.1234/example
     <script>
         let processedDOIs = [];
         let isOpening = false;
+        let isDownloading = false;
         let openingInterval = null;
         let currentIndex = 0;
         let openedCount = 0;
@@ -478,10 +611,15 @@ doi.org/10.1234/example
                 openingInterval = null;
             }
             isOpening = false;
+            isDownloading = false;
             document.getElementById('progressContainer').style.display = 'none';
-            
+
+            const btn = document.getElementById('btnDownloadZip');
+            btn.disabled = false;
+            btn.textContent = '📦 Download ZIP';
+
             if (currentIndex > 0) {
-                showStatus(`⏹️ Stopped opening DOIs. Opened ${currentIndex} out of ${processedDOIs.length}`, 'info');
+                showStatus(`⏹️ Stopped. Opened ${currentIndex} out of ${processedDOIs.length}`, 'info');
             }
         }
         
@@ -494,9 +632,198 @@ doi.org/10.1234/example
             document.getElementById('doiList').innerHTML = '';
             document.getElementById('status').innerHTML = '';
             document.getElementById('stats').style.display = 'none';
+            document.getElementById('downloadLog').style.display = 'none';
+            document.getElementById('downloadLog').innerHTML = '';
+            document.getElementById('downloadProgressContainer').style.display = 'none';
+            document.getElementById('downloadSummary').style.display = 'none';
             showStatus('🗑️ Cleared all data', 'info');
         }
         
+        // === ZIP Download Feature ===
+
+        function dlLog(msg, type = 'info') {
+            const log = document.getElementById('downloadLog');
+            log.style.display = 'block';
+            const line = document.createElement('div');
+            line.className = `log-${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            log.appendChild(line);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateDownloadProgress(current, total) {
+            const pct = total > 0 ? (current / total) * 100 : 0;
+            document.getElementById('downloadProgressFill').style.width = `${pct}%`;
+            document.getElementById('downloadProgressText').textContent = `${current}/${total}`;
+        }
+
+        // Try to extract PDF URL from Sci-Hub HTML response
+        function extractPdfUrl(html, mirror) {
+            // Sci-Hub embeds PDF in an iframe or embed tag
+            // Pattern 1: <iframe src="..." or <embed src="..."
+            const patterns = [
+                /(?:iframe|embed)[^>]+src\s*=\s*["']([^"']+\.pdf[^"']*)/i,
+                /(?:iframe|embed)[^>]+src\s*=\s*["'](\/\/[^"']+)/i,
+                /(?:iframe|embed)[^>]+src\s*=\s*["'](\/downloads[^"']+)/i,
+                /location\.href\s*=\s*["']([^"']+\.pdf[^"']*)/i,
+                /window\.open\s*\(\s*["']([^"']+\.pdf[^"']*)/i,
+            ];
+
+            for (const pat of patterns) {
+                const match = html.match(pat);
+                if (match && match[1]) {
+                    let url = match[1];
+                    if (url.startsWith('//')) {
+                        url = 'https:' + url;
+                    } else if (url.startsWith('/')) {
+                        const base = new URL(mirror);
+                        url = base.origin + url;
+                    }
+                    return url;
+                }
+            }
+
+            // Pattern: direct button/link with PDF URL
+            const buttonMatch = html.match(/onclick\s*=\s*["']location\.href='([^']+\.pdf[^']*)'/i);
+            if (buttonMatch && buttonMatch[1]) {
+                let url = buttonMatch[1];
+                if (url.startsWith('//')) url = 'https:' + url;
+                return url;
+            }
+
+            return null;
+        }
+
+        // Try fetching PDF for a single DOI from a given mirror
+        async function tryFetchPdf(doi, mirror) {
+            const scihubUrl = `${mirror}${doi}`;
+
+            // Step 1: Fetch the Sci-Hub page to find the PDF URL
+            const pageResp = await fetch(scihubUrl);
+            if (!pageResp.ok) throw new Error(`HTTP ${pageResp.status}`);
+
+            const html = await pageResp.text();
+            const pdfUrl = extractPdfUrl(html, mirror);
+
+            if (!pdfUrl) throw new Error('PDF URL not found in page');
+
+            // Step 2: Fetch the actual PDF
+            dlLog(`  PDF found: ${pdfUrl.substring(0, 80)}...`, 'info');
+            const pdfResp = await fetch(pdfUrl);
+            if (!pdfResp.ok) throw new Error(`PDF download HTTP ${pdfResp.status}`);
+
+            const contentType = pdfResp.headers.get('content-type') || '';
+            const blob = await pdfResp.blob();
+
+            // Verify it's actually a PDF (at least partially)
+            if (blob.size < 1000) throw new Error('Response too small, likely not a PDF');
+
+            return blob;
+        }
+
+        async function downloadAllAsZip() {
+            if (processedDOIs.length === 0) {
+                showStatus('❌ No DOIs to download! Process DOIs first.', 'error');
+                return;
+            }
+
+            if (isDownloading) {
+                showStatus('⚠️ Download already in progress.', 'error');
+                return;
+            }
+
+            isDownloading = true;
+            const btn = document.getElementById('btnDownloadZip');
+            btn.disabled = true;
+            btn.textContent = '⏳ Downloading...';
+
+            document.getElementById('downloadLog').innerHTML = '';
+            document.getElementById('downloadLog').style.display = 'block';
+            document.getElementById('downloadProgressContainer').style.display = 'block';
+            document.getElementById('downloadSummary').style.display = 'block';
+
+            const selectedMirror = document.getElementById('sciHubMirror').value;
+            // Build list of mirrors to try: selected first, then others
+            const allMirrors = Array.from(document.getElementById('sciHubMirror').options).map(o => o.value);
+            const mirrors = [selectedMirror, ...allMirrors.filter(m => m !== selectedMirror)];
+
+            const zip = new JSZip();
+            let successCount = 0;
+            let failCount = 0;
+            const total = processedDOIs.length;
+
+            dlLog(`Starting download of ${total} articles...`, 'info');
+            dlLog(`Primary mirror: ${selectedMirror}`, 'info');
+
+            for (let i = 0; i < processedDOIs.length; i++) {
+                if (!isDownloading) {
+                    dlLog('Download cancelled by user.', 'warn');
+                    break;
+                }
+
+                const doi = processedDOIs[i];
+                const safeName = doi.replace(/[\/\\:*?"<>|]/g, '_');
+                dlLog(`[${i + 1}/${total}] ${doi}`, 'info');
+
+                let downloaded = false;
+
+                for (const mirror of mirrors) {
+                    try {
+                        const blob = await tryFetchPdf(doi, mirror);
+                        zip.file(`${safeName}.pdf`, blob);
+                        successCount++;
+                        downloaded = true;
+                        dlLog(`  ✅ Downloaded (${(blob.size / 1024).toFixed(0)} KB) via ${new URL(mirror).hostname}`, 'success');
+                        break;
+                    } catch (err) {
+                        dlLog(`  ❌ ${new URL(mirror).hostname}: ${err.message}`, 'error');
+                    }
+                }
+
+                if (!downloaded) {
+                    failCount++;
+                    dlLog(`  ⚠️ All mirrors failed for ${doi}`, 'warn');
+                }
+
+                updateDownloadProgress(i + 1, total);
+                document.getElementById('dlSuccessCount').textContent = successCount;
+                document.getElementById('dlFailCount').textContent = failCount;
+                document.getElementById('dlTotalCount').textContent = total;
+
+                // Small delay between requests to avoid rate limiting
+                if (i < processedDOIs.length - 1) {
+                    await new Promise(r => setTimeout(r, 1500));
+                }
+            }
+
+            // Generate and save ZIP
+            if (successCount > 0) {
+                dlLog(`Generating ZIP with ${successCount} PDFs...`, 'info');
+                try {
+                    const content = await zip.generateAsync({
+                        type: 'blob',
+                        compression: 'DEFLATE',
+                        compressionOptions: { level: 6 }
+                    });
+                    const timestamp = new Date().toISOString().slice(0, 10);
+                    saveAs(content, `scihub_articles_${timestamp}.zip`);
+                    dlLog(`✅ ZIP saved! ${successCount} articles (${(content.size / 1024 / 1024).toFixed(1)} MB)`, 'success');
+                    showStatus(`✅ ZIP downloaded with ${successCount} of ${total} articles!`, 'success');
+                } catch (err) {
+                    dlLog(`❌ Error generating ZIP: ${err.message}`, 'error');
+                    showStatus('❌ Error generating ZIP file.', 'error');
+                }
+            } else {
+                dlLog('❌ No PDFs downloaded. CORS may be blocking requests from the browser.', 'error');
+                dlLog('💡 Tip: Try a different Sci-Hub mirror, or use "Open All" to download manually.', 'warn');
+                showStatus('❌ Could not download any PDFs. Try a different mirror or use "Open All".', 'error');
+            }
+
+            isDownloading = false;
+            btn.disabled = false;
+            btn.textContent = '📦 Download ZIP';
+        }
+
         // Test with sample data
         function loadSampleData() {
             const sampleDOIs = `https://doi.org/10.1037/0003-066x.59.1.29
