@@ -644,7 +644,8 @@ doi.org/10.1234/example
 
         // CORS proxy services to try (in order)
         const CORS_PROXIES = [
-            { name: 'allorigins', fn: (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}` },
+            { name: 'allorigins-raw', fn: (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}` },
+            { name: 'allorigins-get', fn: (url) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, wrapped: true },
             { name: 'corsproxy.io', fn: (url) => `https://corsproxy.io/?url=${encodeURIComponent(url)}` },
             { name: 'corsfix', fn: (url) => `https://proxy.corsfix.com/?${encodeURIComponent(url)}` },
         ];
@@ -667,9 +668,15 @@ doi.org/10.1234/example
 
         // Try to extract PDF URL from Sci-Hub/Sci-Net HTML response
         function extractPdfUrl(html, mirror) {
-            // Sci-Net specific: iframe with src on pdf.sci-net.xyz
-            const sciNetMatch = html.match(/(?:iframe|embed)[^>]+src\s*=\s*["'](https?:\/\/pdf\.sci-net\.xyz\/[^"']+)/i);
-            if (sciNetMatch && sciNetMatch[1]) return sciNetMatch[1];
+            // Sci-Net specific: iframe with src on pdf.sci-net.xyz (handles https://, http://, and // prefix)
+            const sciNetMatch = html.match(/(?:iframe|embed)[^>]+src\s*=\s*["']((?:https?:)?\/\/pdf\.sci-net\.xyz\/[^"']+)/i);
+            if (sciNetMatch && sciNetMatch[1]) {
+                let url = sciNetMatch[1];
+                if (url.startsWith('//')) url = 'https:' + url;
+                // Strip URL fragment (#page=1&zoom=auto etc.) that can break fetch
+                url = url.split('#')[0];
+                return url;
+            }
 
             const patterns = [
                 /(?:iframe|embed)[^>]+src\s*=\s*["']([^"']+\.pdf[^"']*)/i,
@@ -694,6 +701,8 @@ doi.org/10.1234/example
                             url = base.origin + url;
                         } catch(e) {}
                     }
+                    // Strip URL fragment that can break proxy fetch
+                    url = url.split('#')[0];
                     return url;
                 }
             }
@@ -714,6 +723,8 @@ doi.org/10.1234/example
             let lastError = null;
 
             for (const proxy of CORS_PROXIES) {
+                // Skip wrapped proxies for blob requests (they return JSON, not raw binary)
+                if (expectBlob && proxy.wrapped) continue;
                 try {
                     const proxiedUrl = proxy.fn(url);
                     const resp = await fetch(proxiedUrl, { signal: AbortSignal.timeout(30000) });
@@ -721,6 +732,9 @@ doi.org/10.1234/example
                     if (expectBlob) {
                         const blob = await resp.blob();
                         return { data: blob, proxy: proxy.name };
+                    } else if (proxy.wrapped) {
+                        const json = await resp.json();
+                        return { data: json.contents || '', proxy: proxy.name };
                     } else {
                         const text = await resp.text();
                         return { data: text, proxy: proxy.name };
@@ -759,23 +773,30 @@ doi.org/10.1234/example
 
             // Step 2: Fetch the actual PDF via proxy
             dlLog(`  PDF URL: ${pdfUrl.substring(0, 80)}...`, 'info');
-            const pdfResult = await fetchViaProxy(pdfUrl, true);
+            try {
+                const pdfResult = await fetchViaProxy(pdfUrl, true);
 
-            if (pdfResult.data.size < 1000) throw new Error('Response too small, likely not a PDF');
+                if (pdfResult.data.size < 1000) throw new Error('Response too small, likely not a PDF');
 
-            // Quick check: read first bytes to verify PDF signature
-            const header = await pdfResult.data.slice(0, 5).text();
-            if (header !== '%PDF-') {
-                // Might be HTML error page, try to read
-                if (pdfResult.data.size < 5000) {
-                    const text = await pdfResult.data.text();
-                    if (text.includes('<html') || text.includes('<!DOCTYPE')) {
-                        throw new Error('Got HTML instead of PDF');
+                // Quick check: read first bytes to verify PDF signature
+                const header = await pdfResult.data.slice(0, 5).text();
+                if (header !== '%PDF-') {
+                    // Might be HTML error page, try to read
+                    if (pdfResult.data.size < 5000) {
+                        const text = await pdfResult.data.text();
+                        if (text.includes('<html') || text.includes('<!DOCTYPE')) {
+                            throw new Error('Got HTML instead of PDF');
+                        }
                     }
                 }
-            }
 
-            return pdfResult.data;
+                return pdfResult.data;
+            } catch (proxyErr) {
+                // Proxy fetch failed (likely large file or timeout) — open PDF directly in new tab
+                dlLog(`  ⚠️ Proxy PDF fetch failed (${proxyErr.message}), opening directly in browser...`, 'warn');
+                window.open(pdfUrl, '_blank');
+                return null; // Signal that it was opened in browser instead
+            }
         }
 
         async function downloadAllAsZip() {
@@ -828,10 +849,17 @@ doi.org/10.1234/example
                 for (const mirror of mirrors) {
                     try {
                         const blob = await tryFetchPdf(doi, mirror);
-                        zip.file(`${safeName}.pdf`, blob);
-                        successCount++;
-                        downloaded = true;
-                        dlLog(`  ✅ Downloaded (${(blob.size / 1024).toFixed(0)} KB) via ${new URL(mirror).hostname}`, 'success');
+                        if (blob) {
+                            zip.file(`${safeName}.pdf`, blob);
+                            successCount++;
+                            downloaded = true;
+                            dlLog(`  ✅ Downloaded (${(blob.size / 1024).toFixed(0)} KB) via ${new URL(mirror).hostname}`, 'success');
+                        } else {
+                            // PDF was opened in browser tab (proxy fetch failed for large file)
+                            successCount++;
+                            downloaded = true;
+                            dlLog(`  ✅ Opened in browser (not added to ZIP)`, 'info');
+                        }
                         break;
                     } catch (err) {
                         dlLog(`  ❌ ${new URL(mirror).hostname}: ${err.message}`, 'error');
