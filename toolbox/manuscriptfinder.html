@@ -374,7 +374,8 @@
         <div class="mirror-selector">
             <label for="sciHubMirror">🌐 Sci-Hub Mirror:</label>
             <select id="sciHubMirror">
-                <option value="https://sci-hub.se/">sci-hub.se (Primary)</option>
+                <option value="https://sci-net.xyz/">sci-net.xyz (Recommended for ZIP)</option>
+                <option value="https://sci-hub.se/">sci-hub.se</option>
                 <option value="https://sci-hub.st/">sci-hub.st</option>
                 <option value="https://sci-hub.ru/">sci-hub.ru</option>
                 <option value="https://sci-hub.hkvisa.net/">sci-hub.hkvisa.net</option>
@@ -664,8 +665,12 @@ doi.org/10.1234/example
             document.getElementById('downloadProgressText').textContent = `${current}/${total}`;
         }
 
-        // Try to extract PDF URL from Sci-Hub HTML response
+        // Try to extract PDF URL from Sci-Hub/Sci-Net HTML response
         function extractPdfUrl(html, mirror) {
+            // Sci-Net specific: iframe with src on pdf.sci-net.xyz
+            const sciNetMatch = html.match(/(?:iframe|embed)[^>]+src\s*=\s*["'](https?:\/\/pdf\.sci-net\.xyz\/[^"']+)/i);
+            if (sciNetMatch && sciNetMatch[1]) return sciNetMatch[1];
+
             const patterns = [
                 /(?:iframe|embed)[^>]+src\s*=\s*["']([^"']+\.pdf[^"']*)/i,
                 /(?:iframe|embed)[^>]+src\s*=\s*["'](\/\/[^"']+)/i,
@@ -732,14 +737,19 @@ doi.org/10.1234/example
         async function tryFetchPdf(doi, mirror) {
             const scihubUrl = `${mirror}${doi}`;
 
-            // Step 1: Fetch the Sci-Hub page to find the PDF URL
+            // Step 1: Fetch the page to find the PDF URL
             dlLog(`  Fetching page via proxy...`, 'info');
             const pageResult = await fetchViaProxy(scihubUrl, false);
             dlLog(`  Page fetched via ${pageResult.proxy}`, 'info');
 
+            // Detect sci-net redirect to homepage (DOI not found)
+            if (mirror.includes('sci-net') && !pageResult.data.includes('pdf.sci-net.xyz') && !pageResult.data.includes(doi)) {
+                throw new Error('Article not found on sci-net');
+            }
+
             const pdfUrl = extractPdfUrl(pageResult.data, mirror);
             if (!pdfUrl) {
-                // Check if the response itself might be a PDF redirect
+                // Check if the response itself might be a PDF
                 if (pageResult.data.substring(0, 5) === '%PDF-') {
                     dlLog(`  Direct PDF response detected`, 'info');
                     return new Blob([pageResult.data], { type: 'application/pdf' });
