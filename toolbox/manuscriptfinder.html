@@ -641,6 +641,13 @@ doi.org/10.1234/example
         
         // === ZIP Download Feature ===
 
+        // CORS proxy services to try (in order)
+        const CORS_PROXIES = [
+            { name: 'allorigins', fn: (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}` },
+            { name: 'corsproxy.io', fn: (url) => `https://corsproxy.io/?url=${encodeURIComponent(url)}` },
+            { name: 'corsfix', fn: (url) => `https://proxy.corsfix.com/?${encodeURIComponent(url)}` },
+        ];
+
         function dlLog(msg, type = 'info') {
             const log = document.getElementById('downloadLog');
             log.style.display = 'block';
@@ -659,14 +666,15 @@ doi.org/10.1234/example
 
         // Try to extract PDF URL from Sci-Hub HTML response
         function extractPdfUrl(html, mirror) {
-            // Sci-Hub embeds PDF in an iframe or embed tag
-            // Pattern 1: <iframe src="..." or <embed src="..."
             const patterns = [
                 /(?:iframe|embed)[^>]+src\s*=\s*["']([^"']+\.pdf[^"']*)/i,
                 /(?:iframe|embed)[^>]+src\s*=\s*["'](\/\/[^"']+)/i,
                 /(?:iframe|embed)[^>]+src\s*=\s*["'](\/downloads[^"']+)/i,
                 /location\.href\s*=\s*["']([^"']+\.pdf[^"']*)/i,
                 /window\.open\s*\(\s*["']([^"']+\.pdf[^"']*)/i,
+                /id\s*=\s*["']pdf["'][^>]*src\s*=\s*["']([^"']+)/i,
+                /src\s*=\s*["']([^"']*\/downloads\/[^"']+)/i,
+                /src\s*=\s*["']([^"']*sci-hub[^"']*\/[^"']+)/i,
             ];
 
             for (const pat of patterns) {
@@ -676,14 +684,16 @@ doi.org/10.1234/example
                     if (url.startsWith('//')) {
                         url = 'https:' + url;
                     } else if (url.startsWith('/')) {
-                        const base = new URL(mirror);
-                        url = base.origin + url;
+                        try {
+                            const base = new URL(mirror);
+                            url = base.origin + url;
+                        } catch(e) {}
                     }
                     return url;
                 }
             }
 
-            // Pattern: direct button/link with PDF URL
+            // Pattern: onclick button
             const buttonMatch = html.match(/onclick\s*=\s*["']location\.href='([^']+\.pdf[^']*)'/i);
             if (buttonMatch && buttonMatch[1]) {
                 let url = buttonMatch[1];
@@ -694,31 +704,68 @@ doi.org/10.1234/example
             return null;
         }
 
+        // Fetch a URL through CORS proxies, trying each until one works
+        async function fetchViaProxy(url, expectBlob = false) {
+            let lastError = null;
+
+            for (const proxy of CORS_PROXIES) {
+                try {
+                    const proxiedUrl = proxy.fn(url);
+                    const resp = await fetch(proxiedUrl, { signal: AbortSignal.timeout(30000) });
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    if (expectBlob) {
+                        const blob = await resp.blob();
+                        return { data: blob, proxy: proxy.name };
+                    } else {
+                        const text = await resp.text();
+                        return { data: text, proxy: proxy.name };
+                    }
+                } catch (err) {
+                    lastError = `${proxy.name}: ${err.message}`;
+                }
+            }
+
+            throw new Error(lastError || 'All proxies failed');
+        }
+
         // Try fetching PDF for a single DOI from a given mirror
         async function tryFetchPdf(doi, mirror) {
             const scihubUrl = `${mirror}${doi}`;
 
             // Step 1: Fetch the Sci-Hub page to find the PDF URL
-            const pageResp = await fetch(scihubUrl);
-            if (!pageResp.ok) throw new Error(`HTTP ${pageResp.status}`);
+            dlLog(`  Fetching page via proxy...`, 'info');
+            const pageResult = await fetchViaProxy(scihubUrl, false);
+            dlLog(`  Page fetched via ${pageResult.proxy}`, 'info');
 
-            const html = await pageResp.text();
-            const pdfUrl = extractPdfUrl(html, mirror);
+            const pdfUrl = extractPdfUrl(pageResult.data, mirror);
+            if (!pdfUrl) {
+                // Check if the response itself might be a PDF redirect
+                if (pageResult.data.substring(0, 5) === '%PDF-') {
+                    dlLog(`  Direct PDF response detected`, 'info');
+                    return new Blob([pageResult.data], { type: 'application/pdf' });
+                }
+                throw new Error('PDF URL not found in page');
+            }
 
-            if (!pdfUrl) throw new Error('PDF URL not found in page');
+            // Step 2: Fetch the actual PDF via proxy
+            dlLog(`  PDF URL: ${pdfUrl.substring(0, 80)}...`, 'info');
+            const pdfResult = await fetchViaProxy(pdfUrl, true);
 
-            // Step 2: Fetch the actual PDF
-            dlLog(`  PDF found: ${pdfUrl.substring(0, 80)}...`, 'info');
-            const pdfResp = await fetch(pdfUrl);
-            if (!pdfResp.ok) throw new Error(`PDF download HTTP ${pdfResp.status}`);
+            if (pdfResult.data.size < 1000) throw new Error('Response too small, likely not a PDF');
 
-            const contentType = pdfResp.headers.get('content-type') || '';
-            const blob = await pdfResp.blob();
+            // Quick check: read first bytes to verify PDF signature
+            const header = await pdfResult.data.slice(0, 5).text();
+            if (header !== '%PDF-') {
+                // Might be HTML error page, try to read
+                if (pdfResult.data.size < 5000) {
+                    const text = await pdfResult.data.text();
+                    if (text.includes('<html') || text.includes('<!DOCTYPE')) {
+                        throw new Error('Got HTML instead of PDF');
+                    }
+                }
+            }
 
-            // Verify it's actually a PDF (at least partially)
-            if (blob.size < 1000) throw new Error('Response too small, likely not a PDF');
-
-            return blob;
+            return pdfResult.data;
         }
 
         async function downloadAllAsZip() {
@@ -752,7 +799,8 @@ doi.org/10.1234/example
             let failCount = 0;
             const total = processedDOIs.length;
 
-            dlLog(`Starting download of ${total} articles...`, 'info');
+            dlLog(`Starting download of ${total} articles via CORS proxy...`, 'info');
+            dlLog(`Proxies: ${CORS_PROXIES.map(p => p.name).join(', ')}`, 'info');
             dlLog(`Primary mirror: ${selectedMirror}`, 'info');
 
             for (let i = 0; i < processedDOIs.length; i++) {
@@ -790,9 +838,9 @@ doi.org/10.1234/example
                 document.getElementById('dlFailCount').textContent = failCount;
                 document.getElementById('dlTotalCount').textContent = total;
 
-                // Small delay between requests to avoid rate limiting
+                // Delay between requests to avoid rate limiting
                 if (i < processedDOIs.length - 1) {
-                    await new Promise(r => setTimeout(r, 1500));
+                    await new Promise(r => setTimeout(r, 2000));
                 }
             }
 
@@ -814,9 +862,9 @@ doi.org/10.1234/example
                     showStatus('❌ Error generating ZIP file.', 'error');
                 }
             } else {
-                dlLog('❌ No PDFs downloaded. CORS may be blocking requests from the browser.', 'error');
-                dlLog('💡 Tip: Try a different Sci-Hub mirror, or use "Open All" to download manually.', 'warn');
-                showStatus('❌ Could not download any PDFs. Try a different mirror or use "Open All".', 'error');
+                dlLog('❌ No PDFs were downloaded successfully.', 'error');
+                dlLog('💡 Tips: Try a different mirror, or use "Open All" to download manually.', 'warn');
+                showStatus('❌ Could not download any PDFs. Try different mirror or "Open All".', 'error');
             }
 
             isDownloading = false;
