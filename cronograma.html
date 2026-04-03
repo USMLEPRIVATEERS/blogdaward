@@ -2137,11 +2137,15 @@
         }
 
         // Calculate approximate questions per study day for an item
+        // Uses calendar days (inclusive) since schedule date ranges already account for study days when generated
         function getQuestionsPerDay(item) {
             if (!item.questions || !item.start_date || !item.end_date) return null;
-            const studyDays = countStudyDays(item.start_date, item.end_date);
-            if (studyDays <= 0) return null;
-            return Math.ceil(item.questions / studyDays);
+            const start = parseLocalDate(item.start_date);
+            const end = parseLocalDate(item.end_date);
+            const diffMs = end.getTime() - start.getTime();
+            const totalDays = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1; // inclusive of both start and end
+            if (totalDays <= 0) return null;
+            return Math.ceil(item.questions / totalDays);
         }
 
         async function loadSchedule() {
