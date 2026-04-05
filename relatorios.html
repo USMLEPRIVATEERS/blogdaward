@@ -1582,7 +1582,10 @@
                 <div id="no-student-selected">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                         <h2 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--gray-900);">📝 Últimos Relatórios</h2>
-                        <div style="display: flex; gap: 0.35rem;">
+                        <div style="display: flex; gap: 0.35rem; align-items: center;">
+                            <button onclick="copyAllStudentsReports()" title="Copiar relatórios de TODOS os alunos" style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.75rem; background: #10b981; color: white; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">
+                                📋 Copiar Todos
+                            </button>
                             <button class="recent-limit-btn active" onclick="setRecentLimit(10)">10</button>
                             <button class="recent-limit-btn" onclick="setRecentLimit(20)">20</button>
                             <button class="recent-limit-btn" onclick="setRecentLimit(50)">50</button>
@@ -2342,6 +2345,92 @@
             } catch (e) {
                 navigator.clipboard.writeText(allText).then(() => {
                     WardApp.showToast(`${studentReports.length} relatório(s) copiado(s) (texto)`, 'success');
+                });
+            }
+        }
+
+        function copyAllStudentsReports() {
+            if (allReports.length === 0) {
+                WardApp.showToast('Nenhum relatório para copiar', 'warning');
+                return;
+            }
+
+            // Group reports by student
+            const reportsByStudent = {};
+            allReports.forEach(r => {
+                const studentId = r.student_id;
+                if (!reportsByStudent[studentId]) {
+                    reportsByStudent[studentId] = [];
+                }
+                reportsByStudent[studentId].push(r);
+            });
+
+            // Build text and HTML for all students
+            const textParts = [];
+            const htmlParts = [];
+
+            // Sort students alphabetically
+            const studentIds = Object.keys(reportsByStudent).sort((a, b) => {
+                const studentA = allStudents.find(s => s.id === a);
+                const studentB = allStudents.find(s => s.id === b);
+                const nameA = (_dn(studentA?.full_name) || studentA?.email || '').toLowerCase();
+                const nameB = (_dn(studentB?.full_name) || studentB?.email || '').toLowerCase();
+                return nameA.localeCompare(nameB, 'pt-BR');
+            });
+
+            let totalCount = 0;
+            studentIds.forEach(studentId => {
+                const student = allStudents.find(s => s.id === studentId);
+                const studentName = _dn(student?.full_name) || student?.email || 'Aluno';
+                const studentReports = reportsByStudent[studentId].sort((a, b) => (b.call_date || '').localeCompare(a.call_date || ''));
+                totalCount += studentReports.length;
+
+                // Format each report
+                const parts = studentReports.map(r => {
+                    const mentorName = _dn(r.mentor?.full_name) || 'Mentor';
+                    const date = formatDateBR(r.call_date);
+                    const plainContent = stripHtml(r.report_text);
+
+                    return {
+                        text: `${r.title}\nMentor: ${mentorName} | Data: ${date}\n${'─'.repeat(40)}\n${plainContent}`,
+                        html: `<h3 style="margin:0 0 4px">${r.title}</h3>` +
+                            `<p style="color:#6b7280;margin:0 0 8px;font-size:0.9em">Mentor: <b>${mentorName}</b> &nbsp;|&nbsp; Data: <b>${date}</b></p>` +
+                            `<hr style="border:none;border-top:1px solid #e5e7eb;margin:8px 0">` +
+                            r.report_text
+                    };
+                });
+
+                textParts.push(
+                    `${'═'.repeat(60)}\n` +
+                    `ALUNO: ${studentName} (${studentReports.length} relatório${studentReports.length > 1 ? 's' : ''})\n` +
+                    `${'═'.repeat(60)}\n\n` +
+                    parts.map(p => p.text).join(`\n\n${'─'.repeat(40)}\n\n`)
+                );
+
+                htmlParts.push(
+                    `<h2 style="margin:16px 0 8px;color:#1e293b;border-bottom:2px solid #d97706;padding-bottom:4px">${studentName} (${studentReports.length})</h2>` +
+                    parts.map(p => p.html).join('<hr style="border:none;border-top:1px dashed #d1d5db;margin:16px 0">')
+                );
+            });
+
+            const allText = `RELATÓRIOS DE TODOS OS ALUNOS\nTotal: ${totalCount} relatório(s) de ${studentIds.length} aluno(s)\n\n` +
+                textParts.join('\n\n\n');
+
+            const allHtml = `<h1 style="margin:0 0 4px">Relatórios de Todos os Alunos</h1>` +
+                `<p style="color:#6b7280;margin:0 0 16px">Total: ${totalCount} relatório(s) de ${studentIds.length} aluno(s)</p>` +
+                htmlParts.join('');
+
+            try {
+                const blob = new Blob([allHtml], { type: 'text/html' });
+                const textBlob = new Blob([allText], { type: 'text/plain' });
+                navigator.clipboard.write([
+                    new ClipboardItem({ 'text/html': blob, 'text/plain': textBlob })
+                ]).then(() => {
+                    WardApp.showToast(`${totalCount} relatório(s) de ${studentIds.length} aluno(s) copiado(s)!`, 'success');
+                });
+            } catch (e) {
+                navigator.clipboard.writeText(allText).then(() => {
+                    WardApp.showToast(`${totalCount} relatório(s) de ${studentIds.length} aluno(s) copiado(s) (texto)`, 'success');
                 });
             }
         }

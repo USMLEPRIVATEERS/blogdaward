@@ -264,6 +264,9 @@
                     <div style="font-size: 3rem; margin-bottom: 1rem;">👈</div>
                     <h3>Selecione um aluno</h3>
                     <p>Escolha um aluno da lista ao lado para ver suas respostas</p>
+                    <button onclick="copyAllStudentsQuestionnaires()" style="margin-top: 1.5rem; display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.2rem; background: #10b981; color: white; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;">
+                        📋 Copiar Questionários de Todos os Alunos
+                    </button>
                 </div>
 
                 <div id="responses-content" style="display: none;">
@@ -1257,6 +1260,142 @@
             URL.revokeObjectURL(url);
 
             WardApp.showToast('Respostas exportadas com sucesso!');
+        }
+
+        async function copyAllStudentsQuestionnaires() {
+            if (allStudents.length === 0) {
+                WardApp.showToast('Nenhum aluno encontrado', 'warning');
+                return;
+            }
+
+            WardApp.showLoading();
+
+            try {
+                // Load all questionnaire data at once
+                const { data: allResponses, error } = await WardApp.db
+                    .from('questionnaire_data')
+                    .select('*')
+                    .order('step', { ascending: true });
+
+                if (error) {
+                    WardApp.hideLoading();
+                    WardApp.showToast('Erro ao carregar dados', 'error');
+                    return;
+                }
+
+                // Group responses by user
+                const responsesByUser = {};
+                (allResponses || []).forEach(r => {
+                    if (!responsesByUser[r.user_id]) responsesByUser[r.user_id] = [];
+                    responsesByUser[r.user_id].push(r);
+                });
+
+                // Build text for all students
+                let content = `RESPOSTAS DOS QUESTIONÁRIOS - TODOS OS ALUNOS\n`;
+                content += `Data de Exportação: ${new Date().toLocaleDateString('pt-BR')}\n`;
+                content += `Total de Alunos: ${allStudents.length}\n`;
+                content += `\n${'═'.repeat(80)}\n\n`;
+
+                const daysOfWeek = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+                allStudents.forEach(student => {
+                    const studentName = _dn(student.full_name) || student.email;
+                    const responses = responsesByUser[student.id] || [];
+
+                    content += `${'═'.repeat(80)}\n`;
+                    content += `ALUNO: ${studentName}\n`;
+                    content += `Email: ${student.email}\n`;
+                    content += `Progresso: Step ${student.questionnaire_step || 0}/11\n`;
+                    content += `${'═'.repeat(80)}\n\n`;
+
+                    for (let step = 1; step <= 11; step++) {
+                        const stepData = responses.find(r => r.step === step);
+                        const data = stepData ? stepData.data : {};
+                        const stepInfo = stepTitles[step];
+
+                        content += `${stepInfo.icon} STEP ${step} - ${stepInfo.title}\n${'─'.repeat(60)}\n`;
+
+                        if (!data || Object.keys(data).length === 0) {
+                            content += 'Nenhuma resposta registrada\n';
+                        } else {
+                            const orderedFields = fieldOrder[step] || Object.keys(data);
+                            orderedFields.forEach(key => {
+                                if (!(key in data)) return;
+                                const value = data[key];
+                                const label = (fieldLabels[key] || key.replace(/_/g, ' ')).replace(/^[^\w\s]*\s*/, '');
+
+                                let displayValue;
+                                if (typeof value === 'boolean') {
+                                    displayValue = value ? 'Sim' : 'Não';
+                                } else if (value === null || value === undefined || value === '') {
+                                    displayValue = '-';
+                                } else if (Array.isArray(value)) {
+                                    if (key === 'no_study_days') {
+                                        displayValue = value.map(d => daysOfWeek[parseInt(d)] || d).join(', ');
+                                    } else if (key === 'break_periods') {
+                                        displayValue = value.map(p => `${p.start_date || ''} a ${p.end_date || ''}${p.reason ? ' (' + p.reason + ')' : ''}`).join('; ');
+                                    } else if (key === 'completed_categories') {
+                                        displayValue = value.join(', ');
+                                    } else if (key === 'uwsa_exams' || key === 'nbme_forms') {
+                                        displayValue = value.map(exam => {
+                                            const name = exam.name || exam.id || '';
+                                            const pct = exam.percentage ? `${exam.percentage}%` : '';
+                                            const date = exam.date || '';
+                                            return [name, pct, date].filter(Boolean).join(' - ');
+                                        }).join('; ');
+                                    } else if (key === 'other_assessments') {
+                                        displayValue = value.map(a => {
+                                            const name = a.name || '';
+                                            const score = a.score ? `${a.score}` : '';
+                                            const date = a.date || '';
+                                            return [name, score, date].filter(Boolean).join(' - ');
+                                        }).join('; ');
+                                    } else if (key === 'observerships' || key === 'past_observerships' || key === 'future_observerships') {
+                                        displayValue = value.map(o => {
+                                            const parts = [o.institution, o.department, o.location, o.year || o.when_planned].filter(Boolean);
+                                            return parts.join(', ');
+                                        }).join('; ');
+                                    } else {
+                                        displayValue = value.map(v => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(', ');
+                                    }
+                                } else if (typeof value === 'object') {
+                                    displayValue = JSON.stringify(value);
+                                } else {
+                                    displayValue = translateValue(String(value));
+                                }
+                                content += `${label}: ${displayValue}\n`;
+                            });
+                        }
+                        content += '\n';
+                    }
+
+                    content += '\n';
+                });
+
+                WardApp.hideLoading();
+
+                // Copy to clipboard
+                try {
+                    await navigator.clipboard.writeText(content);
+                    WardApp.showToast(`Questionários de ${allStudents.length} aluno(s) copiados!`, 'success');
+                } catch (e) {
+                    // Fallback: download as file
+                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `questionarios_todos_alunos_${new Date().getTime()}.txt`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    WardApp.showToast('Dados exportados como arquivo (clipboard indisponível)', 'success');
+                }
+            } catch (err) {
+                WardApp.hideLoading();
+                console.error('Error copying all questionnaires:', err);
+                WardApp.showToast('Erro ao copiar questionários', 'error');
+            }
         }
     </script>
 </body>
