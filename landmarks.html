@@ -941,6 +941,11 @@
             { group: 'dedicated', title: 'Chamada - Dra. Iria: Agendar a prova', type: 'call_iria_schedule' },
             { group: 'dedicated', title: 'Chamada - Dra. Iria: Pre-prova', type: 'call_iria_pre_exam' },
             { group: 'dedicated', title: 'Chamada - Dra. Iria: Pos-prova', type: 'call_iria_post_exam' }
+            // Note: Dr. Fernando Vasconcellos research call is NOT auto-created here.
+            // It is scheduled on-demand via the "Adicionar Landmark" modal, with these restrictions:
+            //   - Student must have passed Step 1 (current_stage includes step1_done/step2ck_done/etc.)
+            //   - Each student is allowed only 1 lifetime call with Dr. Fernando
+            // See the mentor dropdown filter in openNewLandmarkModal() for the enforcement logic.
         ];
 
         document.addEventListener('DOMContentLoaded', async () => {
@@ -2017,9 +2022,43 @@
                 .select('id, full_name, role')
                 .ilike('role', 'mentor_%');
 
+            // Check Fernando call eligibility: only available after passing Step 1, and only 1 call per student
+            let canHaveFernandoCall = false;
+            try {
+                const { data: step2Data } = await WardApp.db
+                    .from('questionnaire_data')
+                    .select('data')
+                    .eq('user_id', targetUserId)
+                    .eq('step', 2)
+                    .maybeSingle();
+
+                const currentStage = (step2Data?.data?.current_stage || '').split(',').map(s => s.trim());
+                const passedStep1 = currentStage.includes('step1_done')
+                    || currentStage.includes('step2ck_done')
+                    || currentStage.includes('step3_done')
+                    || currentStage.includes('oet_done');
+
+                if (passedStep1) {
+                    const { data: fernandoLandmarks } = await WardApp.db
+                        .from('landmarks')
+                        .select('id')
+                        .eq('user_id', targetUserId)
+                        .ilike('landmark_type', '%fernando%')
+                        .limit(1);
+
+                    canHaveFernandoCall = !fernandoLandmarks || fernandoLandmarks.length === 0;
+                }
+            } catch (e) {
+                console.error('Error checking Fernando call eligibility:', e);
+            }
+
             const mentorSelect = document.getElementById('new-landmark-mentor');
             mentorSelect.innerHTML = '<option value="">Selecione o mentor...</option>' +
-                (mentors || []).filter(m => m.role !== 'mentor_guilherme' && m.role !== 'mentor_romulo').map(m =>
+                (mentors || []).filter(m => {
+                    if (m.role === 'mentor_guilherme') return false;
+                    if (m.role === 'mentor_fernando') return canHaveFernandoCall;
+                    return true;
+                }).map(m =>
                     `<option value="${m.id}">${m.full_name || m.role}</option>`
                 ).join('');
 
@@ -2217,11 +2256,37 @@
                 return;
             }
 
+            // Determine landmark_type based on selected mentor (so eligibility checks can find it)
+            let landmarkTypePrefix = 'custom';
+            if (mentorId) {
+                const mentorSelect = document.getElementById('new-landmark-mentor');
+                const mentorOption = mentorSelect.options[mentorSelect.selectedIndex];
+                const mentorRole = (mentorOption?.textContent || '').toLowerCase();
+                if (mentorRole.includes('fernando')) {
+                    landmarkTypePrefix = 'call_fernando_research';
+                }
+            }
+
+            // Final guard: prevent creating a second Fernando call for the same student
+            if (landmarkTypePrefix === 'call_fernando_research') {
+                const { data: existingFernando } = await WardApp.db
+                    .from('landmarks')
+                    .select('id')
+                    .eq('user_id', targetUserId)
+                    .ilike('landmark_type', '%fernando%')
+                    .limit(1);
+
+                if (existingFernando && existingFernando.length > 0) {
+                    WardApp.showToast('Este aluno ja tem uma chamada com o Dr. Fernando. Apenas 1 chamada por aluno.', 'error');
+                    return;
+                }
+            }
+
             const newLandmark = {
                 user_id: targetUserId,
                 title,
                 group_name: group,
-                landmark_type: 'custom_' + Date.now(),
+                landmark_type: landmarkTypePrefix + '_' + Date.now(),
                 completed,
                 is_urgent: urgent,
                 notes: [],

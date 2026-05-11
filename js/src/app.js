@@ -551,8 +551,8 @@ async function login(cpf, password) {
                 case 'mentor_guilherme':
                     window.location.href = '/mentor-dashboard-guilherme';
                     break;
-                case 'mentor_romulo':
-                    window.location.href = '/mentor-dashboard-romulo';
+                case 'mentor_fernando':
+                    window.location.href = '/mentor-dashboard-fernando';
                     break;
                 case 'assessoria':
                     window.location.href = '/dashboard-assessoria-avulsa';
@@ -1869,8 +1869,8 @@ function updateNavbarForRole() {
         case 'mentor_guilherme':
             dashboardLink.href = '/mentor-dashboard-guilherme';
             break;
-        case 'mentor_romulo':
-            dashboardLink.href = '/mentor-dashboard-romulo';
+        case 'mentor_fernando':
+            dashboardLink.href = '/mentor-dashboard-fernando';
             break;
         default:
             // Keep dashboard.html for students
@@ -1943,8 +1943,8 @@ function goToDashboard() {
         case 'mentor_guilherme':
             window.location.href = '/mentor-dashboard-guilherme';
             break;
-        case 'mentor_romulo':
-            window.location.href = '/mentor-dashboard-romulo';
+        case 'mentor_fernando':
+            window.location.href = '/mentor-dashboard-fernando';
             break;
         case 'assessoria':
             window.location.href = '/dashboard-assessoria-avulsa';
