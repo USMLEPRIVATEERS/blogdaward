@@ -42,14 +42,16 @@ SET title = REPLACE(REPLACE(title, 'Rômulo', 'Fernando Vasconcellos'), 'Romulo'
 WHERE title ILIKE '%romulo%' OR title ILIKE '%rômulo%';
 
 -- 5. Update landmark_types reference table if it exists
+-- Actual columns: code, name, description, mentor_role, icon, color
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'landmark_types') THEN
         UPDATE landmark_types
-        SET type_key = REPLACE(type_key, 'romulo', 'fernando'),
-            type_name = REPLACE(REPLACE(type_name, 'Rômulo', 'Fernando Vasconcellos'), 'Romulo', 'Fernando Vasconcellos'),
-            assigned_mentor_role = CASE WHEN assigned_mentor_role = 'mentor_romulo' THEN 'mentor_fernando' ELSE assigned_mentor_role END
-        WHERE type_key ILIKE '%romulo%' OR type_name ILIKE '%romulo%' OR type_name ILIKE '%rômulo%';
+        SET code = REPLACE(code, 'romulo', 'fernando'),
+            name = REPLACE(REPLACE(name, 'Rômulo', 'Fernando Vasconcellos'), 'Romulo', 'Fernando Vasconcellos'),
+            description = REPLACE(REPLACE(description, 'Rômulo', 'Fernando Vasconcellos'), 'Romulo', 'Fernando Vasconcellos'),
+            mentor_role = CASE WHEN mentor_role = 'mentor_romulo' THEN 'mentor_fernando' ELSE mentor_role END
+        WHERE code ILIKE '%romulo%' OR name ILIKE '%romulo%' OR name ILIKE '%rômulo%' OR mentor_role = 'mentor_romulo';
     END IF;
 END $$;
 
