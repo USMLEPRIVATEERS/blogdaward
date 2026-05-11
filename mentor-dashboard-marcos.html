@@ -5003,27 +5003,20 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
 
                 if (missing.length === 0) continue;
 
-                // Get current max order_position
-                const { data: maxOrder } = await WardApp.db
-                    .from('landmarks')
-                    .select('order_position')
-                    .eq('user_id', student.id)
-                    .order('order_position', { ascending: false })
-                    .limit(1);
-
-                const startOrder = (maxOrder && maxOrder[0]) ? maxOrder[0].order_position + 1 : 0;
-
-                const rows = missing.map((lm, i) => ({
-                    user_id: student.id,
-                    landmark_type: lm.type,
-                    title: lm.title,
-                    completed: lm.type === 'entry',
-                    completion_date: lm.type === 'entry' ? new Date().toISOString() : null,
-                    is_urgent: false,
-                    notes: [],
-                    order_position: startOrder + i,
-                    group_name: lm.group
-                }));
+                const rows = missing.map((lm, i) => {
+                    const canonicalIndex = filtered.indexOf(lm);
+                    return {
+                        user_id: student.id,
+                        landmark_type: lm.type,
+                        title: lm.title,
+                        completed: lm.type === 'entry',
+                        completion_date: lm.type === 'entry' ? new Date().toISOString() : null,
+                        is_urgent: false,
+                        notes: [],
+                        order_position: canonicalIndex >= 0 ? canonicalIndex : 900 + i,
+                        group_name: lm.group
+                    };
+                });
 
                 const { error } = await WardApp.db.from('landmarks').insert(rows);
                 if (!error) {
@@ -5034,10 +5027,35 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 }
             }
 
-            if (fixedStudents > 0 || updatedLandmarks > 0) {
+            // Reorder ALL students' landmarks to match canonical defaultLandmarks order
+            const typeToIndex = {};
+            defaultLandmarks.forEach((lm, idx) => { typeToIndex[lm.type] = idx; });
+
+            let reorderedCount = 0;
+            const { data: allLandmarksForReorder } = await WardApp.db
+                .from('landmarks')
+                .select('id, user_id, landmark_type, order_position')
+                .in('user_id', students.map(s => s.id));
+
+            const reorderUpdates = [];
+            (allLandmarksForReorder || []).forEach(lm => {
+                const canonIdx = typeToIndex[lm.landmark_type];
+                const desiredPos = canonIdx !== undefined ? canonIdx : 900;
+                if (lm.order_position !== desiredPos) {
+                    reorderUpdates.push({ id: lm.id, order_position: desiredPos });
+                }
+            });
+
+            for (const upd of reorderUpdates) {
+                await WardApp.db.from('landmarks').update({ order_position: upd.order_position }).eq('id', upd.id);
+                reorderedCount++;
+            }
+
+            if (fixedStudents > 0 || updatedLandmarks > 0 || reorderedCount > 0) {
                 const parts = [];
                 if (addedLandmarks > 0) parts.push(`${addedLandmarks} adicionado(s) para ${fixedStudents} aluno(s)`);
-                if (updatedLandmarks > 0) parts.push(`${updatedLandmarks} titulo(s) atualizado(s) para o novo roteiro`);
+                if (updatedLandmarks > 0) parts.push(`${updatedLandmarks} titulo(s) atualizado(s)`);
+                if (reorderedCount > 0) parts.push(`${reorderedCount} reordenado(s)`);
                 WardApp.showToast(parts.join(' • '), 'success');
                 await loadDashboardData();
             } else {
