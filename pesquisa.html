@@ -2516,41 +2516,14 @@
                 return;
             }
 
-            // Delete all related records first (files, folders, tasks)
-            const { error: filesErr } = await WardApp.db
-                .from('research_project_files')
-                .delete()
-                .eq('project_id', currentProject.id);
+            // Clean up related records (non-blocking — CASCADE on the project delete handles it too)
+            try { await WardApp.db.from('research_project_files').delete().eq('project_id', currentProject.id); } catch(e) { console.warn('files cleanup:', e); }
+            try { await WardApp.db.from('research_project_folders').delete().eq('project_id', currentProject.id); } catch(e) { console.warn('folders cleanup:', e); }
+            try { await WardApp.db.from('research_tasks').delete().eq('project_id', currentProject.id); } catch(e) { console.warn('tasks cleanup:', e); }
+            try { await WardApp.db.from('research_coauthors').delete().eq('project_id', currentProject.id); } catch(e) { console.warn('coauthors cleanup:', e); }
+            try { await WardApp.db.from('research_notes').delete().eq('project_id', currentProject.id); } catch(e) { console.warn('notes cleanup:', e); }
 
-            if (filesErr) {
-                console.error('Error deleting project files:', filesErr);
-                WardApp.showToast('Erro ao excluir arquivos do projeto', 'error');
-                return;
-            }
-
-            const { error: foldersErr } = await WardApp.db
-                .from('research_project_folders')
-                .delete()
-                .eq('project_id', currentProject.id);
-
-            if (foldersErr) {
-                console.error('Error deleting project folders:', foldersErr);
-                WardApp.showToast('Erro ao excluir pastas do projeto', 'error');
-                return;
-            }
-
-            const { error: tasksErr } = await WardApp.db
-                .from('research_tasks')
-                .delete()
-                .eq('project_id', currentProject.id);
-
-            if (tasksErr) {
-                console.error('Error deleting project tasks:', tasksErr);
-                WardApp.showToast('Erro ao excluir tarefas do projeto', 'error');
-                return;
-            }
-
-            // Then delete the project itself
+            // Delete the project itself (CASCADE constraints handle any remaining children)
             const { error } = await WardApp.db
                 .from('research_projects')
                 .delete()
@@ -2558,13 +2531,19 @@
 
             if (error) {
                 console.error('Error deleting project:', error);
-                WardApp.showToast('Erro ao excluir projeto', 'error');
+                WardApp.showToast('Erro ao excluir projeto: ' + (error.message || error.code || 'tente novamente'), 'error');
                 return;
             }
 
             closeModal('view-project-modal');
-            WardApp.showToast('Projeto excluído!');
+            WardApp.showToast('Projeto excluído com sucesso!');
             currentProject = null;
+
+            // Remove project from URL
+            const url = new URL(window.location);
+            url.searchParams.delete('project');
+            window.history.pushState({}, '', url);
+
             await loadProjects();
         }
 
