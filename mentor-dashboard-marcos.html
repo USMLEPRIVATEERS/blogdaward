@@ -4847,7 +4847,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
 
         // Add research landmarks to existing students who want research but don't have them yet
         async function auditStudentLandmarks() {
-            if (!confirm('Auditar todos os alunos e adicionar as chamadas das 8 fases que estiverem faltando?\n\n• Nao mexe em landmarks existentes\n• So adiciona os que estao faltando para cada aluno\n• Chamadas condicionais (pesquisa) so vao para alunos que querem pesquisa')) return;
+            if (!confirm('Auditar e sincronizar landmarks de TODOS os alunos com o roteiro novo das 8 fases?\n\n• ADICIONA as chamadas das 8 fases que estiverem faltando\n• ATUALIZA titulos/grupos de landmarks existentes que mudaram (pelo type)\n• NAO remove nenhum landmark, NAO mexe em status de "concluido"\n• Chamadas condicionais (pesquisa) so vao para alunos que querem pesquisa\n• Landmarks customizados/extras nao sao tocados')) return;
 
             WardApp.showToast('Auditando alunos...', 'info');
 
@@ -4940,15 +4940,31 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             // Only audit actual alunos (not assessoria)
             const students = allStudents.filter(s => s.role === 'aluno');
 
-            // Load all existing landmarks in one query (by type per student)
+            // Build a lookup of default landmark by type for title/group sync
+            const defaultByType = {};
+            defaultLandmarks.forEach(lm => { defaultByType[lm.type] = lm; });
+
+            // Load all existing landmarks with id/title/group so we can compare and update
             const { data: allLandmarks } = await WardApp.db
                 .from('landmarks')
-                .select('user_id, landmark_type')
+                .select('id, user_id, landmark_type, title, group_name')
                 .in('user_id', students.map(s => s.id));
 
-            // Build a set of "userId:type" for fast lookup
+            // Build a set of "userId:type" for fast lookup of existing
             const existingSet = new Set();
             (allLandmarks || []).forEach(lm => existingSet.add(`${lm.user_id}:${lm.landmark_type}`));
+
+            // Identify landmarks whose title/group_name needs to be updated to match the new roadmap
+            const toUpdate = [];
+            (allLandmarks || []).forEach(lm => {
+                const def = defaultByType[lm.landmark_type];
+                if (!def) return; // unknown type (custom/extra) - leave as is
+                const needsTitleUpdate = lm.title !== def.title;
+                const needsGroupUpdate = lm.group_name !== def.group;
+                if (needsTitleUpdate || needsGroupUpdate) {
+                    toUpdate.push({ id: lm.id, newTitle: def.title, newGroup: def.group });
+                }
+            });
 
             // Load research interest for all students in batch
             const { data: allResearch } = await WardApp.db
@@ -4965,7 +4981,19 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
 
             let fixedStudents = 0;
             let addedLandmarks = 0;
+            let updatedLandmarks = 0;
 
+            // First: sync titles/group_name for existing landmarks matching new roadmap
+            for (const u of toUpdate) {
+                const { error: updErr } = await WardApp.db
+                    .from('landmarks')
+                    .update({ title: u.newTitle, group_name: u.newGroup, updated_at: new Date().toISOString() })
+                    .eq('id', u.id);
+                if (!updErr) updatedLandmarks++;
+                else console.error(`Error updating landmark ${u.id}:`, updErr);
+            }
+
+            // Second: add missing landmarks per student
             for (const student of students) {
                 const wantsResearch = researchMap[student.id] || false;
                 const filtered = defaultLandmarks.filter(lm => !lm.conditional || wantsResearch);
@@ -5006,11 +5034,14 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 }
             }
 
-            if (fixedStudents > 0) {
-                WardApp.showToast(`${addedLandmarks} landmarks adicionados para ${fixedStudents} aluno(s)`, 'success');
+            if (fixedStudents > 0 || updatedLandmarks > 0) {
+                const parts = [];
+                if (addedLandmarks > 0) parts.push(`${addedLandmarks} adicionado(s) para ${fixedStudents} aluno(s)`);
+                if (updatedLandmarks > 0) parts.push(`${updatedLandmarks} titulo(s) atualizado(s) para o novo roteiro`);
+                WardApp.showToast(parts.join(' • '), 'success');
                 await loadDashboardData();
             } else {
-                WardApp.showToast('Todos os alunos ja possuem landmarks completos', 'success');
+                WardApp.showToast('Todos os alunos ja estao com o roteiro novo', 'success');
             }
         }
 
