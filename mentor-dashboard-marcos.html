@@ -385,6 +385,11 @@
                         <span class="mentor-name">Dr. Fernando</span>
                         <span class="mentor-focus">Pesquisa</span>
                     </a>
+                    <div class="mentor-card" onclick="openFernandoInterestedModal()" style="cursor: pointer; border: 2px dashed #7c3aed; background: #f5f3ff;">
+                        <span class="mentor-icon">👥</span>
+                        <span class="mentor-name" style="color: #7c3aed;">Interessados Fernando</span>
+                        <span class="mentor-focus" id="fernando-interested-count" style="color: #7c3aed;">0 alunos</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -825,6 +830,25 @@ Cardiovascular	Physiology	62	FALSE
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('delay-message-modal')">Fechar</button>
                 <button class="btn btn-primary" onclick="copyDelayMessage()">📋 Copiar Mensagem</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fernando Interested Students Modal -->
+    <div id="fernando-interested-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header" style="background: linear-gradient(135deg, #7c3aed, #6d28d9); color: white;">
+                <h3 class="modal-title" style="color: white;">👥 Alunos Interessados na Mentoria do Fernando</h3>
+                <button class="modal-close" onclick="closeModal('fernando-interested-modal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1rem;">Marque os alunos que estao interessados na mentoria de pesquisa do Dr. Fernando. Ele vera esses alunos no dashboard dele.</p>
+                <div id="fernando-interested-list">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('fernando-interested-modal')">Fechar</button>
             </div>
         </div>
     </div>
@@ -5072,6 +5096,72 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 }
             }
         });
+
+        // ===== Fernando Interested Students Management =====
+        let fernandoInterestedIds = new Set();
+
+        async function loadFernandoInterested() {
+            const { data } = await WardApp.db.from('fernando_interested_students').select('student_id');
+            fernandoInterestedIds = new Set((data || []).map(d => d.student_id));
+            const countEl = document.getElementById('fernando-interested-count');
+            if (countEl) countEl.textContent = fernandoInterestedIds.size + ' aluno' + (fernandoInterestedIds.size !== 1 ? 's' : '');
+        }
+
+        async function openFernandoInterestedModal() {
+            await loadFernandoInterested();
+            const container = document.getElementById('fernando-interested-list');
+            const students = allStudents.filter(s => s.role === 'aluno');
+
+            students.sort((a, b) => {
+                const nameA = (_dn(a.full_name) || a.email || '').toLowerCase();
+                const nameB = (_dn(b.full_name) || b.email || '').toLowerCase();
+                return nameA.localeCompare(nameB, 'pt-BR');
+            });
+
+            container.innerHTML = students.map(s => {
+                const name = _dn(s.full_name) || s.email || 'Sem nome';
+                const checked = fernandoInterestedIds.has(s.id) ? 'checked' : '';
+                return `
+                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.75rem; border-bottom: 1px solid #f1f5f9; transition: background 0.15s;"
+                         onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background=''">
+                        <input type="checkbox" ${checked} onchange="toggleFernandoInterested(${s.id}, this.checked)"
+                               style="width: 18px; height: 18px; accent-color: #7c3aed; cursor: pointer;">
+                        <span style="font-size: 0.95rem; color: #1e293b;">${name}</span>
+                    </div>
+                `;
+            }).join('');
+
+            openModal('fernando-interested-modal');
+        }
+
+        async function toggleFernandoInterested(studentId, checked) {
+            if (checked) {
+                const { error } = await WardApp.db.from('fernando_interested_students').upsert({
+                    student_id: studentId,
+                    marked_by: userData.id
+                }, { onConflict: 'student_id' });
+
+                if (error) {
+                    console.error('Error adding interested student:', error);
+                    WardApp.showToast('Erro ao marcar aluno', 'error');
+                    return;
+                }
+                fernandoInterestedIds.add(studentId);
+            } else {
+                const { error } = await WardApp.db.from('fernando_interested_students').delete().eq('student_id', studentId);
+                if (error) {
+                    console.error('Error removing interested student:', error);
+                    WardApp.showToast('Erro ao desmarcar aluno', 'error');
+                    return;
+                }
+                fernandoInterestedIds.delete(studentId);
+            }
+            const countEl = document.getElementById('fernando-interested-count');
+            if (countEl) countEl.textContent = fernandoInterestedIds.size + ' aluno' + (fernandoInterestedIds.size !== 1 ? 's' : '');
+        }
+
+        // Load count on page load
+        loadFernandoInterested();
     </script>
 
     <style>

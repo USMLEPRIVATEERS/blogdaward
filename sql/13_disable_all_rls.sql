@@ -61,6 +61,9 @@ ALTER TABLE IF EXISTS user_favorite_links DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS messages DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS notifications DISABLE ROW LEVEL SECURITY;
 
+-- Tabela de interessados Fernando
+ALTER TABLE IF EXISTS fernando_interested_students DISABLE ROW LEVEL SECURITY;
+
 -- =============================================
 -- VERIFICAR SE RLS ESTA DESABILITADO
 -- =============================================
