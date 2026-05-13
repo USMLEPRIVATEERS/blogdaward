@@ -5136,29 +5136,34 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
 
         async function toggleFernandoInterested(studentId, checked) {
             if (checked) {
-                // Try insert first; if duplicate, ignore
-                const { error } = await WardApp.db.from('fernando_interested_students').insert({
+                const resp = await WardApp.db.from('fernando_interested_students').insert({
                     student_id: studentId,
                     marked_by: userData.id
                 });
 
-                if (error) {
-                    // 23505 = unique_violation (already exists) — not a real error
-                    if (error.code === '23505') {
+                console.log('INSERT response:', JSON.stringify(resp));
+
+                if (resp.error) {
+                    if (resp.error.code === '23505') {
                         fernandoInterestedIds.add(studentId);
                     } else {
-                        console.error('Error adding interested student:', error);
-                        WardApp.showToast('Erro ao marcar aluno: ' + (error.message || error.code), 'error');
+                        const errMsg = resp.error.message || resp.error.details || resp.error.hint || resp.error.code || JSON.stringify(resp.error);
+                        console.error('Full error object:', resp.error);
+                        WardApp.showToast('Erro ao marcar aluno: ' + errMsg, 'error');
                         return;
                     }
                 }
                 fernandoInterestedIds.add(studentId);
                 WardApp.showToast('Aluno marcado como interessado');
             } else {
-                const { error } = await WardApp.db.from('fernando_interested_students').delete().eq('student_id', studentId);
-                if (error) {
-                    console.error('Error removing interested student:', error);
-                    WardApp.showToast('Erro ao desmarcar aluno: ' + (error.message || error.code), 'error');
+                const resp = await WardApp.db.from('fernando_interested_students').delete().eq('student_id', studentId);
+
+                console.log('DELETE response:', JSON.stringify(resp));
+
+                if (resp.error) {
+                    const errMsg = resp.error.message || resp.error.details || resp.error.hint || resp.error.code || JSON.stringify(resp.error);
+                    console.error('Full error object:', resp.error);
+                    WardApp.showToast('Erro ao desmarcar aluno: ' + errMsg, 'error');
                     return;
                 }
                 fernandoInterestedIds.delete(studentId);
