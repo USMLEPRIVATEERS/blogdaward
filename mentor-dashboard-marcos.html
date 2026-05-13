@@ -5100,15 +5100,20 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
         // ===== Fernando Interested Students Management =====
         let fernandoInterestedIds = new Set();
 
-        async function loadFernandoInterested() {
-            const { data } = await WardApp.db.from('fernando_interested_students').select('student_id');
-            fernandoInterestedIds = new Set((data || []).map(d => d.student_id));
+        function loadFernandoInterested() {
+            fernandoInterestedIds = new Set(allStudents.filter(s => s.fernando_interested).map(s => s.id));
             const countEl = document.getElementById('fernando-interested-count');
             if (countEl) countEl.textContent = fernandoInterestedIds.size + ' aluno' + (fernandoInterestedIds.size !== 1 ? 's' : '');
         }
 
         async function openFernandoInterestedModal() {
-            await loadFernandoInterested();
+            // Reload students to get fresh fernando_interested values
+            const { data: freshStudents } = await WardApp.db.from('users').select('id, full_name, email, role, fernando_interested').in('role', ['aluno', 'assessoria']);
+            if (freshStudents) {
+                allStudents = freshStudents;
+                loadFernandoInterested();
+            }
+
             const container = document.getElementById('fernando-interested-list');
             const students = allStudents.filter(s => s.role === 'aluno');
 
@@ -5135,44 +5140,24 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
         }
 
         async function toggleFernandoInterested(studentId, checked) {
+            const { error } = await WardApp.db.from('users').update({ fernando_interested: checked }).eq('id', studentId);
+
+            if (error) {
+                WardApp.showToast('Erro: ' + JSON.stringify(error), 'error');
+                return;
+            }
+
             if (checked) {
-                const resp = await WardApp.db.from('fernando_interested_students').insert({
-                    student_id: studentId,
-                    marked_by: userData.id
-                });
-
-                console.log('INSERT response:', JSON.stringify(resp));
-
-                if (resp.error) {
-                    if (resp.error.code === '23505') {
-                        fernandoInterestedIds.add(studentId);
-                    } else {
-                        WardApp.showToast('ERR: ' + JSON.stringify(resp.error), 'error');
-                        return;
-                    }
-                }
                 fernandoInterestedIds.add(studentId);
                 WardApp.showToast('Aluno marcado como interessado');
             } else {
-                const resp = await WardApp.db.from('fernando_interested_students').delete().eq('student_id', studentId);
-
-                console.log('DELETE response:', JSON.stringify(resp));
-
-                if (resp.error) {
-                    const errMsg = resp.error.message || resp.error.details || resp.error.hint || resp.error.code || JSON.stringify(resp.error);
-                    console.error('Full error object:', resp.error);
-                    WardApp.showToast('Erro ao desmarcar aluno: ' + errMsg, 'error');
-                    return;
-                }
                 fernandoInterestedIds.delete(studentId);
                 WardApp.showToast('Aluno desmarcado');
             }
+
             const countEl = document.getElementById('fernando-interested-count');
             if (countEl) countEl.textContent = fernandoInterestedIds.size + ' aluno' + (fernandoInterestedIds.size !== 1 ? 's' : '');
         }
-
-        // Load count on page load
-        loadFernandoInterested();
     </script>
 
     <style>

@@ -247,7 +247,6 @@
         let allStudents = [];
         let researchData = {};
         let interestedStudentIds = [];
-        let interestedStudentsData = [];
         let selectedStudentId = null;
 
         function _dn(val) {
@@ -304,17 +303,15 @@
         });
 
         async function loadData() {
-            const [projectsRes, studentsRes, questionnaireRes, interestedRes] = await Promise.all([
+            const [projectsRes, studentsRes, questionnaireRes] = await Promise.all([
                 WardApp.db.from('research_projects').select('*, tasks:research_tasks(*)').order('created_at', { ascending: false }),
-                WardApp.db.from('users').select('id, full_name, email').eq('role', 'aluno'),
-                WardApp.db.from('questionnaire_data').select('*').in('step', [7, 8, 9]),
-                WardApp.db.from('fernando_interested_students').select('*')
+                WardApp.db.from('users').select('id, full_name, email, fernando_interested').eq('role', 'aluno'),
+                WardApp.db.from('questionnaire_data').select('*').in('step', [7, 8, 9])
             ]);
 
             allProjects = projectsRes.data || [];
             allStudents = sortUsersByName(studentsRes.data || []);
-            interestedStudentsData = interestedRes.data || [];
-            interestedStudentIds = interestedStudentsData.map(s => s.student_id);
+            interestedStudentIds = allStudents.filter(s => s.fernando_interested).map(s => s.id);
 
             researchData = {};
             (questionnaireRes.data || []).forEach(q => {
