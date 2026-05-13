@@ -306,7 +306,7 @@
             const [projectsRes, studentsRes, questionnaireRes] = await Promise.all([
                 WardApp.db.from('research_projects').select('*, tasks:research_tasks(*)').order('created_at', { ascending: false }),
                 WardApp.db.from('users').select('id, full_name, email, fernando_interested').eq('role', 'aluno'),
-                WardApp.db.from('questionnaire_data').select('*').in('step', [7, 8, 9])
+                WardApp.db.from('questionnaire_data').select('*')
             ]);
 
             allProjects = projectsRes.data || [];
@@ -383,7 +383,7 @@
                 }).filter(Boolean).join(', ');
 
                 return `
-                    <div class="fernando-project-item" onclick="window.location.href='/pesquisa'">
+                    <div class="fernando-project-item" onclick="window.location.href='/pesquisa?project=${project.id}'">
                         <div class="fernando-project-info">
                             <div class="fernando-project-title">${project.title}</div>
                             <div class="fernando-project-meta">
@@ -537,7 +537,7 @@
                 </div>
             `;
 
-            document.getElementById('task-detail-link').href = '/pesquisa';
+            document.getElementById('task-detail-link').href = '/pesquisa?project=' + projectId;
             openModal('task-detail-modal');
         }
 
@@ -626,6 +626,50 @@
             `;
         }
 
+        function escapeHtml(s) {
+            if (s === null || s === undefined) return '';
+            return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        function parseMaybeJson(v) {
+            if (Array.isArray(v) || (v && typeof v === 'object')) return v;
+            if (typeof v === 'string') {
+                try { return JSON.parse(v); } catch(e) { return v; }
+            }
+            return v;
+        }
+
+        function fieldRow(label, value) {
+            if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) return '';
+            let display = value;
+            if (Array.isArray(value)) display = value.join(', ');
+            else if (typeof value === 'object') display = JSON.stringify(value, null, 2);
+            return `
+                <div class="fernando-field-row">
+                    <div class="fernando-field-label">${escapeHtml(label)}</div>
+                    <div class="fernando-field-value">${escapeHtml(display)}</div>
+                </div>
+            `;
+        }
+
+        const experienceFullLabels = {
+            none: 'Nenhuma experiencia',
+            some: 'Alguma experiencia',
+            moderate: 'Experiencia moderada',
+            extensive: 'Experiencia extensa',
+            beginner: 'Iniciante',
+            intermediate: 'Intermediario',
+            advanced: 'Avancado'
+        };
+
+        const englishLabels = {
+            basic: 'Basico',
+            intermediate: 'Intermediario',
+            advanced: 'Avancado',
+            fluent: 'Fluente',
+            native: 'Nativo'
+        };
+
         async function openInterestedStudentsModal() {
             const content = document.getElementById('interested-modal-content');
 
@@ -650,12 +694,12 @@
                     (p.participants || []).includes(sid) || p.created_by === sid
                 );
 
-                let interestAreas = data.interest_areas || [];
-                if (typeof interestAreas === 'string') {
-                    try { interestAreas = JSON.parse(interestAreas); } catch(e) { interestAreas = []; }
-                }
+                const interestAreas = parseMaybeJson(data.interest_areas) || [];
+                const targetInstitutions = parseMaybeJson(data.target_institutions) || [];
+                const canCollaborateStages = parseMaybeJson(data.can_collaborate_stages) || [];
+                const networkingContacts = parseMaybeJson(data.networking_contacts) || [];
 
-                details.push({ id: sid, name, data, projects: studentProjects, interestAreas });
+                details.push({ id: sid, student, name, data, projects: studentProjects, interestAreas, targetInstitutions, canCollaborateStages, networkingContacts });
             }
 
             content.innerHTML = details.map(s => {
@@ -663,16 +707,19 @@
                 const completedTasks = s.projects.reduce((sum, p) =>
                     sum + (p.tasks || []).filter(t => t.stage === 'tarefa_concluida').length, 0
                 );
+                const d = s.data;
+
+                const fullAddress = [d.address_line1, d.address_line2, d.city, d.state, d.zip_code, d.country].filter(Boolean).join(', ');
 
                 return `
-                    <div class="fernando-student-detail">
+                    <div class="fernando-student-detail" id="student-detail-${s.id}">
                         <div class="fernando-student-detail-header">
                             <div class="fernando-student-detail-avatar">👤</div>
-                            <div>
-                                <h4 style="margin: 0;">${s.name}</h4>
-                                <div style="color: #6b7280; font-size: 0.85rem;">
-                                    ${s.data.wants_research_ward ? wantsResearchLabels[s.data.wants_research_ward] || s.data.wants_research_ward : 'Sem informacao'}
-                                    ${s.data.orcid ? ' · ORCID: ' + s.data.orcid : ''}
+                            <div style="flex: 1; min-width: 0;">
+                                <h4 style="margin: 0;">${escapeHtml(s.name)}</h4>
+                                <div style="color: #6b7280; font-size: 0.85rem; word-break: break-word;">
+                                    ${escapeHtml(_dn(s.student.email) || s.student.email || '')}
+                                    ${d.wants_research_ward ? ' · <strong style="color: #7c3aed;">' + escapeHtml(wantsResearchLabels[d.wants_research_ward] || d.wants_research_ward) + '</strong>' : ''}
                                 </div>
                             </div>
                         </div>
@@ -691,31 +738,54 @@
                                 <span class="fernando-mini-stat-label">Concluidas</span>
                             </div>
                             <div class="fernando-mini-stat">
-                                <span class="fernando-mini-stat-value">${experienceLabels[s.data.research_experience] || '-'}</span>
+                                <span class="fernando-mini-stat-value">${escapeHtml(experienceFullLabels[d.experience_level] || experienceLabels[d.research_experience] || '-')}</span>
                                 <span class="fernando-mini-stat-label">Experiencia</span>
                             </div>
                         </div>
 
-                        ${Array.isArray(s.interestAreas) && s.interestAreas.length > 0 ? `
-                            <div style="margin-top: 0.75rem;">
-                                <strong style="font-size: 0.8rem; color: #6b7280;">Areas de Interesse:</strong>
+                        <!-- Quick info row -->
+                        <div class="fernando-info-grid">
+                            ${fieldRow('📧 Email', _dn(s.student.email) || s.student.email)}
+                            ${fieldRow('🆔 ORCID', d.orcid)}
+                            ${fieldRow('🏥 Instituicao Atual', d.institution || d.current_institution)}
+                            ${fieldRow('🎓 Faculdade de Medicina', d.medical_school)}
+                            ${fieldRow('🔬 Especialidade', d.specialty || d.current_specialty)}
+                            ${fieldRow('🇺🇸 Especialidade USA', d.intended_specialty_usa)}
+                            ${fieldRow('🏢 Departamento', d.department)}
+                            ${fieldRow('📍 Endereco', fullAddress)}
+                            ${fieldRow('📱 Pais', d.country)}
+                            ${fieldRow('🆔 CPF', d.cpf)}
+                        </div>
+
+                        ${s.interestAreas.length > 0 ? `
+                            <div style="margin-top: 0.85rem;">
+                                <strong style="font-size: 0.8rem; color: #6b7280;">🎯 Areas de Interesse:</strong>
                                 <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem;">
-                                    ${s.interestAreas.map(a => `<span class="fernando-badge fernando-badge-blue">${a}</span>`).join('')}
+                                    ${s.interestAreas.map(a => `<span class="fernando-badge fernando-badge-blue">${escapeHtml(a)}</span>`).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        ${s.targetInstitutions.length > 0 ? `
+                            <div style="margin-top: 0.6rem;">
+                                <strong style="font-size: 0.8rem; color: #6b7280;">🏛️ Instituicoes Alvo (USA):</strong>
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem;">
+                                    ${s.targetInstitutions.map(a => `<span class="fernando-badge fernando-badge-purple">${escapeHtml(a)}</span>`).join('')}
                                 </div>
                             </div>
                         ` : ''}
 
                         ${s.projects.length > 0 ? `
-                            <div style="margin-top: 0.75rem;">
-                                <strong style="font-size: 0.8rem; color: #6b7280;">Projetos:</strong>
+                            <div style="margin-top: 0.85rem;">
+                                <strong style="font-size: 0.8rem; color: #6b7280;">📋 Projetos:</strong>
                                 <div style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.35rem;">
                                     ${s.projects.map(p => {
                                         const pTasks = p.tasks || [];
                                         const pDone = pTasks.filter(t => t.stage === 'tarefa_concluida').length;
                                         const pPending = pTasks.length - pDone;
                                         return `
-                                            <div class="fernando-mini-project" onclick="window.location.href='/pesquisa'">
-                                                <span class="fernando-mini-project-title">📋 ${p.title}</span>
+                                            <div class="fernando-mini-project" onclick="window.location.href='/pesquisa?project=${p.id}'">
+                                                <span class="fernando-mini-project-title">📋 ${escapeHtml(p.title)}</span>
                                                 <span class="fernando-mini-project-meta">${pDone}/${pTasks.length} tarefas · ${pPending} pendentes</span>
                                             </div>
                                         `;
@@ -723,9 +793,79 @@
                                 </div>
                             </div>
                         ` : ''}
+
+                        <button class="fernando-more-btn" onclick="toggleStudentMore(${s.id})">
+                            <span id="more-btn-text-${s.id}">▼ Ver mais informacoes</span>
+                        </button>
+
+                        <div id="more-content-${s.id}" class="fernando-more-content" style="display: none;">
+                            <div class="fernando-more-section">
+                                <h5>📝 Dados Pessoais e Academicos</h5>
+                                <div class="fernando-info-grid">
+                                    ${fieldRow('Nome Completo (questionario)', d.full_name)}
+                                    ${fieldRow('Email Confirmado', d.email_confirm)}
+                                    ${fieldRow('Data de Formatura', d.graduation_date)}
+                                    ${fieldRow('Cidade', d.city)}
+                                    ${fieldRow('Estado', d.state)}
+                                    ${fieldRow('CEP', d.zip_code)}
+                                    ${fieldRow('Endereco Linha 1', d.address_line1)}
+                                    ${fieldRow('Endereco Linha 2', d.address_line2)}
+                                    ${fieldRow('Trabalha nos EUA', d.works_in_usa)}
+                                    ${fieldRow('Localizacao Atual', d.current_location)}
+                                    ${fieldRow('Acordo Familiar', d.family_agreement)}
+                                    ${fieldRow('Acordo Familiar (EUA)', d.family_agreement_usa)}
+                                </div>
+                            </div>
+
+                            <div class="fernando-more-section">
+                                <h5>🔬 Pesquisa</h5>
+                                <div class="fernando-info-grid">
+                                    ${fieldRow('Nivel de Experiencia', experienceFullLabels[d.experience_level] || d.experience_level)}
+                                    ${fieldRow('Participou de Revisao Sistematica', d.participated_systematic_review)}
+                                    ${fieldRow('Detalhes Outros (SR)', d.sr_other_details)}
+                                    ${fieldRow('Status da Revisao', d.review_status)}
+                                    ${fieldRow('Quer Pesquisar com Ward', wantsResearchLabels[d.wants_research_ward] || d.wants_research_ward)}
+                                    ${fieldRow('Pode Colaborar com Estagios', s.canCollaborateStages)}
+                                    ${fieldRow('Tem Contatos de Networking', d.has_networking_contacts === true ? 'Sim' : d.has_networking_contacts === false ? 'Nao' : d.has_networking_contacts)}
+                                </div>
+                                ${s.networkingContacts.length > 0 ? `
+                                    <div style="margin-top: 0.6rem;">
+                                        <strong style="font-size: 0.8rem; color: #6b7280;">Contatos de Networking:</strong>
+                                        <pre class="fernando-json-block">${escapeHtml(JSON.stringify(s.networkingContacts, null, 2))}</pre>
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                            <div class="fernando-more-section">
+                                <h5>📚 Ingles & USMLE</h5>
+                                <div class="fernando-info-grid">
+                                    ${fieldRow('Ingles - Leitura', englishLabels[d.reading_level] || d.reading_level)}
+                                    ${fieldRow('Ingles - Audicao', englishLabels[d.listening_level] || d.listening_level)}
+                                    ${fieldRow('Pathway USMLE', d.pathway)}
+                                    ${fieldRow('Tem Visto', d.has_visa)}
+                                    ${fieldRow('Etapa Atual USMLE', d.current_stage)}
+                                    ${fieldRow('Proximo Exame', d.next_exam)}
+                                    ${fieldRow('Data do Proximo Exame', d.next_exam_date)}
+                                    ${fieldRow('Data Inicio dos Estudos', d.study_start_date)}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 `;
             }).join('');
+        }
+
+        function toggleStudentMore(id) {
+            const content = document.getElementById(`more-content-${id}`);
+            const btnText = document.getElementById(`more-btn-text-${id}`);
+            if (!content) return;
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                btnText.textContent = '▲ Ocultar informacoes';
+            } else {
+                content.style.display = 'none';
+                btnText.textContent = '▼ Ver mais informacoes';
+            }
         }
 
         function scrollToSection(id) {
@@ -1393,6 +1533,97 @@
             color: #6b7280;
         }
 
+        /* ===== Detailed info ===== */
+        .fernando-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 0.5rem;
+            margin-top: 0.85rem;
+        }
+
+        .fernando-field-row {
+            background: #f8fafc;
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            border-left: 3px solid #e5e7eb;
+        }
+
+        .fernando-field-label {
+            font-size: 0.7rem;
+            color: #6b7280;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+            margin-bottom: 0.15rem;
+        }
+
+        .fernando-field-value {
+            font-size: 0.9rem;
+            color: #1e293b;
+            word-break: break-word;
+        }
+
+        .fernando-more-btn {
+            display: block;
+            width: 100%;
+            margin-top: 1rem;
+            padding: 0.6rem 1rem;
+            background: #f5f3ff;
+            color: #7c3aed;
+            border: 1px solid #e9d5ff;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .fernando-more-btn:hover {
+            background: #ede9fe;
+            border-color: #c4b5fd;
+        }
+
+        .fernando-more-content {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #fafafa;
+            border-radius: 8px;
+            border: 1px solid #f1f5f9;
+        }
+
+        .fernando-more-section {
+            margin-bottom: 1.25rem;
+        }
+
+        .fernando-more-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .fernando-more-section h5 {
+            margin: 0 0 0.5rem;
+            color: #1e293b;
+            font-size: 0.95rem;
+            font-weight: 700;
+            padding-bottom: 0.4rem;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .fernando-json-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            overflow-x: auto;
+            margin: 0.35rem 0 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .fernando-badge-purple { background: #f3e8ff; color: #6b21a8; }
+
         /* ===== Responsive ===== */
         @media (max-width: 768px) {
             .fernando-hero {
@@ -1478,6 +1709,10 @@
 
             .fernando-student-detail-stats {
                 grid-template-columns: repeat(2, 1fr);
+            }
+
+            .fernando-info-grid {
+                grid-template-columns: 1fr;
             }
 
             .fernando-hide-mobile {
