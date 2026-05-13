@@ -5136,25 +5136,33 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
 
         async function toggleFernandoInterested(studentId, checked) {
             if (checked) {
-                const { error } = await WardApp.db.from('fernando_interested_students').upsert({
+                // Try insert first; if duplicate, ignore
+                const { error } = await WardApp.db.from('fernando_interested_students').insert({
                     student_id: studentId,
                     marked_by: userData.id
-                }, { onConflict: 'student_id' });
+                });
 
                 if (error) {
-                    console.error('Error adding interested student:', error);
-                    WardApp.showToast('Erro ao marcar aluno', 'error');
-                    return;
+                    // 23505 = unique_violation (already exists) — not a real error
+                    if (error.code === '23505') {
+                        fernandoInterestedIds.add(studentId);
+                    } else {
+                        console.error('Error adding interested student:', error);
+                        WardApp.showToast('Erro ao marcar aluno: ' + (error.message || error.code), 'error');
+                        return;
+                    }
                 }
                 fernandoInterestedIds.add(studentId);
+                WardApp.showToast('Aluno marcado como interessado');
             } else {
                 const { error } = await WardApp.db.from('fernando_interested_students').delete().eq('student_id', studentId);
                 if (error) {
                     console.error('Error removing interested student:', error);
-                    WardApp.showToast('Erro ao desmarcar aluno', 'error');
+                    WardApp.showToast('Erro ao desmarcar aluno: ' + (error.message || error.code), 'error');
                     return;
                 }
                 fernandoInterestedIds.delete(studentId);
+                WardApp.showToast('Aluno desmarcado');
             }
             const countEl = document.getElementById('fernando-interested-count');
             if (countEl) countEl.textContent = fernandoInterestedIds.size + ' aluno' + (fernandoInterestedIds.size !== 1 ? 's' : '');
