@@ -72,6 +72,10 @@
                 <div class="fernando-stat-icon">👥</div>
                 <div class="fernando-stat-value" id="interested-students">0</div>
                 <div class="fernando-stat-label">Interessados</div>
+                <div class="fernando-stat-breakdown">
+                    <span><strong id="interested-students-alunos">0</strong> alunos</span>
+                    <span><strong id="interested-students-assessoria">0</strong> assessoria</span>
+                </div>
             </div>
         </div>
 
@@ -305,7 +309,7 @@
         async function loadData() {
             const [projectsRes, studentsRes, questionnaireRes] = await Promise.all([
                 WardApp.db.from('research_projects').select('*, tasks:research_tasks(*)').order('created_at', { ascending: false }),
-                WardApp.db.from('users').select('id, full_name, email, fernando_interested').eq('role', 'aluno'),
+                WardApp.db.from('users').select('id, full_name, email, role, fernando_interested').in('role', ['aluno', 'assessoria']),
                 WardApp.db.from('questionnaire_data').select('*')
             ]);
 
@@ -338,10 +342,16 @@
             const activeProjects = allProjects.filter(p => p.status !== 'completed' && p.status !== 'cancelled').length;
             const totalTasks = allProjects.reduce((sum, p) => sum + (p.tasks?.length || 0), 0);
 
+            const interestedStudents = allStudents.filter(s => interestedStudentIds.includes(s.id));
+            const alunoCount = interestedStudents.filter(s => s.role === 'aluno').length;
+            const assessoriaCount = interestedStudents.filter(s => s.role === 'assessoria').length;
+
             document.getElementById('total-projects').textContent = allProjects.length;
             document.getElementById('active-projects').textContent = activeProjects;
             document.getElementById('total-tasks').textContent = totalTasks;
             document.getElementById('interested-students').textContent = interestedStudentIds.length;
+            document.getElementById('interested-students-alunos').textContent = alunoCount;
+            document.getElementById('interested-students-assessoria').textContent = assessoriaCount;
         }
 
         function getInterestedParticipantIds() {
@@ -566,9 +576,13 @@
                 const wantsLabel = wantsResearchLabels[data.wants_research_ward] || data.wants_research_ward || '-';
                 const wantsBadgeClass = data.wants_research_ward === 'immediately' ? 'fernando-badge-green' : 'fernando-badge-yellow';
 
+                const roleTag = student.role === 'assessoria'
+                    ? '<span class="fernando-role-tag fernando-role-assessoria">Assessoria</span>'
+                    : '<span class="fernando-role-tag fernando-role-aluno">Aluno</span>';
+
                 return `
                     <tr>
-                        <td><strong>${studentName}</strong></td>
+                        <td><strong>${studentName}</strong>${roleTag}</td>
                         <td class="fernando-hide-mobile">${data.orcid || '<span class="text-muted">-</span>'}</td>
                         <td class="fernando-hide-mobile">${experienceLabels[data.research_experience] || '-'}</td>
                         <td>${Array.isArray(interestAreas) ? interestAreas.join(', ') : '-'}</td>
@@ -608,20 +622,31 @@
                 const name = _dn(student.full_name) || student.email;
                 const data = researchData[sid] || {};
                 const projectCount = allProjects.filter(p => (p.participants || []).includes(sid) || p.created_by === sid).length;
-                return { id: sid, name, data, projectCount };
+                return { id: sid, name, data, projectCount, role: student.role };
             }).filter(Boolean);
+
+            // Sort: alunos first, then assessoria
+            interestedList.sort((a, b) => {
+                if (a.role === b.role) return a.name.localeCompare(b.name, 'pt-BR');
+                return a.role === 'aluno' ? -1 : 1;
+            });
 
             container.innerHTML = `
                 <div class="fernando-interested-grid">
-                    ${interestedList.map(s => `
-                        <div class="fernando-interested-chip" onclick="openInterestedStudentsModal()">
-                            <div class="fernando-chip-avatar">👤</div>
-                            <div class="fernando-chip-info">
-                                <strong>${s.name}</strong>
-                                <span>${s.projectCount} projeto${s.projectCount !== 1 ? 's' : ''}</span>
+                    ${interestedList.map(s => {
+                        const roleTag = s.role === 'assessoria'
+                            ? '<span class="fernando-role-tag fernando-role-assessoria">Assessoria</span>'
+                            : '<span class="fernando-role-tag fernando-role-aluno">Aluno</span>';
+                        return `
+                            <div class="fernando-interested-chip" onclick="openInterestedStudentsModal()">
+                                <div class="fernando-chip-avatar">👤</div>
+                                <div class="fernando-chip-info">
+                                    <strong>${s.name}${roleTag}</strong>
+                                    <span>${s.projectCount} projeto${s.projectCount !== 1 ? 's' : ''}</span>
+                                </div>
                             </div>
-                        </div>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 </div>
             `;
         }
@@ -716,7 +741,7 @@
                         <div class="fernando-student-detail-header">
                             <div class="fernando-student-detail-avatar">👤</div>
                             <div style="flex: 1; min-width: 0;">
-                                <h4 style="margin: 0;">${escapeHtml(s.name)}</h4>
+                                <h4 style="margin: 0;">${escapeHtml(s.name)}${s.student.role === 'assessoria' ? '<span class="fernando-role-tag fernando-role-assessoria">Assessoria</span>' : '<span class="fernando-role-tag fernando-role-aluno">Aluno</span>'}</h4>
                                 <div style="color: #6b7280; font-size: 0.85rem; word-break: break-word;">
                                     ${escapeHtml(_dn(s.student.email) || s.student.email || '')}
                                     ${d.wants_research_ward ? ' · <strong style="color: #7c3aed;">' + escapeHtml(wantsResearchLabels[d.wants_research_ward] || d.wants_research_ward) + '</strong>' : ''}
@@ -1075,6 +1100,29 @@
         .fernando-stat-icon { font-size: 1.5rem; margin-bottom: 0.25rem; }
         .fernando-stat-value { font-size: 1.75rem; font-weight: 700; display: block; color: #1e293b; }
         .fernando-stat-label { font-size: 0.8rem; color: #6b7280; margin-top: 0.15rem; display: block; }
+        .fernando-stat-breakdown {
+            display: flex;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-top: 0.4rem;
+            font-size: 0.7rem;
+            color: #6b7280;
+            flex-wrap: wrap;
+        }
+        .fernando-stat-breakdown strong { color: #1e293b; }
+        .fernando-role-tag {
+            display: inline-block;
+            font-size: 0.65rem;
+            font-weight: 600;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+            margin-left: 0.4rem;
+            vertical-align: middle;
+        }
+        .fernando-role-aluno { background: #dbeafe; color: #1e40af; }
+        .fernando-role-assessoria { background: #fef3c7; color: #92400e; }
 
         /* Toolbox */
         .fernando-toolbox {

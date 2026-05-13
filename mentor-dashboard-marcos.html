@@ -928,6 +928,8 @@ Cardiovascular	Physiology	62	FALSE
             document.getElementById('research-projects').textContent = projectsRes.data?.length || 0;
             document.getElementById('total-links').textContent = linksRes.data?.length || 0;
 
+            loadFernandoInterested();
+
             await loadGlobalFeed();
             await loadScheduleStatus(); // Must run before renderStudentsTable to populate studentsWithoutSchedule
             await renderStudentsTable();
@@ -5101,9 +5103,26 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
         let fernandoInterestedIds = new Set();
 
         function loadFernandoInterested() {
-            fernandoInterestedIds = new Set(allStudents.filter(s => s.fernando_interested).map(s => s.id));
+            const interested = allStudents.filter(s => s.fernando_interested);
+            fernandoInterestedIds = new Set(interested.map(s => s.id));
+            updateFernandoCount();
+        }
+
+        function updateFernandoCount() {
             const countEl = document.getElementById('fernando-interested-count');
-            if (countEl) countEl.textContent = fernandoInterestedIds.size + ' aluno' + (fernandoInterestedIds.size !== 1 ? 's' : '');
+            if (!countEl) return;
+            const interested = allStudents.filter(s => fernandoInterestedIds.has(s.id));
+            const alunoCount = interested.filter(s => s.role === 'aluno').length;
+            const assessoriaCount = interested.filter(s => s.role === 'assessoria').length;
+            if (alunoCount + assessoriaCount === 0) {
+                countEl.textContent = '0 marcados';
+            } else if (assessoriaCount === 0) {
+                countEl.textContent = alunoCount + ' aluno' + (alunoCount !== 1 ? 's' : '');
+            } else if (alunoCount === 0) {
+                countEl.textContent = assessoriaCount + ' assessoria';
+            } else {
+                countEl.textContent = alunoCount + ' aluno' + (alunoCount !== 1 ? 's' : '') + ' + ' + assessoriaCount + ' assess.';
+            }
         }
 
         async function openFernandoInterestedModal() {
@@ -5115,9 +5134,11 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             }
 
             const container = document.getElementById('fernando-interested-list');
-            const students = allStudents.filter(s => s.role === 'aluno');
+            const students = allStudents.filter(s => s.role === 'aluno' || s.role === 'assessoria');
 
             students.sort((a, b) => {
+                // Alunos first, then assessoria
+                if (a.role !== b.role) return a.role === 'aluno' ? -1 : 1;
                 const nameA = (_dn(a.full_name) || a.email || '').toLowerCase();
                 const nameB = (_dn(b.full_name) || b.email || '').toLowerCase();
                 return nameA.localeCompare(nameB, 'pt-BR');
@@ -5126,12 +5147,15 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             container.innerHTML = students.map(s => {
                 const name = _dn(s.full_name) || s.email || 'Sem nome';
                 const checked = fernandoInterestedIds.has(s.id) ? 'checked' : '';
+                const roleTag = s.role === 'assessoria'
+                    ? '<span style="display: inline-block; font-size: 0.65rem; font-weight: 600; padding: 0.1rem 0.4rem; border-radius: 4px; background: #fef3c7; color: #92400e; margin-left: 0.4rem;">Assessoria</span>'
+                    : '<span style="display: inline-block; font-size: 0.65rem; font-weight: 600; padding: 0.1rem 0.4rem; border-radius: 4px; background: #dbeafe; color: #1e40af; margin-left: 0.4rem;">Aluno</span>';
                 return `
                     <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.75rem; border-bottom: 1px solid #f1f5f9; transition: background 0.15s;"
                          onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background=''">
                         <input type="checkbox" ${checked} onchange="toggleFernandoInterested(${s.id}, this.checked)"
                                style="width: 18px; height: 18px; accent-color: #7c3aed; cursor: pointer;">
-                        <span style="font-size: 0.95rem; color: #1e293b;">${name}</span>
+                        <span style="font-size: 0.95rem; color: #1e293b;">${name}${roleTag}</span>
                     </div>
                 `;
             }).join('');
@@ -5155,8 +5179,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 WardApp.showToast('Aluno desmarcado');
             }
 
-            const countEl = document.getElementById('fernando-interested-count');
-            if (countEl) countEl.textContent = fernandoInterestedIds.size + ' aluno' + (fernandoInterestedIds.size !== 1 ? 's' : '');
+            updateFernandoCount();
         }
     </script>
 
