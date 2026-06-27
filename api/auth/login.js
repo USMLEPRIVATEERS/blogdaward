@@ -1,5 +1,6 @@
 const { getSupabase } = require('../_lib/supabase');
 const { createSessionToken, verifyAuth } = require('../_lib/auth');
+const { enforceLoginRateLimit } = require('../_lib/ratelimit');
 const bcrypt = require('bcryptjs');
 
 module.exports = async function handler(req, res) {
@@ -19,6 +20,14 @@ module.exports = async function handler(req, res) {
       }
 
       const cleanCPF = cpf.replace(/\D/g, '');
+
+      // SECURITY: throttle brute force / credential stuffing (by IP and CPF).
+      const rl = enforceLoginRateLimit(req, cleanCPF);
+      if (!rl.ok) {
+        res.setHeader('Retry-After', String(rl.retryAfter));
+        // Uniform wording so 429 doesn't reveal whether the CPF exists.
+        return res.status(429).json({ data: null, error: { message: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' } });
+      }
 
       // 1. Find user by CPF (server-side only, never exposed to frontend)
       const { data: user, error: userError } = await supabase
@@ -91,6 +100,14 @@ module.exports = async function handler(req, res) {
     // === LEGACY: signInWithPassword (keep for compatibility) ===
     if (action === 'signInWithPassword') {
       const { email, password } = req.body;
+
+      // SECURITY: throttle brute force (by IP and email).
+      const rl = enforceLoginRateLimit(req, email ? String(email).toLowerCase() : null);
+      if (!rl.ok) {
+        res.setHeader('Retry-After', String(rl.retryAfter));
+        return res.status(429).json({ data: null, error: { message: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' } });
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
