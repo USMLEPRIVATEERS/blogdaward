@@ -51,6 +51,9 @@
             </div>
         </div>
 
+        <!-- Próxima chamada agendada (fixada no topo) -->
+        <div id="next-call-banner" class="next-call-banner" style="display: none;"></div>
+
         <div class="alert alert-info mb-4">
             <span class="alert-icon">💡</span>
             <div class="alert-content">
@@ -905,6 +908,108 @@
             margin-bottom: 0;
         }
 
+        /* Próxima chamada agendada — banner fixado no topo */
+        .next-call-banner {
+            position: sticky;
+            top: 76px;
+            z-index: 500;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.75rem 1.25rem;
+            margin-bottom: 1.5rem;
+            padding: 1rem 1.25rem;
+            background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 100%);
+            border: 1px solid #a7f3d0;
+            border-left: 4px solid #10b981;
+            border-radius: var(--radius-lg, 14px);
+            box-shadow: 0 4px 8px rgba(16, 24, 40, 0.05), 0 14px 32px -8px rgba(16, 24, 40, 0.14);
+        }
+
+        .next-call-banner .ncb-info {
+            flex: 1;
+            min-width: 240px;
+        }
+
+        .next-call-banner .ncb-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #047857;
+            margin-bottom: 0.35rem;
+        }
+
+        .next-call-banner .ncb-title {
+            font-weight: 700;
+            font-size: 1.05rem;
+            color: #111827;
+            letter-spacing: -0.01em;
+        }
+
+        .next-call-banner .ncb-meta {
+            font-size: 0.9rem;
+            color: #374151;
+            margin-top: 0.2rem;
+        }
+
+        .next-call-banner .ncb-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        /* Botão "Adicionar ao Google Agenda" */
+        .gcal-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 0.9rem;
+            background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            color: #1f2937;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .gcal-btn:hover {
+            border-color: #10b981;
+            color: #047857;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(16, 24, 40, 0.08);
+        }
+
+        .gcal-btn:active {
+            transform: translateY(0);
+        }
+
+        .gcal-btn:focus-visible {
+            outline: 2px solid #10b981;
+            outline-offset: 2px;
+        }
+
+        @media (max-width: 768px) {
+            .next-call-banner {
+                top: 64px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .gcal-btn {
+                transition: none;
+            }
+            .gcal-btn:hover {
+                transform: none;
+            }
+        }
+
         /* Enhanced styling for scheduled calls */
         .landmark-scheduled {
             background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
@@ -1460,7 +1565,7 @@
             const landmarkIds = landmarks.map(lm => lm.id);
             const { data: scheduledCalls } = await WardApp.db
                 .from('scheduled_calls')
-                .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, name)')
+                .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, name, timezone)')
                 .in('landmark_id', landmarkIds)
                 .eq('status', 'scheduled');
 
@@ -1616,6 +1721,103 @@
             return 'extras';
         }
 
+        // ===== Google Calendar helpers =====
+        // Formata um Date para o padrão exigido pelo Google Calendar: 20260709T230000Z
+        function gcalStamp(d) {
+            return d.toISOString().replace(/[-:]|\.\d{3}/g, '');
+        }
+
+        // Converte data+hora (relógio de parede no fuso do mentor) para o instante UTC absoluto.
+        function wallTimeToInstant(dateStr, timeStr, tz) {
+            if (!dateStr || !timeStr) return null;
+            const t = timeStr.substring(0, 5);
+            const asUTC = new Date(`${dateStr}T${t}:00Z`);
+            if (isNaN(asUTC)) return null;
+            try {
+                const tzWall = new Date(asUTC.toLocaleString('en-US', { timeZone: tz }));
+                const utcWall = new Date(asUTC.toLocaleString('en-US', { timeZone: 'UTC' }));
+                const offsetMs = tzWall.getTime() - utcWall.getTime();
+                return new Date(asUTC.getTime() - offsetMs);
+            } catch (e) {
+                return asUTC;
+            }
+        }
+
+        // Monta a URL "Adicionar ao Google Agenda" (sessão de 1h). Retorna null se faltar data/hora.
+        function buildCallGcalUrl(call, title) {
+            if (!call || !call.scheduled_date || !call.scheduled_time) return null;
+            const mentorTz = (call.mentor && call.mentor.timezone) || 'America/Sao_Paulo';
+            const start = wallTimeToInstant(call.scheduled_date, call.scheduled_time, mentorTz);
+            if (!start) return null;
+            const end = new Date(start.getTime() + 60 * 60 * 1000);
+            const mentorName = (call.mentor && (call.mentor.full_name || call.mentor.name)) || 'Mentor';
+            const params = new URLSearchParams({
+                action: 'TEMPLATE',
+                text: 'Ward Academy: ' + (title || 'Chamada com mentor'),
+                dates: gcalStamp(start) + '/' + gcalStamp(end),
+                details: 'Chamada de mentoria da Ward Academy com ' + mentorName + '.'
+            });
+            return 'https://calendar.google.com/calendar/render?' + params.toString();
+        }
+
+        // Renderiza (ou oculta) o banner da próxima chamada agendada ainda por acontecer.
+        function renderNextCallBanner(landmarks) {
+            const banner = document.getElementById('next-call-banner');
+            if (!banner) return;
+
+            const now = Date.now();
+            let next = null; // { lm, call, instant }
+            (landmarks || []).forEach(lm => {
+                (lm.scheduled_calls || []).forEach(call => {
+                    if (call.status && call.status !== 'scheduled') return;
+                    const mentorTz = (call.mentor && call.mentor.timezone) || 'America/Sao_Paulo';
+                    const instant = wallTimeToInstant(call.scheduled_date, call.scheduled_time, mentorTz);
+                    if (!instant) return;
+                    // Considera "por acontecer" enquanto a chamada não terminou (janela de 1h)
+                    if (instant.getTime() + 60 * 60 * 1000 < now) return;
+                    if (!next || instant.getTime() < next.instant.getTime()) {
+                        next = { lm, call, instant };
+                    }
+                });
+            });
+
+            if (!next) {
+                banner.style.display = 'none';
+                banner.innerHTML = '';
+                return;
+            }
+
+            const { lm, call } = next;
+            const mentorTz = (call.mentor && call.mentor.timezone) || 'America/Sao_Paulo';
+            const studentTz = getStudentTimezone();
+            let dspDate = call.scheduled_date;
+            let dspTime = call.scheduled_time.substring(0, 5);
+            let tzNote = '';
+            if (studentTz && studentTz !== mentorTz) {
+                const conv = convertTime(call.scheduled_date, dspTime, mentorTz, studentTz);
+                dspDate = conv.date;
+                dspTime = conv.time;
+                tzNote = ` (${friendlyTzName(studentTz)})`;
+            }
+            const dateObj = new Date(`${dspDate}T12:00:00`);
+            const dateStr = dateObj.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
+            const mentorName = (call.mentor && (call.mentor.full_name || call.mentor.name)) || 'Mentor';
+            const gcalUrl = buildCallGcalUrl(call, lm.title);
+
+            banner.innerHTML = `
+                <div class="ncb-info">
+                    <span class="ncb-label">🔔 Sua próxima chamada</span>
+                    <div class="ncb-title">${lm.title}</div>
+                    <div class="ncb-meta">📅 ${dateStr} às ${dspTime}${tzNote} &nbsp;•&nbsp; 👤 ${mentorName}</div>
+                </div>
+                <div class="ncb-actions">
+                    ${gcalUrl ? `<a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="gcal-btn">📆 Adicionar ao Google Agenda</a>` : ''}
+                    <button class="btn btn-sm btn-outline" onclick="openCallDetailsModal(${lm.id}, ${call.id})">👁️ Ver detalhes</button>
+                </div>
+            `;
+            banner.style.display = 'flex';
+        }
+
         function renderLandmarks(landmarks) {
             // Group landmarks - 8 fases + legacy second-round + extras
             const groups = {
@@ -1706,6 +1908,9 @@
                     </div>
                 `}).join('') || '<p class="text-muted p-2">Nenhuma chamada neste grupo</p>';
             });
+
+            // Fixa a próxima chamada agendada no topo da tela
+            renderNextCallBanner(landmarks);
         }
 
         function initDragAndDrop() {
@@ -1885,11 +2090,16 @@
                     cancelled: 'Cancelada'
                 };
 
+                const gcalUrl = (call.status === 'scheduled' || call.status === 'pending')
+                    ? buildCallGcalUrl(call, landmark.title)
+                    : null;
+
                 document.getElementById('call-details-content').innerHTML = `
                     <p><strong>📞 Chamada:</strong> ${landmark.title}</p>
                     <p><strong>👤 Mentor:</strong> ${call.mentor?.full_name || 'Mentor'}</p>
                     <p><strong>📅 Data:</strong> ${datetime}</p>
                     <p><strong>📊 Status:</strong> ${statusLabels[call.status] || call.status}</p>
+                    ${gcalUrl ? `<p style="margin-top: 0.75rem;"><a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="gcal-btn">📆 Adicionar ao Google Agenda</a></p>` : ''}
                 `;
 
                 // Show notes if available

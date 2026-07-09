@@ -124,6 +124,48 @@
             transform: translateY(-1px);
         }
 
+        /* Botão "Adicionar ao Google Agenda" */
+        .gcal-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.45rem 0.85rem;
+            background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+            border: 1px solid var(--gray-300, #d1d5db);
+            border-radius: 8px;
+            color: #1f2937;
+            font-size: 0.82rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .gcal-btn:hover {
+            border-color: #10b981;
+            color: #047857;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(16, 24, 40, 0.08);
+        }
+
+        .gcal-btn:active {
+            transform: translateY(0);
+        }
+
+        .gcal-btn:focus-visible {
+            outline: 2px solid #10b981;
+            outline-offset: 2px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .gcal-btn {
+                transition: none;
+            }
+            .gcal-btn:hover {
+                transform: none;
+            }
+        }
+
         /* ===== Toolbox — Meus Favoritos (hero roxo) ===== */
         .fav-edit-btn:hover {
             background: rgba(255, 255, 255, 0.3) !important;
@@ -796,6 +838,45 @@
             return `${WardApp.formatDate(call.scheduled_date)} as ${studentTime} <span style="font-size:0.75rem;color:#9ca3af">(${studentTzShort})</span>`;
         }
 
+        // ===== Google Calendar helpers =====
+        // Formata um Date para o padrão exigido pelo Google Calendar: 20260709T230000Z
+        function gcalStamp(d) {
+            return d.toISOString().replace(/[-:]|\.\d{3}/g, '');
+        }
+
+        // Converte data+hora (relógio de parede no fuso do mentor) para o instante UTC absoluto.
+        function wallTimeToInstant(dateStr, timeStr, tz) {
+            if (!dateStr || !timeStr) return null;
+            const t = timeStr.substring(0, 5);
+            const asUTC = new Date(`${dateStr}T${t}:00Z`);
+            if (isNaN(asUTC)) return null;
+            try {
+                const tzWall = new Date(asUTC.toLocaleString('en-US', { timeZone: tz }));
+                const utcWall = new Date(asUTC.toLocaleString('en-US', { timeZone: 'UTC' }));
+                const offsetMs = tzWall.getTime() - utcWall.getTime();
+                return new Date(asUTC.getTime() - offsetMs);
+            } catch (e) {
+                return asUTC;
+            }
+        }
+
+        // Monta a URL "Adicionar ao Google Agenda" (sessão de 1h). Retorna null se faltar data/hora.
+        function buildCallGcalUrl(call, title) {
+            if (!call || !call.scheduled_date || !call.scheduled_time) return null;
+            const mentorTz = (call.mentor && call.mentor.timezone) || 'America/Sao_Paulo';
+            const start = wallTimeToInstant(call.scheduled_date, call.scheduled_time, mentorTz);
+            if (!start) return null;
+            const end = new Date(start.getTime() + 60 * 60 * 1000);
+            const mentorName = (call.mentor && (call.mentor.full_name || call.mentor.name)) || 'Mentor';
+            const params = new URLSearchParams({
+                action: 'TEMPLATE',
+                text: 'Ward Academy: ' + (title || 'Chamada com mentor'),
+                dates: gcalStamp(start) + '/' + gcalStamp(end),
+                details: 'Chamada de mentoria da Ward Academy com ' + mentorName + '.'
+            });
+            return 'https://calendar.google.com/calendar/render?' + params.toString();
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
             if (!userData) return;
@@ -1458,6 +1539,10 @@
                         cancelled: 'Cancelada'
                     };
 
+                    const gcalUrl = (call.status === 'scheduled' || call.status === 'pending')
+                        ? buildCallGcalUrl(call, call.landmark?.title || 'Chamada com mentor')
+                        : null;
+
                     return `
                         <div class="call-card" style="border-left: 4px solid ${statusColors[call.status] || '#6b7280'}; margin-bottom: 1rem; padding: 1rem; background: #f9fafb; border-radius: 8px; cursor: pointer;" onclick="viewCallDetails(${call.id})">
                             <div style="display: flex; justify-content: space-between; align-items: start;">
@@ -1477,6 +1562,7 @@
                                     </span>
                                 </div>
                             </div>
+                            ${gcalUrl ? `<div style="margin-top: 0.75rem;"><a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="gcal-btn" onclick="event.stopPropagation();">📆 Adicionar ao Google Agenda</a></div>` : ''}
                         </div>
                     `;
                 }).join('');
