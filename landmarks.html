@@ -51,8 +51,10 @@
             </div>
         </div>
 
-        <!-- Próxima chamada agendada (fixada no topo) -->
+        <!-- Próxima chamada agendada (banner completo no topo) -->
         <div id="next-call-banner" class="next-call-banner" style="display: none;"></div>
+        <!-- Barra compacta que aparece ao rolar para baixo -->
+        <div id="next-call-mini" class="next-call-mini" aria-hidden="true"></div>
 
         <div class="alert alert-info mb-4">
             <span class="alert-icon">💡</span>
@@ -908,11 +910,8 @@
             margin-bottom: 0;
         }
 
-        /* Próxima chamada agendada — banner fixado no topo */
+        /* Próxima chamada agendada — banner completo no topo (rola com a página) */
         .next-call-banner {
-            position: sticky;
-            top: 76px;
-            z-index: 500;
             display: flex;
             flex-wrap: wrap;
             align-items: center;
@@ -924,6 +923,75 @@
             border-left: 4px solid #10b981;
             border-radius: var(--radius-lg, 14px);
             box-shadow: 0 4px 8px rgba(16, 24, 40, 0.05), 0 14px 32px -8px rgba(16, 24, 40, 0.14);
+        }
+
+        /* Barra compacta que aparece ao rolar para baixo (não obstrui a leitura) */
+        .next-call-mini {
+            position: fixed;
+            top: 66px;
+            left: 50%;
+            width: min(1160px, calc(100% - 2rem));
+            transform: translate(-50%, -130%);
+            z-index: 900;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.5rem 0.65rem 0.5rem 0.9rem;
+            background: #ffffff;
+            border: 1px solid #a7f3d0;
+            border-left: 4px solid #10b981;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px -8px rgba(16, 24, 40, 0.22);
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.25s ease, opacity 0.25s ease;
+        }
+
+        .next-call-mini.ncm-shown {
+            transform: translate(-50%, 0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .next-call-mini .ncm-main {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: none;
+            border: none;
+            padding: 0;
+            text-align: left;
+            cursor: pointer;
+            font: inherit;
+            color: inherit;
+        }
+
+        .next-call-mini .ncm-icon {
+            font-size: 1.15rem;
+            flex-shrink: 0;
+        }
+
+        .next-call-mini .ncm-text {
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 0.88rem;
+            color: #111827;
+        }
+
+        .next-call-mini .ncm-label {
+            font-weight: 700;
+            color: #047857;
+        }
+
+        .next-call-mini .gcal-btn.gcal-btn-mini {
+            padding: 0.4rem 0.6rem;
+            font-size: 0.8rem;
+            flex-shrink: 0;
         }
 
         .next-call-banner .ncb-info {
@@ -996,8 +1064,18 @@
         }
 
         @media (max-width: 768px) {
-            .next-call-banner {
-                top: 64px;
+            .next-call-mini {
+                top: 58px;
+            }
+            .next-call-mini .ncm-label {
+                display: none;
+            }
+            /* No mobile, mostra só o ícone do botão de agenda para economizar espaço */
+            .next-call-mini .gcal-btn-mini .gcal-btn-label {
+                display: none;
+            }
+            .next-call-mini .gcal-btn.gcal-btn-mini {
+                padding: 0.4rem 0.55rem;
             }
         }
 
@@ -1007,6 +1085,9 @@
             }
             .gcal-btn:hover {
                 transform: none;
+            }
+            .next-call-mini {
+                transition: opacity 0.25s ease;
             }
         }
 
@@ -1781,9 +1862,19 @@
                 });
             });
 
+            const mini = document.getElementById('next-call-mini');
+
             if (!next) {
                 banner.style.display = 'none';
                 banner.innerHTML = '';
+                if (mini) {
+                    mini.classList.remove('ncm-shown');
+                    mini.innerHTML = '';
+                }
+                if (window._nextCallObserver) {
+                    window._nextCallObserver.disconnect();
+                    window._nextCallObserver = null;
+                }
                 return;
             }
 
@@ -1816,6 +1907,42 @@
                 </div>
             `;
             banner.style.display = 'flex';
+
+            // Barra compacta (mostrada ao rolar): mesmo dado, versão enxuta
+            if (mini) {
+                mini.innerHTML = `
+                    <button type="button" class="ncm-main" onclick="openCallDetailsModal(${lm.id}, ${call.id})" title="Ver detalhes da chamada">
+                        <span class="ncm-icon" aria-hidden="true">🔔</span>
+                        <span class="ncm-text"><span class="ncm-label">Próxima chamada:</span> ${lm.title} · ${dateStr} às ${dspTime}</span>
+                    </button>
+                    ${gcalUrl ? `<a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="gcal-btn gcal-btn-mini" title="Adicionar ao Google Agenda">📆<span class="gcal-btn-label"> Agenda</span></a>` : ''}
+                `;
+                setupNextCallMiniObserver();
+            }
+        }
+
+        // Mostra a barra compacta somente quando o banner completo sai de vista ao rolar
+        function setupNextCallMiniObserver() {
+            const full = document.getElementById('next-call-banner');
+            const mini = document.getElementById('next-call-mini');
+            if (!full || !mini || typeof IntersectionObserver === 'undefined') return;
+
+            if (window._nextCallObserver) window._nextCallObserver.disconnect();
+
+            window._nextCallObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    const hasNext = full.style.display !== 'none';
+                    if (hasNext && !entry.isIntersecting) {
+                        mini.classList.add('ncm-shown');
+                        mini.setAttribute('aria-hidden', 'false');
+                    } else {
+                        mini.classList.remove('ncm-shown');
+                        mini.setAttribute('aria-hidden', 'true');
+                    }
+                });
+            }, { rootMargin: '-70px 0px 0px 0px', threshold: 0 });
+
+            window._nextCallObserver.observe(full);
         }
 
         function renderLandmarks(landmarks) {
