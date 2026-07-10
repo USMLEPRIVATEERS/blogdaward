@@ -1945,6 +1945,37 @@
             window._nextCallObserver.observe(full);
         }
 
+        // Atualiza SOMENTE o banner do topo (usado logo após agendar, para refletir na hora
+        // sem depender do recarregamento completo da lista). Resiliente e independente.
+        async function refreshNextCallBanner() {
+            try {
+                if (!targetUserId) return;
+                const { data: lms } = await WardApp.db
+                    .from('landmarks')
+                    .select('id, title, landmark_type, group_name')
+                    .eq('user_id', targetUserId);
+                if (!lms || !lms.length) {
+                    renderNextCallBanner([]);
+                    return;
+                }
+                const ids = lms.map(l => l.id);
+                const { data: calls } = await WardApp.db
+                    .from('scheduled_calls')
+                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, name, timezone)')
+                    .in('landmark_id', ids)
+                    .eq('status', 'scheduled');
+                const map = {};
+                (calls || []).forEach(c => {
+                    if (!map[c.landmark_id]) map[c.landmark_id] = [];
+                    map[c.landmark_id].push(c);
+                });
+                lms.forEach(l => { l.scheduled_calls = map[l.id] || []; });
+                renderNextCallBanner(lms);
+            } catch (e) {
+                console.error('refreshNextCallBanner error', e);
+            }
+        }
+
         function renderLandmarks(landmarks) {
             // Group landmarks - 8 fases + legacy second-round + extras
             const groups = {
@@ -2572,6 +2603,8 @@
                             });
 
                         WardApp.showToast(`Chamada criada e agendada para ${WardApp.formatDate(date)} às ${time}!`);
+                        // Reflete a nova chamada no banner do topo imediatamente
+                        await refreshNextCallBanner();
                     } else {
                         WardApp.showToast('Chamada criada! (Horário já reservado, agende depois)', 'warning');
                     }
@@ -3072,6 +3105,8 @@
                         });
 
                     WardApp.showToast(`Evento criado e agendado para ${WardApp.formatDate(scheduleDate)} às ${scheduleTime}!`);
+                    // Reflete a nova chamada no banner do topo imediatamente
+                    await refreshNextCallBanner();
                 }
             } else {
                 WardApp.showToast('Evento criado com sucesso!');
@@ -3638,6 +3673,9 @@
                 WardApp.showToast('Erro ao agendar: ' + (error.message || error.code || 'tente novamente'), 'error');
                 return;
             }
+
+            // Reflete a nova chamada no banner do topo imediatamente
+            await refreshNextCallBanner();
 
             closeModal('schedule-modal');
             const studentTz = document.getElementById('schedule-timezone')?.value || getStudentTimezone();
