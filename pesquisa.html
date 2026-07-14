@@ -919,6 +919,17 @@
         let selectedComparison = '=';
         let includeCompleted = false;
         let searchQuery = '';
+        let showArchived = false; // projetos arquivados ficam ocultos até o usuário clicar para ver
+
+        // Um projeto é considerado arquivado quando possui a tag "arquivado"
+        function isArchivedProject(p) {
+            return Array.isArray(p.tags) && p.tags.includes('arquivado');
+        }
+
+        function toggleArchivedProjects() {
+            showArchived = !showArchived;
+            renderProjects();
+        }
 
         // Get active stages for a project (stages with tasks based on filter)
         function getActiveStages(project) {
@@ -1269,9 +1280,12 @@
             const approvedProjects = allProjects.filter(p => p.status !== 'pending_approval');
             const pendingProjects = allProjects.filter(p => p.status === 'pending_approval');
 
-            const total = approvedProjects.length;
-            const completed = approvedProjects.filter(p => p.status === 'completed').length;
-            const active = approvedProjects.filter(p => p.status === 'active').length;
+            // Projetos arquivados não entram nas contagens de Em Andamento/Concluídos (ficam ocultos)
+            const activeVisible = approvedProjects.filter(p => !isArchivedProject(p));
+
+            const total = activeVisible.length;
+            const completed = activeVisible.filter(p => p.status === 'completed').length;
+            const active = activeVisible.filter(p => p.status === 'active').length;
             const pending = pendingProjects.length;
 
             document.getElementById('total-projects').textContent = total;
@@ -1341,13 +1355,49 @@
             }
 
             if (approvedProjects.length > 0) {
-                if (myPendingProjects.length > 0 && !selectedStage) {
-                    html += `<h3 style="margin-bottom: 1rem; color: #374151;">Projetos Aprovados</h3>`;
-                }
+                // Separa: arquivados (ocultos por padrão) x em andamento x concluídos
+                const archivedProjects = approvedProjects.filter(isArchivedProject);
+                const visibleProjects = approvedProjects.filter(p => !isArchivedProject(p));
+                const activeProjects = visibleProjects.filter(p => p.status !== 'completed');
+                const completedProjects = visibleProjects.filter(p => p.status === 'completed');
+
                 if (selectedStage) {
-                    html += `<p style="margin-bottom: 1rem; color: #6b7280; font-size: 0.9rem;">Encontrados ${approvedProjects.length} projeto${approvedProjects.length !== 1 ? 's' : ''}</p>`;
+                    html += `<p style="margin-bottom: 1rem; color: #6b7280; font-size: 0.9rem;">Encontrados ${visibleProjects.length} projeto${visibleProjects.length !== 1 ? 's' : ''}${archivedProjects.length ? ` (+${archivedProjects.length} arquivado${archivedProjects.length !== 1 ? 's' : ''})` : ''}</p>`;
                 }
-                html += approvedProjects.map(project => renderProjectCard(project, false)).join('');
+
+                // Seção: Projetos em andamento
+                if (activeProjects.length > 0) {
+                    html += `
+                        <h3 class="projects-section-title">
+                            <span>🔬 Em Andamento</span>
+                            <span class="projects-section-count">${activeProjects.length}</span>
+                        </h3>`;
+                    html += activeProjects.map(project => renderProjectCard(project, false)).join('');
+                }
+
+                // Seção: Projetos concluídos
+                if (completedProjects.length > 0) {
+                    html += `
+                        <h3 class="projects-section-title" style="margin-top: 2rem;">
+                            <span>✅ Concluídos</span>
+                            <span class="projects-section-count">${completedProjects.length}</span>
+                        </h3>`;
+                    html += completedProjects.map(project => renderProjectCard(project, false)).join('');
+                }
+
+                // Seção: Projetos arquivados (ocultos até o usuário clicar para ver)
+                if (archivedProjects.length > 0) {
+                    html += `
+                        <button type="button" class="archived-toggle" onclick="toggleArchivedProjects()" aria-expanded="${showArchived}">
+                            <span>📦 Projetos arquivados <span class="archived-count">${archivedProjects.length}</span></span>
+                            <span class="archived-chevron">${showArchived ? '▲ ocultar' : '▼ ver'}</span>
+                        </button>`;
+                    if (showArchived) {
+                        html += `<div class="archived-list">`;
+                        html += archivedProjects.map(project => renderProjectCard(project, false)).join('');
+                        html += `</div>`;
+                    }
+                }
             }
 
             container.innerHTML = html;
@@ -3703,6 +3753,90 @@ function toggleFolder(header) {
             background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
             color: #6b7280;
             border: 1px solid #d1d5db;
+        }
+        /* Cabeçalho das seções de projetos (Em Andamento / Concluídos) */
+        .projects-section-title {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            margin-bottom: 1rem;
+            color: #374151;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+        .projects-section-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.5rem;
+            height: 1.5rem;
+            padding: 0 0.5rem;
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #6b7280;
+        }
+        /* Botão para mostrar/ocultar projetos arquivados */
+        .archived-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            width: 100%;
+            margin-top: 2rem;
+            padding: 0.85rem 1.1rem;
+            background: #f9fafb;
+            border: 1px dashed #d1d5db;
+            border-radius: var(--radius-lg, 14px);
+            color: #4b5563;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .archived-toggle:hover {
+            background: #f3f4f6;
+            border-color: #9ca3af;
+            color: #1f2937;
+        }
+        .archived-toggle:focus-visible {
+            outline: 2px solid var(--accent-orange, #C45700);
+            outline-offset: 2px;
+        }
+        .archived-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.4rem;
+            height: 1.4rem;
+            padding: 0 0.45rem;
+            margin-left: 0.35rem;
+            background: #e5e7eb;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #6b7280;
+        }
+        .archived-chevron {
+            font-size: 0.85rem;
+            color: #6b7280;
+            white-space: nowrap;
+        }
+        .archived-list {
+            margin-top: 1rem;
+            padding-top: 0.25rem;
+            animation: archivedIn 0.2s ease;
+        }
+        @keyframes archivedIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .archived-list { animation: none; }
+            .archived-toggle { transition: none; }
         }
         .tag-revisao {
             background: linear-gradient(135deg, #fef3c7, #fde68a);
