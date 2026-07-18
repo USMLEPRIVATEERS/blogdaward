@@ -45,7 +45,7 @@
             <div class="d-flex align-center gap-2 flex-wrap">
                 <button class="btn btn-outline" onclick="openCalendarModal()">📅 Ver Calendário</button>
                 <div id="project-actions" class="btn-group" style="display: none;">
-                    <button class="btn btn-primary" onclick="openModal('new-project-modal')">+ Novo Projeto</button>
+                    <button class="btn btn-primary" onclick="openNewProjectModal()">+ Novo Projeto</button>
                 </div>
             </div>
         </div>
@@ -265,11 +265,14 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="project-participants">Participantes (Coautores)</label>
-                    <select id="project-participants" class="form-input" multiple size="5">
-                        <!-- Filled by JS -->
-                    </select>
-                    <span class="form-hint">Segure Ctrl para selecionar múltiplos (mentores e alunos)</span>
+                    <label class="form-label">Participantes (Coautores)</label>
+                    <div class="author-picker">
+                        <input type="text" class="author-search" id="project-participants-search" placeholder="🔍 Buscar por nome..." oninput="filterAuthorPicker('project-participants-list', this.value)">
+                        <div id="project-participants-list" class="author-list">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+                    <span class="form-hint">Clique nos nomes para adicionar ou remover coautores. <span data-count-for="project-participants-list" class="author-count-badge"></span></span>
                 </div>
             </div>
             <div class="modal-footer">
@@ -486,11 +489,14 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label class="form-label">Adicionar Participante</label>
-                    <select id="add-participant-select" class="form-input">
-                        <option value="">Selecione um usuário...</option>
-                    </select>
-                    <button class="btn btn-primary btn-sm mt-2" onclick="addParticipant()">+ Adicionar</button>
+                    <label class="form-label">Adicionar Participantes</label>
+                    <div class="author-picker">
+                        <input type="text" class="author-search" id="add-participant-search" placeholder="🔍 Buscar por nome..." oninput="filterAuthorPicker('add-participant-list', this.value)">
+                        <div id="add-participant-list" class="author-list author-list-sm">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+                    <button class="btn btn-primary btn-sm mt-2" onclick="addParticipant()">+ Adicionar Selecionados <span data-count-for="add-participant-list" class="author-count-badge on-dark"></span></button>
                 </div>
                 <div class="mt-3">
                     <h4 class="mb-2">Participantes Atuais</h4>
@@ -987,6 +993,105 @@
             .cal-nav-btn, .cal-today-btn, .cal-view-btn, .cal-mini, .cal-deadline-item, .cal-pill { transition: none; }
             .cal-mini:hover { transform: none; }
         }
+
+        /* ===== SELETOR DE AUTORES (clique para selecionar) ===== */
+        .author-picker {
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #fff;
+        }
+        .author-picker:focus-within {
+            border-color: #C45700;
+            box-shadow: 0 0 0 4px rgba(196, 87, 0, 0.16);
+        }
+        .author-search {
+            width: 100%;
+            border: none;
+            border-bottom: 1px solid #eef0f2;
+            padding: 0.6rem 0.85rem;
+            font-size: 0.9rem;
+            outline: none;
+            background: #fafafa;
+        }
+        .author-list {
+            max-height: 230px;
+            overflow-y: auto;
+            padding: 0.4rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .author-list.author-list-sm { max-height: 190px; }
+        .author-group-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #9ca3af;
+            padding: 0.5rem 0.6rem 0.25rem;
+        }
+        .author-item {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            width: 100%;
+            padding: 0.5rem 0.6rem;
+            border: 1px solid transparent;
+            border-radius: 9px;
+            background: transparent;
+            cursor: pointer;
+            text-align: left;
+            font: inherit;
+            color: #374151;
+            transition: background 0.12s ease, border-color 0.12s ease;
+        }
+        .author-item:hover { background: #f9fafb; }
+        .author-item:focus-visible { outline: 2px solid #C45700; outline-offset: 1px; }
+        .author-item.selected { background: #fff3e9; border-color: #f0b184; }
+        .author-avatar {
+            flex-shrink: 0;
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 0.72rem; font-weight: 700; color: #fff;
+            background: #3b82f6;
+        }
+        .author-avatar.mentor { background: #7c3aed; }
+        .author-name {
+            flex: 1; min-width: 0;
+            font-size: 0.9rem; font-weight: 500;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            display: flex; align-items: center; gap: 0.4rem;
+        }
+        .author-role {
+            font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+            color: #7c3aed; background: #f3e8ff; padding: 0.05rem 0.35rem; border-radius: 999px;
+        }
+        .author-check {
+            flex-shrink: 0;
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            border: 2px solid #d1d5db;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 0.7rem; color: transparent;
+            transition: all 0.12s ease;
+        }
+        .author-item.selected .author-check {
+            background: #16a34a; border-color: #16a34a; color: #fff;
+        }
+        .author-empty { color: #9ca3af; font-size: 0.85rem; text-align: center; padding: 1rem; }
+        .author-count-badge:not(:empty) {
+            display: inline-block; margin-left: 0.35rem; padding: 0.05rem 0.5rem;
+            background: #fff3e9; color: #9a3d00; border-radius: 999px;
+            font-size: 0.72rem; font-weight: 700;
+        }
+        .author-count-badge.on-dark:not(:empty) { background: rgba(255,255,255,0.25); color: #fff; }
+        .author-list::-webkit-scrollbar { width: 8px; }
+        .author-list::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 6px; border: 2px solid #fff; }
+        @media (prefers-reduced-motion: reduce) {
+            .author-item, .author-check { transition: none; }
+        }
     </style>
 
     <script src="js/app.js"></script>
@@ -1258,7 +1363,10 @@
         function calPillHtml(ev) {
             const cls = ev.completed ? 'is-done' : (ev.overdue ? 'is-overdue' : (ev.type === 'project' ? 'type-project' : 'type-task'));
             const icon = ev.type === 'project' ? '📁' : (ev.completed ? '✓' : '📌');
-            return `<button type="button" class="cal-pill ${cls}" onclick="openEventProject(${ev.projectId})" title="${calEsc(ev.title)}"><span class="cal-pill-dot">${icon}</span>${calEsc(ev.title)}</button>`;
+            const tip = (ev.type === 'task' && ev.projectTitle)
+                ? `${ev.title}  •  Projeto: ${ev.projectTitle}`
+                : (ev.type === 'project' ? `Prazo do projeto: ${ev.title}` : ev.title);
+            return `<button type="button" class="cal-pill ${cls}" onclick="openEventProject(${ev.projectId})" title="${calEsc(tip)}"><span class="cal-pill-dot">${icon}</span>${calEsc(ev.title)}</button>`;
         }
 
         function calRenderMonth(cursor, byDate, todayKey) {
@@ -1415,6 +1523,93 @@
             if (dl) dl.innerHTML = calRenderDeadlines(events, todayKey);
         }
         // =================== FIM CALENDÁRIO DE PESQUISA ===================
+
+        // ===================== SELETOR DE AUTORES (clique para selecionar) =====================
+        function authorInitials(name) {
+            const parts = String(name || '?').trim().split(/\s+/).filter(Boolean);
+            const ini = parts.map(w => w[0]).slice(0, 2).join('').toUpperCase();
+            return ini || '?';
+        }
+        function authorPickerItemHtml(u) {
+            const name = _dn(u.full_name) || u.email || 'Usuário';
+            const isMentor = u.role && u.role.startsWith('mentor_');
+            return `<button type="button" class="author-item" data-id="${u.id}" data-name="${calEsc(name.toLowerCase())}" onclick="toggleAuthorItem(this)">
+                <span class="author-avatar ${isMentor ? 'mentor' : ''}">${calEsc(authorInitials(name))}</span>
+                <span class="author-name">${calEsc(name)}${isMentor ? '<span class="author-role">mentor</span>' : ''}</span>
+                <span class="author-check" aria-hidden="true">✓</span>
+            </button>`;
+        }
+        function renderAuthorPicker(listId, mentors, students, selectedIds) {
+            const el = document.getElementById(listId);
+            if (!el) return;
+            selectedIds = selectedIds || [];
+            let html = '';
+            if (mentors && mentors.length) {
+                html += '<div class="author-group-label">👩‍🏫 Mentores</div>';
+                html += mentors.map(authorPickerItemHtml).join('');
+            }
+            if (students && students.length) {
+                html += '<div class="author-group-label">👥 Alunos</div>';
+                html += students.map(authorPickerItemHtml).join('');
+            }
+            if (!html) html = '<div class="author-empty">Nenhum usuário disponível</div>';
+            el.innerHTML = html;
+            selectedIds.forEach(id => {
+                const item = el.querySelector(`.author-item[data-id="${id}"]`);
+                if (item) item.classList.add('selected');
+            });
+            updateAuthorPickerCount(listId);
+        }
+        function toggleAuthorItem(el) {
+            el.classList.toggle('selected');
+            const list = el.closest('.author-list');
+            if (list && list.id) updateAuthorPickerCount(list.id);
+        }
+        function getSelectedAuthorIds(listId) {
+            return Array.from(document.querySelectorAll(`#${listId} .author-item.selected`)).map(el => parseInt(el.dataset.id));
+        }
+        function updateAuthorPickerCount(listId) {
+            const n = getSelectedAuthorIds(listId).length;
+            const badge = document.querySelector(`[data-count-for="${listId}"]`);
+            if (badge) badge.textContent = n ? `${n} selecionado${n > 1 ? 's' : ''}` : '';
+        }
+        function filterAuthorPicker(listId, query) {
+            const el = document.getElementById(listId);
+            if (!el) return;
+            const q = (query || '').trim().toLowerCase();
+            el.querySelectorAll('.author-item').forEach(item => {
+                const match = !q || (item.dataset.name || '').includes(q);
+                item.style.display = match ? '' : 'none';
+            });
+            // Oculta rótulos de grupo sem itens visíveis
+            el.querySelectorAll('.author-group-label').forEach(lbl => {
+                let sib = lbl.nextElementSibling;
+                let anyVisible = false;
+                while (sib && !sib.classList.contains('author-group-label')) {
+                    if (sib.classList.contains('author-item') && sib.style.display !== 'none') { anyVisible = true; break; }
+                    sib = sib.nextElementSibling;
+                }
+                lbl.style.display = anyVisible ? '' : 'none';
+            });
+        }
+        // Abre o modal de novo projeto com o formulário limpo
+        function openNewProjectModal() {
+            const setVal = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
+            setVal('project-title', '');
+            setVal('project-description', '');
+            setVal('project-deadline', '');
+            setVal('project-drive-link', '');
+            setVal('project-participants-search', '');
+            const typeEl = document.getElementById('project-type');
+            if (typeEl) typeEl.selectedIndex = 0;
+            const driveChk = document.getElementById('create-drive-folder');
+            if (driveChk) driveChk.checked = false;
+            // Repopula o seletor de autores (limpo) a partir do cache carregado em loadAllUsers
+            renderAuthorPicker('project-participants-list', window._pickerMentors || [], window._pickerStudents || [], []);
+            filterAuthorPicker('project-participants-list', '');
+            openModal('new-project-modal');
+        }
+        // =================== FIM SELETOR DE AUTORES ===================
 
         // Get active stages for a project (stages with tasks based on filter)
         function getActiveStages(project) {
@@ -1696,22 +1891,10 @@
             const mentors = sortUsersByName(allUsers.filter(u => u.role && u.role.startsWith('mentor_')));
             const students = sortUsersByName(allUsers.filter(u => u.role === 'aluno'));
 
-            const select = document.getElementById('project-participants');
-            let optionsHtml = '';
-
-            if (mentors.length > 0) {
-                optionsHtml += '<optgroup label="👩‍🏫 Mentores">';
-                optionsHtml += mentors.map(u => `<option value="${u.id}">🎓 ${_dn(u.full_name) || u.email}</option>`).join('');
-                optionsHtml += '</optgroup>';
-            }
-
-            if (students.length > 0) {
-                optionsHtml += '<optgroup label="👥 Alunos">';
-                optionsHtml += students.map(u => `<option value="${u.id}">${_dn(u.full_name) || u.email}</option>`).join('');
-                optionsHtml += '</optgroup>';
-            }
-
-            select.innerHTML = optionsHtml;
+            // Cache para os seletores de autores (usado ao (re)abrir modais)
+            window._pickerMentors = mentors;
+            window._pickerStudents = students;
+            renderAuthorPicker('project-participants-list', mentors, students, []);
         }
 
         async function loadProjects() {
@@ -2619,8 +2802,7 @@
             const description = document.getElementById('project-description').value.trim();
             const deadline = document.getElementById('project-deadline').value || null;
             let driveLink = document.getElementById('project-drive-link').value.trim() || null;
-            const participantSelect = document.getElementById('project-participants');
-            const participants = Array.from(participantSelect.selectedOptions).map(o => parseInt(o.value));
+            const participants = getSelectedAuthorIds('project-participants-list');
             const createDriveFolder = document.getElementById('create-drive-folder').checked;
 
             if (!title) {
@@ -3144,19 +3326,9 @@
             const availableMentors = sortUsersByName(availableUsers.filter(u => u.role && u.role.startsWith('mentor_')));
             const availableStudents = sortUsersByName(availableUsers.filter(u => u.role === 'aluno'));
 
-            const select = document.getElementById('add-participant-select');
-            let selectHtml = '<option value="">Selecione um usuario...</option>';
-            if (availableMentors.length > 0) {
-                selectHtml += '<optgroup label="👩‍🏫 Mentores">';
-                selectHtml += availableMentors.map(u => `<option value="${u.id}">🎓 ${_dn(u.full_name) || u.email}</option>`).join('');
-                selectHtml += '</optgroup>';
-            }
-            if (availableStudents.length > 0) {
-                selectHtml += '<optgroup label="👥 Alunos">';
-                selectHtml += availableStudents.map(u => `<option value="${u.id}">${_dn(u.full_name) || u.email}</option>`).join('');
-                selectHtml += '</optgroup>';
-            }
-            select.innerHTML = selectHtml;
+            renderAuthorPicker('add-participant-list', availableMentors, availableStudents, []);
+            const searchEl = document.getElementById('add-participant-search');
+            if (searchEl) { searchEl.value = ''; filterAuthorPicker('add-participant-list', ''); }
 
             // Render current participants with remove button
             renderCurrentParticipants();
@@ -3197,13 +3369,14 @@
         }
 
         async function addParticipant() {
-            const userId = document.getElementById('add-participant-select').value;
-            if (!userId) {
-                WardApp.showToast('Selecione um usuario', 'warning');
+            const toAdd = getSelectedAuthorIds('add-participant-list');
+            if (!toAdd.length) {
+                WardApp.showToast('Selecione ao menos um usuário', 'warning');
                 return;
             }
 
-            const participants = [...(currentProject.participants || []), parseInt(userId)];
+            const current = currentProject.participants || [];
+            const participants = [...new Set([...current, ...toAdd])];
 
             const { error } = await WardApp.db
                 .from('research_projects')
@@ -3217,7 +3390,7 @@
             }
 
             currentProject.participants = participants;
-            WardApp.showToast('Participante adicionado!');
+            WardApp.showToast(toAdd.length > 1 ? `${toAdd.length} participantes adicionados!` : 'Participante adicionado!');
             openManageParticipantsModal(); // Refresh the modal
             loadParticipants(); // Update the view-project-modal participants
         }
