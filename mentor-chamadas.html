@@ -393,6 +393,45 @@
 
         <!-- Tab: Scheduled Calls -->
         <div id="tab-scheduled" class="tab-content active">
+            <!-- Link de agendamento para o aluno -->
+            <div class="card mb-4" id="schedule-link-card">
+                <div class="card-header" style="background: linear-gradient(135deg, #C45700 0%, #a34900 100%); color: #fff; border-radius: 12px 12px 0 0;">
+                    <span>🔗 Gerar link de agendamento</span>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted" style="margin-top: 0; margin-bottom: 1rem; font-size: 0.9rem;">
+                        Monte um link e envie ao aluno. Ao abrir, a página de chamadas dele já abre com o
+                        agendamento pronto (título e mentor preenchidos) — ele só escolhe o dia e o horário.
+                    </p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Chamada</label>
+                            <select id="link-call-select" class="form-input" onchange="onLinkCallSelectChange()">
+                                <!-- Preenchido por JS -->
+                            </select>
+                        </div>
+                        <div class="form-group" id="link-custom-wrap" style="margin: 0; display: none;">
+                            <label class="form-label">Título personalizado</label>
+                            <input type="text" id="link-custom-title" class="form-input" placeholder="Ex: Chamada extra de revisão" oninput="updateScheduleLink()">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Mentor</label>
+                            <select id="link-mentor-select" class="form-input" onchange="updateScheduleLink()">
+                                <!-- Preenchido por JS -->
+                            </select>
+                        </div>
+                    </div>
+                    <div id="link-output" style="display: none; margin-top: 1.25rem; padding-top: 1.1rem; border-top: 1px solid var(--gray-200);">
+                        <label class="form-label">Link para enviar ao aluno</label>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                            <input type="text" id="link-url" class="form-input" readonly onclick="this.select()" style="flex: 1; min-width: 240px; font-size: 0.85rem; background: var(--gray-50);">
+                            <button class="btn btn-primary btn-sm" onclick="copyScheduleLink()">📋 Copiar</button>
+                            <a id="link-whatsapp" class="btn btn-sm" href="#" target="_blank" rel="noopener" style="background: linear-gradient(135deg, #25D366 0%, #128C7E 100%); color: #fff;">💬 WhatsApp</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header d-flex justify-between align-center flex-wrap gap-2">
                     <span>📅 Chamadas</span>
@@ -836,8 +875,101 @@
                 loadMentorSettings(),
                 loadRegularAvailability(),
                 loadSpecificDates(),
-                loadScheduledCalls()
+                loadScheduledCalls(),
+                initScheduleLinkGenerator()
             ]);
+        }
+
+        // ===== Gerador de link de agendamento para o aluno =====
+        const STANDARD_CALL_TITLES = [
+            'Chamada de Acompanhamento',
+            'Chamada de Check-in',
+            'Revisão de Cronograma',
+            'Técnica de Questões',
+            'Chamada de Saúde Mental',
+            'Discussão de Simulado / NBME',
+            'Chamada de Pesquisa',
+            'Chamada de Observership',
+            'Planejamento do Dedicated',
+            'Chamada Pós-Prova'
+        ];
+
+        async function initScheduleLinkGenerator() {
+            // Preenche o seletor de chamadas (padrão + personalizada)
+            const callSelect = document.getElementById('link-call-select');
+            if (callSelect) {
+                callSelect.innerHTML =
+                    '<optgroup label="Chamadas padrão">' +
+                    STANDARD_CALL_TITLES.map(t => `<option value="${t.replace(/"/g, '&quot;')}">${t}</option>`).join('') +
+                    '</optgroup>' +
+                    '<option value="__custom__">✏️ Outra (personalizada)…</option>';
+            }
+
+            // Preenche o seletor de mentor (padrão = o próprio mentor logado)
+            const mentorSelect = document.getElementById('link-mentor-select');
+            if (mentorSelect) {
+                const { data: mentors } = await WardApp.db
+                    .from('users')
+                    .select('id, full_name, role')
+                    .ilike('role', 'mentor_%');
+                const sorted = (mentors || []).slice().sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+                mentorSelect.innerHTML = sorted.map(m => `<option value="${m.id}">${_dn(m.full_name) || m.role}</option>`).join('');
+                if (userData && userData.id) mentorSelect.value = String(userData.id);
+            }
+
+            updateScheduleLink();
+        }
+
+        function onLinkCallSelectChange() {
+            const isCustom = document.getElementById('link-call-select').value === '__custom__';
+            const wrap = document.getElementById('link-custom-wrap');
+            if (wrap) wrap.style.display = isCustom ? '' : 'none';
+            updateScheduleLink();
+        }
+
+        function currentLinkTitle() {
+            const sel = document.getElementById('link-call-select');
+            if (!sel) return '';
+            if (sel.value === '__custom__') {
+                return (document.getElementById('link-custom-title').value || '').trim();
+            }
+            return sel.value;
+        }
+
+        function buildStudentScheduleUrl(title, mentorId) {
+            const params = new URLSearchParams({ agendar: '1', titulo: title, mentor: String(mentorId || '') });
+            return `${window.location.origin}/landmarks?${params.toString()}`;
+        }
+
+        function updateScheduleLink() {
+            const title = currentLinkTitle();
+            const mentorId = document.getElementById('link-mentor-select')?.value || '';
+            const output = document.getElementById('link-output');
+            if (!title || !mentorId) {
+                if (output) output.style.display = 'none';
+                return;
+            }
+            const url = buildStudentScheduleUrl(title, mentorId);
+            document.getElementById('link-url').value = url;
+            const mentorName = document.getElementById('link-mentor-select').selectedOptions[0]?.textContent || 'o mentor';
+            const msg = `Olá! Para agendarmos nossa chamada "${title}" com ${mentorName}, é só abrir este link e escolher o melhor dia e horário: ${url}`;
+            document.getElementById('link-whatsapp').href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+            if (output) output.style.display = 'block';
+        }
+
+        async function copyScheduleLink() {
+            const input = document.getElementById('link-url');
+            const url = input.value;
+            if (!url) return;
+            try {
+                await navigator.clipboard.writeText(url);
+                WardApp.showToast('🔗 Link copiado!');
+            } catch (e) {
+                // Fallback para navegadores sem clipboard API
+                input.select();
+                try { document.execCommand('copy'); WardApp.showToast('🔗 Link copiado!'); }
+                catch (e2) { WardApp.showToast('Selecione e copie o link manualmente', 'warning'); }
+            }
         }
 
         async function loadMentorSettings() {

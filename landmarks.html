@@ -558,8 +558,10 @@
                     <button class="btn btn-primary btn-sm" onclick="addCallNoteFromModal()" style="margin-top: 0.5rem;">💾 Salvar Observação</button>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('call-details-modal')">Fechar</button>
+            <div class="modal-footer" style="flex-wrap: wrap; gap: 0.5rem;">
+                <button class="btn btn-outline btn-sm" onclick="rescheduleFromDetails()">📅 Reagendar</button>
+                <button class="btn btn-danger btn-sm" onclick="cancelCallFromDetails()">❌ Desmarcar chamada</button>
+                <button class="btn btn-secondary btn-sm" onclick="closeModal('call-details-modal')">Fechar</button>
             </div>
         </div>
     </div>
@@ -1063,6 +1065,22 @@
             outline-offset: 2px;
         }
 
+        /* Botão "Desmarcar" no banner e barra da próxima chamada */
+        .ncb-cancel-btn {
+            background: #fff;
+            border: 1px solid #fca5a5;
+            color: #b91c1c;
+        }
+        .ncb-cancel-btn:hover {
+            background: #fee2e2;
+            border-color: #dc2626;
+            color: #991b1b;
+        }
+        .ncb-cancel-btn:focus-visible {
+            outline: 2px solid #dc2626;
+            outline-offset: 2px;
+        }
+
         @media (max-width: 768px) {
             .next-call-mini {
                 top: 58px;
@@ -1540,6 +1558,7 @@
 
             await loadLandmarks();
             initDragAndDrop();
+            checkScheduleLink();
         });
 
         async function setupViewingAsStudent(studentId) {
@@ -1841,6 +1860,68 @@
             return 'https://calendar.google.com/calendar/render?' + params.toString();
         }
 
+        // Deduz o "hint" do mentor a partir do título da chamada
+        function mentorHintFromTitle(title) {
+            const t = String(title || '');
+            if (/Iria/i.test(t)) return 'iria';
+            if (/Marcos/i.test(t)) return 'marcos';
+            if (/Guilherme/i.test(t)) return 'guilherme';
+            if (/Fernando/i.test(t)) return 'fernando';
+            return '';
+        }
+
+        // Desmarca a chamada direto do banner do topo (mantém histórico com status 'cancelled')
+        async function cancelCallFromBanner(landmarkId, callId) {
+            if (!confirm('Tem certeza que deseja desmarcar esta chamada?')) return;
+            try {
+                const { error } = await WardApp.db
+                    .from('scheduled_calls')
+                    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+                    .eq('id', callId);
+                if (error) {
+                    console.error('Error cancelling call:', error);
+                    WardApp.showToast('Erro ao desmarcar chamada', 'error');
+                    return;
+                }
+                WardApp.showToast('❌ Chamada desmarcada');
+                await loadLandmarks();
+            } catch (e) {
+                console.error('cancelCallFromBanner error', e);
+                WardApp.showToast('Erro ao desmarcar chamada', 'error');
+            }
+        }
+
+        // Reagendar a partir do modal de detalhes
+        function rescheduleFromDetails() {
+            const lmId = currentCallLandmarkId;
+            const title = currentCallLandmarkTitle || 'Chamada';
+            closeModal('call-details-modal');
+            openScheduleModal(lmId, title, mentorHintFromTitle(title));
+        }
+
+        // Desmarcar a partir do modal de detalhes
+        async function cancelCallFromDetails() {
+            if (!currentCallId) return;
+            if (!confirm('Tem certeza que deseja desmarcar esta chamada?')) return;
+            try {
+                const { error } = await WardApp.db
+                    .from('scheduled_calls')
+                    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+                    .eq('id', currentCallId);
+                if (error) {
+                    console.error('Error cancelling call:', error);
+                    WardApp.showToast('Erro ao desmarcar chamada', 'error');
+                    return;
+                }
+                closeModal('call-details-modal');
+                WardApp.showToast('❌ Chamada desmarcada');
+                await loadLandmarks();
+            } catch (e) {
+                console.error('cancelCallFromDetails error', e);
+                WardApp.showToast('Erro ao desmarcar chamada', 'error');
+            }
+        }
+
         // Renderiza (ou oculta) o banner da próxima chamada agendada ainda por acontecer.
         function renderNextCallBanner(landmarks) {
             const banner = document.getElementById('next-call-banner');
@@ -1894,6 +1975,8 @@
             const dateStr = dateObj.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
             const mentorName = (call.mentor && (call.mentor.full_name || call.mentor.name)) || 'Mentor';
             const gcalUrl = buildCallGcalUrl(call, lm.title);
+            const mentorHint = mentorHintFromTitle(lm.title);
+            const escTitle = String(lm.title).replace(/'/g, "\\'");
 
             banner.innerHTML = `
                 <div class="ncb-info">
@@ -1902,8 +1985,10 @@
                     <div class="ncb-meta">📅 ${dateStr} às ${dspTime}${tzNote} &nbsp;•&nbsp; 👤 ${mentorName}</div>
                 </div>
                 <div class="ncb-actions">
-                    ${gcalUrl ? `<a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="gcal-btn">📆 Adicionar ao Google Agenda</a>` : ''}
-                    <button class="btn btn-sm btn-outline" onclick="openCallDetailsModal(${lm.id}, ${call.id})">👁️ Ver detalhes</button>
+                    ${gcalUrl ? `<a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="gcal-btn">📆 Google Agenda</a>` : ''}
+                    <button class="btn btn-sm btn-outline" onclick="openScheduleModal(${lm.id}, '${escTitle}', '${mentorHint}')">📅 Reagendar</button>
+                    <button class="btn btn-sm ncb-cancel-btn" onclick="cancelCallFromBanner(${lm.id}, ${call.id})">❌ Desmarcar</button>
+                    <button class="btn btn-sm btn-outline" onclick="openCallDetailsModal(${lm.id}, ${call.id})">👁️ Detalhes</button>
                 </div>
             `;
             banner.style.display = 'flex';
@@ -2197,6 +2282,7 @@
         // Call Details Modal Functions
         let currentCallLandmarkId = null;
         let currentCallId = null;
+        let currentCallLandmarkTitle = '';
 
         async function openCallDetailsModal(landmarkId, callId) {
             currentCallLandmarkId = landmarkId;
@@ -2221,6 +2307,7 @@
                     return;
                 }
 
+                currentCallLandmarkTitle = landmark.title || '';
                 document.getElementById('call-modal-landmark-id').value = landmarkId;
                 document.getElementById('call-modal-call-id').value = callId;
 
@@ -3387,6 +3474,7 @@
 
         // Called when clicking schedule button on a landmark
         async function openScheduleModal(landmarkId, landmarkTitle, mentorHint) {
+            window.scheduleLinkMode = null; // agendamento normal (não veio de link compartilhado)
             document.getElementById('schedule-landmark-id').value = landmarkId;
             document.getElementById('schedule-landmark-title').textContent = landmarkTitle;
 
@@ -3412,6 +3500,40 @@
             openModal('schedule-modal');
 
             if (select.value) loadMentorSlots();
+        }
+
+        // Abre o modal de agendamento pré-preenchido a partir de um link compartilhado pelo mentor
+        async function openScheduleModalFromLink(title, mentorId) {
+            window.scheduleLinkMode = { title: title };
+            document.getElementById('schedule-landmark-id').value = '';
+            document.getElementById('schedule-landmark-title').textContent = title;
+
+            const { data: mentors } = await WardApp.db
+                .from('users')
+                .select('id, full_name, role')
+                .ilike('role', 'mentor_%');
+
+            const select = document.getElementById('schedule-mentor');
+            select.innerHTML = '<option value="">Selecione o mentor...</option>' +
+                (mentors || []).map(m => `<option value="${m.id}">${m.full_name || m.role}</option>`).join('');
+            if (mentorId) select.value = String(mentorId);
+
+            document.getElementById('schedule-date').innerHTML = '<option value="">Selecione uma data...</option>';
+            document.getElementById('schedule-time').innerHTML = '<option value="">Selecione um horario...</option>';
+
+            openModal('schedule-modal');
+            if (select.value) loadMentorSlots();
+        }
+
+        // Detecta o link de agendamento (?agendar=1&titulo=...&mentor=...) e abre o modal
+        function checkScheduleLink() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('agendar') !== '1') return;
+            const title = params.get('titulo') || 'Chamada com mentor';
+            const mentorId = params.get('mentor') || '';
+            // Limpa a URL para que um reload não reabra o modal
+            try { history.replaceState({}, '', window.location.pathname); } catch (e) {}
+            openScheduleModalFromLink(title, mentorId);
         }
 
         async function loadMentorSlots() {
@@ -3655,11 +3777,39 @@
                     .eq('status', 'scheduled');
             }
 
+            // Agendamento via link compartilhado: cria um landmark com o título para a
+            // chamada aparecer corretamente (banner, dashboard, lista) — scheduled_calls
+            // não guarda título próprio.
+            let effectiveLandmarkId = landmarkId || null;
+            if (!effectiveLandmarkId && window.scheduleLinkMode && window.scheduleLinkMode.title) {
+                const { data: newLm, error: lmErr } = await WardApp.db
+                    .from('landmarks')
+                    .insert({
+                        user_id: targetUserId,
+                        landmark_type: 'call_extra_link',
+                        title: window.scheduleLinkMode.title,
+                        completed: false,
+                        is_urgent: false,
+                        notes: [],
+                        order_position: 999,
+                        group_name: 'extras'
+                    })
+                    .select()
+                    .single();
+                if (lmErr || !newLm) {
+                    console.error('Error creating landmark for link schedule:', lmErr);
+                    WardApp.showToast('Erro ao criar a chamada', 'error');
+                    return;
+                }
+                effectiveLandmarkId = newLm.id;
+                window.scheduleLinkMode = null;
+            }
+
             // Create the scheduled call
             const { error } = await WardApp.db
                 .from('scheduled_calls')
                 .insert({
-                    landmark_id: landmarkId || null,
+                    landmark_id: effectiveLandmarkId,
                     student_id: targetUserId,
                     mentor_id: mentorId,
                     scheduled_date: date,
