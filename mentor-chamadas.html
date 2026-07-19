@@ -881,28 +881,107 @@
         }
 
         // ===== Gerador de link de agendamento para o aluno =====
-        const STANDARD_CALL_TITLES = [
-            'Chamada de Acompanhamento',
-            'Chamada de Check-in',
-            'Revisão de Cronograma',
-            'Técnica de Questões',
-            'Chamada de Saúde Mental',
-            'Discussão de Simulado / NBME',
-            'Chamada de Pesquisa',
-            'Chamada de Observership',
-            'Planejamento do Dedicated',
-            'Chamada Pós-Prova'
+        // Títulos reais das chamadas padrão (idênticos aos landmarks do aluno, para casar exatamente)
+        const DEFAULT_CALL_GROUPS = [
+            { label: "FASE 1 — Onboarding e Setup", titles: [
+                "1.1 — Onboarding com Marcos Vilela (~90 min) — Tour da plataforma, perfil, UWorld, grupo WhatsApp",
+                "1.2 — Onboarding com Dra. Iria (~90 min) — Especialidade, perfil de visto, mindset, materiais, validacao do cronograma",
+                "1.3 — Sessao de Anki com Guilherme Lavor (~75 min) — Setup completo do AnKing",
+                "1.4 — Inscricao MyIntealth Parte 1 com Marcos (~60 min) — Cadastro, foto, passaporte, US$110",
+                "1.5 — Notary Cam ao vivo com Marcos (~45 min)",
+                "1.6 — Inscricao MyIntealth Parte 2 com Marcos (~60 min, ~3 semanas depois) — Pagamento US$800, traducoes"
+            ] },
+            { label: "FASE 2 — Acompanhamento", titles: [
+                "2.1 — Tecnica de Resolucao de Questoes com Iria (~45-60 min, apos 50-100 questoes) — Resolver 5-10 juntos, tela compartilhada",
+                "2.2a — Check-in Clinico Mensal com Iria (mes 1, ~45-60 min) — Analise de desempenho por sistema",
+                "2.2b — Check-in Clinico Mensal com Iria (mes 2, ~45-60 min)",
+                "2.2c — Check-in Clinico Mensal com Iria (mes 3, ~45-60 min)",
+                "2.2d — Check-in Clinico Mensal com Iria (mes 4, ~45-60 min)",
+                "2.3a — Reforco por Sistema com Iria (sob demanda) — Cardio / Neuro / Reumato / Behavioral / Bioquimica",
+                "2.3b — Reforco por Sistema com Iria (sob demanda - 2a)",
+                "2.4 — Saude Mental e Motivacional com Iria (sob demanda) — Em momentos de crise/ansiedade/perda de ritmo",
+                "2.5a — Vistos e Pathways com Iria (~60 min) — Analise inicial de perfil (EB-1, EB-2 NIW, J-1, F-1, ABIM Pilot)",
+                "2.5b — Vistos com Iria (~45 min) — Revisao apos contato com escritorio de imigracao",
+                "2.5c — Vistos com Iria (~45 min) — Decisao estrategica proxima da aplicacao",
+                "2.6a — Especialidade e Carreira com Iria (~60 min) — Validacao inicial",
+                "2.6b — Especialidade e Carreira com Iria (~60 min) — Revisao se cogita pivo (Anestesia/IM, Gen Surg/FM, etc.)",
+                "2.7 — Apresentacao de Casos no Formato Americano com Iria (~60 min) — Treino de one-liner, SOAP, antes de observership"
+            ] },
+            { label: "FASE 3 — Por System", titles: [
+                "3.1 — Check-in de Cronograma com Marcos (mensal, ~30 min) — Operacional: registro, atualizacao, MyIntealth, ORCID"
+            ] },
+            { label: "FASE 4 — Ajustes Técnicos", titles: [
+                "3.2 — Recalibragem de Cronograma com Marcos (~45 min, sob demanda quando atraso passa de 1 system)",
+                "4.1 — 2a Sessao com Guilherme (~45 min, ~45-60 dias apos primeira) — Otimizacao FSRS, revisao de estatisticas",
+                "4.2 — Chamada adicional com Guilherme (sob demanda) — Para problemas persistentes no Anki"
+            ] },
+            { label: "FASE 5 — Pesquisa", titles: [
+                "5.1 — Onboarding em Pesquisa com Marcos (~60 min) — PRISMA, PICO, Rayyan, Cowork, ORCID",
+                "5.2 — Validacao de Ideia com Marcos (~90 min) — PubMed, Toolbox Ward, cruzamento com meta-analises",
+                "5.3a — Desenvolvimento da Pesquisa: Usar databases corretamente",
+                "5.3b — Desenvolvimento: Triagem por titulo e resumo (Rayyan)",
+                "5.3c — Desenvolvimento: Triagem por manuscritos",
+                "5.3d — Desenvolvimento: Extracao de dados",
+                "5.3e — Desenvolvimento: Risco de vies (ROBINS-I / RoB 2)",
+                "5.3f — Desenvolvimento: Escrita cientifica do manuscrito",
+                "5.3g — Desenvolvimento: Submissao (Jane / revistas)",
+                "5.4 — Pesquisa Estrategica com Iria (~45 min, pontual) — Direcao alinhada com especialidade, senior author"
+            ] },
+            { label: "FASE 6 — Simulados e Second Pass", titles: [
+                "6.1 — Estrategia de Second Pass com Iria (~60 min) — Refazer banco vs incorretas vs subjects",
+                "6.2 — Analise do UWSA 1 com Iria (~45 min)",
+                "6.3a — Analise NBME 26 com Iria (~30-45 min)",
+                "6.3b — Analise NBME 27 com Iria",
+                "6.3c — Analise NBME 28 com Iria",
+                "6.3d — Analise NBME 29 com Iria",
+                "6.3e — Analise NBME 30 com Iria",
+                "6.3f — Analise NBME 31 com Iria",
+                "6.3g — Analise NBME 32 com Iria",
+                "6.3h — Analise NBME 33 com Iria",
+                "6.4 — Blocao Ward com Iria (~45 min)",
+                "6.5a — Analise UWSA 2 com Iria (~30 min, proximo da prova)",
+                "6.5b — Analise UWSA 3 com Iria (~30 min, proximo da prova)"
+            ] },
+            { label: "FASE 7 — Dedicated e Prova", titles: [
+                "7.1 — Inscricao FSMB com Marcos (~30 min) — Criar conta no portal FSMB, US$75",
+                "7.2 — Agendamento Prometric com Marcos (~30 min) — Escolher data, local e horario da prova",
+                "7.3 — Planejamento do Dedicated com Iria (~60 min)",
+                "7.4a — Check-in Semanal Dedicated com Iria (semana 1, ~30 min)",
+                "7.4b — Check-in Semanal Dedicated com Iria (semana 2, ~30 min)",
+                "7.4c — Check-in Semanal Dedicated com Iria (semana 3, ~30 min)",
+                "7.5 — Chamada Pre-Prova com Iria (~30 min, ~3 dias antes) — Free 120, comportamento no Prometric",
+                "7.6 — Chamada Pos-Prova com Iria (~45 min) — Debrief emocional, percepcao, proximos passos",
+                "7.7 — Pass Report com Iria (~60 min, apos resultado) — Step 2 CK, observerships, OET, networking"
+            ] },
+            { label: "FASE 8 — Pós-Step 1", titles: [
+                "8.1 — Planejamento Step 2 CK com Iria (~60 min)",
+                "8.2a — Check-in Mensal Step 2 CK com Iria (mes 1)",
+                "8.2b — Check-in Mensal Step 2 CK com Iria (mes 2)",
+                "8.2c — Check-in Mensal Step 2 CK com Iria (mes 3)",
+                "8.3 — Networking Estrategico com Marcos (~60 min) — Mapa de Networking, mensagens de aproximacao",
+                "8.4 — Observerships com Iria (~60 min) — PDs IMG-friendly, sponsors de visto, abordagem",
+                "8.5 — Cartas de Recomendacao com Iria (~60 min) — Estrategia, modelo, abordagem aos sponsors",
+                "8.6a — Personal Statement com Iria (~60 min, 1a revisao) — Narrativa, identidade old graduate",
+                "8.6b — Personal Statement com Iria (~60 min, 2a revisao)",
+                "8.7 — ERAS, Signaling e Ranking com Iria (~60 min) — Decisoes de alto impacto",
+                "8.8a — Mock Interview com Iria (~60 min, sessao 1) — Simulacao no formato americano",
+                "8.8b — Mock Interview com Iria (~60 min, sessao 2)"
+            ] }
         ];
 
         async function initScheduleLinkGenerator() {
-            // Preenche o seletor de chamadas (padrão + personalizada)
+            // Preenche o seletor de chamadas com os títulos reais (por fase) + opção personalizada
             const callSelect = document.getElementById('link-call-select');
             if (callSelect) {
-                callSelect.innerHTML =
-                    '<optgroup label="Chamadas padrão">' +
-                    STANDARD_CALL_TITLES.map(t => `<option value="${t.replace(/"/g, '&quot;')}">${t}</option>`).join('') +
-                    '</optgroup>' +
-                    '<option value="__custom__">✏️ Outra (personalizada)…</option>';
+                const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+                let html = '';
+                DEFAULT_CALL_GROUPS.forEach(g => {
+                    html += `<optgroup label="${esc(g.label)}">` +
+                        g.titles.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('') +
+                        '</optgroup>';
+                });
+                html += '<option value="__custom__">✏️ Outra chamada (título personalizado)…</option>';
+                callSelect.innerHTML = html;
             }
 
             // Preenche o seletor de mentor (padrão = o próprio mentor logado)

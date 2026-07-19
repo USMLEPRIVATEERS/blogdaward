@@ -3777,31 +3777,51 @@
                     .eq('status', 'scheduled');
             }
 
-            // Agendamento via link compartilhado: cria um landmark com o título para a
-            // chamada aparecer corretamente (banner, dashboard, lista) — scheduled_calls
-            // não guarda título próprio.
+            // Agendamento via link compartilhado. scheduled_calls não guarda título próprio,
+            // então o agendamento precisa estar vinculado a um landmark:
+            //  - se o aluno JÁ tem uma chamada com esse título (chamada padrão), usa a dele;
+            //  - se não (título personalizado), cria a chamada como extra.
             let effectiveLandmarkId = landmarkId || null;
             if (!effectiveLandmarkId && window.scheduleLinkMode && window.scheduleLinkMode.title) {
-                const { data: newLm, error: lmErr } = await WardApp.db
+                const linkTitle = window.scheduleLinkMode.title;
+                const { data: existingLm } = await WardApp.db
                     .from('landmarks')
-                    .insert({
-                        user_id: targetUserId,
-                        landmark_type: 'call_extra_link',
-                        title: window.scheduleLinkMode.title,
-                        completed: false,
-                        is_urgent: false,
-                        notes: [],
-                        order_position: 999,
-                        group_name: 'extras'
-                    })
-                    .select()
-                    .single();
-                if (lmErr || !newLm) {
-                    console.error('Error creating landmark for link schedule:', lmErr);
-                    WardApp.showToast('Erro ao criar a chamada', 'error');
-                    return;
+                    .select('id')
+                    .eq('user_id', targetUserId)
+                    .eq('title', linkTitle)
+                    .limit(1)
+                    .maybeSingle();
+                if (existingLm && existingLm.id) {
+                    effectiveLandmarkId = existingLm.id;
+                    // Reagenda: remove um eventual agendamento anterior dessa mesma chamada
+                    await WardApp.db
+                        .from('scheduled_calls')
+                        .delete()
+                        .eq('landmark_id', effectiveLandmarkId)
+                        .eq('student_id', targetUserId)
+                        .eq('status', 'scheduled');
+                } else {
+                    const { data: newLm, error: lmErr } = await WardApp.db
+                        .from('landmarks')
+                        .insert({
+                            user_id: targetUserId,
+                            landmark_type: 'call_extra_link',
+                            title: linkTitle,
+                            completed: false,
+                            is_urgent: false,
+                            notes: [],
+                            order_position: 999,
+                            group_name: 'extras'
+                        })
+                        .select()
+                        .single();
+                    if (lmErr || !newLm) {
+                        console.error('Error creating landmark for link schedule:', lmErr);
+                        WardApp.showToast('Erro ao criar a chamada', 'error');
+                        return;
+                    }
+                    effectiveLandmarkId = newLm.id;
                 }
-                effectiveLandmarkId = newLm.id;
                 window.scheduleLinkMode = null;
             }
 
