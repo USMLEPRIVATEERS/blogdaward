@@ -1203,6 +1203,7 @@
     </style>
 
     <script src="js/app.js"></script>
+    <script src="js/timezone-detect.js"></script>
     <script>
         let userData = null;
         let currentLandmarkId = null;
@@ -1279,7 +1280,14 @@
 
         function getStudentTimezone() {
             const stored = JSON.parse(localStorage.getItem('ward_user') || '{}');
-            return stored.timezone || 'America/Sao_Paulo';
+            if (stored.timezone) return stored.timezone;
+            // Nenhum fuso salvo ainda: detecta automaticamente o do usuario,
+            // mapeado para uma das opcoes disponiveis (ele pode trocar depois).
+            if (window.WardTZ) {
+                const known = timezoneGroups.reduce((acc, g) => acc.concat(g.options.map(o => o.value)), []);
+                return window.WardTZ.resolve(known, 'America/Sao_Paulo');
+            }
+            return 'America/Sao_Paulo';
         }
 
         function populateTimezoneSelects() {
@@ -1540,6 +1548,23 @@
 
             // Initialize timezone selects
             populateTimezoneSelects();
+
+            // Primeira vez sem fuso salvo: adota o fuso detectado automaticamente,
+            // para o mentor ja ver o horario correto do aluno (aluno pode trocar).
+            if (!viewingAsStudentId) {
+                const storedUser = JSON.parse(localStorage.getItem('ward_user') || '{}');
+                if (!storedUser.timezone && window.WardTZ) {
+                    const detected = getStudentTimezone();
+                    if (detected) {
+                        storedUser.timezone = detected;
+                        localStorage.setItem('ward_user', JSON.stringify(storedUser));
+                        const uid = storedUser.id || userData?.id;
+                        if (uid) {
+                            try { await WardApp.db.from('users').update({ timezone: detected }).eq('id', uid); } catch (e) {}
+                        }
+                    }
+                }
+            }
 
             // Check if user wants research (from questionnaire step 9)
             const { data: researchData } = await WardApp.db

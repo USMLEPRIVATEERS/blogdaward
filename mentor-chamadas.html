@@ -813,6 +813,7 @@
     <div id="toast-container" class="toast-container"></div>
 
     <script src="js/app.js"></script>
+    <script src="js/timezone-detect.js"></script>
     <script>
         let userData = null;
         let regularAvailability = [];
@@ -1068,8 +1069,21 @@
                 .eq('id', userData.id)
                 .maybeSingle();
 
-            const tz = userRow?.timezone || 'America/Sao_Paulo';
-            document.getElementById('mentor-timezone').value = tz;
+            const tzSelect = document.getElementById('mentor-timezone');
+            if (userRow?.timezone) {
+                tzSelect.value = userRow.timezone;
+            } else if (window.WardTZ) {
+                // Sem fuso salvo: detecta automaticamente o do mentor e adota (pode trocar).
+                const detected = window.WardTZ.applyToSelect(tzSelect, { fallback: 'America/Sao_Paulo' });
+                if (detected) {
+                    try { await WardApp.db.from('users').update({ timezone: detected }).eq('id', userData.id); } catch (e) {}
+                    const stored = JSON.parse(localStorage.getItem('ward_user') || '{}');
+                    stored.timezone = detected;
+                    localStorage.setItem('ward_user', JSON.stringify(stored));
+                }
+            } else {
+                tzSelect.value = 'America/Sao_Paulo';
+            }
         }
 
         async function saveMinDaysAhead() {
