@@ -915,9 +915,8 @@
         /* Próxima chamada agendada — banner completo no topo (rola com a página) */
         .next-call-banner {
             display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.75rem 1.25rem;
+            flex-direction: column;
+            gap: 0.85rem;
             margin-bottom: 1.5rem;
             padding: 1rem 1.25rem;
             background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 100%);
@@ -925,6 +924,25 @@
             border-left: 4px solid #10b981;
             border-radius: var(--radius-lg, 14px);
             box-shadow: 0 4px 8px rgba(16, 24, 40, 0.05), 0 14px 32px -8px rgba(16, 24, 40, 0.14);
+        }
+
+        /* Lista de chamadas agendadas (pode haver mais de uma) */
+        .next-call-banner .ncb-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .next-call-banner .ncb-item {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.6rem 1.25rem;
+        }
+
+        .next-call-banner .ncb-item + .ncb-item {
+            padding-top: 0.75rem;
+            border-top: 1px solid #d1fae5;
         }
 
         /* Barra compacta que aparece ao rolar para baixo (não obstrui a leitura) */
@@ -986,6 +1004,11 @@
         }
 
         .next-call-mini .ncm-label {
+            font-weight: 700;
+            color: #047857;
+        }
+
+        .next-call-mini .ncm-more {
             font-weight: 700;
             color: #047857;
         }
@@ -1944,7 +1967,10 @@
             if (!banner) return;
 
             const now = Date.now();
-            let next = null; // { lm, call, instant }
+            const studentTz = getStudentTimezone();
+
+            // Coleta TODAS as chamadas ainda por acontecer (pode haver mais de uma).
+            const upcoming = [];
             (landmarks || []).forEach(lm => {
                 (lm.scheduled_calls || []).forEach(call => {
                     if (call.status && call.status !== 'scheduled') return;
@@ -1953,15 +1979,14 @@
                     if (!instant) return;
                     // Considera "por acontecer" enquanto a chamada não terminou (janela de 1h)
                     if (instant.getTime() + 60 * 60 * 1000 < now) return;
-                    if (!next || instant.getTime() < next.instant.getTime()) {
-                        next = { lm, call, instant };
-                    }
+                    upcoming.push({ lm, call, instant, mentorTz });
                 });
             });
+            upcoming.sort((a, b) => a.instant.getTime() - b.instant.getTime());
 
             const mini = document.getElementById('next-call-mini');
 
-            if (!next) {
+            if (!upcoming.length) {
                 banner.style.display = 'none';
                 banner.innerHTML = '';
                 if (mini) {
@@ -1975,48 +2000,68 @@
                 return;
             }
 
-            const { lm, call } = next;
-            const mentorTz = (call.mentor && call.mentor.timezone) || 'America/Sao_Paulo';
-            const studentTz = getStudentTimezone();
-            let dspDate = call.scheduled_date;
-            let dspTime = call.scheduled_time.substring(0, 5);
-            let tzNote = '';
-            if (studentTz && studentTz !== mentorTz) {
-                const conv = convertTime(call.scheduled_date, dspTime, mentorTz, studentTz);
-                dspDate = conv.date;
-                dspTime = conv.time;
-                tzNote = ` (${friendlyTzName(studentTz)})`;
-            }
-            const dateObj = new Date(`${dspDate}T12:00:00`);
-            const dateStr = dateObj.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
-            const mentorName = (call.mentor && (call.mentor.full_name || call.mentor.name)) || 'Mentor';
-            const gcalUrl = buildCallGcalUrl(call, lm.title);
-            const mentorHint = mentorHintFromTitle(lm.title);
-            const escTitle = String(lm.title).replace(/'/g, "\\'");
+            // Campos de exibição de uma chamada (data/hora convertidas para o fuso do aluno).
+            const displayOf = (entry) => {
+                const { lm, call, mentorTz } = entry;
+                let dspDate = call.scheduled_date;
+                let dspTime = call.scheduled_time.substring(0, 5);
+                let tzNote = '';
+                if (studentTz && studentTz !== mentorTz) {
+                    const conv = convertTime(call.scheduled_date, dspTime, mentorTz, studentTz);
+                    dspDate = conv.date;
+                    dspTime = conv.time;
+                    tzNote = ` (${friendlyTzName(studentTz)})`;
+                }
+                const dateObj = new Date(`${dspDate}T12:00:00`);
+                const dateStr = dateObj.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
+                const mentorName = (call.mentor && (call.mentor.full_name || call.mentor.name)) || 'Mentor';
+                return { dateStr, dspTime, tzNote, mentorName, gcalUrl: buildCallGcalUrl(call, lm.title) };
+            };
+
+            const headerLabel = upcoming.length === 1
+                ? '🔔 Sua próxima chamada'
+                : `🔔 Suas próximas chamadas (${upcoming.length})`;
+
+            // Cada chamada vira uma linha com seu próprio botão de Google Agenda.
+            const itemsHtml = upcoming.map(entry => {
+                const { lm, call } = entry;
+                const d = displayOf(entry);
+                const mentorHint = mentorHintFromTitle(lm.title);
+                const escTitle = String(lm.title).replace(/'/g, "\\'");
+                return `
+                    <div class="ncb-item">
+                        <div class="ncb-info">
+                            <div class="ncb-title">${lm.title}</div>
+                            <div class="ncb-meta">📅 ${d.dateStr} às ${d.dspTime}${d.tzNote} &nbsp;•&nbsp; 👤 ${d.mentorName}</div>
+                        </div>
+                        <div class="ncb-actions">
+                            ${d.gcalUrl ? `<a href="${d.gcalUrl}" target="_blank" rel="noopener noreferrer" class="gcal-btn" title="Adicionar ao Google Agenda">📆 Google Agenda</a>` : ''}
+                            <button class="btn btn-sm btn-outline" onclick="openScheduleModal(${lm.id}, '${escTitle}', '${mentorHint}')">📅 Reagendar</button>
+                            <button class="btn btn-sm ncb-cancel-btn" onclick="cancelCallFromBanner(${lm.id}, ${call.id})">❌ Desmarcar</button>
+                            <button class="btn btn-sm btn-outline" onclick="openCallDetailsModal(${lm.id}, ${call.id})">👁️ Detalhes</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
 
             banner.innerHTML = `
-                <div class="ncb-info">
-                    <span class="ncb-label">🔔 Sua próxima chamada</span>
-                    <div class="ncb-title">${lm.title}</div>
-                    <div class="ncb-meta">📅 ${dateStr} às ${dspTime}${tzNote} &nbsp;•&nbsp; 👤 ${mentorName}</div>
-                </div>
-                <div class="ncb-actions">
-                    ${gcalUrl ? `<a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="gcal-btn">📆 Google Agenda</a>` : ''}
-                    <button class="btn btn-sm btn-outline" onclick="openScheduleModal(${lm.id}, '${escTitle}', '${mentorHint}')">📅 Reagendar</button>
-                    <button class="btn btn-sm ncb-cancel-btn" onclick="cancelCallFromBanner(${lm.id}, ${call.id})">❌ Desmarcar</button>
-                    <button class="btn btn-sm btn-outline" onclick="openCallDetailsModal(${lm.id}, ${call.id})">👁️ Detalhes</button>
-                </div>
+                <span class="ncb-label">${headerLabel}</span>
+                <div class="ncb-list">${itemsHtml}</div>
             `;
             banner.style.display = 'flex';
 
-            // Barra compacta (mostrada ao rolar): mesmo dado, versão enxuta
+            // Barra compacta (ao rolar): mostra a mais próxima + contador das demais.
             if (mini) {
+                const first = upcoming[0];
+                const d0 = displayOf(first);
+                const moreCount = upcoming.length - 1;
+                const moreTxt = moreCount > 0 ? ` <span class="ncm-more">(+${moreCount})</span>` : '';
                 mini.innerHTML = `
-                    <button type="button" class="ncm-main" onclick="openCallDetailsModal(${lm.id}, ${call.id})" title="Ver detalhes da chamada">
+                    <button type="button" class="ncm-main" onclick="openCallDetailsModal(${first.lm.id}, ${first.call.id})" title="Ver detalhes da chamada">
                         <span class="ncm-icon" aria-hidden="true">🔔</span>
-                        <span class="ncm-text"><span class="ncm-label">Próxima chamada:</span> ${lm.title} · ${dateStr} às ${dspTime}</span>
+                        <span class="ncm-text"><span class="ncm-label">Próxima chamada:</span> ${first.lm.title} · ${d0.dateStr} às ${d0.dspTime}${moreTxt}</span>
                     </button>
-                    ${gcalUrl ? `<a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="gcal-btn gcal-btn-mini" title="Adicionar ao Google Agenda">📆<span class="gcal-btn-label"> Agenda</span></a>` : ''}
+                    ${d0.gcalUrl ? `<a href="${d0.gcalUrl}" target="_blank" rel="noopener noreferrer" class="gcal-btn gcal-btn-mini" title="Adicionar ao Google Agenda">📆<span class="gcal-btn-label"> Agenda</span></a>` : ''}
                 `;
                 setupNextCallMiniObserver();
             }
