@@ -561,6 +561,7 @@
                                 </optgroup>
                             </select>
                             <small class="text-muted">Todos os horários serão exibidos neste fuso</small>
+                            <div id="mentor-tz-travel-hint" style="display:none;margin-top:0.6rem;padding:0.6rem 0.8rem;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;font-size:0.88rem;color:#9A3412;"></div>
                         </div>
                     </div>
                 </div>
@@ -1070,10 +1071,22 @@
                 .maybeSingle();
 
             const tzSelect = document.getElementById('mentor-timezone');
-            if (userRow?.timezone) {
-                tzSelect.value = userRow.timezone;
+            const savedTz = userRow?.timezone || null;
+            let sessionOverride = null;
+            try { sessionOverride = sessionStorage.getItem('ward_tz_override'); } catch (e) {}
+
+            if (sessionOverride) {
+                // Troca manual feita nesta sessao (ex.: mentor ajustou ao viajar).
+                tzSelect.value = sessionOverride;
+            } else if (savedTz) {
+                // O fuso do mentor NAO troca sozinho ao viajar: ele define o significado
+                // das disponibilidades ja cadastradas (que os alunos leem para converter).
+                // Trocar silenciosamente deslocaria o horario de todos os alunos. Entao
+                // mantemos o fuso salvo e apenas oferecemos atualizar, se detectarmos viagem.
+                tzSelect.value = savedTz;
+                maybeShowMentorTzTravelHint(savedTz);
             } else if (window.WardTZ) {
-                // Sem fuso salvo: detecta automaticamente o do mentor e adota (pode trocar).
+                // Primeira configuracao (sem fuso salvo): detecta e adota.
                 const detected = window.WardTZ.applyToSelect(tzSelect, { fallback: 'America/Sao_Paulo' });
                 if (detected) {
                     try { await WardApp.db.from('users').update({ timezone: detected }).eq('id', userData.id); } catch (e) {}
@@ -1084,6 +1097,40 @@
             } else {
                 tzSelect.value = 'America/Sao_Paulo';
             }
+        }
+
+        // Aviso nao-destrutivo: se o mentor parece estar em outro fuso agora (viagem),
+        // oferece atualizar — deixando claro que isso reposiciona as disponibilidades.
+        function maybeShowMentorTzTravelHint(savedTz) {
+            const hint = document.getElementById('mentor-tz-travel-hint');
+            if (!hint || !window.WardTZ) return;
+            const detected = window.WardTZ.detect();
+            if (!detected) { hint.style.display = 'none'; return; }
+            const offSaved = window.WardTZ.offsetMinutes(savedTz);
+            const offDet = window.WardTZ.offsetMinutes(detected);
+            if (offSaved === null || offDet === null || offSaved === offDet) {
+                hint.style.display = 'none';
+                return;
+            }
+            const known = Array.from(document.getElementById('mentor-timezone').options).map(o => o.value);
+            const mapped = window.WardTZ.resolve(known, savedTz);
+            if (!mapped || mapped === savedTz) { hint.style.display = 'none'; return; }
+            hint.dataset.tz = mapped;
+            hint.innerHTML =
+                '🌍 Detectamos que você pode estar em outro fuso agora. ' +
+                '<button type="button" class="btn btn-sm btn-outline" style="margin-left:0.25rem;" onclick="applyDetectedMentorTz()">Atualizar fuso</button> ' +
+                '<span class="text-muted" style="display:block;font-size:0.78rem;margin-top:0.35rem;">Ao atualizar, suas disponibilidades passam a valer neste novo fuso.</span>';
+            hint.style.display = 'block';
+        }
+
+        function applyDetectedMentorTz() {
+            const hint = document.getElementById('mentor-tz-travel-hint');
+            const tz = hint && hint.dataset ? hint.dataset.tz : null;
+            if (!tz) return;
+            const sel = document.getElementById('mentor-timezone');
+            sel.value = tz;
+            if (hint) hint.style.display = 'none';
+            saveMentorTimezone();
         }
 
         async function saveMinDaysAhead() {
@@ -1120,10 +1167,13 @@
                 return;
             }
 
-            // Also update localStorage
+            // Also update localStorage + marca como escolha manual desta sessao.
             const stored = JSON.parse(localStorage.getItem('ward_user') || '{}');
             stored.timezone = tz;
             localStorage.setItem('ward_user', JSON.stringify(stored));
+            try { sessionStorage.setItem('ward_tz_override', tz); } catch (e) {}
+            const hint = document.getElementById('mentor-tz-travel-hint');
+            if (hint) hint.style.display = 'none';
 
             WardApp.showToast('Fuso horario salvo!');
         }

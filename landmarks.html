@@ -1279,15 +1279,20 @@
         ];
 
         function getStudentTimezone() {
-            const stored = JSON.parse(localStorage.getItem('ward_user') || '{}');
-            if (stored.timezone) return stored.timezone;
-            // Nenhum fuso salvo ainda: detecta automaticamente o do usuario,
-            // mapeado para uma das opcoes disponiveis (ele pode trocar depois).
+            // Deteccao DINAMICA: o fuso do aluno e detectado ao vivo a cada visita,
+            // entao se ele viajar/mudar de local o horario acompanha automaticamente.
+            // Uma troca manual vale apenas para a sessao atual (sessionStorage): na
+            // proxima visita a deteccao volta a valer, evitando fuso "congelado".
+            try {
+                const override = sessionStorage.getItem('ward_tz_override');
+                if (override) return override;
+            } catch (e) {}
             if (window.WardTZ) {
                 const known = timezoneGroups.reduce((acc, g) => acc.concat(g.options.map(o => o.value)), []);
                 return window.WardTZ.resolve(known, 'America/Sao_Paulo');
             }
-            return 'America/Sao_Paulo';
+            const stored = JSON.parse(localStorage.getItem('ward_user') || '{}');
+            return stored.timezone || 'America/Sao_Paulo';
         }
 
         function populateTimezoneSelects() {
@@ -1316,6 +1321,9 @@
                 const el = document.getElementById(id);
                 if (el) el.value = tz;
             });
+            // Marca como escolha manual desta sessao (vence a deteccao automatica
+            // ate a pessoa fechar a aba; depois volta a detectar ao vivo).
+            try { sessionStorage.setItem('ward_tz_override', tz); } catch (e) {}
             // Save to localStorage
             const stored = JSON.parse(localStorage.getItem('ward_user') || '{}');
             stored.timezone = tz;
@@ -1548,23 +1556,6 @@
 
             // Initialize timezone selects
             populateTimezoneSelects();
-
-            // Primeira vez sem fuso salvo: adota o fuso detectado automaticamente,
-            // para o mentor ja ver o horario correto do aluno (aluno pode trocar).
-            if (!viewingAsStudentId) {
-                const storedUser = JSON.parse(localStorage.getItem('ward_user') || '{}');
-                if (!storedUser.timezone && window.WardTZ) {
-                    const detected = getStudentTimezone();
-                    if (detected) {
-                        storedUser.timezone = detected;
-                        localStorage.setItem('ward_user', JSON.stringify(storedUser));
-                        const uid = storedUser.id || userData?.id;
-                        if (uid) {
-                            try { await WardApp.db.from('users').update({ timezone: detected }).eq('id', uid); } catch (e) {}
-                        }
-                    }
-                }
-            }
 
             // Check if user wants research (from questionnaire step 9)
             const { data: researchData } = await WardApp.db
