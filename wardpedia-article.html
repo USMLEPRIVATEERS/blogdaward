@@ -224,6 +224,89 @@
             font-style: italic;
         }
 
+        /* Blocos de código (com botão de copiar) — usados p/ listas de IDs etc. */
+        .wpa-code-wrapper {
+            margin: 1.25rem 0;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #f8fafc;
+        }
+
+        .wpa-code-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0.4rem 0.5rem 0.4rem 0.85rem;
+            background: #eef2f7;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .wpa-code-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+
+        .wpa-code-copy {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.32rem 0.7rem;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #334155;
+            cursor: pointer;
+            transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+        }
+
+        .wpa-code-copy:hover {
+            border-color: var(--accent-orange, #C45700);
+            color: var(--accent-orange, #C45700);
+        }
+
+        .wpa-code-copy:focus-visible {
+            outline: 2px solid var(--accent-orange, #C45700);
+            outline-offset: 2px;
+        }
+
+        .wpa-code-copy.copied {
+            color: #047857;
+            border-color: #6ee7b7;
+            background: #ecfdf5;
+        }
+
+        .wpa-content pre {
+            margin: 0;
+            padding: 0.9rem 1rem;
+            background: #f8fafc;
+            font-family: 'SFMono-Regular', ui-monospace, Menlo, Consolas, 'Courier New', monospace;
+            font-size: 0.86rem;
+            line-height: 1.6;
+            color: #1e293b;
+            white-space: pre-wrap;    /* mantém como código E quebra linhas longas de IDs */
+            overflow-wrap: break-word;
+            word-break: break-word;
+            overflow-x: auto;
+        }
+
+        /* Bloco de código solto (caso não tenha sido embrulhado ainda) */
+        .wpa-content pre.wpa-code {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+        }
+        .wpa-code-wrapper .wpa-content pre,
+        .wpa-code-wrapper pre.wpa-code {
+            border: none;
+            border-radius: 0;
+        }
+
         .wpa-content table {
             width: 100%;
             border-collapse: collapse;
@@ -865,6 +948,22 @@
                 }
             });
 
+            // Blocos de código: embrulha cada <pre> num cartão com botão "Copiar"
+            // (exceção deliberada à regra de não copiar — útil p/ listas de IDs).
+            document.querySelectorAll('.wpa-content pre').forEach(pre => {
+                if (pre.parentElement && pre.parentElement.classList.contains('wpa-code-wrapper')) return;
+                const wrapper = document.createElement('div');
+                wrapper.className = 'wpa-code-wrapper';
+                const header = document.createElement('div');
+                header.className = 'wpa-code-header';
+                header.innerHTML =
+                    '<span class="wpa-code-label">Código</span>' +
+                    '<button type="button" class="wpa-code-copy" onclick="copyCodeBlock(this)">📋 Copiar</button>';
+                pre.parentNode.insertBefore(wrapper, pre);
+                wrapper.appendChild(header);
+                wrapper.appendChild(pre);
+            });
+
             // Render LaTeX/math formulas
             renderMath();
 
@@ -1077,6 +1176,37 @@
                 document.body.removeChild(input);
                 WardApp.showToast('Link copiado!', 'success');
             });
+        }
+
+        // Copia o conteúdo de um bloco de código (exceção à regra de não copiar).
+        function copyCodeBlock(btn) {
+            const wrapper = btn.closest('.wpa-code-wrapper');
+            const pre = wrapper ? wrapper.querySelector('pre') : null;
+            if (!pre) return;
+            const text = pre.innerText;
+            const feedback = () => {
+                const original = btn.innerHTML;
+                btn.innerHTML = '✅ Copiado!';
+                btn.classList.add('copied');
+                setTimeout(() => { btn.innerHTML = original; btn.classList.remove('copied'); }, 1600);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(feedback).catch(() => _fallbackCopyText(text, feedback));
+            } else {
+                _fallbackCopyText(text, feedback);
+            }
+        }
+
+        function _fallbackCopyText(text, onDone) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.top = '-1000px';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); if (onDone) onDone(); } catch (e) {}
+            document.body.removeChild(ta);
         }
 
         function escapeHtml(text) {
