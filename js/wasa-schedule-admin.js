@@ -73,12 +73,18 @@ async function loadData() {
         if (userIds.length > 0) {
             const { data: usersData, error: usersError } = await window.supabase
                 .from('users')
-                .select('id, name, email, whatsapp')
+                .select('id, name, full_name, email, whatsapp')
                 .in('id', userIds);
 
             if (!usersError && usersData) {
+                // O nome pode estar em `name` (texto puro) ou `full_name` (ofuscado).
+                // Alunos cadastrados mais recentemente só têm full_name, por isso
+                // apareciam como "Nome nao disponivel".
+                const decode = (window.WardApp && typeof window.WardApp._prs === 'function')
+                    ? window.WardApp._prs
+                    : (x => x);
                 usersData.forEach(u => {
-                    users[u.id] = u;
+                    users[u.id] = { ...u, name: u.name || decode(u.full_name) || u.email || '' };
                 });
             }
         }
@@ -224,6 +230,7 @@ function renderStudents() {
                         <input type="date" class="edit-date" value="${editDateValue}" data-id="${enrollment.id}">
                         <input type="time" class="edit-time" value="${editTimeValue}" data-id="${enrollment.id}">
                         <button class="btn-save" onclick="saveSchedule('${enrollment.id}')">Salvar</button>
+                        <button class="btn-delete-enrollment" onclick="deleteEnrollment('${enrollment.id}')" title="Apagar inscrição (o aluno poderá fazer o WASA novamente do zero)">🗑️</button>
                     </div>
                 </td>
             </tr>
@@ -289,7 +296,20 @@ async function saveSchedule(enrollmentId) {
         if (error) throw error;
 
         if (!data || data.length === 0) {
-            throw new Error('Nenhum registro atualizado - verifique o ID');
+            // O update pode não retornar linhas (ex.: RETURNING filtrado) mesmo tendo
+            // aplicado. Verifica de fato consultando a linha antes de acusar erro.
+            const { data: check } = await window.supabase
+                .from('self_assessment_enrollments')
+                .select('id, scheduled_datetime_utc')
+                .eq('id', enrollmentId)
+                .maybeSingle();
+            if (!check) {
+                throw new Error('Inscrição não encontrada (ID ' + enrollmentId + '). Ela pode ter sido removida — recarregue a página.');
+            }
+            if (check.scheduled_datetime_utc !== utcDateTime) {
+                throw new Error('Não foi possível salvar o agendamento desta inscrição. Se o problema persistir, apague a inscrição (🗑️) e peça para o aluno agendar novamente.');
+            }
+            // Caso contrário: aplicou de fato, segue como sucesso.
         }
 
         // Update local data
@@ -316,6 +336,54 @@ async function saveSchedule(enrollmentId) {
         console.error('Error saving schedule:', error);
         hideLoading();
         showToast('Erro ao salvar: ' + error.message, 'error');
+    }
+}
+
+// Apaga a inscrição de um aluno no WASA (agendamento + tentativas + respostas),
+// permitindo que ele se inscreva e faça novamente do zero.
+async function deleteEnrollment(enrollmentId) {
+    const enr = enrollments.find(e => String(e.id) === String(enrollmentId));
+    const u = enr ? users[enr.user_id] : null;
+    const who = (u && u.name) || (u && u.email) || ('inscrição ' + enrollmentId);
+
+    if (!confirm(
+        `Apagar a inscrição de "${who}" no WASA?\n\n` +
+        `Isso remove o agendamento, as tentativas e as respostas dela. ` +
+        `O aluno poderá se inscrever e fazer o WASA novamente do zero.\n\n` +
+        `Esta ação não pode ser desfeita.`
+    )) return;
+
+    showLoading();
+    try {
+        // Apaga em ordem (respostas -> tentativas -> inscrição). Funciona mesmo se
+        // o CASCADE não estiver ativo no banco.
+        await window.supabase.from('self_assessment_responses').delete().eq('enrollment_id', enrollmentId);
+        await window.supabase.from('self_assessment_attempts').delete().eq('enrollment_id', enrollmentId);
+
+        const { error } = await window.supabase
+            .from('self_assessment_enrollments')
+            .delete()
+            .eq('id', enrollmentId);
+        if (error) throw error;
+
+        // Confirma que a linha realmente saiu.
+        const { data: still } = await window.supabase
+            .from('self_assessment_enrollments')
+            .select('id')
+            .eq('id', enrollmentId)
+            .maybeSingle();
+        if (still) {
+            throw new Error('A inscrição não pôde ser removida (permissão no banco). ID ' + enrollmentId);
+        }
+
+        hideLoading();
+        showToast('Inscrição removida. O aluno já pode se inscrever novamente.', 'success');
+        await loadData();
+        renderStudents();
+    } catch (error) {
+        console.error('Error deleting enrollment:', error);
+        hideLoading();
+        showToast('Erro ao apagar: ' + error.message, 'error');
     }
 }
 
