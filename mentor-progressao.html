@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Ward Academy - Progressão dos Alunos</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .mpg-wrap { max-width: 1200px; margin: 0 auto; }
+
+        .mpg-head {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;
+        }
+        .mpg-head h1 { margin: 0 0 0.25rem; }
+        .mpg-sub { color: #6b7280; font-size: 0.92rem; margin: 0; }
+
+        /* Banner de migração pendente */
+        .mpg-migration {
+            display: none;
+            background: #FFF7ED; border: 1px solid #FED7AA; color: #9A3412;
+            border-radius: 12px; padding: 0.9rem 1.1rem; margin-bottom: 1rem; font-size: 0.9rem;
+        }
+        .mpg-migration code { background: #fff; padding: 0.1rem 0.4rem; border-radius: 5px; border: 1px solid #FED7AA; }
+
+        /* Stats */
+        .mpg-stats { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+        .mpg-stat {
+            flex: 1 1 150px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+            padding: 0.85rem 1rem; box-shadow: 0 1px 2px rgba(16,24,40,.05);
+        }
+        .mpg-stat b { font-size: 1.5rem; display: block; color: #111827; letter-spacing: -0.02em; }
+        .mpg-stat span { font-size: 0.78rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
+
+        .mpg-toolbar { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
+        .mpg-search {
+            flex: 1 1 240px; min-width: 0; padding: 0.6rem 0.85rem; font-size: 16px;
+            border: 1px solid #d1d5db; border-radius: 10px; background: #fff;
+        }
+        .mpg-search:focus { outline: 2px solid var(--accent-orange, #C45700); outline-offset: 1px; border-color: transparent; }
+
+        /* Grid de alunos */
+        .mpg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.85rem; }
+        .mpg-card {
+            text-align: left; background: #fff; border: 1px solid #e5e7eb; border-radius: 14px;
+            padding: 1rem 1.1rem; cursor: pointer; font: inherit; color: inherit;
+            box-shadow: 0 1px 2px rgba(16,24,40,.05); transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+        }
+        .mpg-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -10px rgba(16,24,40,.22); border-color: #d1d5db; }
+        .mpg-card:focus-visible { outline: 2px solid var(--accent-orange, #C45700); outline-offset: 2px; }
+        .mpg-card-name { font-weight: 700; font-size: 1rem; color: #111827; margin-bottom: 0.15rem; }
+        .mpg-card-email { font-size: 0.78rem; color: #9ca3af; margin-bottom: 0.7rem; word-break: break-word; }
+
+        .mpg-mini { margin-bottom: 0.45rem; }
+        .mpg-mini-top { display: flex; justify-content: space-between; font-size: 0.72rem; color: #6b7280; margin-bottom: 0.2rem; }
+        .mpg-bar { height: 7px; border-radius: 99px; background: #eef2f7; overflow: hidden; }
+        .mpg-bar > i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg,#f59e0b,#059669); transition: width .3s ease; }
+        .mpg-card-foot { margin-top: 0.6rem; font-size: 0.76rem; color: #6b7280; display: flex; gap: 0.75rem; flex-wrap: wrap; }
+        .mpg-chip { background: #f3f4f6; border-radius: 99px; padding: 0.15rem 0.55rem; }
+
+        /* Modal */
+        .mpg-modal {
+            position: fixed; inset: 0; z-index: 1000; display: none;
+            background: rgba(17,24,39,.55); padding: 1.5rem;
+            overflow-y: auto; -webkit-overflow-scrolling: touch;
+        }
+        .mpg-modal.open { display: block; }
+        .mpg-dialog {
+            max-width: 820px; margin: 0 auto; background: #fff; border-radius: 16px;
+            box-shadow: 0 24px 60px -12px rgba(16,24,40,.4); overflow: hidden;
+        }
+        .mpg-dialog-head {
+            position: sticky; top: 0; z-index: 2; background: #fff;
+            display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+            padding: 1rem 1.2rem; border-bottom: 1px solid #eef2f7;
+        }
+        .mpg-dialog-head h2 { margin: 0; font-size: 1.15rem; letter-spacing: -0.01em; }
+        .mpg-dialog-head .mpg-dh-email { font-size: 0.78rem; color: #9ca3af; margin-top: 0.1rem; }
+        .mpg-close {
+            border: 1px solid #e5e7eb; background: #fff; border-radius: 10px; width: 40px; height: 40px;
+            font-size: 1.1rem; cursor: pointer; color: #374151; flex-shrink: 0;
+        }
+        .mpg-close:hover { background: #f9fafb; }
+        .mpg-dialog-body { padding: 1.1rem 1.2rem 1.6rem; }
+
+        .mpg-section { margin-bottom: 1.6rem; }
+        .mpg-section > h3 {
+            font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280;
+            margin: 0 0 0.7rem; font-weight: 700;
+        }
+
+        /* Acordeão de step */
+        .mpg-step { border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 0.65rem; overflow: hidden; }
+        .mpg-step-head {
+            display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+            width: 100%; text-align: left; font: inherit; cursor: pointer;
+            padding: 0.8rem 1rem; background: #f9fafb; border: none; color: #111827;
+        }
+        .mpg-step-head:hover { background: #f3f4f6; }
+        .mpg-step-title { font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+        .mpg-step-count { font-size: 0.78rem; color: #6b7280; font-weight: 600; }
+        .mpg-step-body { padding: 0.4rem 0.6rem 0.9rem; display: none; }
+        .mpg-step.open .mpg-step-body { display: block; }
+        .mpg-step-chevron { transition: transform .2s ease; color: #9ca3af; }
+        .mpg-step.open .mpg-step-chevron { transform: rotate(90deg); }
+
+        /* Item de checklist */
+        .mpg-item {
+            display: flex; align-items: flex-start; gap: 0.6rem;
+            padding: 0.55rem 0.5rem; border-radius: 8px; cursor: pointer;
+        }
+        .mpg-item:hover { background: #f9fafb; }
+        .mpg-item input[type="checkbox"] { width: 20px; height: 20px; margin-top: 1px; flex-shrink: 0; cursor: pointer; accent-color: #059669; }
+        .mpg-item span { font-size: 0.92rem; line-height: 1.4; color: #374151; }
+        .mpg-item.done span { color: #6b7280; text-decoration: line-through; }
+
+        .mpg-notes label { display: block; font-size: 0.78rem; color: #6b7280; margin: 0.5rem 0.5rem 0.25rem; font-weight: 600; }
+        .mpg-textarea {
+            width: 100%; box-sizing: border-box; border: 1px solid #e5e7eb; border-radius: 10px;
+            padding: 0.6rem 0.75rem; font: inherit; font-size: 16px; resize: vertical; min-height: 60px;
+        }
+        .mpg-textarea:focus { outline: 2px solid var(--accent-orange, #C45700); outline-offset: 1px; border-color: transparent; }
+
+        /* Caixa ECFMG */
+        .mpg-ecfmg { margin: 0.35rem 0.5rem 0.2rem; background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 10px; padding: 0.7rem 0.8rem; }
+        .mpg-ecfmg .mpg-ecfmg-t { font-size: 0.8rem; font-weight: 700; color: #075985; margin-bottom: 0.5rem; }
+        .mpg-field { margin-bottom: 0.5rem; }
+        .mpg-field label { display: block; font-size: 0.75rem; color: #475569; margin-bottom: 0.2rem; font-weight: 600; }
+        .mpg-input {
+            width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 8px;
+            padding: 0.5rem 0.65rem; font: inherit; font-size: 16px; background: #fff;
+        }
+        .mpg-input:focus { outline: 2px solid #0284c7; outline-offset: 1px; border-color: transparent; }
+        .mpg-ecfmg-found { font-size: 0.74rem; color: #0369a1; margin-top: 0.15rem; }
+        .mpg-ecfmg-shared { font-size: 0.74rem; color: #047857; margin-top: 0.35rem; }
+
+        /* Avaliações */
+        .mpg-scores-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        .mpg-scores-table th { text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: #9ca3af; padding: 0.4rem 0.5rem; border-bottom: 1px solid #eef2f7; }
+        .mpg-scores-table td { padding: 0.55rem 0.5rem; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+        .mpg-score-pct { font-weight: 700; }
+        .mpg-score-obs { color: #6b7280; font-size: 0.82rem; }
+        .mpg-del {
+            border: 1px solid #fca5a5; background: #fff; color: #b91c1c; border-radius: 7px;
+            padding: 0.25rem 0.5rem; font-size: 0.78rem; cursor: pointer;
+        }
+        .mpg-del:hover { background: #fee2e2; }
+        .mpg-empty { color: #9ca3af; font-size: 0.86rem; padding: 0.6rem 0.5rem; }
+
+        .mpg-addscore {
+            margin-top: 0.85rem; background: #f9fafb; border: 1px solid #eef2f7; border-radius: 12px; padding: 0.85rem;
+            display: grid; grid-template-columns: 1fr 130px 110px; gap: 0.6rem; align-items: end;
+        }
+        .mpg-addscore .mpg-as-full { grid-column: 1 / -1; }
+        .mpg-select {
+            width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 8px;
+            padding: 0.5rem 0.6rem; font: inherit; font-size: 16px; background: #fff;
+        }
+
+        .mpg-btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+            padding: 0.55rem 1rem; border-radius: 10px; border: none; cursor: pointer;
+            font: inherit; font-weight: 600; font-size: 0.9rem;
+            background: linear-gradient(180deg,#22c55e,#16a34a); color: #fff;
+        }
+        .mpg-btn:hover { filter: brightness(1.05); }
+        .mpg-btn-sm { padding: 0.45rem 0.8rem; font-size: 0.85rem; }
+        .mpg-btn-outline { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+        .mpg-btn-outline:hover { background: #f9fafb; filter: none; }
+        .mpg-btn-blue { background: linear-gradient(180deg,#0ea5e9,#0284c7); }
+
+        .mpg-loading { text-align: center; color: #9ca3af; padding: 3rem 1rem; }
+
+        /* ---- iPhone / telas pequenas ---- */
+        @media (max-width: 640px) {
+            .mpg-modal { padding: 0; }
+            .mpg-dialog { max-width: none; min-height: 100vh; min-height: 100dvh; border-radius: 0; }
+            .mpg-dialog-head { padding: 0.85rem 1rem; }
+            .mpg-dialog-body { padding: 1rem 1rem 2.5rem; }
+            .mpg-addscore { grid-template-columns: 1fr 1fr; }
+            .mpg-grid { grid-template-columns: 1fr; }
+            .mpg-stat b { font-size: 1.25rem; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </a>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="nav-menu">
+                <a href="#" class="nav-link" id="nav-dashboard">Dashboard</a>
+                <a href="/mentor-cronograma" class="nav-link">Cronograma</a>
+                <a href="/mentor-chamadas" class="nav-link">Chamadas</a>
+                <a href="/mentor-progressao" class="nav-link active">Progressão</a>
+                <a href="/links" class="nav-link">Links</a>
+                <a href="/pesquisa" class="nav-link">Pesquisa</a>
+            </nav>
+            <div class="nav-user">
+                <span class="user-name" id="mentor-name">Mentor</span>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="mpg-wrap">
+            <div class="mpg-head">
+                <div>
+                    <h1>📈 Progressão dos Alunos</h1>
+                    <p class="mpg-sub">Burocracia (Step 1 / 2 CK / 3) e avaliações de cada aluno. Clique num aluno para ver e editar.</p>
+                </div>
+                <button type="button" class="mpg-btn mpg-btn-outline" onclick="openNewAssessment()">＋ Nova avaliação</button>
+            </div>
+
+            <div id="migration-banner" class="mpg-migration">
+                ⚠️ As tabelas desta página ainda não foram criadas no banco. Rode a migration
+                <code>sql/progressao-alunos-migration.sql</code> no SQL editor do Supabase para ativar tudo.
+                A lista de alunos abaixo já aparece, mas salvar burocracia/avaliações só funciona depois disso.
+            </div>
+
+            <div class="mpg-stats" id="mpg-stats"></div>
+
+            <div class="mpg-toolbar">
+                <input type="text" id="mpg-search" class="mpg-search" placeholder="🔎 Buscar aluno pelo nome ou e-mail..." oninput="filterStudents()">
+            </div>
+
+            <div id="mpg-overview">
+                <div class="mpg-loading">Carregando alunos...</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal de detalhe do aluno -->
+    <div class="mpg-modal" id="student-modal" onclick="if(event.target===this) closeStudentModal()">
+        <div class="mpg-dialog">
+            <div class="mpg-dialog-head">
+                <div>
+                    <h2 id="modal-student-name">Aluno</h2>
+                    <div class="mpg-dh-email" id="modal-student-email"></div>
+                </div>
+                <button type="button" class="mpg-close" onclick="closeStudentModal()" aria-label="Fechar">✕</button>
+            </div>
+            <div class="mpg-dialog-body" id="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script src="js/timezone-detect.js"></script>
+    <script>
+        // ===== Estado =====
+        let userData = null;
+        let students = [];
+        let assessments = [];               // ward_assessments
+        let scoresByUser = {};              // user_id -> [scores]
+        let bureaByUser = {};               // user_id -> { faculty_name, data }
+        let facultyContacts = {};           // faculty_name(lower) -> row
+        let tablesReady = true;
+        let currentStudentId = null;
+
+        function _dn(val) {
+            if (!val) return val;
+            return (window.WardApp && WardApp._prs) ? WardApp._prs(val) : val;
+        }
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+        }
+        function studentName(s) { return _dn(s.full_name) || s.name || s.email || 'Aluno'; }
+
+        // ===== Definição das checklists de burocracia =====
+        const BUREAUCRACY = [
+            { key: 'step1', label: 'Step 1', items: [
+                { id: 'myintealth_open', label: 'Abrir conta MyIntealth' },
+                { id: 'myintealth_pay_open', label: 'Pagar abertura de conta' },
+                { id: 'notarycam', label: 'Realizar NotaryCam' },
+                { id: 'translate', label: 'Traduzir diploma e histórico escolar' },
+                { id: 'ecfmg', label: 'Encontrar funcionário do ECFMG da faculdade', ecfmg: true },
+                { id: 'myintealth_pay_establish', label: 'Pagar estabelecimento de conta MyIntealth' },
+                { id: 'myintealth_confirm', label: 'Confirmar tudo finalizado no MyIntealth' },
+                { id: 'fsmb_register', label: 'Inscrever no FSMB' },
+                { id: 'fsmb_pay', label: 'Pagar inscrição no FSMB' },
+                { id: 'eligibility', label: 'Pagar eligibility period' },
+                { id: 'prometric', label: 'Agendar no Prometric' },
+            ]},
+            { key: 'step2ck', label: 'Step 2 CK', items: [
+                { id: 'apply', label: 'Inscrever / aplicar (MyIntealth)' },
+                { id: 'pay_application', label: 'Pagar inscrição' },
+                { id: 'eligibility', label: 'Pagar eligibility period' },
+                { id: 'prometric', label: 'Agendar no Prometric' },
+            ]},
+            { key: 'step3', label: 'Step 3', items: [
+                { id: 'apply', label: 'Inscrever / aplicar (FSMB / Oasis)' },
+                { id: 'pay_application', label: 'Pagar inscrição' },
+                { id: 'eligibility', label: 'Pagar eligibility period' },
+                { id: 'prometric', label: 'Agendar no Prometric' },
+            ]},
+        ];
+        // total de itens "checáveis" (usado para % — o notes não conta)
+        const BUREA_TOTAL = BUREAUCRACY.reduce((n, s) => n + s.items.length, 0);
+
+        // ===== Init =====
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+            const isMentor = userData.role && userData.role.startsWith('mentor');
+            if (!isMentor) { window.location.href = '/dashboard'; return; }
+
+            const dashboardLinks = {
+                mentor_marcos: '/mentor-dashboard-marcos',
+                mentor_iria: '/mentor-dashboard-iria',
+                mentor_guilherme: '/mentor-dashboard-guilherme',
+                mentor_fernando: '/mentor-dashboard-fernando'
+            };
+            document.getElementById('nav-dashboard').href = dashboardLinks[userData.role] || '/dashboard';
+            const mn = _dn(userData.full_name) || userData.email;
+            document.getElementById('mentor-name').textContent = mn ? mn.split(' ')[0] : 'Mentor';
+
+            await loadAll();
+        });
+
+        async function loadAll() {
+            // Alunos (sempre existe)
+            try {
+                const { data: sData } = await WardApp.db
+                    .from('users')
+                    .select('id, full_name, name, email, role')
+                    .in('role', ['aluno', 'assessoria']);
+                students = (sData || []).sort((a, b) =>
+                    studentName(a).toLowerCase().localeCompare(studentName(b).toLowerCase(), 'pt-BR'));
+            } catch (e) { console.error('load students', e); students = []; }
+
+            // Tabelas novas (podem não existir ainda)
+            try {
+                const { data: aData, error: aErr } = await WardApp.db
+                    .from('ward_assessments').select('*').order('display_order', { ascending: true });
+                if (aErr) throw aErr;
+                assessments = aData || [];
+
+                const [scoresRes, bureaRes, facRes] = await Promise.all([
+                    WardApp.db.from('student_assessment_scores').select('*'),
+                    WardApp.db.from('student_bureaucracy').select('*'),
+                    WardApp.db.from('faculty_ecfmg_contacts').select('*'),
+                ]);
+                scoresByUser = {};
+                (scoresRes.data || []).forEach(r => { (scoresByUser[r.user_id] = scoresByUser[r.user_id] || []).push(r); });
+                bureaByUser = {};
+                (bureaRes.data || []).forEach(r => { bureaByUser[r.user_id] = { faculty_name: r.faculty_name || '', data: r.data || {} }; });
+                facultyContacts = {};
+                (facRes.data || []).forEach(r => { facultyContacts[(r.faculty_name || '').toLowerCase()] = r; });
+                tablesReady = true;
+            } catch (e) {
+                console.warn('Tabelas de progressão ainda não existem:', e && e.message);
+                tablesReady = false;
+                assessments = []; scoresByUser = {}; bureaByUser = {}; facultyContacts = {};
+                document.getElementById('migration-banner').style.display = 'block';
+            }
+
+            renderStats();
+            renderOverview();
+        }
+
+        // ===== Helpers de dados =====
+        function bureaOf(userId) {
+            if (!bureaByUser[userId]) bureaByUser[userId] = { faculty_name: '', data: {} };
+            const b = bureaByUser[userId];
+            if (!b.data) b.data = {};
+            return b;
+        }
+        function bureaDoneCount(userId) {
+            const b = bureaByUser[userId];
+            if (!b || !b.data) return 0;
+            let n = 0;
+            BUREAUCRACY.forEach(step => {
+                const sd = b.data[step.key] || {};
+                step.items.forEach(it => { if (sd[it.id]) n++; });
+            });
+            return n;
+        }
+        function stepDone(userId, stepKey) {
+            const b = bureaByUser[userId];
+            const sd = (b && b.data && b.data[stepKey]) || {};
+            const step = BUREAUCRACY.find(s => s.key === stepKey);
+            let n = 0; step.items.forEach(it => { if (sd[it.id]) n++; });
+            return n;
+        }
+
+        // ===== Stats =====
+        function renderStats() {
+            const total = students.length;
+            const withScores = students.filter(s => (scoresByUser[s.id] || []).length > 0).length;
+            const avgBurea = total ? Math.round(students.reduce((a, s) => a + bureaDoneCount(s.id), 0) / total / BUREA_TOTAL * 100) : 0;
+            document.getElementById('mpg-stats').innerHTML = `
+                <div class="mpg-stat"><b>${total}</b><span>Alunos</span></div>
+                <div class="mpg-stat"><b>${avgBurea}%</b><span>Burocracia média</span></div>
+                <div class="mpg-stat"><b>${withScores}</b><span>Com avaliações</span></div>
+                <div class="mpg-stat"><b>${assessments.length}</b><span>Avaliações no catálogo</span></div>
+            `;
+        }
+
+        // ===== Overview =====
+        function renderOverview(filter) {
+            const q = (filter || '').trim().toLowerCase();
+            const list = q
+                ? students.filter(s => studentName(s).toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q))
+                : students;
+            const box = document.getElementById('mpg-overview');
+            if (!list.length) {
+                box.innerHTML = `<div class="mpg-empty">Nenhum aluno encontrado.</div>`;
+                return;
+            }
+            box.innerHTML = `<div class="mpg-grid">` + list.map(s => {
+                const done = bureaDoneCount(s.id);
+                const pct = Math.round(done / BUREA_TOTAL * 100);
+                const nScores = (scoresByUser[s.id] || []).length;
+                return `
+                    <button type="button" class="mpg-card" onclick="openStudent('${s.id}')">
+                        <div class="mpg-card-name">${esc(studentName(s))}</div>
+                        <div class="mpg-card-email">${esc(s.email || '')}</div>
+                        <div class="mpg-mini">
+                            <div class="mpg-mini-top"><span>Burocracia</span><span>${done}/${BUREA_TOTAL}</span></div>
+                            <div class="mpg-bar"><i style="width:${pct}%"></i></div>
+                        </div>
+                        <div class="mpg-card-foot">
+                            <span class="mpg-chip">Step 1: ${stepDone(s.id,'step1')}/${BUREAUCRACY[0].items.length}</span>
+                            <span class="mpg-chip">📝 ${nScores} avaliaç${nScores === 1 ? 'ão' : 'ões'}</span>
+                        </div>
+                    </button>`;
+            }).join('') + `</div>`;
+        }
+        function filterStudents() { renderOverview(document.getElementById('mpg-search').value); }
+
+        // ===== Detalhe do aluno =====
+        function openStudent(userId) {
+            currentStudentId = userId;
+            const s = students.find(x => String(x.id) === String(userId));
+            if (!s) return;
+            document.getElementById('modal-student-name').textContent = studentName(s);
+            document.getElementById('modal-student-email').textContent = s.email || '';
+            renderModalBody(userId);
+            document.getElementById('student-modal').classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeStudentModal() {
+            document.getElementById('student-modal').classList.remove('open');
+            document.body.style.overflow = '';
+            currentStudentId = null;
+        }
+
+        function renderModalBody(userId) {
+            document.getElementById('modal-body').innerHTML =
+                `<div class="mpg-section">
+                    <h3>🗂️ Burocracia</h3>
+                    <div id="mpg-burea">${renderBureaucracy(userId)}</div>
+                 </div>
+                 <div class="mpg-section">
+                    <h3>📝 Avaliações</h3>
+                    <div id="mpg-scores">${renderScores(userId)}</div>
+                    ${renderAddScore(userId)}
+                 </div>`;
+        }
+
+        // ---- Burocracia ----
+        function renderBureaucracy(userId) {
+            const b = bureaOf(userId);
+            return BUREAUCRACY.map((step, idx) => {
+                const sd = b.data[step.key] || {};
+                const done = step.items.filter(it => sd[it.id]).length;
+                const open = idx === 0 ? 'open' : '';
+                const items = step.items.map(it => {
+                    const checked = !!sd[it.id];
+                    let extra = '';
+                    if (it.ecfmg) extra = renderEcfmgBox(userId);
+                    return `
+                        <label class="mpg-item ${checked ? 'done' : ''}">
+                            <input type="checkbox" ${checked ? 'checked' : ''} ${tablesReady ? '' : 'disabled'}
+                                onchange="toggleBurea('${userId}','${step.key}','${it.id}',this.checked)">
+                            <span>${esc(it.label)}</span>
+                        </label>${extra}`;
+                }).join('');
+                const notes = (b.data[step.key] && b.data[step.key].notes) || '';
+                return `
+                    <div class="mpg-step ${open}" id="step-${step.key}">
+                        <button type="button" class="mpg-step-head" onclick="toggleStep('${step.key}')">
+                            <span class="mpg-step-title">${esc(step.label)}</span>
+                            <span><span class="mpg-step-count">${done}/${step.items.length}</span> <span class="mpg-step-chevron">▶</span></span>
+                        </button>
+                        <div class="mpg-step-body">
+                            ${items}
+                            <div class="mpg-notes">
+                                <label>Anotações / o que deu errado</label>
+                                <textarea class="mpg-textarea" ${tablesReady ? '' : 'disabled'}
+                                    onblur="saveBureaNotes('${userId}','${step.key}',this.value)"
+                                    placeholder="Ex.: pagamento recusado, documento pendente...">${esc(notes)}</textarea>
+                            </div>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function renderEcfmgBox(userId) {
+            const b = bureaOf(userId);
+            const faculty = b.faculty_name || '';
+            const contact = faculty ? facultyContacts[faculty.toLowerCase()] : null;
+            const datalist = Object.values(facultyContacts).map(c => `<option value="${esc(c.faculty_name)}">`).join('');
+            let sharedNote = '';
+            if (contact && contact.found_by_user_id) {
+                const finder = students.find(x => String(x.id) === String(contact.found_by_user_id));
+                if (finder && String(finder.id) !== String(userId)) {
+                    sharedNote = `<div class="mpg-ecfmg-shared">✓ Contato compartilhado (encontrado por ${esc(studentName(finder))})</div>`;
+                }
+            }
+            return `
+                <div class="mpg-ecfmg">
+                    <div class="mpg-ecfmg-t">🏫 Funcionário do ECFMG na faculdade</div>
+                    <div class="mpg-field">
+                        <label>Faculdade do aluno</label>
+                        <input class="mpg-input" list="mpg-faculties" value="${esc(faculty)}" ${tablesReady ? '' : 'disabled'}
+                            placeholder="Digite ou selecione a faculdade"
+                            onchange="setFaculty('${userId}', this.value)">
+                        <datalist id="mpg-faculties">${datalist}</datalist>
+                    </div>
+                    ${faculty ? `
+                    <div class="mpg-field">
+                        <label>Nome do funcionário do ECFMG</label>
+                        <input class="mpg-input" id="ecfmg-name" value="${esc(contact ? (contact.contact_name || '') : '')}" ${tablesReady ? '' : 'disabled'} placeholder="Nome">
+                    </div>
+                    <div class="mpg-field">
+                        <label>Contato (telefone e/ou e-mail)</label>
+                        <input class="mpg-input" id="ecfmg-info" value="${esc(contact ? (contact.contact_info || '') : '')}" ${tablesReady ? '' : 'disabled'} placeholder="Ex.: (11) 99999-9999 · fulano@faculdade.edu">
+                    </div>
+                    <button type="button" class="mpg-btn mpg-btn-blue mpg-btn-sm" ${tablesReady ? '' : 'disabled'} onclick="saveEcfmgContact('${userId}')">Salvar contato da faculdade</button>
+                    <div class="mpg-ecfmg-found">Este contato fica visível para todos os alunos desta faculdade.</div>
+                    ${sharedNote}` : `<div class="mpg-ecfmg-found">Defina a faculdade para registrar/ver o contato do ECFMG.</div>`}
+                </div>`;
+        }
+
+        function toggleStep(stepKey) { document.getElementById('step-' + stepKey).classList.toggle('open'); }
+
+        async function toggleBurea(userId, stepKey, itemId, checked) {
+            const b = bureaOf(userId);
+            b.data[stepKey] = b.data[stepKey] || {};
+            b.data[stepKey][itemId] = checked;
+            await saveBurea(userId);
+            // Atualiza contadores/visual sem fechar o acordeão
+            const stepEl = document.getElementById('step-' + stepKey);
+            const wasOpen = stepEl && stepEl.classList.contains('open');
+            document.getElementById('mpg-burea').innerHTML = renderBureaucracy(userId);
+            if (wasOpen) document.getElementById('step-' + stepKey).classList.add('open');
+            renderStats();
+        }
+
+        async function saveBureaNotes(userId, stepKey, value) {
+            const b = bureaOf(userId);
+            b.data[stepKey] = b.data[stepKey] || {};
+            b.data[stepKey].notes = value;
+            await saveBurea(userId);
+        }
+
+        async function setFaculty(userId, value) {
+            const b = bureaOf(userId);
+            b.faculty_name = (value || '').trim();
+            await saveBurea(userId);
+            document.getElementById('mpg-burea').innerHTML = renderBureaucracy(userId);
+            // reabre o step 1 (onde fica o ECFMG)
+            document.getElementById('step-step1').classList.add('open');
+        }
+
+        async function saveBurea(userId) {
+            if (!tablesReady) return;
+            const b = bureaOf(userId);
+            try {
+                await WardApp.db.from('student_bureaucracy').upsert({
+                    user_id: parseInt(userId),
+                    faculty_name: b.faculty_name || null,
+                    data: b.data,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'user_id' });
+            } catch (e) {
+                console.error('saveBurea', e);
+                WardApp.showToast('Erro ao salvar burocracia', 'error');
+            }
+        }
+
+        async function saveEcfmgContact(userId) {
+            const b = bureaOf(userId);
+            const faculty = (b.faculty_name || '').trim();
+            if (!faculty) { WardApp.showToast('Defina a faculdade primeiro', 'warning'); return; }
+            const name = (document.getElementById('ecfmg-name').value || '').trim();
+            const info = (document.getElementById('ecfmg-info').value || '').trim();
+            try {
+                await WardApp.db.from('faculty_ecfmg_contacts').upsert({
+                    faculty_name: faculty,
+                    contact_name: name || null,
+                    contact_info: info || null,
+                    found_by_user_id: parseInt(userId),
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'faculty_name' });
+                facultyContacts[faculty.toLowerCase()] = {
+                    faculty_name: faculty, contact_name: name, contact_info: info, found_by_user_id: parseInt(userId)
+                };
+                WardApp.showToast('Contato da faculdade salvo!', 'success');
+                document.getElementById('mpg-burea').innerHTML = renderBureaucracy(userId);
+                document.getElementById('step-step1').classList.add('open');
+            } catch (e) {
+                console.error('saveEcfmg', e);
+                WardApp.showToast('Erro ao salvar contato', 'error');
+            }
+        }
+
+        // ---- Avaliações ----
+        function renderScores(userId) {
+            const rows = (scoresByUser[userId] || []).slice().sort((a, b) => (b.taken_on || '').localeCompare(a.taken_on || ''));
+            if (!rows.length) return `<div class="mpg-empty">Nenhuma avaliação registrada ainda.</div>`;
+            return `<table class="mpg-scores-table">
+                <thead><tr><th>Avaliação</th><th>Data</th><th>Acertos</th><th></th></tr></thead>
+                <tbody>${rows.map(r => {
+                    const a = assessments.find(x => String(x.id) === String(r.assessment_id));
+                    const aname = a ? a.name : ('#' + r.assessment_id);
+                    const total = r.total_questions || (a && a.total_questions) || null;
+                    const pct = (r.correct_count != null && total) ? Math.round(r.correct_count / total * 100) : null;
+                    const pctColor = pct == null ? '#9ca3af' : (pct >= 70 ? '#047857' : pct >= 50 ? '#b45309' : '#b91c1c');
+                    return `<tr>
+                        <td>${esc(aname)}${r.observation ? `<div class="mpg-score-obs">💬 ${esc(r.observation)}</div>` : ''}</td>
+                        <td>${r.taken_on ? esc(formatDate(r.taken_on)) : '—'}</td>
+                        <td>${r.correct_count != null ? r.correct_count : '—'}${total ? '/' + total : ''}
+                            ${pct != null ? `<div class="mpg-score-pct" style="color:${pctColor}">${pct}%</div>` : ''}</td>
+                        <td><button type="button" class="mpg-del" onclick="deleteScore('${r.id}','${userId}')">Apagar</button></td>
+                    </tr>`;
+                }).join('')}</tbody>
+            </table>`;
+        }
+
+        function renderAddScore(userId) {
+            if (!tablesReady) return '';
+            const opts = assessments.map(a => `<option value="${a.id}" data-total="${a.total_questions || ''}">${esc(a.name)}</option>`).join('');
+            const today = new Date().toISOString().split('T')[0];
+            return `<div class="mpg-addscore">
+                <div class="mpg-as-full">
+                    <label style="font-size:0.75rem;color:#6b7280;font-weight:600;display:block;margin-bottom:0.2rem;">Avaliação</label>
+                    <select class="mpg-select" id="new-score-assessment" onchange="onAssessmentPick()">${opts || '<option>Crie uma avaliação primeiro</option>'}</select>
+                </div>
+                <div>
+                    <label style="font-size:0.75rem;color:#6b7280;font-weight:600;display:block;margin-bottom:0.2rem;">Data</label>
+                    <input type="date" class="mpg-input" id="new-score-date" value="${today}">
+                </div>
+                <div>
+                    <label style="font-size:0.75rem;color:#6b7280;font-weight:600;display:block;margin-bottom:0.2rem;">Acertos</label>
+                    <input type="number" class="mpg-input" id="new-score-correct" min="0" placeholder="0">
+                </div>
+                <div>
+                    <label style="font-size:0.75rem;color:#6b7280;font-weight:600;display:block;margin-bottom:0.2rem;">Total</label>
+                    <input type="number" class="mpg-input" id="new-score-total" min="1" placeholder="—">
+                </div>
+                <div class="mpg-as-full">
+                    <label style="font-size:0.75rem;color:#6b7280;font-weight:600;display:block;margin-bottom:0.2rem;">Observação (opcional)</label>
+                    <input type="text" class="mpg-input" id="new-score-obs" placeholder="Ex.: melhorou muito em cardio">
+                </div>
+                <div class="mpg-as-full">
+                    <button type="button" class="mpg-btn" onclick="addScore('${userId}')">＋ Adicionar avaliação</button>
+                </div>
+            </div>`;
+        }
+
+        function onAssessmentPick() {
+            const sel = document.getElementById('new-score-assessment');
+            const opt = sel.options[sel.selectedIndex];
+            const total = opt ? opt.getAttribute('data-total') : '';
+            const totalInput = document.getElementById('new-score-total');
+            if (total && !totalInput.value) totalInput.value = total;
+        }
+
+        async function addScore(userId) {
+            const assessmentId = document.getElementById('new-score-assessment').value;
+            if (!assessmentId) { WardApp.showToast('Selecione uma avaliação', 'warning'); return; }
+            const date = document.getElementById('new-score-date').value || null;
+            const correct = document.getElementById('new-score-correct').value;
+            const total = document.getElementById('new-score-total').value;
+            const obs = (document.getElementById('new-score-obs').value || '').trim();
+            try {
+                const { data, error } = await WardApp.db.from('student_assessment_scores').insert({
+                    user_id: parseInt(userId),
+                    assessment_id: parseInt(assessmentId),
+                    taken_on: date,
+                    correct_count: correct !== '' ? parseInt(correct) : null,
+                    total_questions: total !== '' ? parseInt(total) : null,
+                    observation: obs || null
+                }).select();
+                if (error) throw error;
+                const row = (data && data[0]) || null;
+                if (row) { (scoresByUser[userId] = scoresByUser[userId] || []).push(row); }
+                WardApp.showToast('Avaliação adicionada!', 'success');
+                renderModalBody(userId);
+                renderStats(); renderOverview(document.getElementById('mpg-search').value);
+            } catch (e) {
+                console.error('addScore', e);
+                WardApp.showToast('Erro ao adicionar avaliação', 'error');
+            }
+        }
+
+        async function deleteScore(scoreId, userId) {
+            if (!confirm('Apagar esta avaliação?')) return;
+            try {
+                const { error } = await WardApp.db.from('student_assessment_scores').delete().eq('id', scoreId);
+                if (error) throw error;
+                scoresByUser[userId] = (scoresByUser[userId] || []).filter(r => String(r.id) !== String(scoreId));
+                document.getElementById('mpg-scores').innerHTML = renderScores(userId);
+                renderStats(); renderOverview(document.getElementById('mpg-search').value);
+            } catch (e) {
+                console.error('deleteScore', e);
+                WardApp.showToast('Erro ao apagar', 'error');
+            }
+        }
+
+        // ---- Nova avaliação (catálogo global) ----
+        async function openNewAssessment() {
+            if (!tablesReady) { WardApp.showToast('Rode a migration no Supabase primeiro', 'warning'); return; }
+            const name = prompt('Nome da nova avaliação (vale para todos os alunos):');
+            if (!name || !name.trim()) return;
+            const totalStr = prompt('Total de questões (opcional — deixe em branco se não tiver):', '');
+            const total = totalStr && totalStr.trim() ? parseInt(totalStr) : null;
+            try {
+                const maxOrder = assessments.reduce((m, a) => Math.max(m, a.display_order || 0), 0);
+                const { data, error } = await WardApp.db.from('ward_assessments').insert({
+                    name: name.trim(),
+                    total_questions: (total != null && !isNaN(total)) ? total : null,
+                    is_default: false,
+                    display_order: maxOrder + 1
+                }).select();
+                if (error) throw error;
+                if (data && data[0]) assessments.push(data[0]);
+                WardApp.showToast('Avaliação criada!', 'success');
+                renderStats();
+                if (currentStudentId) renderModalBody(currentStudentId);
+            } catch (e) {
+                console.error('newAssessment', e);
+                WardApp.showToast('Erro ao criar avaliação (nome já existe?)', 'error');
+            }
+        }
+
+        function formatDate(d) {
+            if (!d) return '';
+            const parts = String(d).split('T')[0].split('-');
+            if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            return d;
+        }
+
+        // Fecha modal com ESC
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeStudentModal(); });
+    </script>
+</body>
+</html>
