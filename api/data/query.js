@@ -18,7 +18,10 @@ const ADMIN_WRITE_TABLES = [
   'assessments', 'self_assessments', 'self_assessment_questions',
   'self_assessment_tests', 'self_assessment_events',
   'wardpedia_articles', 'wardpedia_steps', 'wardpedia_subjects',
-  'wardpedia_systems', 'wardpedia_categories'
+  'wardpedia_systems', 'wardpedia_categories',
+  // Progressão dos alunos: só mentores escrevem
+  'ward_assessments', 'student_assessment_scores',
+  'student_bureaucracy', 'faculty_ecfmg_contacts'
 ];
 
 // =============================================
@@ -46,7 +49,9 @@ const USER_SCOPED_TABLES = [
   'assessment_enrollments', 'watched_lessons',
   'user_tutorials', 'mentor_student_tasks',
   'wasa_schedules', 'study_difficulties',
-  'wardpedia_comments', 'wardpedia_favorites', 'wardpedia_views'
+  'wardpedia_comments', 'wardpedia_favorites', 'wardpedia_views',
+  // Progressão: se um aluno acessar, só enxerga os próprios dados (mentores veem tudo)
+  'student_assessment_scores', 'student_bureaucracy'
 ];
 
 // =============================================
@@ -72,6 +77,7 @@ const OWNER_COLUMN = {
   wasa_schedules: 'user_id', study_difficulties: 'user_id', wardpedia_favorites: 'user_id',
   wardpedia_views: 'user_id',
   assessment_enrollments: 'student_id', mentor_student_tasks: 'student_id',
+  student_assessment_scores: 'user_id', student_bureaucracy: 'user_id',
 };
 
 // Operators that can widen scope past an enforced equality; rejected on
