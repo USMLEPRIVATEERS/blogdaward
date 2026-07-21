@@ -335,34 +335,52 @@
                     studentName(a).toLowerCase().localeCompare(studentName(b).toLowerCase(), 'pt-BR'));
             } catch (e) { console.error('load students', e); students = []; }
 
-            // Tabelas novas (podem não existir ainda)
-            try {
-                const { data: aData, error: aErr } = await WardApp.db
-                    .from('ward_assessments').select('*').order('display_order', { ascending: true });
-                if (aErr) throw aErr;
-                assessments = aData || [];
+            // Tabelas novas: carrega cada uma de forma independente, tolerando
+            // erro/vazio. O banner só aparece se NÃO conseguirmos ler o catálogo
+            // de avaliações (tabela ausente OU sem permissão) — assim, quando a
+            // migration estiver aplicada e acessível, o aviso some sozinho.
+            const aRes = await safeLoad(() =>
+                WardApp.db.from('ward_assessments').select('*').order('display_order', { ascending: true }));
+            assessments = aRes.data || [];
 
-                const [scoresRes, bureaRes, facRes] = await Promise.all([
-                    WardApp.db.from('student_assessment_scores').select('*'),
-                    WardApp.db.from('student_bureaucracy').select('*'),
-                    WardApp.db.from('faculty_ecfmg_contacts').select('*'),
-                ]);
-                scoresByUser = {};
-                (scoresRes.data || []).forEach(r => { (scoresByUser[r.user_id] = scoresByUser[r.user_id] || []).push(r); });
-                bureaByUser = {};
-                (bureaRes.data || []).forEach(r => { bureaByUser[r.user_id] = { faculty_name: r.faculty_name || '', data: r.data || {} }; });
-                facultyContacts = {};
-                (facRes.data || []).forEach(r => { facultyContacts[(r.faculty_name || '').toLowerCase()] = r; });
-                tablesReady = true;
-            } catch (e) {
-                console.warn('Tabelas de progressão ainda não existem:', e && e.message);
-                tablesReady = false;
-                assessments = []; scoresByUser = {}; bureaByUser = {}; facultyContacts = {};
-                document.getElementById('migration-banner').style.display = 'block';
+            const scRes = await safeLoad(() => WardApp.db.from('student_assessment_scores').select('*'));
+            scoresByUser = {};
+            (scRes.data || []).forEach(r => { (scoresByUser[r.user_id] = scoresByUser[r.user_id] || []).push(r); });
+
+            const buRes = await safeLoad(() => WardApp.db.from('student_bureaucracy').select('*'));
+            bureaByUser = {};
+            (buRes.data || []).forEach(r => { bureaByUser[r.user_id] = { faculty_name: r.faculty_name || '', data: r.data || {} }; });
+
+            const fcRes = await safeLoad(() => WardApp.db.from('faculty_ecfmg_contacts').select('*'));
+            facultyContacts = {};
+            (fcRes.data || []).forEach(r => { facultyContacts[(r.faculty_name || '').toLowerCase()] = r; });
+
+            tablesReady = aRes.ok;
+            if (!aRes.ok) {
+                console.warn('Sem acesso às tabelas de progressão:', aRes.error && (aRes.error.message || aRes.error));
+                const banner = document.getElementById('migration-banner');
+                const notExist = aRes.error && /(does not exist|42P01)/i.test(String(aRes.error.message || aRes.error.code || aRes.error));
+                banner.innerHTML = notExist
+                    ? '⚠️ As tabelas desta página ainda não foram criadas no banco. Rode a migration <code>sql/progressao-alunos-migration.sql</code> no SQL editor do Supabase. A lista de alunos já aparece; salvar burocracia/avaliações funciona depois disso.'
+                    : '⚠️ As tabelas existem, mas o app não conseguiu acessá-las (permissão/RLS). Rode o trecho de GRANT/RLS no final de <code>sql/progressao-alunos-migration.sql</code> no Supabase. A lista de alunos já aparece.';
+                banner.style.display = 'block';
+            } else {
+                document.getElementById('migration-banner').style.display = 'none';
             }
 
             renderStats();
             renderOverview();
+        }
+
+        // Executa uma query com segurança: nunca lança; devolve {ok, data, error}.
+        async function safeLoad(fn) {
+            try {
+                const res = await fn();
+                if (res && res.error) return { ok: false, error: res.error, data: [] };
+                return { ok: true, data: (res && res.data) || [], error: null };
+            } catch (e) {
+                return { ok: false, error: e, data: [] };
+            }
         }
 
         // ===== Helpers de dados =====

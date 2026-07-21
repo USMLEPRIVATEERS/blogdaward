@@ -71,6 +71,27 @@ CREATE TABLE IF NOT EXISTS faculty_ecfmg_contacts (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- ---------------------------------------------------------------------
+-- ACESSO DA APLICAÇÃO (importante!)
+-- A app usa os papéis anon/authenticated. Se o app não conseguir LER as
+-- tabelas (banner "não conseguiu acessar"), rode este trecho. Ele garante
+-- o acesso desativando RLS e concedendo os privilégios nas tabelas novas.
+-- ---------------------------------------------------------------------
+ALTER TABLE ward_assessments          DISABLE ROW LEVEL SECURITY;
+ALTER TABLE student_assessment_scores DISABLE ROW LEVEL SECURITY;
+ALTER TABLE student_bureaucracy       DISABLE ROW LEVEL SECURITY;
+ALTER TABLE faculty_ecfmg_contacts    DISABLE ROW LEVEL SECURITY;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+    ward_assessments,
+    student_assessment_scores,
+    student_bureaucracy,
+    faculty_ecfmg_contacts
+    TO anon, authenticated, service_role;
+
+-- Sequences (necessário para os INSERT com id BIGSERIAL)
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+
 -- Verificação
 SELECT 'ward_assessments' AS tabela, COUNT(*) AS linhas FROM ward_assessments
 UNION ALL SELECT 'student_assessment_scores', COUNT(*) FROM student_assessment_scores
