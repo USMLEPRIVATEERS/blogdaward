@@ -288,6 +288,11 @@ var SYSTEM_ORDER=[
 var SYS_RANK={}; SYSTEM_ORDER.forEach(function(n,i){SYS_RANK[n]=i;});
 function sysRank(i){var n=D.systems[i];return (n in SYS_RANK)?SYS_RANK[n]:900;}
 
+/* ---- Ordem didática curada dos subjects ---- */
+var SUBJECT_ORDER=["Anatomy","Embryology","Histology","Physiology","Biochemistry","Genetics","Immunology","Microbiology","Pathology","Pathophysiology","Pharmacology","Behavioral science","Biostatistics","Medicine","Surgery","Pediatrics","Obstetrics & Gynecology","Psychiatry"];
+var SUBJ_RANK={}; SUBJECT_ORDER.forEach(function(n,i){SUBJ_RANK[n]=i;});
+function subjRank(i){var n=D.subjects[i];return (n in SUBJ_RANK)?SUBJ_RANK[n]:900;}
+
 /* ---- Ordem didática curada dos tópicos (topic_order.js) ---- */
 var TOPIC_ORDER=window.TOPIC_ORDER||{};
 var TOPIC_RANK={};
@@ -296,6 +301,34 @@ function topicRank(sysIdx,topIdx){
   var m=TOPIC_RANK[D.systems[sysIdx]];
   if(m){var t=D.topics[topIdx];if(t in m)return m[t];}
   return 100000;
+}
+
+/* ---- Ordena a lista de um painel conforme o modo de estudo ---- */
+function panelName(level,id){return level==='subj'?D.subjects[id]:level==='sys'?D.systems[id]:D.topics[id];}
+function sortPanel(ids,level,counts,topKey){
+  var mode=state.sort;
+  ids.sort(function(a,b){
+    if(mode==='importancia'){var d=counts[b].c-counts[a].c;if(d)return d;return panelName(level,a).localeCompare(panelName(level,b));}
+    if(mode==='fluidez'){var pa=counts[a].s/counts[a].c,pb=counts[b].s/counts[b].c;if(pb!==pa)return pb-pa;return panelName(level,a).localeCompare(panelName(level,b));}
+    /* aprendizado: ordem didática curada */
+    if(level==='sys'){var rs=sysRank(a)-sysRank(b);if(rs)return rs;return D.systems[a].localeCompare(D.systems[b]);}
+    if(level==='subj'){var ru=subjRank(a)-subjRank(b);if(ru)return ru;return D.subjects[a].localeCompare(D.subjects[b]);}
+    var ka=(topKey&&topKey[a])||[99999,999999],kb=(topKey&&topKey[b])||[99999,999999];
+    if(ka[0]!==kb[0])return ka[0]-kb[0];
+    if(ka[1]!==kb[1])return ka[1]-kb[1];
+    return D.topics[a].localeCompare(D.topics[b]);
+  });
+}
+/* para tópicos no modo aprendizado: cada tópico recebe [rank do system, rank do tópico] */
+function buildTopKey(){
+  var S=state.subjects,Y=state.systems,map={};
+  for(var i=0;i<stepRows.length;i++){var r=stepRows[i];
+    if(S.size&&!S.has(r[R_SUBJ]))continue;
+    if(Y.size&&!Y.has(r[R_SYS]))continue;
+    var t=r[R_TOP],sr=sysRank(r[R_SYS]),cur=map[t];
+    if(!cur||sr<cur[0])map[t]=[sr,topicRank(r[R_SYS],t)];
+  }
+  return map;
 }
 
 var state={bank:0,step:0,subjects:new Set(),systems:new Set(),topics:new Set(),
@@ -381,7 +414,7 @@ function rowHTML(id,name,st,sel){
 function renderSubjects(){
   var counts=subjCounts();
   var ids=Object.keys(counts).map(Number);
-  ids.sort(function(a,b){return D.subjects[a].localeCompare(D.subjects[b]);});
+  sortPanel(ids,'subj',counts);
   var q=state.q.subj.toLowerCase(),html='',shown=0;
   ids.forEach(function(id){
     if(q&&D.subjects[id].toLowerCase().indexOf(q)<0)return;
@@ -394,7 +427,7 @@ function renderSubjects(){
 function renderSystems(){
   var counts=sysCounts();
   var ids=Object.keys(counts).map(Number).filter(function(i){return counts[i].c>0;});
-  ids.sort(function(a,b){return D.systems[a].localeCompare(D.systems[b]);});
+  sortPanel(ids,'sys',counts);
   var q=state.q.sys.toLowerCase(),html='',shown=0;
   ids.forEach(function(id){
     if(q&&D.systems[id].toLowerCase().indexOf(q)<0)return;
@@ -407,7 +440,7 @@ function renderSystems(){
 function renderTopics(){
   var counts=topCounts();
   var ids=Object.keys(counts).map(Number).filter(function(i){return counts[i].c>0;});
-  ids.sort(function(a,b){var c=counts[b].c-counts[a].c;if(c)return c;return D.topics[a].localeCompare(D.topics[b]);});
+  sortPanel(ids,'top',counts,state.sort==='aprendizado'?buildTopKey():null);
   var q=state.q.top.toLowerCase(),html='',shown=0,cap=600;
   for(var k=0;k<ids.length;k++){
     var id=ids[k];
@@ -524,7 +557,7 @@ document.getElementById('sortSeg').addEventListener('click',function(e){
   [].forEach.call(this.children,function(c){c.classList.toggle('on',c===b);});
   document.getElementById('tieWrap').style.display=state.sort==='importancia'?'':'none';
   document.getElementById('modeName').textContent=b.textContent;
-  updateHint();refreshOutput();
+  updateHint();renderSubjects();renderSystems();renderTopics();refreshOutput();
 });
 document.getElementById('tieSel').addEventListener('change',function(e){state.tie=e.target.value;refreshOutput();});
 
