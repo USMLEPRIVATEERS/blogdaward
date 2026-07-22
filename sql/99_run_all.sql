@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
-    role VARCHAR(50) DEFAULT 'aluno' CHECK (role IN ('aluno', 'mentor_marcos', 'mentor_iria', 'mentor_guilherme', 'mentor_romulo')),
+    role VARCHAR(50) DEFAULT 'aluno' CHECK (role IN ('aluno', 'mentor_marcos', 'mentor_iria', 'mentor_guilherme', 'mentor_fernando')),
     first_login_completed BOOLEAN DEFAULT FALSE,
     questionnaire_step INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

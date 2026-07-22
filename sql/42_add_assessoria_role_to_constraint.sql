@@ -12,7 +12,7 @@ ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (
       'mentor_marcos'::character varying,
       'mentor_iria'::character varying,
       'mentor_guilherme'::character varying,
-      'mentor_romulo'::character varying
+      'mentor_fernando'::character varying
     ]::text[]
   )
 );

@@ -13,7 +13,7 @@ INSERT INTO users (email, password_hash, full_name, role, first_login_completed)
     ('marcosantoniodv@gmail.com', 'ward2024', 'Marcos Antonio Dias Vilela', 'mentor_marcos', TRUE),
     ('costamdiria@gmail.com', 'ward2024', 'Iria Cassia Abreu da Costa', 'mentor_iria', TRUE),
     ('guilhermelavor@yahoo.com.br', 'ward2024', 'Guilherme De Lavor Araujo', 'mentor_guilherme', TRUE),
-    ('romulossanglard@gmail.com', 'ward2024', 'Romulo da Silva Sanglard', 'mentor_romulo', TRUE)
+    ('fernandovasconcellos@ward.com.br', 'ward2024', 'Fernando Vasconcellos', 'mentor_fernando', TRUE)
 ON CONFLICT (email) DO NOTHING;
 
 -- =============================================
@@ -126,7 +126,7 @@ BEGIN
     RAISE NOTICE 'marcosantoniodv@gmail.com / ward2024';
     RAISE NOTICE 'costamdiria@gmail.com / ward2024';
     RAISE NOTICE 'guilhermelavor@yahoo.com.br / ward2024';
-    RAISE NOTICE 'romulossanglard@gmail.com / ward2024';
+    RAISE NOTICE 'fernandovasconcellos@ward.com.br / ward2024';
     RAISE NOTICE '========================================';
     RAISE NOTICE 'Aluno de teste:';
     RAISE NOTICE 'aluno.teste@wardacademy.com / teste123';

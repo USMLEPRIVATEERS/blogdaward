@@ -18,7 +18,10 @@ const ADMIN_WRITE_TABLES = [
   'assessments', 'self_assessments', 'self_assessment_questions',
   'self_assessment_tests', 'self_assessment_events',
   'wardpedia_articles', 'wardpedia_steps', 'wardpedia_subjects',
-  'wardpedia_systems', 'wardpedia_categories'
+  'wardpedia_systems', 'wardpedia_categories',
+  // Progressão dos alunos: só mentores escrevem
+  'ward_assessments', 'student_assessment_scores',
+  'student_bureaucracy', 'faculty_ecfmg_contacts'
 ];
 
 // =============================================
@@ -46,8 +49,40 @@ const USER_SCOPED_TABLES = [
   'assessment_enrollments', 'watched_lessons',
   'user_tutorials', 'mentor_student_tasks',
   'wasa_schedules', 'study_difficulties',
-  'wardpedia_comments', 'wardpedia_favorites', 'wardpedia_views'
+  'wardpedia_comments', 'wardpedia_favorites', 'wardpedia_views',
+  // Progressão: se um aluno acessar, só enxerga os próprios dados (mentores veem tudo)
+  'student_assessment_scores', 'student_bureaucracy'
 ];
+
+// =============================================
+// SECURITY: Owner column per user-scoped table for non-admin SELECT/WRITE
+// self-scoping. A table listed here has every non-admin row owned by exactly
+// one user via this scalar column, and the frontend already self-scopes its
+// reads/writes on it, so enforcing "owner = auth.uid" breaks nothing.
+//
+// User-scoped tables intentionally OMITTED here have legitimate cross-user
+// reads (verified against the frontend) and keep the prior behavior:
+//   - wardpedia_comments        (public per-article discussion thread)
+//   - self_assessment_enrollments / _responses / _attempts
+//     (class-average aggregates + enrollment-based ownership, no flat user_id)
+// =============================================
+const OWNER_COLUMN = {
+  questionnaire_data: 'user_id', schedules: 'user_id', schedule_delays: 'user_id',
+  user_preparation_status: 'user_id', landmarks: 'user_id', study_diary: 'user_id',
+  uworld_diary: 'user_id', daily_checkins: 'user_id', user_basic_data: 'user_id',
+  user_usmle_data: 'user_id', user_uworld_data: 'user_id', user_uworld_progress: 'user_id',
+  user_english_level: 'user_id', user_anki_data: 'user_id', user_research_data: 'user_id',
+  user_research_contacts: 'user_id', user_observerships: 'user_id', user_background: 'user_id',
+  flash_question_responses: 'user_id', watched_lessons: 'user_id', user_tutorials: 'user_id',
+  wasa_schedules: 'user_id', study_difficulties: 'user_id', wardpedia_favorites: 'user_id',
+  wardpedia_views: 'user_id',
+  assessment_enrollments: 'student_id', mentor_student_tasks: 'student_id',
+  student_assessment_scores: 'user_id', student_bureaucracy: 'user_id',
+};
+
+// Operators that can widen scope past an enforced equality; rejected on
+// owner-scoped tables for non-admins.
+const SCOPE_WIDENING_OPS = ['or', 'not', 'match'];
 
 // =============================================
 // SECURITY: Sanitize strings to prevent stored XSS
@@ -85,21 +120,27 @@ function sanitizeData(data) {
 }
 
 // =============================================
-// SECURITY: Remove sensitive columns from response data
+// SECURITY: Remove sensitive columns from response data at EVERY nesting depth.
+// Recursing is essential: an embedded resource (e.g. select=*,users:user_id(cpf,
+// password_hash)) would otherwise smuggle hashes/CPF past a shallow top-level
+// strip. `extraCols` lets non-admins additionally strip CPF on every nested
+// object, not just the top-level users row.
 // =============================================
-function stripSensitiveColumns(data) {
-  if (!data) return data;
-  if (Array.isArray(data)) {
-    return data.map(row => stripSensitiveColumns(row));
-  }
-  if (typeof data === 'object') {
-    const cleaned = { ...data };
-    for (const col of BLOCKED_COLUMNS) {
-      delete cleaned[col];
+function stripSensitiveColumns(data, extraCols) {
+  const blocked = extraCols && extraCols.length ? BLOCKED_COLUMNS.concat(extraCols) : BLOCKED_COLUMNS;
+  const clean = (val) => {
+    if (Array.isArray(val)) return val.map(clean);
+    if (val && typeof val === 'object') {
+      const out = {};
+      for (const [k, v] of Object.entries(val)) {
+        if (blocked.includes(k)) continue;
+        out[k] = clean(v);
+      }
+      return out;
     }
-    return cleaned;
-  }
-  return data;
+    return val;
+  };
+  return clean(data);
 }
 
 // =============================================
@@ -117,10 +158,12 @@ module.exports = async function handler(req, res) {
 
   try {
     const {
-      table, action, select, filters, data,
+      table, action, select, data,
       order, limit, range, single, maybeSingle,
       count, upsertOpts
     } = req.body;
+    // filters is mutable: we may inject ownership constraints below
+    let filters = req.body.filters;
 
     if (!table || !ALLOWED_TABLES.includes(table)) {
       return res.status(403).json({ error: 'Table not allowed' });
@@ -168,9 +211,10 @@ module.exports = async function handler(req, res) {
           return res.status(403).json({ error: 'Admin access required' });
         }
         // Non-admin: enforce user_id or id filter for deletion in scoped tables
-        // (id filter ownership is verified later via pre-query)
+        // (id filter ownership is verified later via pre-query). Owner-column
+        // tables are fully handled by the comprehensive block below.
         const hasIdFilter = filters && filters.some(f => f.col === 'id' && f.type === 'eq');
-        if (USER_SCOPED_TABLES.includes(table) && !hasUserIdFilter(filters) && !hasIdFilter) {
+        if (USER_SCOPED_TABLES.includes(table) && !OWNER_COLUMN[table] && !hasUserIdFilter(filters) && !hasIdFilter) {
           return res.status(403).json({ error: 'You can only delete your own records' });
         }
       }
@@ -185,44 +229,133 @@ module.exports = async function handler(req, res) {
     }
 
     // =============================================
-    // SECURITY: For user-scoped tables, non-admin users:
-    // - INSERT: user_id in data must match authenticated user (if present)
-    // - UPDATE/DELETE: must have user_id filter matching auth user,
-    //   OR an id filter (ownership verified via pre-query)
+    // SECURITY: For user-scoped tables, non-admin users are constrained to their
+    // OWN rows on EVERY action.
+    //
+    // Tables with a known owner column (OWNER_COLUMN) get comprehensive handling:
+    //   - SELECT : owner = self is required (validated if present, else injected)
+    //   - UPDATE/DELETE : default-deny unless positively owner/id-scoped, then
+    //     owner = self is force-ANDed so a neq/in/or filter cannot widen scope
+    //   - INSERT/UPSERT : owner is stamped to self; an upsert that would clobber
+    //     another user's row (by its conflict target) is rejected
+    //   - scope-widening operators (or/not/match) are rejected
+    //
+    // Tables WITHOUT an owner column here (genuine cross-user reads) keep the
+    // prior user_id-based write checks and unrestricted SELECT.
     // =============================================
     if (!isAdmin && USER_SCOPED_TABLES.includes(table)) {
-      if (action === 'update' || action === 'delete') {
-        const hasIdFilter = filters && filters.some(f => f.col === 'id' && f.type === 'eq');
-        if (hasUserIdFilter(filters)) {
-          // Verify the user_id in the filter matches the authenticated user
-          const userIdFilter = filters.find(f => f.col === 'user_id' && f.type === 'eq');
-          if (String(userIdFilter.val) !== String(userId)) {
-            return res.status(403).json({ error: 'Access denied: user_id mismatch' });
-          }
-        } else if (hasIdFilter) {
-          // Update/delete by primary key - verify ownership via pre-query
-          const recordId = filters.find(f => f.col === 'id' && f.type === 'eq').val;
-          const supabaseCheck = getSupabase();
-          const { data: record, error: checkError } = await supabaseCheck
-            .from(table).select('user_id').eq('id', recordId).maybeSingle();
-          if (checkError) {
-            console.error('Ownership check error:', table, recordId, checkError);
-            return res.status(500).json({ error: 'Failed to verify record ownership' });
-          }
-          if (record && String(record.user_id) !== String(userId)) {
-            return res.status(403).json({ error: 'Access denied: record belongs to another user' });
-          }
-        } else if (!filters || filters.length === 0) {
-          // No filters at all - block bulk operations
-          return res.status(403).json({ error: 'Bulk operations not allowed' });
+      const ownerCol = OWNER_COLUMN[table];
+
+      if (ownerCol) {
+        // Reject operators that could widen past the enforced equality.
+        if (Array.isArray(filters) && filters.some(f => SCOPE_WIDENING_OPS.includes(f.type))) {
+          return res.status(403).json({ error: 'Operator not allowed on this table' });
         }
-      }
-      if (action === 'insert' || action === 'upsert') {
-        if (sanitizedData) {
-          const rows = Array.isArray(sanitizedData) ? sanitizedData : [sanitizedData];
-          for (const row of rows) {
-            if (row.user_id && String(row.user_id) !== String(userId)) {
-              return res.status(403).json({ error: 'Access denied: cannot insert records for other users' });
+
+        const ownerFilter = Array.isArray(filters)
+          ? filters.find(f => f.col === ownerCol && f.type === 'eq') : null;
+        const idFilter = Array.isArray(filters)
+          ? filters.find(f => f.col === 'id' && f.type === 'eq') : null;
+
+        if (action === 'select') {
+          if (ownerFilter) {
+            if (String(ownerFilter.val) !== String(userId)) {
+              return res.status(403).json({ error: 'Access denied: not your records' });
+            }
+          } else {
+            filters = [...(filters || []), { col: ownerCol, type: 'eq', val: userId }];
+          }
+        } else if (action === 'update' || action === 'delete') {
+          if (ownerFilter) {
+            if (String(ownerFilter.val) !== String(userId)) {
+              return res.status(403).json({ error: 'Access denied: not your records' });
+            }
+          } else if (idFilter) {
+            // Verify ownership of the targeted row via pre-query
+            const supabaseCheck = getSupabase();
+            const { data: record, error: checkError } = await supabaseCheck
+              .from(table).select(ownerCol).eq('id', idFilter.val).maybeSingle();
+            if (checkError) {
+              console.error('Ownership check error:', table, idFilter.val, checkError);
+              return res.status(500).json({ error: 'Failed to verify record ownership' });
+            }
+            if (record && String(record[ownerCol]) !== String(userId)) {
+              return res.status(403).json({ error: 'Access denied: record belongs to another user' });
+            }
+          } else {
+            // No positive ownership scoping → default-deny
+            return res.status(403).json({ error: 'You can only modify your own records' });
+          }
+          // Force-AND owner = self regardless of any other caller filters
+          filters = [...(filters || []), { col: ownerCol, type: 'eq', val: userId }];
+        } else if (action === 'insert' || action === 'upsert') {
+          if (sanitizedData) {
+            const rows = Array.isArray(sanitizedData) ? sanitizedData : [sanitizedData];
+            for (const row of rows) {
+              if (!row || typeof row !== 'object') continue;
+              if (row[ownerCol] !== undefined && String(row[ownerCol]) !== String(userId)) {
+                return res.status(403).json({ error: 'Access denied: cannot write records for other users' });
+              }
+              row[ownerCol] = userId; // stamp owner; never trust client value
+            }
+            // An upsert can OVERWRITE an existing row matched by its conflict
+            // target. Block clobbering a row owned by another user.
+            if (action === 'upsert' && upsertOpts && upsertOpts.onConflict) {
+              const conflictCols = String(upsertOpts.onConflict).split(',').map(s => s.trim()).filter(Boolean);
+              const supabaseCheck = getSupabase();
+              for (const row of rows) {
+                if (!row || typeof row !== 'object') continue;
+                let q = supabaseCheck.from(table).select(ownerCol);
+                let fullyScoped = conflictCols.length > 0;
+                for (const c of conflictCols) {
+                  if (row[c] === undefined) { fullyScoped = false; break; }
+                  q = q.eq(c, row[c]);
+                }
+                if (!fullyScoped) continue;
+                const { data: existing, error: exErr } = await q.maybeSingle();
+                if (exErr) {
+                  console.error('Upsert ownership check error:', table, exErr);
+                  return res.status(500).json({ error: 'Failed to verify record ownership' });
+                }
+                if (existing && String(existing[ownerCol]) !== String(userId)) {
+                  return res.status(403).json({ error: 'Access denied: record belongs to another user' });
+                }
+              }
+            }
+          }
+        }
+      } else {
+        // ---- Cross-user-read tables: prior user_id-based write checks only ----
+        if (action === 'update' || action === 'delete') {
+          const hasIdFilter = filters && filters.some(f => f.col === 'id' && f.type === 'eq');
+          if (hasUserIdFilter(filters)) {
+            const userIdFilter = filters.find(f => f.col === 'user_id' && f.type === 'eq');
+            if (String(userIdFilter.val) !== String(userId)) {
+              return res.status(403).json({ error: 'Access denied: user_id mismatch' });
+            }
+          } else if (hasIdFilter) {
+            const recordId = filters.find(f => f.col === 'id' && f.type === 'eq').val;
+            const supabaseCheck = getSupabase();
+            const { data: record, error: checkError } = await supabaseCheck
+              .from(table).select('user_id').eq('id', recordId).maybeSingle();
+            if (checkError) {
+              console.error('Ownership check error:', table, recordId, checkError);
+              return res.status(500).json({ error: 'Failed to verify record ownership' });
+            }
+            if (record && String(record.user_id) !== String(userId)) {
+              return res.status(403).json({ error: 'Access denied: record belongs to another user' });
+            }
+          } else if (!filters || filters.length === 0) {
+            return res.status(403).json({ error: 'Bulk operations not allowed' });
+          }
+        }
+        if (action === 'insert' || action === 'upsert') {
+          if (sanitizedData) {
+            const rows = Array.isArray(sanitizedData) ? sanitizedData : [sanitizedData];
+            for (const row of rows) {
+              if (row.user_id && String(row.user_id) !== String(userId)) {
+                return res.status(403).json({ error: 'Access denied: cannot insert records for other users' });
+              }
             }
           }
         }
@@ -327,19 +460,13 @@ module.exports = async function handler(req, res) {
     }
 
     // =============================================
-    // SECURITY: Strip sensitive columns from response
-    // Non-admins also get CPF stripped from users table queries
+    // SECURITY: Strip sensitive columns from response (recursively).
+    // password_hash is removed for everyone; non-admins also get CPF removed at
+    // every depth (covers the users table AND any embedded users(...) join on
+    // other tables), closing the embedded-join leak.
     // =============================================
-    let safeData = stripSensitiveColumns(result.data);
-    if (table === 'users' && !isAdmin && safeData) {
-      const stripExtra = (row) => {
-        if (!row || typeof row !== 'object') return row;
-        const cleaned = { ...row };
-        for (const col of NON_ADMIN_BLOCKED_COLUMNS) delete cleaned[col];
-        return cleaned;
-      };
-      safeData = Array.isArray(safeData) ? safeData.map(stripExtra) : stripExtra(safeData);
-    }
+    const extraStrip = isAdmin ? null : NON_ADMIN_BLOCKED_COLUMNS.filter(c => !BLOCKED_COLUMNS.includes(c));
+    const safeData = stripSensitiveColumns(result.data, extraStrip);
 
     return res.status(200).json({
       data: safeData,

@@ -618,7 +618,20 @@ function renderQuestion() {
 
     // Update navigation buttons
     document.getElementById('btn-previous').disabled = currentQuestionIndex === 0;
-    document.getElementById('btn-next').disabled = currentQuestionIndex === blockQuestions.length - 1;
+    const isLastQuestion = currentQuestionIndex === blockQuestions.length - 1;
+    document.getElementById('btn-next').disabled = isLastQuestion;
+
+    // Na última questão (fora do modo revisão), mostra o botão "Finalizar Bloco"
+    // inline — sempre acessível na área da questão — e destaca o do rodapé, para
+    // o aluno ver claramente como terminar o bloco.
+    const finishInline = document.getElementById('finish-block-inline');
+    const endBlockBtn = document.getElementById('btn-end-block');
+    if (finishInline) {
+        finishInline.style.display = (isLastQuestion && !isReviewMode) ? 'block' : 'none';
+    }
+    if (endBlockBtn && !isReviewMode) {
+        endBlockBtn.classList.toggle('pulse-attention', isLastQuestion);
+    }
 }
 
 // Select answer
@@ -730,6 +743,21 @@ async function autoFinishBlock() {
     await completeCurrentBlock('timed_out');
 }
 
+// Grava no banco com uma tentativa extra em caso de falha transitória.
+// Retorna true somente se a gravação foi confirmada sem erro.
+async function _saveWithRetry(buildQuery) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const { error } = await buildQuery();
+            if (!error) return true;
+            console.error('Save error (attempt ' + (attempt + 1) + '):', error);
+        } catch (e) {
+            console.error('Save threw (attempt ' + (attempt + 1) + '):', e);
+        }
+    }
+    return false;
+}
+
 // Complete current block
 async function completeCurrentBlock(status = 'completed') {
     clearInterval(timerInterval);
@@ -743,8 +771,8 @@ async function completeCurrentBlock(status = 'completed') {
         userAnswers[q.id]?.answer
     ).length;
 
-    // Update attempt
-    await window.supabase
+    // Update attempt (com retry; registra erro sem travar a finalização)
+    await _saveWithRetry(() => window.supabase
         .from('self_assessment_attempts')
         .update({
             finished_at: new Date().toISOString(),
@@ -753,11 +781,11 @@ async function completeCurrentBlock(status = 'completed') {
             correct_answers: correctCount,
             time_spent_seconds: (timePerBlockMinutes * 60) - blockTimeRemaining
         })
-        .eq('id', currentAttempt.id);
+        .eq('id', currentAttempt.id));
 
     // Check if this was the last block
     if (currentBlock >= totalBlocks) {
-        completeAssessment();
+        await completeAssessment();
     } else {
         // Show break screen
         showBreakScreen();
@@ -811,14 +839,26 @@ async function startNextBlock() {
 async function completeAssessment() {
     clearInterval(timerInterval);
 
-    // Update enrollment status
-    await window.supabase
+    // Grava o status 'completed' com retry. Só mostramos a tela de conclusão
+    // se a gravação foi confirmada — evita o aluno ver "Concluído" enquanto o
+    // banco continua como "Em Progresso" (que foi o que aconteceu antes).
+    const ok = await _saveWithRetry(() => window.supabase
         .from('self_assessment_enrollments')
         .update({
             status: 'completed',
             completed_at: new Date().toISOString()
         })
-        .eq('id', enrollmentId);
+        .eq('id', enrollmentId));
+
+    if (!ok) {
+        if (typeof showToast === 'function') {
+            showToast('Não conseguimos registrar a finalização. Verifique sua conexão e clique em "Finalizar Bloco" novamente. Se persistir, avise a mentoria.', 'error');
+        }
+        // Reexibe o botão de finalizar para o aluno tentar de novo.
+        const endBlockBtn = document.getElementById('btn-end-block');
+        if (endBlockBtn) endBlockBtn.classList.add('pulse-attention');
+        return;
+    }
 
     // Show completion screen
     document.getElementById('completion-overlay').classList.add('visible');

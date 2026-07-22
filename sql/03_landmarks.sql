@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS landmarks (
     user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     description TEXT,
-    landmark_type VARCHAR(100) NOT NULL, -- 'call_iria', 'call_guilherme', 'call_romulo', 'marco', etc.
+    landmark_type VARCHAR(100) NOT NULL, -- 'call_iria', 'call_guilherme', 'call_fernando', 'marco', etc.
     order_position INTEGER DEFAULT 0,
     is_urgent BOOLEAN DEFAULT FALSE,
     completed BOOLEAN DEFAULT FALSE,
@@ -37,13 +37,13 @@ CREATE TABLE IF NOT EXISTS landmark_types (
 INSERT INTO landmark_types (code, name, description, mentor_role, icon, color) VALUES
     ('call_iria', 'Chamada com Dra. Iria', 'Chamada de mentoria geral', 'mentor_iria', '📞', '#C45700'),
     ('call_guilherme', 'Chamada com Guilherme', 'Chamada focada em Anki', 'mentor_guilherme', '📞', '#2563eb'),
-    ('call_romulo', 'Chamada com Romulo', 'Chamada focada em Pesquisa', 'mentor_romulo', '📞', '#059669'),
+    ('call_fernando', 'Chamada com Dr. Fernando Vasconcellos', 'Chamada de pesquisa (1 unica chamada apos passar no Step 1)', 'mentor_fernando', '📞', '#059669'),
     ('call_marcos', 'Chamada com Marcos', 'Chamada tecnica/administrativa', 'mentor_marcos', '📞', '#7c3aed'),
     ('marco_step1', 'Marco Step 1', 'Marco relacionado ao Step 1', NULL, '🎯', '#f59e0b'),
     ('marco_step2', 'Marco Step 2 CK', 'Marco relacionado ao Step 2 CK', NULL, '🎯', '#10b981'),
     ('marco_step3', 'Marco Step 3', 'Marco relacionado ao Step 3', NULL, '🎯', '#6366f1'),
     ('marco_oet', 'Marco OET', 'Marco relacionado ao OET', NULL, '🎯', '#ec4899'),
-    ('marco_research', 'Marco Pesquisa', 'Marco relacionado a pesquisa', 'mentor_romulo', '🔬', '#8b5cf6'),
+    ('marco_research', 'Marco Pesquisa', 'Marco relacionado a pesquisa', 'mentor_fernando', '🔬', '#8b5cf6'),
     ('marco_anki', 'Marco Anki', 'Marco relacionado ao Anki', 'mentor_guilherme', '📚', '#14b8a6'),
     ('deadline', 'Prazo', 'Prazo importante', NULL, '⏰', '#ef4444'),
     ('exam_date', 'Data de Prova', 'Data agendada de exame', NULL, '📅', '#dc2626'),

@@ -8,42 +8,122 @@
     <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        /* Aliases locais (a página usa tokens que não existem no style.css) */
+        :root {
+            --primary-color: var(--accent-orange, #C45700);
+            --white: var(--primary-white, #FFFFFF);
+            --radius-md: 10px;
+            --radius-full: 999px;
+        }
         .diary-tabs {
             display: flex;
-            gap: 1rem;
+            gap: 0.75rem;
             border-bottom: 2px solid var(--gray-200);
             margin-bottom: 2rem;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
         .diary-tab {
-            padding: 1rem 1.5rem;
+            padding: 0.85rem 1.25rem;
             background: none;
             border: none;
             border-bottom: 3px solid transparent;
-            font-size: 1rem;
+            border-radius: var(--radius-sm, 8px) var(--radius-sm, 8px) 0 0;
+            font-family: inherit;
+            font-size: 0.95rem;
             font-weight: 600;
             cursor: pointer;
-            color: var(--gray-600);
-            transition: all 0.2s;
+            color: var(--gray-500);
+            white-space: nowrap;
+            transition: color var(--transition-fast, 0.15s ease), background-color var(--transition-fast, 0.15s ease), border-color var(--transition-fast, 0.15s ease);
         }
         .diary-tab:hover {
             color: var(--primary-color);
+            background: var(--gray-50);
+        }
+        .diary-tab:focus-visible {
+            outline: 2px solid var(--primary-color);
+            outline-offset: -2px;
         }
         .diary-tab.active {
             color: var(--primary-color);
             border-bottom-color: var(--primary-color);
         }
-        .diary-entry {
-            background: white;
+
+        /* Cards de estatísticas (harmonizados com diary-study/diary-uworld) */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+        .stat-card {
+            background: var(--white);
             border: 1px solid var(--gray-200);
-            border-radius: 8px;
+            border-radius: var(--radius-lg, 14px);
+            padding: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+            box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
+            transition: box-shadow var(--transition-fast, 0.15s ease), border-color var(--transition-fast, 0.15s ease);
+        }
+        .stat-card:hover {
+            border-color: var(--gray-300);
+            box-shadow: var(--shadow-md, 0 2px 4px rgba(16, 24, 40, 0.05), 0 4px 10px rgba(16, 24, 40, 0.07));
+        }
+        .stat-icon {
+            font-size: 1.35rem;
+            width: 44px;
+            height: 44px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--gray-50);
+            border: 1px solid var(--gray-100);
+            border-radius: var(--radius-md);
+        }
+        .stat-info {
+            min-width: 0;
+        }
+        .stat-value {
+            display: block;
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.015em;
+            line-height: 1.25;
+            color: var(--primary-black, #111827);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .stat-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--gray-500);
+        }
+
+        .diary-entry {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg, 14px);
             padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            margin-bottom: 1.25rem;
+            box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
+            transition: box-shadow var(--transition-fast, 0.15s ease), border-color var(--transition-fast, 0.15s ease);
+        }
+        .diary-entry:hover {
+            border-color: var(--gray-300);
+            box-shadow: var(--shadow-md, 0 2px 4px rgba(16, 24, 40, 0.05), 0 4px 10px rgba(16, 24, 40, 0.07));
         }
         .diary-entry-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 0.75rem;
+            flex-wrap: wrap;
             margin-bottom: 1rem;
             padding-bottom: 0.75rem;
             border-bottom: 1px solid var(--gray-100);
@@ -53,41 +133,76 @@
             align-items: center;
             gap: 0.5rem;
             font-weight: 600;
-            font-size: 1rem;
+            font-size: 0.95rem;
+            color: var(--gray-800);
         }
         .diary-entry-date {
-            font-size: 0.875rem;
+            font-size: 0.8rem;
+            font-weight: 500;
             color: var(--gray-500);
         }
         .diary-entry-content {
             color: var(--gray-700);
-            line-height: 1.6;
+            line-height: 1.65;
             white-space: pre-wrap;
+            overflow-wrap: anywhere;
         }
         .diary-stats {
             display: flex;
             gap: 0.5rem;
             flex-wrap: wrap;
             margin-top: 1rem;
+            /* Neutraliza o visual de grid herdado do .diary-stats global */
+            padding: 0;
+            margin-bottom: 0;
+            background: transparent;
+            border-radius: 0;
         }
         .diary-stat-badge {
             display: inline-flex;
             align-items: center;
-            gap: 0.25rem;
-            padding: 0.5rem 1rem;
+            gap: 0.35rem;
+            padding: 0.4rem 0.9rem;
             background: var(--gray-100);
-            border-radius: 20px;
-            font-size: 0.875rem;
+            border: 1px solid rgba(17, 24, 39, 0.08);
+            border-radius: var(--radius-full);
+            font-size: 0.8rem;
             font-weight: 500;
+            color: var(--gray-700);
         }
         .empty-diary {
             text-align: center;
             padding: 4rem 2rem;
             color: var(--gray-500);
+            background: var(--gray-50);
+            border: 1px dashed var(--gray-300);
+            border-radius: var(--radius-lg, 14px);
         }
         .empty-diary-icon {
-            font-size: 4rem;
+            font-size: 3.5rem;
             margin-bottom: 1rem;
+        }
+
+        @media (max-width: 480px) {
+            .diary-tab {
+                padding: 0.75rem 1rem;
+                font-size: 0.9rem;
+            }
+            .stat-card {
+                padding: 1rem;
+                gap: 0.75rem;
+            }
+            .diary-entry {
+                padding: 1.25rem;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .diary-tab,
+            .stat-card,
+            .diary-entry {
+                transition: none;
+            }
         }
     </style>
 </head>

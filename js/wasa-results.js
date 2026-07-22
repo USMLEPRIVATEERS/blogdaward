@@ -164,12 +164,20 @@ async function loadAllData() {
         if (userIds.length > 0) {
             const { data: usersData, error: usersError } = await window.supabase
                 .from('users')
-                .select('id, name, email, cpf, whatsapp, created_at, role')
+                .select('id, name, full_name, email, cpf, whatsapp, created_at, role')
                 .in('id', userIds);
 
             if (!usersError && usersData) {
+                // O nome pode estar na coluna legada `name` (texto puro) OU em
+                // `full_name` (ofuscada). Alunos cadastrados mais recentemente só
+                // têm `full_name`, por isso apareciam como "null" aqui. Resolvemos
+                // as duas fontes, decodificando full_name quando necessário.
+                const decode = (window.WardApp && typeof window.WardApp._prs === 'function')
+                    ? window.WardApp._prs
+                    : (x => x);
                 usersData.forEach(u => {
-                    users[u.id] = u;
+                    const resolvedName = u.name || decode(u.full_name) || u.email || 'Aluno';
+                    users[u.id] = { ...u, name: resolvedName };
                 });
             }
         }

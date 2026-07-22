@@ -168,13 +168,15 @@ function initializeForm() {
     const scheduledTimeInput = document.getElementById('scheduled-time');
     scheduledDateInput.min = tomorrow.toISOString().split('T')[0];
 
-    // Try to detect user's timezone
+    // Detecta automaticamente o fuso do usuario (ele pode trocar manualmente).
     try {
-        const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const tzSelect = document.getElementById('user-timezone');
-        const tzOption = tzSelect.querySelector(`option[value="${userTz}"]`);
-        if (tzOption) {
-            tzSelect.value = userTz;
+        if (tzSelect && window.WardTZ) {
+            // Mapeia o fuso detectado para a opcao disponivel (por match exato ou offset).
+            window.WardTZ.applyToSelect(tzSelect, { fallback: 'America/Sao_Paulo' });
+        } else if (tzSelect) {
+            const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            if (tzSelect.querySelector(`option[value="${userTz}"]`)) tzSelect.value = userTz;
         }
     } catch (e) {
         console.log('Could not detect timezone');

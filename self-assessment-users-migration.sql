@@ -24,7 +24,7 @@ ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (
             ('mentor_marcos'::character varying)::text,
             ('mentor_iria'::character varying)::text,
             ('mentor_guilherme'::character varying)::text,
-            ('mentor_romulo'::character varying)::text,
+            ('mentor_fernando'::character varying)::text,
             ('externo'::character varying)::text
         ]
     )

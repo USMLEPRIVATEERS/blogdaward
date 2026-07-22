@@ -59,7 +59,9 @@ const ALLOWED_TABLES = [
   'mentor_student_tasks',
   'wardpedia_articles', 'wardpedia_comments', 'wardpedia_favorites',
   'wardpedia_views', 'wardpedia_steps', 'wardpedia_subjects',
-  'wardpedia_systems', 'wardpedia_categories'
+  'wardpedia_systems', 'wardpedia_categories',
+  'ward_assessments', 'student_assessment_scores',
+  'student_bureaucracy', 'faculty_ecfmg_contacts'
 ];
 
 // RPCs allowed through the proxy

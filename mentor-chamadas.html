@@ -8,10 +8,23 @@
     <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        /* Aliases de variáveis usadas nesta página (e nos templates JS) que não
+           existem no css/style.css refinado — sem elas, várias regras silenciosamente
+           não se aplicavam (fundos, bordas de status, raios). */
+        :root {
+            --white: #ffffff;
+            --primary: var(--accent-orange);
+            --primary-color: var(--accent-orange);
+            --primary-light: var(--accent-orange-soft);
+            --danger-color: #dc2626;
+            --success-color: #16a34a;
+            --radius-md: 12px;
+        }
+
         .availability-grid {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
-            gap: 0.5rem;
+            gap: 0.6rem;
             margin-bottom: 1rem;
         }
 
@@ -21,28 +34,62 @@
             border-radius: var(--radius-md);
             padding: 0.5rem;
             min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-sm);
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+
+        .day-column:hover {
+            border-color: var(--gray-300);
+            box-shadow: var(--shadow-md);
         }
 
         .day-header {
             text-align: center;
             font-weight: 600;
-            padding: 0.5rem;
+            padding: 0.4rem 0.5rem;
             background: var(--gray-100);
             border-radius: var(--radius-sm);
             margin-bottom: 0.5rem;
-            font-size: 0.85rem;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--gray-600);
+        }
+
+        /* Bloco de disponibilidade gerado pelo JS (estilos inline definem fundo/raio) */
+        .availability-block {
+            border: 1px solid var(--gray-200);
         }
 
         .time-slot {
             background: var(--primary-light);
             color: var(--primary-color);
+            border: 1px solid rgba(196, 87, 0, 0.14);
             padding: 0.35rem 0.5rem;
-            border-radius: var(--radius-sm);
+            border-radius: 6px;
             margin-bottom: 0.25rem;
             font-size: 0.75rem;
+            font-weight: 500;
+            font-variant-numeric: tabular-nums;
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+
+        .remove-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0 2px;
+            line-height: 1;
+            border-radius: 4px;
+            transition: background var(--transition-fast);
+        }
+
+        .remove-btn:hover {
+            background: rgba(17, 24, 39, 0.07);
         }
 
         .time-slot .remove-btn {
@@ -57,6 +104,7 @@
 
         .time-slot.unavailable {
             background: #fee2e2;
+            border-color: #fecaca;
             color: #991b1b;
             text-decoration: line-through;
         }
@@ -71,10 +119,18 @@
             background: var(--white);
             border: 1px solid var(--gray-200);
             border-radius: var(--radius-md);
-            padding: 1rem;
+            padding: 1rem 1.25rem;
             display: flex;
             gap: 1rem;
             align-items: flex-start;
+            box-shadow: var(--shadow-sm);
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+        }
+
+        .call-card:hover {
+            border-color: var(--gray-300);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
         }
 
         .call-card.pending {
@@ -83,47 +139,63 @@
 
         .call-card.completed {
             border-left: 4px solid var(--success-color);
-            opacity: 0.7;
+            opacity: 0.75;
         }
 
         .call-card.cancelled {
             border-left: 4px solid var(--danger-color);
-            opacity: 0.5;
+            opacity: 0.6;
         }
 
         .call-icon {
-            font-size: 2rem;
+            font-size: 1.35rem;
+            width: 44px;
+            height: 44px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
         }
 
         .call-info {
             flex: 1;
+            min-width: 0;
         }
 
         .call-title {
             font-weight: 600;
             margin-bottom: 0.25rem;
+            letter-spacing: -0.01em;
         }
 
         .call-meta {
-            font-size: 0.875rem;
+            font-size: 0.85rem;
             color: var(--gray-600);
+            line-height: 1.55;
         }
 
         .call-actions {
             display: flex;
             gap: 0.5rem;
+            align-self: center;
         }
 
         .add-slot-btn {
             width: 100%;
             padding: 0.5rem;
-            background: var(--gray-100);
+            margin-top: auto;
+            background: var(--gray-50);
             border: 2px dashed var(--gray-300);
             border-radius: var(--radius-sm);
             cursor: pointer;
             color: var(--gray-500);
             font-size: 0.8rem;
-            transition: all 0.2s;
+            font-weight: 500;
+            font-family: inherit;
+            transition: all 0.2s ease;
         }
 
         .add-slot-btn:hover {
@@ -136,39 +208,62 @@
             background: var(--white);
             border: 1px solid var(--gray-200);
             border-radius: var(--radius-md);
-            padding: 0.75rem;
-            margin-bottom: 0.5rem;
+            padding: 0.85rem 1rem;
+            margin-bottom: 0.6rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 0.75rem;
+            box-shadow: var(--shadow-sm);
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+
+        .specific-date-card:hover {
+            border-color: var(--gray-300);
+            box-shadow: var(--shadow-md);
         }
 
         .specific-date-card.unavailable {
-            background: #fee2e2;
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+
+        .specific-date-card.unavailable:hover {
             border-color: #fca5a5;
         }
 
         .tabs {
             display: flex;
-            gap: 0.5rem;
+            gap: 0.25rem;
             margin-bottom: 1.5rem;
             border-bottom: 2px solid var(--gray-200);
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        .tabs::-webkit-scrollbar {
+            display: none;
         }
 
         .tab-btn {
-            padding: 0.75rem 1.5rem;
+            padding: 0.7rem 1.25rem;
             border: none;
             background: none;
             cursor: pointer;
+            font-family: inherit;
             font-size: 0.95rem;
-            color: var(--gray-600);
+            font-weight: 500;
+            color: var(--gray-500);
             border-bottom: 2px solid transparent;
+            border-radius: var(--radius-sm) var(--radius-sm) 0 0;
             margin-bottom: -2px;
-            transition: all 0.2s;
+            white-space: nowrap;
+            transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
         }
 
         .tab-btn:hover {
             color: var(--primary-color);
+            background: var(--gray-50);
         }
 
         .tab-btn.active {
@@ -183,15 +278,79 @@
 
         .tab-content.active {
             display: block;
+            animation: wa-tab-fade 0.18s ease;
+        }
+
+        @keyframes wa-tab-fade {
+            from { opacity: 0; transform: translateY(3px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Caixas de pré-visualização dos horários nos modais */
+        #slot-preview,
+        #specific-preview {
+            border: 1px dashed var(--gray-300);
+            line-height: 1.7;
+        }
+
+        #slot-preview:empty,
+        #specific-preview:empty {
+            display: none;
+        }
+
+        /* Alternador de modo de agendamento (o JS controla cor/fundo via .style) */
+        #mode-availability-btn,
+        #mode-free-btn {
+            font-family: inherit;
+            transition: background var(--transition-fast), color var(--transition-fast);
+        }
+
+        @media (max-width: 1100px) {
+            .availability-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
         }
 
         @media (max-width: 768px) {
             .availability-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(2, 1fr);
             }
 
             .day-column {
                 min-height: auto;
+            }
+
+            .call-card {
+                flex-wrap: wrap;
+            }
+
+            .specific-date-card {
+                flex-wrap: wrap;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .availability-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tab-btn {
+                padding: 0.6rem 0.9rem;
+                font-size: 0.875rem;
+            }
+
+            .call-card {
+                padding: 0.85rem 1rem;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .tab-content.active {
+                animation: none;
+            }
+
+            .call-card:hover {
+                transform: none;
             }
         }
     </style>
@@ -229,11 +388,50 @@
         <div class="tabs">
             <button class="tab-btn active" onclick="showTab('scheduled')">📅 Chamadas Agendadas</button>
             <button class="tab-btn" onclick="showTab('availability')">🕐 Minhas Disponibilidades</button>
-            <button class="tab-btn" onclick="showTab('specific')">📆 Datas Especificas</button>
+            <button class="tab-btn" onclick="showTab('specific')">📆 Datas Específicas</button>
         </div>
 
         <!-- Tab: Scheduled Calls -->
         <div id="tab-scheduled" class="tab-content active">
+            <!-- Link de agendamento para o aluno -->
+            <div class="card mb-4" id="schedule-link-card">
+                <div class="card-header" style="background: linear-gradient(135deg, #C45700 0%, #a34900 100%); color: #fff; border-radius: 12px 12px 0 0;">
+                    <span>🔗 Gerar link de agendamento</span>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted" style="margin-top: 0; margin-bottom: 1rem; font-size: 0.9rem;">
+                        Monte um link e envie ao aluno. Ao abrir, a página de chamadas dele já abre com o
+                        agendamento pronto (título e mentor preenchidos) — ele só escolhe o dia e o horário.
+                    </p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Chamada</label>
+                            <select id="link-call-select" class="form-input" onchange="onLinkCallSelectChange()">
+                                <!-- Preenchido por JS -->
+                            </select>
+                        </div>
+                        <div class="form-group" id="link-custom-wrap" style="margin: 0; display: none;">
+                            <label class="form-label">Título personalizado</label>
+                            <input type="text" id="link-custom-title" class="form-input" placeholder="Ex: Chamada extra de revisão" oninput="updateScheduleLink()">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Mentor</label>
+                            <select id="link-mentor-select" class="form-input" onchange="updateScheduleLink()">
+                                <!-- Preenchido por JS -->
+                            </select>
+                        </div>
+                    </div>
+                    <div id="link-output" style="display: none; margin-top: 1.25rem; padding-top: 1.1rem; border-top: 1px solid var(--gray-200);">
+                        <label class="form-label">Link para enviar ao aluno</label>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                            <input type="text" id="link-url" class="form-input" readonly onclick="this.select()" style="flex: 1; min-width: 240px; font-size: 0.85rem; background: var(--gray-50);">
+                            <button class="btn btn-primary btn-sm" onclick="copyScheduleLink()">📋 Copiar</button>
+                            <a id="link-whatsapp" class="btn btn-sm" href="#" target="_blank" rel="noopener" style="background: linear-gradient(135deg, #25D366 0%, #128C7E 100%); color: #fff;">💬 WhatsApp</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header d-flex justify-between align-center flex-wrap gap-2">
                     <span>📅 Chamadas</span>
@@ -246,7 +444,7 @@
                             <select id="filter-status" class="form-input" onchange="loadScheduledCalls()">
                                 <option value="all">Todas</option>
                                 <option value="scheduled" selected>Agendadas</option>
-                                <option value="completed">Concluidas</option>
+                                <option value="completed">Concluídas</option>
                                 <option value="cancelled">Canceladas</option>
                             </select>
                         </div>
@@ -265,7 +463,7 @@
             <!-- Previous Calls Section -->
             <div class="card mt-4">
                 <div class="card-header d-flex justify-between align-center">
-                    <span>📜 Historico de Chamadas</span>
+                    <span>📜 Histórico de Chamadas</span>
                     <button class="btn btn-sm btn-outline" onclick="togglePreviousCalls()">
                         <span id="toggle-previous-btn">▼ Mostrar</span>
                     </button>
@@ -287,12 +485,12 @@
             <!-- Settings Card -->
             <div class="card mb-4">
                 <div class="card-header">
-                    <span>⚙️ Configuracoes de Agendamento</span>
+                    <span>⚙️ Configurações de Agendamento</span>
                 </div>
                 <div class="card-body">
                     <div class="input-group" style="max-width: 600px;">
                         <div class="form-group" style="flex: 1;">
-                            <label class="form-label">Minimo de dias para agendamento</label>
+                            <label class="form-label">Mínimo de dias para agendamento</label>
                             <select id="min-days-ahead" class="form-input" onchange="saveMinDaysAhead()">
                                 <option value="1">1 dia</option>
                                 <option value="2">2 dias (recomendado)</option>
@@ -300,23 +498,23 @@
                                 <option value="5">5 dias</option>
                                 <option value="7">7 dias (1 semana)</option>
                             </select>
-                            <small class="text-muted">Alunos so podem agendar chamadas com pelo menos este tempo de antecedencia</small>
+                            <small class="text-muted">Alunos só podem agendar chamadas com pelo menos este tempo de antecedência</small>
                         </div>
                         <div class="form-group" style="flex: 1;">
-                            <label class="form-label">Seu fuso horario</label>
+                            <label class="form-label">Seu fuso horário</label>
                             <select id="mentor-timezone" class="form-input" onchange="saveMentorTimezone()">
                                 <optgroup label="🇧🇷 Brasil">
-                                    <option value="America/Sao_Paulo">Horario de Brasilia (UTC-3)</option>
+                                    <option value="America/Sao_Paulo">Horário de Brasília (UTC-3)</option>
                                     <option value="America/Manaus">Amazonas / Manaus (UTC-4)</option>
                                     <option value="America/Rio_Branco">Acre / Rio Branco (UTC-5)</option>
                                     <option value="America/Noronha">Fernando de Noronha (UTC-2)</option>
                                 </optgroup>
                                 <optgroup label="🇺🇸 Estados Unidos">
-                                    <option value="America/New_York">Eastern - New York / Miami / Boston (UTC-5)</option>
+                                    <option value="America/New_York">Eastern - Florida / New York / Miami / Boston (UTC-5)</option>
                                     <option value="America/Chicago">Central - Chicago / Houston / Dallas (UTC-6)</option>
                                     <option value="America/Denver">Mountain - Denver / Salt Lake City (UTC-7)</option>
                                     <option value="America/Los_Angeles">Pacific - Los Angeles / San Francisco (UTC-8)</option>
-                                    <option value="America/Phoenix">Arizona - Phoenix (UTC-7, sem horario de verao)</option>
+                                    <option value="America/Phoenix">Arizona - Phoenix (UTC-7, sem horário de verão)</option>
                                     <option value="America/Anchorage">Alaska - Anchorage (UTC-9)</option>
                                     <option value="Pacific/Honolulu">Hawaii - Honolulu (UTC-10)</option>
                                 </optgroup>
@@ -326,9 +524,9 @@
                                     <option value="Europe/Paris">Europa Central - Paris / Berlim / Madrid / Roma (UTC+1)</option>
                                     <option value="Europe/Athens">Europa Oriental - Atenas / Helsinki / Bucareste (UTC+2)</option>
                                     <option value="Europe/Istanbul">Turquia - Istambul (UTC+3)</option>
-                                    <option value="Europe/Moscow">Russia - Moscou (UTC+3)</option>
+                                    <option value="Europe/Moscow">Rússia - Moscou (UTC+3)</option>
                                 </optgroup>
-                                <optgroup label="🇦🇺 Australia">
+                                <optgroup label="🇦🇺 Austrália">
                                     <option value="Australia/Perth">Oeste - Perth (UTC+8)</option>
                                     <option value="Australia/Adelaide">Central - Adelaide / Darwin (UTC+9:30)</option>
                                     <option value="Australia/Sydney">Leste - Sydney / Melbourne / Brisbane (UTC+10)</option>
@@ -362,7 +560,8 @@
                                     <option value="Etc/GMT-13">UTC+13</option>
                                 </optgroup>
                             </select>
-                            <small class="text-muted">Todos os horarios serao exibidos neste fuso</small>
+                            <small class="text-muted">Todos os horários serão exibidos neste fuso</small>
+                            <div id="mentor-tz-travel-hint" style="display:none;margin-top:0.6rem;padding:0.6rem 0.8rem;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;font-size:0.88rem;color:#9A3412;"></div>
                         </div>
                     </div>
                 </div>
@@ -373,7 +572,7 @@
                     <span>🕐 Disponibilidade Regular (Recorrente)</span>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted mb-3">Configure seus horarios regulares de disponibilidade. Estes horarios se repetem toda semana.</p>
+                    <p class="text-muted mb-3">Configure seus horários regulares de disponibilidade. Estes horários se repetem toda semana.</p>
 
                     <div class="availability-grid" id="availability-grid">
                         <!-- Filled by JS -->
@@ -386,20 +585,20 @@
         <div id="tab-specific" class="tab-content">
             <div class="card">
                 <div class="card-header d-flex justify-between align-center">
-                    <span>📆 Datas Especificas</span>
+                    <span>📆 Datas Específicas</span>
                     <div class="btn-group">
                         <button class="btn btn-primary btn-sm" onclick="openAddSpecificModal(false)">+ Adicionar Disponibilidade</button>
                         <button class="btn btn-danger btn-sm" onclick="openAddSpecificModal(true)">+ Marcar Indisponibilidade</button>
                     </div>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted mb-3">Adicione datas especificas de disponibilidade ou indisponibilidade que sobrescrevem sua agenda regular.</p>
+                    <p class="text-muted mb-3">Adicione datas específicas de disponibilidade ou indisponibilidade que sobrescrevem sua agenda regular.</p>
 
                     <div id="specific-dates-list">
                         <!-- Filled by JS -->
                     </div>
                     <div id="no-specific" class="empty-state" style="display: none;">
-                        <p class="text-muted">Nenhuma data especifica cadastrada</p>
+                        <p class="text-muted">Nenhuma data específica cadastrada</p>
                     </div>
                 </div>
             </div>
@@ -410,17 +609,17 @@
     <div id="add-slot-modal" class="modal-overlay">
         <div class="modal">
             <div class="modal-header">
-                <h3 class="modal-title" id="slot-modal-title">➕ Adicionar Horario</h3>
+                <h3 class="modal-title" id="slot-modal-title">➕ Adicionar Horário</h3>
                 <button class="modal-close" onclick="closeModal('add-slot-modal')">&times;</button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="slot-day">
                 <input type="hidden" id="slot-edit-id" value="">
-                <p class="text-muted mb-3">Adicionando horario para: <strong id="slot-day-name"></strong></p>
+                <p class="text-muted mb-3">Adicionando horário para: <strong id="slot-day-name"></strong></p>
 
                 <div class="input-group">
                     <div class="form-group">
-                        <label class="form-label">Inicio *</label>
+                        <label class="form-label">Início *</label>
                         <input type="time" id="slot-start" class="form-input" value="09:00">
                     </div>
                     <div class="form-group">
@@ -429,7 +628,7 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Duracao de cada chamada</label>
+                    <label class="form-label">Duração de cada chamada</label>
                     <select id="slot-duration" class="form-input">
                         <option value="30">30 minutos</option>
                         <option value="45">45 minutos</option>
@@ -476,7 +675,7 @@
                 <div id="specific-times-group">
                     <div class="input-group">
                         <div class="form-group">
-                            <label class="form-label">Inicio</label>
+                            <label class="form-label">Início</label>
                             <input type="time" id="specific-start" class="form-input" value="09:00">
                         </div>
                         <div class="form-group">
@@ -485,7 +684,7 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Duracao de cada chamada</label>
+                        <label class="form-label">Duração de cada chamada</label>
                         <select id="specific-duration" class="form-input">
                             <option value="30">30 minutos</option>
                             <option value="45">45 minutos</option>
@@ -509,8 +708,8 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Observacao (opcional)</label>
-                    <input type="text" id="specific-notes" class="form-input" placeholder="Ex: Congresso, Ferias, etc.">
+                    <label class="form-label">Observação (opcional)</label>
+                    <input type="text" id="specific-notes" class="form-input" placeholder="Ex: Congresso, Férias, etc.">
                 </div>
             </div>
             <div class="modal-footer">
@@ -529,8 +728,8 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label class="form-label">Titulo da Chamada *</label>
-                    <input type="text" id="new-call-title" class="form-input" placeholder="Ex: Chamada de acompanhamento, Revisao de cronograma...">
+                    <label class="form-label">Título da Chamada *</label>
+                    <input type="text" id="new-call-title" class="form-input" placeholder="Ex: Chamada de acompanhamento, Revisão de cronograma...">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Aluno *</label>
@@ -539,17 +738,42 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Data *</label>
-                    <input type="date" id="new-call-date" class="form-input" onchange="loadNewCallTimeSlots()">
+                    <label class="form-label" style="margin-bottom: 0.5rem;">Modo de agendamento</label>
+                    <div style="display: flex; gap: 0; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--gray-300);">
+                        <button type="button" id="mode-availability-btn" onclick="switchCallMode('availability')" style="flex:1; padding: 0.5rem; font-size: 0.85rem; border: none; cursor: pointer; background: var(--primary); color: white; font-weight: 600;">📅 Da disponibilidade</button>
+                        <button type="button" id="mode-free-btn" onclick="switchCallMode('free')" style="flex:1; padding: 0.5rem; font-size: 0.85rem; border: none; cursor: pointer; background: var(--gray-100); color: var(--gray-600);">✏️ Livre</button>
+                    </div>
+                </div>
+                <!-- Availability mode: selects from configured availability -->
+                <div id="call-mode-availability">
+                    <div class="form-group">
+                        <label class="form-label">Data *</label>
+                        <select id="new-call-date-select" class="form-input" onchange="loadAvailabilityTimeSlots()">
+                            <option value="">Selecione uma data...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Horário *</label>
+                        <select id="new-call-time-select" class="form-input">
+                            <option value="">Selecione uma data primeiro...</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Free mode: type any date/time -->
+                <div id="call-mode-free" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Data *</label>
+                        <input type="date" id="new-call-date" class="form-input" onchange="loadNewCallTimeSlots()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Horário *</label>
+                        <input type="time" id="new-call-time" class="form-input" value="09:00">
+                        <div id="new-call-time-hint" style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;"></div>
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Horario *</label>
-                    <input type="time" id="new-call-time" class="form-input" value="09:00">
-                    <div id="new-call-time-hint" style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;"></div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Observacoes</label>
-                    <textarea id="new-call-notes" class="form-textarea" rows="2" placeholder="Observacoes sobre a chamada (opcional)..."></textarea>
+                    <label class="form-label">Observações</label>
+                    <textarea id="new-call-notes" class="form-textarea" rows="2" placeholder="Observações sobre a chamada (opcional)..."></textarea>
                 </div>
             </div>
             <div class="modal-footer">
@@ -581,7 +805,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-danger" onclick="cancelCall()">Cancelar Chamada</button>
-                <button class="btn btn-success" onclick="completeCall()">Marcar Concluida</button>
+                <button class="btn btn-success" onclick="completeCall()">Marcar Concluída</button>
             </div>
         </div>
     </div>
@@ -590,6 +814,7 @@
     <div id="toast-container" class="toast-container"></div>
 
     <script src="js/app.js"></script>
+    <script src="js/timezone-detect.js"></script>
     <script>
         let userData = null;
         let regularAvailability = [];
@@ -638,7 +863,7 @@
                 'mentor_marcos': '/mentor-dashboard-marcos',
                 'mentor_iria': '/mentor-dashboard-iria',
                 'mentor_guilherme': '/mentor-dashboard-guilherme',
-                'mentor_romulo': '/mentor-dashboard-romulo'
+                'mentor_fernando': '/mentor-dashboard-fernando'
             };
             document.getElementById('nav-dashboard').href = dashboardLinks[userData.role] || '/dashboard';
             const mentorFullName = _dn(userData.full_name) || userData.email;
@@ -652,8 +877,180 @@
                 loadMentorSettings(),
                 loadRegularAvailability(),
                 loadSpecificDates(),
-                loadScheduledCalls()
+                loadScheduledCalls(),
+                initScheduleLinkGenerator()
             ]);
+        }
+
+        // ===== Gerador de link de agendamento para o aluno =====
+        // Títulos reais das chamadas padrão (idênticos aos landmarks do aluno, para casar exatamente)
+        const DEFAULT_CALL_GROUPS = [
+            { label: "FASE 1 — Onboarding e Setup", titles: [
+                "1.1 — Onboarding com Marcos Vilela (~90 min) — Tour da plataforma, perfil, UWorld, grupo WhatsApp",
+                "1.2 — Onboarding com Dra. Iria (~90 min) — Especialidade, perfil de visto, mindset, materiais, validacao do cronograma",
+                "1.3 — Sessao de Anki com Guilherme Lavor (~75 min) — Setup completo do AnKing",
+                "1.4 — Inscricao MyIntealth Parte 1 com Marcos (~60 min) — Cadastro, foto, passaporte, US$110",
+                "1.5 — Notary Cam ao vivo com Marcos (~45 min)",
+                "1.6 — Inscricao MyIntealth Parte 2 com Marcos (~60 min, ~3 semanas depois) — Pagamento US$800, traducoes"
+            ] },
+            { label: "FASE 2 — Acompanhamento", titles: [
+                "2.1 — Tecnica de Resolucao de Questoes com Iria (~45-60 min, apos 50-100 questoes) — Resolver 5-10 juntos, tela compartilhada",
+                "2.2a — Check-in Clinico Mensal com Iria (mes 1, ~45-60 min) — Analise de desempenho por sistema",
+                "2.2b — Check-in Clinico Mensal com Iria (mes 2, ~45-60 min)",
+                "2.2c — Check-in Clinico Mensal com Iria (mes 3, ~45-60 min)",
+                "2.2d — Check-in Clinico Mensal com Iria (mes 4, ~45-60 min)",
+                "2.3a — Reforco por Sistema com Iria (sob demanda) — Cardio / Neuro / Reumato / Behavioral / Bioquimica",
+                "2.3b — Reforco por Sistema com Iria (sob demanda - 2a)",
+                "2.4 — Saude Mental e Motivacional com Iria (sob demanda) — Em momentos de crise/ansiedade/perda de ritmo",
+                "2.5a — Vistos e Pathways com Iria (~60 min) — Analise inicial de perfil (EB-1, EB-2 NIW, J-1, F-1, ABIM Pilot)",
+                "2.5b — Vistos com Iria (~45 min) — Revisao apos contato com escritorio de imigracao",
+                "2.5c — Vistos com Iria (~45 min) — Decisao estrategica proxima da aplicacao",
+                "2.6a — Especialidade e Carreira com Iria (~60 min) — Validacao inicial",
+                "2.6b — Especialidade e Carreira com Iria (~60 min) — Revisao se cogita pivo (Anestesia/IM, Gen Surg/FM, etc.)",
+                "2.7 — Apresentacao de Casos no Formato Americano com Iria (~60 min) — Treino de one-liner, SOAP, antes de observership"
+            ] },
+            { label: "FASE 3 — Por System", titles: [
+                "3.1 — Check-in de Cronograma com Marcos (mensal, ~30 min) — Operacional: registro, atualizacao, MyIntealth, ORCID"
+            ] },
+            { label: "FASE 4 — Ajustes Técnicos", titles: [
+                "3.2 — Recalibragem de Cronograma com Marcos (~45 min, sob demanda quando atraso passa de 1 system)",
+                "4.1 — 2a Sessao com Guilherme (~45 min, ~45-60 dias apos primeira) — Otimizacao FSRS, revisao de estatisticas",
+                "4.2 — Chamada adicional com Guilherme (sob demanda) — Para problemas persistentes no Anki"
+            ] },
+            { label: "FASE 5 — Pesquisa", titles: [
+                "5.1 — Onboarding em Pesquisa com Marcos (~60 min) — PRISMA, PICO, Rayyan, Cowork, ORCID",
+                "5.2 — Validacao de Ideia com Marcos (~90 min) — PubMed, Toolbox Ward, cruzamento com meta-analises",
+                "5.3a — Desenvolvimento da Pesquisa: Usar databases corretamente",
+                "5.3b — Desenvolvimento: Triagem por titulo e resumo (Rayyan)",
+                "5.3c — Desenvolvimento: Triagem por manuscritos",
+                "5.3d — Desenvolvimento: Extracao de dados",
+                "5.3e — Desenvolvimento: Risco de vies (ROBINS-I / RoB 2)",
+                "5.3f — Desenvolvimento: Escrita cientifica do manuscrito",
+                "5.3g — Desenvolvimento: Submissao (Jane / revistas)",
+                "5.4 — Pesquisa Estrategica com Iria (~45 min, pontual) — Direcao alinhada com especialidade, senior author"
+            ] },
+            { label: "FASE 6 — Simulados e Second Pass", titles: [
+                "6.1 — Estrategia de Second Pass com Iria (~60 min) — Refazer banco vs incorretas vs subjects",
+                "6.2 — Analise do UWSA 1 com Iria (~45 min)",
+                "6.3a — Analise NBME 26 com Iria (~30-45 min)",
+                "6.3b — Analise NBME 27 com Iria",
+                "6.3c — Analise NBME 28 com Iria",
+                "6.3d — Analise NBME 29 com Iria",
+                "6.3e — Analise NBME 30 com Iria",
+                "6.3f — Analise NBME 31 com Iria",
+                "6.3g — Analise NBME 32 com Iria",
+                "6.3h — Analise NBME 33 com Iria",
+                "6.4 — Blocao Ward com Iria (~45 min)",
+                "6.5a — Analise UWSA 2 com Iria (~30 min, proximo da prova)",
+                "6.5b — Analise UWSA 3 com Iria (~30 min, proximo da prova)"
+            ] },
+            { label: "FASE 7 — Dedicated e Prova", titles: [
+                "7.1 — Inscricao FSMB com Marcos (~30 min) — Criar conta no portal FSMB, US$75",
+                "7.2 — Agendamento Prometric com Marcos (~30 min) — Escolher data, local e horario da prova",
+                "7.3 — Planejamento do Dedicated com Iria (~60 min)",
+                "7.4a — Check-in Semanal Dedicated com Iria (semana 1, ~30 min)",
+                "7.4b — Check-in Semanal Dedicated com Iria (semana 2, ~30 min)",
+                "7.4c — Check-in Semanal Dedicated com Iria (semana 3, ~30 min)",
+                "7.5 — Chamada Pre-Prova com Iria (~30 min, ~3 dias antes) — Free 120, comportamento no Prometric",
+                "7.6 — Chamada Pos-Prova com Iria (~45 min) — Debrief emocional, percepcao, proximos passos",
+                "7.7 — Pass Report com Iria (~60 min, apos resultado) — Step 2 CK, observerships, OET, networking"
+            ] },
+            { label: "FASE 8 — Pós-Step 1", titles: [
+                "8.1 — Planejamento Step 2 CK com Iria (~60 min)",
+                "8.2a — Check-in Mensal Step 2 CK com Iria (mes 1)",
+                "8.2b — Check-in Mensal Step 2 CK com Iria (mes 2)",
+                "8.2c — Check-in Mensal Step 2 CK com Iria (mes 3)",
+                "8.3 — Networking Estrategico com Marcos (~60 min) — Mapa de Networking, mensagens de aproximacao",
+                "8.4 — Observerships com Iria (~60 min) — PDs IMG-friendly, sponsors de visto, abordagem",
+                "8.5 — Cartas de Recomendacao com Iria (~60 min) — Estrategia, modelo, abordagem aos sponsors",
+                "8.6a — Personal Statement com Iria (~60 min, 1a revisao) — Narrativa, identidade old graduate",
+                "8.6b — Personal Statement com Iria (~60 min, 2a revisao)",
+                "8.7 — ERAS, Signaling e Ranking com Iria (~60 min) — Decisoes de alto impacto",
+                "8.8a — Mock Interview com Iria (~60 min, sessao 1) — Simulacao no formato americano",
+                "8.8b — Mock Interview com Iria (~60 min, sessao 2)"
+            ] }
+        ];
+
+        async function initScheduleLinkGenerator() {
+            // Preenche o seletor de chamadas com os títulos reais (por fase) + opção personalizada
+            const callSelect = document.getElementById('link-call-select');
+            if (callSelect) {
+                const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+                let html = '';
+                DEFAULT_CALL_GROUPS.forEach(g => {
+                    html += `<optgroup label="${esc(g.label)}">` +
+                        g.titles.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('') +
+                        '</optgroup>';
+                });
+                html += '<option value="__custom__">✏️ Outra chamada (título personalizado)…</option>';
+                callSelect.innerHTML = html;
+            }
+
+            // Preenche o seletor de mentor (padrão = o próprio mentor logado)
+            const mentorSelect = document.getElementById('link-mentor-select');
+            if (mentorSelect) {
+                const { data: mentors } = await WardApp.db
+                    .from('users')
+                    .select('id, full_name, role')
+                    .ilike('role', 'mentor_%');
+                const sorted = (mentors || []).slice().sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+                mentorSelect.innerHTML = sorted.map(m => `<option value="${m.id}">${_dn(m.full_name) || m.role}</option>`).join('');
+                if (userData && userData.id) mentorSelect.value = String(userData.id);
+            }
+
+            updateScheduleLink();
+        }
+
+        function onLinkCallSelectChange() {
+            const isCustom = document.getElementById('link-call-select').value === '__custom__';
+            const wrap = document.getElementById('link-custom-wrap');
+            if (wrap) wrap.style.display = isCustom ? '' : 'none';
+            updateScheduleLink();
+        }
+
+        function currentLinkTitle() {
+            const sel = document.getElementById('link-call-select');
+            if (!sel) return '';
+            if (sel.value === '__custom__') {
+                return (document.getElementById('link-custom-title').value || '').trim();
+            }
+            return sel.value;
+        }
+
+        function buildStudentScheduleUrl(title, mentorId) {
+            const params = new URLSearchParams({ agendar: '1', titulo: title, mentor: String(mentorId || '') });
+            return `${window.location.origin}/landmarks?${params.toString()}`;
+        }
+
+        function updateScheduleLink() {
+            const title = currentLinkTitle();
+            const mentorId = document.getElementById('link-mentor-select')?.value || '';
+            const output = document.getElementById('link-output');
+            if (!title || !mentorId) {
+                if (output) output.style.display = 'none';
+                return;
+            }
+            const url = buildStudentScheduleUrl(title, mentorId);
+            document.getElementById('link-url').value = url;
+            const mentorName = document.getElementById('link-mentor-select').selectedOptions[0]?.textContent || 'o mentor';
+            const msg = `Olá! Para agendarmos nossa chamada "${title}" com ${mentorName}, é só abrir este link e escolher o melhor dia e horário: ${url}`;
+            document.getElementById('link-whatsapp').href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+            if (output) output.style.display = 'block';
+        }
+
+        async function copyScheduleLink() {
+            const input = document.getElementById('link-url');
+            const url = input.value;
+            if (!url) return;
+            try {
+                await navigator.clipboard.writeText(url);
+                WardApp.showToast('🔗 Link copiado!');
+            } catch (e) {
+                // Fallback para navegadores sem clipboard API
+                input.select();
+                try { document.execCommand('copy'); WardApp.showToast('🔗 Link copiado!'); }
+                catch (e2) { WardApp.showToast('Selecione e copie o link manualmente', 'warning'); }
+            }
         }
 
         async function loadMentorSettings() {
@@ -673,8 +1070,67 @@
                 .eq('id', userData.id)
                 .maybeSingle();
 
-            const tz = userRow?.timezone || 'America/Sao_Paulo';
-            document.getElementById('mentor-timezone').value = tz;
+            const tzSelect = document.getElementById('mentor-timezone');
+            const savedTz = userRow?.timezone || null;
+            let sessionOverride = null;
+            try { sessionOverride = sessionStorage.getItem('ward_tz_override'); } catch (e) {}
+
+            if (sessionOverride) {
+                // Troca manual feita nesta sessao (ex.: mentor ajustou ao viajar).
+                tzSelect.value = sessionOverride;
+            } else if (savedTz) {
+                // O fuso do mentor NAO troca sozinho ao viajar: ele define o significado
+                // das disponibilidades ja cadastradas (que os alunos leem para converter).
+                // Trocar silenciosamente deslocaria o horario de todos os alunos. Entao
+                // mantemos o fuso salvo e apenas oferecemos atualizar, se detectarmos viagem.
+                tzSelect.value = savedTz;
+                maybeShowMentorTzTravelHint(savedTz);
+            } else if (window.WardTZ) {
+                // Primeira configuracao (sem fuso salvo): detecta e adota.
+                const detected = window.WardTZ.applyToSelect(tzSelect, { fallback: 'America/Sao_Paulo' });
+                if (detected) {
+                    try { await WardApp.db.from('users').update({ timezone: detected }).eq('id', userData.id); } catch (e) {}
+                    const stored = JSON.parse(localStorage.getItem('ward_user') || '{}');
+                    stored.timezone = detected;
+                    localStorage.setItem('ward_user', JSON.stringify(stored));
+                }
+            } else {
+                tzSelect.value = 'America/Sao_Paulo';
+            }
+        }
+
+        // Aviso nao-destrutivo: se o mentor parece estar em outro fuso agora (viagem),
+        // oferece atualizar — deixando claro que isso reposiciona as disponibilidades.
+        function maybeShowMentorTzTravelHint(savedTz) {
+            const hint = document.getElementById('mentor-tz-travel-hint');
+            if (!hint || !window.WardTZ) return;
+            const detected = window.WardTZ.detect();
+            if (!detected) { hint.style.display = 'none'; return; }
+            const offSaved = window.WardTZ.offsetMinutes(savedTz);
+            const offDet = window.WardTZ.offsetMinutes(detected);
+            if (offSaved === null || offDet === null || offSaved === offDet) {
+                hint.style.display = 'none';
+                return;
+            }
+            const known = Array.from(document.getElementById('mentor-timezone').options).map(o => o.value);
+            const mapped = window.WardTZ.resolve(known, savedTz);
+            if (!mapped || mapped === savedTz) { hint.style.display = 'none'; return; }
+            hint.dataset.tz = mapped;
+            hint.innerHTML =
+                '🌍 Detectamos que você pode estar em outro fuso agora. ' +
+                '<button type="button" class="btn btn-sm btn-outline" style="margin-left:0.25rem;" onclick="applyDetectedMentorTz()">Atualizar fuso</button> ' +
+                '<span class="text-muted" style="display:block;font-size:0.78rem;margin-top:0.35rem;">Ao atualizar, suas disponibilidades passam a valer neste novo fuso.</span>';
+            hint.style.display = 'block';
+        }
+
+        function applyDetectedMentorTz() {
+            const hint = document.getElementById('mentor-tz-travel-hint');
+            const tz = hint && hint.dataset ? hint.dataset.tz : null;
+            if (!tz) return;
+            const sel = document.getElementById('mentor-timezone');
+            sel.value = tz;
+            if (hint) hint.style.display = 'none';
+            saveMentorTimezone();
         }
 
         async function saveMinDaysAhead() {
@@ -711,10 +1167,13 @@
                 return;
             }
 
-            // Also update localStorage
+            // Also update localStorage + marca como escolha manual desta sessao.
             const stored = JSON.parse(localStorage.getItem('ward_user') || '{}');
             stored.timezone = tz;
             localStorage.setItem('ward_user', JSON.stringify(stored));
+            try { sessionStorage.setItem('ward_tz_override', tz); } catch (e) {}
+            const hint = document.getElementById('mentor-tz-travel-hint');
+            if (hint) hint.style.display = 'none';
 
             WardApp.showToast('Fuso horario salvo!');
         }
@@ -784,6 +1243,24 @@
             }).join('');
         }
 
+        function friendlyTzName(tz) {
+            const map = {
+                'America/New_York': 'Florida / New York',
+                'America/Chicago': 'Chicago / Houston',
+                'America/Denver': 'Denver',
+                'America/Los_Angeles': 'Los Angeles',
+                'America/Phoenix': 'Arizona',
+                'America/Sao_Paulo': 'Brasilia',
+                'America/Manaus': 'Manaus',
+                'America/Rio_Branco': 'Acre',
+                'America/Noronha': 'Noronha',
+                'Europe/London': 'Londres',
+                'Europe/Lisbon': 'Lisboa',
+                'Europe/Paris': 'Paris',
+            };
+            return map[tz] || tz.split('/').pop().replace(/_/g, ' ');
+        }
+
         // Convert time from one timezone to another
         // date: 'YYYY-MM-DD', time: 'HH:MM', fromTz/toTz: IANA timezone strings
         function convertTime(date, time, fromTz, toTz) {
@@ -805,7 +1282,7 @@
             const mentorTz = document.getElementById('mentor-timezone')?.value || 'America/Sao_Paulo';
             if (studentTz === mentorTz) return '';
             const convertedTime = convertTime(call.scheduled_date, call.scheduled_time, mentorTz, studentTz);
-            const tzShort = studentTz.split('/').pop().replace(/_/g, ' ');
+            const tzShort = friendlyTzName(studentTz);
             return `<br><span style="font-size: 0.75rem; color: var(--gray-500);">🌍 ${convertedTime} no horario do aluno (${tzShort})</span>`;
         }
 
@@ -1502,6 +1979,37 @@
                 .sort((a, b) => a._displayName.localeCompare(b._displayName, 'pt-BR'));
         }
 
+        let callScheduleMode = 'availability'; // 'availability' or 'free'
+
+        function switchCallMode(mode) {
+            callScheduleMode = mode;
+            const avBtn = document.getElementById('mode-availability-btn');
+            const frBtn = document.getElementById('mode-free-btn');
+            const avDiv = document.getElementById('call-mode-availability');
+            const frDiv = document.getElementById('call-mode-free');
+
+            if (mode === 'availability') {
+                avBtn.style.background = 'var(--primary)';
+                avBtn.style.color = 'white';
+                avBtn.style.fontWeight = '600';
+                frBtn.style.background = 'var(--gray-100)';
+                frBtn.style.color = 'var(--gray-600)';
+                frBtn.style.fontWeight = 'normal';
+                avDiv.style.display = '';
+                frDiv.style.display = 'none';
+            } else {
+                frBtn.style.background = 'var(--primary)';
+                frBtn.style.color = 'white';
+                frBtn.style.fontWeight = '600';
+                avBtn.style.background = 'var(--gray-100)';
+                avBtn.style.color = 'var(--gray-600)';
+                avBtn.style.fontWeight = 'normal';
+                avDiv.style.display = 'none';
+                frDiv.style.display = '';
+                loadNewCallDates();
+            }
+        }
+
         async function openNewCallModal() {
             await loadStudentsList();
 
@@ -1513,15 +2021,132 @@
             // Reset fields
             document.getElementById('new-call-title').value = '';
             document.getElementById('new-call-notes').value = '';
+
+            // Default to availability mode
+            switchCallMode('availability');
+            await loadAvailabilityDates();
+
+            // Also prep free mode fields
             document.getElementById('new-call-time').value = '09:00';
             document.getElementById('new-call-time-hint').textContent = '';
-
-            // Set date input min to today
-            loadNewCallDates();
 
             openModal('new-call-modal');
         }
 
+        // ===== Availability mode: dates from configured availability =====
+        async function loadAvailabilityDates() {
+            const dateSelect = document.getElementById('new-call-date-select');
+            const timeSelect = document.getElementById('new-call-time-select');
+            dateSelect.innerHTML = '<option value="">Selecione uma data...</option>';
+            timeSelect.innerHTML = '<option value="">Selecione uma data primeiro...</option>';
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const dates = [];
+
+            // Generate next 60 days of available dates from regularAvailability
+            for (let d = 0; d < 60; d++) {
+                const date = new Date(today);
+                date.setDate(today.getDate() + d);
+                const dow = date.getDay(); // 0=Dom, 1=Seg...
+
+                const slotsForDay = regularAvailability.filter(s => s.day_of_week === dow);
+                if (slotsForDay.length > 0) {
+                    const yyyy = date.getFullYear();
+                    const mm = String(date.getMonth() + 1).padStart(2, '0');
+                    const dd = String(date.getDate()).padStart(2, '0');
+                    const dateStr = `${yyyy}-${mm}-${dd}`;
+                    const dayName = dayNames[dow];
+                    const label = `${dayName}, ${dd}/${mm}`;
+                    dates.push({ value: dateStr, label });
+                }
+            }
+
+            // Also add specific available dates
+            for (const sp of specificDates) {
+                if (sp.date_type === 'available' && sp.specific_date >= today.toISOString().split('T')[0]) {
+                    const parts = sp.specific_date.split('-');
+                    const spDate = new Date(parts[0], parts[1] - 1, parts[2]);
+                    const dayName = dayNames[spDate.getDay()];
+                    const label = `${dayName}, ${parts[2]}/${parts[1]} (especial)`;
+                    if (!dates.find(d => d.value === sp.specific_date)) {
+                        dates.push({ value: sp.specific_date, label });
+                    }
+                }
+            }
+
+            // Sort by date
+            dates.sort((a, b) => a.value.localeCompare(b.value));
+
+            dates.forEach(d => {
+                dateSelect.innerHTML += `<option value="${d.value}">${d.label}</option>`;
+            });
+        }
+
+        async function loadAvailabilityTimeSlots() {
+            const dateStr = document.getElementById('new-call-date-select').value;
+            const timeSelect = document.getElementById('new-call-time-select');
+            timeSelect.innerHTML = '<option value="">Carregando...</option>';
+
+            if (!dateStr) {
+                timeSelect.innerHTML = '<option value="">Selecione uma data primeiro...</option>';
+                return;
+            }
+
+            const parts = dateStr.split('-');
+            const selectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
+            const dow = selectedDate.getDay();
+
+            // Get time slots from regular availability for this day of week
+            let allSlots = [];
+            const slotsForDay = regularAvailability.filter(s => s.day_of_week === dow);
+            slotsForDay.forEach(avail => {
+                const duration = avail.duration_minutes || 60;
+                const breakMin = avail.break_minutes || 0;
+                const slots = generateTimeSlots(avail.start_time, avail.end_time, duration, breakMin);
+                slots.forEach(s => allSlots.push(s.start));
+            });
+
+            // Also check specific dates for this date
+            const specificForDate = specificDates.filter(sp => sp.specific_date === dateStr && sp.date_type === 'available');
+            specificForDate.forEach(sp => {
+                if (sp.start_time && sp.end_time) {
+                    const duration = sp.duration_minutes || 60;
+                    const breakMin = sp.break_minutes || 0;
+                    const slots = generateTimeSlots(sp.start_time, sp.end_time, duration, breakMin);
+                    slots.forEach(s => { if (!allSlots.includes(s.start)) allSlots.push(s.start); });
+                }
+            });
+
+            // Remove already booked times
+            const { data: booked } = await WardApp.db
+                .from('scheduled_calls')
+                .select('scheduled_time')
+                .eq('mentor_id', userData.id)
+                .eq('scheduled_date', dateStr)
+                .eq('status', 'scheduled');
+
+            const bookedTimes = (booked || []).map(b => b.scheduled_time.substring(0, 5));
+            allSlots = allSlots.filter(t => !bookedTimes.includes(t));
+
+            // Remove blocked dates
+            const blockedForDate = specificDates.filter(sp => sp.specific_date === dateStr && sp.date_type === 'blocked');
+            if (blockedForDate.length > 0) {
+                // If whole day is blocked, no slots
+                allSlots = [];
+            }
+
+            allSlots.sort();
+
+            if (allSlots.length === 0) {
+                timeSelect.innerHTML = '<option value="">Nenhum horario disponivel</option>';
+            } else {
+                timeSelect.innerHTML = '<option value="">Selecione um horario...</option>' +
+                    allSlots.map(t => `<option value="${t}">${t}</option>`).join('');
+            }
+        }
+
+        // ===== Free mode: any date/time =====
         function loadNewCallDates() {
             const dateInput = document.getElementById('new-call-date');
             const today = new Date().toISOString().split('T')[0];
@@ -1558,8 +2183,12 @@
         async function submitNewCall() {
             const title = document.getElementById('new-call-title').value.trim();
             const studentId = document.getElementById('new-call-student').value;
-            const dateStr = document.getElementById('new-call-date').value;
-            const time = document.getElementById('new-call-time').value;
+            const dateStr = callScheduleMode === 'availability'
+                ? document.getElementById('new-call-date-select').value
+                : document.getElementById('new-call-date').value;
+            const time = callScheduleMode === 'availability'
+                ? document.getElementById('new-call-time-select').value
+                : document.getElementById('new-call-time').value;
             const notes = document.getElementById('new-call-notes').value.trim();
 
             if (!title || !studentId || !dateStr || !time) {

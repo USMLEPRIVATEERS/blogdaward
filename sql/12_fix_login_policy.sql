@@ -38,7 +38,7 @@ DO UPDATE SET
 INSERT INTO users (email, password_hash, name, role, first_login_completed) VALUES
     ('costamdiria@gmail.com', 'ward2024', 'Iria Cassia Abreu da Costa', 'mentor_iria', TRUE),
     ('guilhermelavor@yahoo.com.br', 'ward2024', 'Guilherme De Lavor Araujo', 'mentor_guilherme', TRUE),
-    ('romulossanglard@gmail.com', 'ward2024', 'Romulo da Silva Sanglard', 'mentor_romulo', TRUE)
+    ('fernandovasconcellos@ward.com.br', 'ward2024', 'Fernando Vasconcellos', 'mentor_fernando', TRUE)
 ON CONFLICT (email) DO NOTHING;
 
 -- PASSO 6: Verificar os dados
