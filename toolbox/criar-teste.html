@@ -245,11 +245,11 @@ a{color:var(--accent);text-decoration:none}
 
       <div class="used-block">
         <div class="used-head">
-          <span class="used-title">Questões já usadas <small>— excluídas dos filtros e salvas neste navegador</small></span>
+          <span class="used-title" id="usedTitle">Questões já usadas</span>
           <span class="used-meta" id="usedMeta"></span>
           <button class="btn btn-ghost" id="btnClearUsed">Limpar usadas</button>
         </div>
-        <textarea id="usedIn" spellcheck="false" placeholder="Cole aqui os Question IDs que você já fez (vírgula, espaço ou quebra de linha). Ficam salvos e não voltam a aparecer nas próximas filtragens."></textarea>
+        <textarea id="usedIn" spellcheck="false" placeholder="Cole os Question IDs que você já fez NESTE QBank + Step (vírgula, espaço ou quebra de linha). Cada QBank + Step guarda a sua própria lista, salva neste navegador, e essas questões não voltam a aparecer nas filtragens deste QBank + Step."></textarea>
       </div>
     </div>
   </div>
@@ -353,7 +353,8 @@ var state={bank:0,step:0,subjects:new Set(),systems:new Set(),topics:new Set(),
   q:{subj:'',sys:'',top:''}};
 var stepRows=[];       // todas as questões do bank+step atual
 var activeRows=[];     // stepRows menos as já usadas (o que os filtros enxergam)
-var usedSet=new Set(); // uWorldIds marcados como usados (por bank, em localStorage)
+var usedSet=new Set(); // uWorldIds marcados como usados (por QBank+Step, em localStorage)
+var usedTimer=null;    // debounce da re-renderização ao colar usadas
 
 /* ---------- helpers ---------- */
 function avgPct(rows){var s=0;for(var i=0;i<rows.length;i++)s+=rows[i][R_PCT];return rows.length?s/rows.length:0;}
@@ -648,22 +649,26 @@ function loadScope(){
 }
 
 /* ---------- questões já usadas (localStorage por bank) ---------- */
-function usedKey(){return 'qbank_used::'+D.banks[state.bank];}
+function usedKey(){return 'qbank_used::'+D.banks[state.bank]+'::'+D.steps[state.step];}
 function parseUsed(text){var set=new Set();var m=String(text).match(/\d+/g);if(m)for(var i=0;i<m.length;i++)set.add(parseInt(m[i],10));return set;}
-function loadUsed(){var raw='';try{raw=localStorage.getItem(usedKey())||'';}catch(e){}document.getElementById('usedIn').value=raw;usedSet=parseUsed(raw);}
+function loadUsed(){clearTimeout(usedTimer);var raw='';try{raw=localStorage.getItem(usedKey())||'';}catch(e){}document.getElementById('usedIn').value=raw;usedSet=parseUsed(raw);}
 function saveUsed(text){try{localStorage.setItem(usedKey(),text);}catch(e){}}
 function recomputeActive(){activeRows=stepRows.filter(function(r){return !usedSet.has(r[R_QID]);});updateUsedMeta();}
 function updateUsedMeta(){
   var inStep=0;for(var i=0;i<stepRows.length;i++){if(usedSet.has(stepRows[i][R_QID]))inStep++;}
+  document.getElementById('usedTitle').innerHTML='Questões já usadas <small>— '+esc(D.banks[state.bank])+' · '+esc(D.steps[state.step])+', salvas neste navegador</small>';
   var el=document.getElementById('usedMeta');
   el.textContent=usedSet.size?(usedSet.size+' usadas · '+inStep+' neste Step · '+(stepRows.length-inStep)+' disponíveis'):'';
 }
 (function(){
-  var ut;document.getElementById('usedIn').addEventListener('input',function(e){
-    var val=e.target.value;clearTimeout(ut);
-    ut=setTimeout(function(){usedSet=parseUsed(val);saveUsed(val);recomputeActive();pruneDown();fullRender();},250);
+  document.getElementById('usedIn').addEventListener('input',function(e){
+    var val=e.target.value;
+    saveUsed(val);                 // salva JÁ, com o QBank+Step atual (evita perder/errar escopo)
+    clearTimeout(usedTimer);
+    usedTimer=setTimeout(function(){usedSet=parseUsed(val);recomputeActive();pruneDown();fullRender();},200);
   });
   document.getElementById('btnClearUsed').addEventListener('click',function(){
+    clearTimeout(usedTimer);
     document.getElementById('usedIn').value='';usedSet=new Set();saveUsed('');recomputeActive();pruneDown();fullRender();
   });
 })();
