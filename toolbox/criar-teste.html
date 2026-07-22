@@ -101,6 +101,14 @@ a{color:var(--accent);text-decoration:none}
 .out-head .c b{color:var(--ink)}
 .out-head .perline{display:flex;align-items:center;gap:8px;margin-left:auto}
 .out-head .perline span{font-size:12px;color:var(--muted);font-weight:600}
+.used-block{margin-top:16px;border-top:1px dashed var(--line);padding-top:14px}
+.used-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.used-title{font-size:13px;font-weight:700;color:var(--ink)}
+.used-title small{font-weight:600;color:var(--muted-2)}
+.used-meta{font-size:12px;font-weight:700;color:var(--accent-d)}
+#btnClearUsed{margin-left:auto}
+#usedIn{width:100%;min-height:68px;max-height:200px;font-family:'SF Mono',Consolas,'Roboto Mono',monospace;font-size:12.5px;line-height:1.6;color:#33404d;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;resize:vertical;white-space:pre-wrap;word-break:break-all}
+#usedIn:focus{outline:none;border-color:var(--accent)}
 #idsOut{width:100%;min-height:120px;max-height:320px;font-family:'SF Mono',Consolas,'Roboto Mono',monospace;font-size:12.5px;line-height:1.9;color:#33404d;background:#fbfcfd;border:1px solid var(--line);border-radius:8px;padding:12px 14px;resize:vertical;white-space:pre;overflow:auto}
 #idsOut:focus{outline:none;border-color:var(--accent)}
 .copied{color:var(--ok)!important;border-color:var(--ok)!important}
@@ -234,6 +242,15 @@ a{color:var(--accent);text-decoration:none}
         </div>
       </div>
       <textarea id="idsOut" readonly spellcheck="false" placeholder="Selecione filtros para gerar os Question IDs…"></textarea>
+
+      <div class="used-block">
+        <div class="used-head">
+          <span class="used-title">Questões já usadas <small>— excluídas dos filtros e salvas neste navegador</small></span>
+          <span class="used-meta" id="usedMeta"></span>
+          <button class="btn btn-ghost" id="btnClearUsed">Limpar usadas</button>
+        </div>
+        <textarea id="usedIn" spellcheck="false" placeholder="Cole aqui os Question IDs que você já fez (vírgula, espaço ou quebra de linha). Ficam salvos e não voltam a aparecer nas próximas filtragens."></textarea>
+      </div>
     </div>
   </div>
 
@@ -322,7 +339,7 @@ function sortPanel(ids,level,counts,topKey){
 /* para tópicos no modo aprendizado: cada tópico recebe [rank do system, rank do tópico] */
 function buildTopKey(){
   var S=state.subjects,Y=state.systems,map={};
-  for(var i=0;i<stepRows.length;i++){var r=stepRows[i];
+  for(var i=0;i<activeRows.length;i++){var r=activeRows[i];
     if(S.size&&!S.has(r[R_SUBJ]))continue;
     if(Y.size&&!Y.has(r[R_SYS]))continue;
     var t=r[R_TOP],sr=sysRank(r[R_SYS]),cur=map[t];
@@ -334,7 +351,9 @@ function buildTopKey(){
 var state={bank:0,step:0,subjects:new Set(),systems:new Set(),topics:new Set(),
   sort:'aprendizado',tie:'fluidez',chartDim:'topic',chartTop:10,perLine:20,
   q:{subj:'',sys:'',top:''}};
-var stepRows=[];
+var stepRows=[];       // todas as questões do bank+step atual
+var activeRows=[];     // stepRows menos as já usadas (o que os filtros enxergam)
+var usedSet=new Set(); // uWorldIds marcados como usados (por bank, em localStorage)
 
 /* ---------- helpers ---------- */
 function avgPct(rows){var s=0;for(var i=0;i<rows.length;i++)s+=rows[i][R_PCT];return rows.length?s/rows.length:0;}
@@ -345,14 +364,14 @@ function chk(){return '<svg viewBox="0 0 24 24"><polyline points="4,12 10,18 20,
 
 /* ---------- cascade counts ---------- */
 function acc(m,k,pct){var e=m[k]||(m[k]={c:0,s:0});e.c++;e.s+=pct;}
-function subjCounts(){var m={};for(var i=0;i<stepRows.length;i++){var r=stepRows[i];acc(m,r[R_SUBJ],r[R_PCT]);}return m;}
-function sysCounts(){var S=state.subjects,m={};for(var i=0;i<stepRows.length;i++){var r=stepRows[i];if(S.size&&!S.has(r[R_SUBJ]))continue;acc(m,r[R_SYS],r[R_PCT]);}return m;}
-function topCounts(){var S=state.subjects,Y=state.systems,m={};for(var i=0;i<stepRows.length;i++){var r=stepRows[i];if(S.size&&!S.has(r[R_SUBJ]))continue;if(Y.size&&!Y.has(r[R_SYS]))continue;acc(m,r[R_TOP],r[R_PCT]);}return m;}
+function subjCounts(){var m={};for(var i=0;i<activeRows.length;i++){var r=activeRows[i];acc(m,r[R_SUBJ],r[R_PCT]);}return m;}
+function sysCounts(){var S=state.subjects,m={};for(var i=0;i<activeRows.length;i++){var r=activeRows[i];if(S.size&&!S.has(r[R_SUBJ]))continue;acc(m,r[R_SYS],r[R_PCT]);}return m;}
+function topCounts(){var S=state.subjects,Y=state.systems,m={};for(var i=0;i<activeRows.length;i++){var r=activeRows[i];if(S.size&&!S.has(r[R_SUBJ]))continue;if(Y.size&&!Y.has(r[R_SYS]))continue;acc(m,r[R_TOP],r[R_PCT]);}return m;}
 
 /* ---------- selected rows ---------- */
 function selectedRows(){
   var S=state.subjects,Y=state.systems,T=state.topics,out=[];
-  for(var i=0;i<stepRows.length;i++){var r=stepRows[i];
+  for(var i=0;i<activeRows.length;i++){var r=activeRows[i];
     if(S.size&&!S.has(r[R_SUBJ]))continue;
     if(Y.size&&!Y.has(r[R_SYS]))continue;
     if(T.size&&!T.has(r[R_TOP]))continue;
@@ -622,9 +641,32 @@ function buildSteps(){
 }
 function loadScope(){
   stepRows=D.rows.filter(function(r){return r[R_BANK]===state.bank&&r[R_STEP]===state.step;});
+  loadUsed();          // carrega as usadas deste bank do localStorage
+  recomputeActive();   // activeRows = stepRows - usadas
   document.getElementById('scopeMeta').textContent=D.banks[state.bank]+' · '+D.steps[state.step]+' · '+stepRows.length+' questões';
   fullRender();
 }
+
+/* ---------- questões já usadas (localStorage por bank) ---------- */
+function usedKey(){return 'qbank_used::'+D.banks[state.bank];}
+function parseUsed(text){var set=new Set();var m=String(text).match(/\d+/g);if(m)for(var i=0;i<m.length;i++)set.add(parseInt(m[i],10));return set;}
+function loadUsed(){var raw='';try{raw=localStorage.getItem(usedKey())||'';}catch(e){}document.getElementById('usedIn').value=raw;usedSet=parseUsed(raw);}
+function saveUsed(text){try{localStorage.setItem(usedKey(),text);}catch(e){}}
+function recomputeActive(){activeRows=stepRows.filter(function(r){return !usedSet.has(r[R_QID]);});updateUsedMeta();}
+function updateUsedMeta(){
+  var inStep=0;for(var i=0;i<stepRows.length;i++){if(usedSet.has(stepRows[i][R_QID]))inStep++;}
+  var el=document.getElementById('usedMeta');
+  el.textContent=usedSet.size?(usedSet.size+' usadas · '+inStep+' neste Step · '+(stepRows.length-inStep)+' disponíveis'):'';
+}
+(function(){
+  var ut;document.getElementById('usedIn').addEventListener('input',function(e){
+    var val=e.target.value;clearTimeout(ut);
+    ut=setTimeout(function(){usedSet=parseUsed(val);saveUsed(val);recomputeActive();pruneDown();fullRender();},250);
+  });
+  document.getElementById('btnClearUsed').addEventListener('click',function(){
+    document.getElementById('usedIn').value='';usedSet=new Set();saveUsed('');recomputeActive();pruneDown();fullRender();
+  });
+})();
 
 buildBanks();buildSteps();updateHint();loadScope();
 })();
