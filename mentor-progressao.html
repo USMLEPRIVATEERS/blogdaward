@@ -807,6 +807,15 @@
         const MPG_TIER_COLOR = { good: '#059669', mid: '#f59e0b', low: '#ef4444' };
         function mpgTier(pct) { return pct >= 70 ? 'good' : pct >= 50 ? 'mid' : 'low'; }
 
+        // Tela pequena (iPhone Safari etc.): abrevia o nome para "Ana S."
+        function mpgSmallScreen() { return !!(window.matchMedia && window.matchMedia('(max-width: 640px)').matches); }
+        function shortName(full) {
+            const parts = String(full || '').trim().split(/\s+/).filter(Boolean);
+            if (parts.length <= 1) return parts[0] || String(full || '');
+            return parts[0] + ' ' + parts[parts.length - 1].charAt(0).toUpperCase() + '.';
+        }
+        function chartLabel(name) { return mpgSmallScreen() ? shortName(name) : name; }
+
         // % de acertos (avaliação mais recente) de cada aluno ativo nesta avaliação, ordenado desc.
         function chartDataFor(assessmentId) {
             const a = assessments.find(x => String(x.id) === String(assessmentId));
@@ -887,7 +896,7 @@
         }
 
         function renderApexChart(el, items, avg) {
-            const names = items.map(i => i.name);
+            const names = items.map(i => chartLabel(i.name));
             const data = items.map(i => i.pct);
             const colors = items.map(i => MPG_TIER_COLOR[mpgTier(i.pct)]);
             const height = Math.max(170, items.length * 40 + 60);
@@ -922,7 +931,7 @@
             if (apexChart) { apexChart.destroy(); apexChart = null; }
             const rows = items.map(i =>
                 `<div class="mpg-fbrow">
-                    <span class="mpg-fbname" title="${esc(i.name)}">${esc(i.name)}</span>
+                    <span class="mpg-fbname" title="${esc(i.name)}">${esc(chartLabel(i.name))}</span>
                     <div class="mpg-fbtrack"><div class="mpg-fbfill tier-${mpgTier(i.pct)}" style="width:${Math.max(2, i.pct)}%"></div></div>
                     <span class="mpg-fbpct">${i.pct}%</span>
                 </div>`).join('');
@@ -930,6 +939,14 @@
         }
 
         function refreshChart() { buildChartSelector(); renderChart(); }
+
+        // Re-renderiza o gráfico só quando cruza o limite de "tela pequena"
+        // (ex.: girar o iPhone), para atualizar os nomes abreviados/completos.
+        let _mpgWasSmall = mpgSmallScreen();
+        window.addEventListener('resize', function () {
+            const s = mpgSmallScreen();
+            if (s !== _mpgWasSmall) { _mpgWasSmall = s; renderChart(); }
+        });
 
         // ---- Avaliações ----
         function renderScores(userId) {
