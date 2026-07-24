@@ -7,6 +7,8 @@
     <title>Ward Academy - Progressão dos Alunos</title>
     <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- ApexCharts (gráfico comparativo por avaliação). Fallback em CSS caso não carregue. -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js"></script>
     <style>
         .mpg-wrap { max-width: 1200px; margin: 0 auto; }
 
@@ -33,6 +35,41 @@
         }
         .mpg-stat b { font-size: 1.5rem; display: block; color: #111827; letter-spacing: -0.02em; }
         .mpg-stat span { font-size: 0.78rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
+
+        /* Gráfico comparativo por avaliação */
+        .mpg-chart-card {
+            background: #fff; border: 1px solid #e5e7eb; border-radius: 16px;
+            padding: 1.1rem 1.25rem 1.2rem; margin-bottom: 1.25rem;
+            box-shadow: 0 1px 2px rgba(16,24,40,.05);
+        }
+        .mpg-chart-head {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            gap: 0.85rem; flex-wrap: wrap; margin-bottom: 0.5rem;
+        }
+        .mpg-chart-title { margin: 0; font-size: 1.05rem; letter-spacing: -0.01em; color: #111827; }
+        .mpg-chart-sub { margin: 0.2rem 0 0; font-size: 0.82rem; color: #6b7280; }
+        #mpg-chart-assessment {
+            padding: 0.55rem 0.75rem; font-size: 0.9rem; border: 1px solid #d1d5db;
+            border-radius: 10px; background: #fff; color: #111827; max-width: 280px; cursor: pointer;
+        }
+        #mpg-chart-assessment:focus { outline: 2px solid var(--accent-orange,#C45700); outline-offset: 1px; border-color: transparent; }
+        .mpg-chart-area { width: 100%; min-height: 120px; }
+        .mpg-chart-empty { padding: 2.2rem 1rem; text-align: center; color: #9ca3af; font-size: 0.9rem; }
+        .mpg-chart-legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.65rem; font-size: 0.74rem; color: #6b7280; }
+        .mpg-lg { display: inline-flex; align-items: center; gap: 0.35rem; }
+        .mpg-lg i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+        /* Fallback em CSS caso a biblioteca não carregue */
+        .mpg-fbchart { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.3rem; }
+        .mpg-fbrow { display: grid; grid-template-columns: minmax(84px, 150px) 1fr auto; align-items: center; gap: 0.7rem; }
+        .mpg-fbname { font-size: 0.82rem; color: #374151; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .mpg-fbtrack { height: 22px; border-radius: 7px; background: #f1f5f9; overflow: hidden; }
+        .mpg-fbfill { height: 100%; border-radius: 7px; width: 0; transition: width .5s cubic-bezier(.4,0,.2,1); }
+        .mpg-fbpct { font-size: 0.82rem; font-weight: 700; color: #111827; min-width: 42px; text-align: right; }
+        .mpg-fbfill.tier-good { background: linear-gradient(90deg,#34d399,#059669); }
+        .mpg-fbfill.tier-mid { background: linear-gradient(90deg,#fbbf24,#f59e0b); }
+        .mpg-fbfill.tier-low { background: linear-gradient(90deg,#f87171,#ef4444); }
+        .mpg-fbavg { font-size: 0.75rem; color: #6366F1; font-weight: 600; margin-top: 0.35rem; }
 
         .mpg-toolbar { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
         .mpg-search {
@@ -275,6 +312,25 @@
 
             <div class="mpg-stats" id="mpg-stats"></div>
 
+            <!-- Gráfico comparativo: % de acertos de todos os alunos por avaliação -->
+            <div class="mpg-chart-card" id="mpg-chart-card">
+                <div class="mpg-chart-head">
+                    <div>
+                        <h2 class="mpg-chart-title">📊 Desempenho por avaliação</h2>
+                        <p class="mpg-chart-sub" id="mpg-chart-sub">Compare o aproveitamento de todos os alunos em cada teste.</p>
+                    </div>
+                    <select id="mpg-chart-assessment" onchange="renderChart()" title="Escolha a avaliação"></select>
+                </div>
+                <div id="mpg-chart" class="mpg-chart-area"></div>
+                <div id="mpg-chart-empty" class="mpg-chart-empty" style="display:none"></div>
+                <div class="mpg-chart-legend">
+                    <span class="mpg-lg"><i style="background:#059669"></i> ≥ 70%</span>
+                    <span class="mpg-lg"><i style="background:#f59e0b"></i> 50–69%</span>
+                    <span class="mpg-lg"><i style="background:#ef4444"></i> &lt; 50%</span>
+                    <span class="mpg-lg"><i style="background:#6366F1"></i> Média da turma</span>
+                </div>
+            </div>
+
             <div class="mpg-toolbar">
                 <input type="text" id="mpg-search" class="mpg-search" placeholder="🔎 Buscar aluno pelo nome ou e-mail..." oninput="filterStudents()">
                 <select id="mpg-sort" class="mpg-select mpg-sort-select" onchange="setSort(this.value)" title="Ordenar">
@@ -430,6 +486,7 @@
 
             renderStats();
             renderOverview();
+            refreshChart();
         }
 
         // Executa uma query com segurança: nunca lança; devolve {ok, data, error}.
@@ -745,6 +802,152 @@
             }
         }
 
+        // ---- Gráfico comparativo por avaliação ----
+        let apexChart = null;
+        const MPG_TIER_COLOR = { good: '#059669', mid: '#f59e0b', low: '#ef4444' };
+        function mpgTier(pct) { return pct >= 70 ? 'good' : pct >= 50 ? 'mid' : 'low'; }
+
+        // Tela pequena (iPhone Safari etc.): abrevia o nome para "Ana S."
+        function mpgSmallScreen() { return !!(window.matchMedia && window.matchMedia('(max-width: 640px)').matches); }
+        function shortName(full) {
+            const parts = String(full || '').trim().split(/\s+/).filter(Boolean);
+            if (parts.length <= 1) return parts[0] || String(full || '');
+            return parts[0] + ' ' + parts[parts.length - 1].charAt(0).toUpperCase() + '.';
+        }
+        function chartLabel(name) { return mpgSmallScreen() ? shortName(name) : name; }
+
+        // % de acertos (avaliação mais recente) de cada aluno ativo nesta avaliação, ordenado desc.
+        function chartDataFor(assessmentId) {
+            const a = assessments.find(x => String(x.id) === String(assessmentId));
+            const defTotal = a && a.total_questions;
+            const items = [];
+            students.forEach(s => {
+                if (isHidden(s.id)) return;
+                const rows = (scoresByUser[s.id] || []).filter(r =>
+                    String(r.assessment_id) === String(assessmentId) && r.correct_count != null);
+                if (!rows.length) return;
+                rows.sort((x, y) => (y.taken_on || '').localeCompare(x.taken_on || ''));
+                const r = rows[0];
+                const total = r.total_questions || defTotal;
+                if (!total) return;
+                const pct = Math.round(r.correct_count / total * 100);
+                items.push({ name: studentName(s), pct: pct });
+            });
+            items.sort((p, q) => q.pct - p.pct || p.name.localeCompare(q.name));
+            return items;
+        }
+
+        function buildChartSelector() {
+            const sel = document.getElementById('mpg-chart-assessment');
+            if (!sel) return;
+            const prev = sel.value;
+            const counts = {};   // alunos distintos com nota em cada avaliação
+            Object.keys(scoresByUser).forEach(uid => {
+                const seen = {};
+                (scoresByUser[uid] || []).forEach(r => {
+                    if (r.correct_count == null) return;
+                    if (!seen[r.assessment_id]) { seen[r.assessment_id] = 1; counts[r.assessment_id] = (counts[r.assessment_id] || 0) + 1; }
+                });
+            });
+            sel.innerHTML = assessments.map(a =>
+                `<option value="${a.id}">${esc(a.name)}${counts[a.id] ? ' · ' + counts[a.id] + ' com nota' : ''}</option>`).join('');
+            if (prev && assessments.some(a => String(a.id) === String(prev))) {
+                sel.value = prev;
+            } else {
+                let best = null, bestC = -1;
+                assessments.forEach(a => { const c = counts[a.id] || 0; if (c > bestC) { bestC = c; best = a.id; } });
+                if (best != null) sel.value = String(best);
+            }
+        }
+
+        function renderChart() {
+            const card = document.getElementById('mpg-chart-card');
+            const sel = document.getElementById('mpg-chart-assessment');
+            const chartEl = document.getElementById('mpg-chart');
+            const emptyEl = document.getElementById('mpg-chart-empty');
+            const subEl = document.getElementById('mpg-chart-sub');
+            if (!card || !sel) return;
+
+            function showEmpty(msg) {
+                if (apexChart) { apexChart.destroy(); apexChart = null; }
+                chartEl.style.display = 'none'; chartEl.innerHTML = '';
+                emptyEl.style.display = ''; emptyEl.textContent = msg;
+                subEl.textContent = 'Compare o aproveitamento de todos os alunos em cada teste.';
+            }
+
+            if (!assessments.length) {
+                showEmpty(tablesReady ? 'Cadastre avaliações e notas para ver o gráfico comparativo.'
+                    : 'As tabelas de progressão ainda não foram ativadas no banco.');
+                return;
+            }
+            const items = chartDataFor(sel.value);
+            if (!items.length) {
+                showEmpty('Nenhum aluno com nota registrada nesta avaliação ainda.');
+                return;
+            }
+
+            emptyEl.style.display = 'none';
+            chartEl.style.display = '';
+            const avg = Math.round(items.reduce((s, i) => s + i.pct, 0) / items.length);
+            subEl.textContent = `${items.length} aluno${items.length > 1 ? 's' : ''} com nota · média da turma ${avg}%`;
+
+            if (typeof ApexCharts !== 'undefined') renderApexChart(chartEl, items, avg);
+            else renderFallbackChart(chartEl, items, avg);
+        }
+
+        function renderApexChart(el, items, avg) {
+            const names = items.map(i => chartLabel(i.name));
+            const data = items.map(i => i.pct);
+            const colors = items.map(i => MPG_TIER_COLOR[mpgTier(i.pct)]);
+            const height = Math.max(170, items.length * 40 + 60);
+            const options = {
+                chart: { type: 'bar', height: height, fontFamily: 'Inter, sans-serif',
+                    toolbar: { show: false }, animations: { enabled: true, easing: 'easeinout', speed: 550 } },
+                series: [{ name: '% de acertos', data: data }],
+                plotOptions: { bar: { horizontal: true, distributed: true, borderRadius: 6,
+                    borderRadiusApplication: 'end', barHeight: '66%' } },
+                colors: colors,
+                dataLabels: { enabled: true, formatter: v => v + '%', textAnchor: 'start', offsetX: 6,
+                    style: { fontSize: '12px', fontWeight: 700, colors: ['#ffffff'] } },
+                xaxis: { categories: names, min: 0, max: 100, tickAmount: 5,
+                    labels: { formatter: v => Math.round(v) + '%', style: { colors: '#9ca3af', fontSize: '12px' } },
+                    axisBorder: { show: false }, axisTicks: { show: false } },
+                yaxis: { labels: { style: { colors: '#374151', fontSize: '13px', fontWeight: 600 }, maxWidth: 200 } },
+                grid: { borderColor: '#eef2f7', xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
+                legend: { show: false },
+                states: { hover: { filter: { type: 'darken', value: 0.9 } } },
+                tooltip: { y: { formatter: v => v + '% de acertos', title: { formatter: () => '' } } },
+                annotations: { xaxis: [{ x: avg, borderColor: '#6366F1', strokeDashArray: 5,
+                    label: { text: 'Média ' + avg + '%', borderColor: '#6366F1',
+                        style: { background: '#6366F1', color: '#fff', fontSize: '11px', fontWeight: 600 } } }] }
+            };
+            if (apexChart) apexChart.destroy();
+            el.innerHTML = '';
+            try { apexChart = new ApexCharts(el, options); apexChart.render(); }
+            catch (e) { console.error('apex render', e); apexChart = null; renderFallbackChart(el, items, avg); }
+        }
+
+        function renderFallbackChart(el, items, avg) {
+            if (apexChart) { apexChart.destroy(); apexChart = null; }
+            const rows = items.map(i =>
+                `<div class="mpg-fbrow">
+                    <span class="mpg-fbname" title="${esc(i.name)}">${esc(chartLabel(i.name))}</span>
+                    <div class="mpg-fbtrack"><div class="mpg-fbfill tier-${mpgTier(i.pct)}" style="width:${Math.max(2, i.pct)}%"></div></div>
+                    <span class="mpg-fbpct">${i.pct}%</span>
+                </div>`).join('');
+            el.innerHTML = `<div class="mpg-fbchart">${rows}<div class="mpg-fbavg">— Média da turma: ${avg}%</div></div>`;
+        }
+
+        function refreshChart() { buildChartSelector(); renderChart(); }
+
+        // Re-renderiza o gráfico só quando cruza o limite de "tela pequena"
+        // (ex.: girar o iPhone), para atualizar os nomes abreviados/completos.
+        let _mpgWasSmall = mpgSmallScreen();
+        window.addEventListener('resize', function () {
+            const s = mpgSmallScreen();
+            if (s !== _mpgWasSmall) { _mpgWasSmall = s; renderChart(); }
+        });
+
         // ---- Avaliações ----
         function renderScores(userId) {
             const rows = (scoresByUser[userId] || []).slice().sort((a, b) => (b.taken_on || '').localeCompare(a.taken_on || ''));
@@ -837,6 +1040,7 @@
                 document.getElementById('mpg-scores').innerHTML = renderScores(userId);
                 renderStats();
                 renderOverview(document.getElementById('mpg-search').value);
+                refreshChart();
             } catch (e) {
                 console.error('saveScoreEdit', e);
                 WardApp.showToast('Erro ao atualizar avaliação', 'error');
@@ -904,6 +1108,7 @@
                 WardApp.showToast('Avaliação adicionada!', 'success');
                 renderModalBody(userId);
                 renderStats(); renderOverview(document.getElementById('mpg-search').value);
+                refreshChart();
             } catch (e) {
                 console.error('addScore', e);
                 WardApp.showToast('Erro ao adicionar avaliação', 'error');
@@ -918,6 +1123,7 @@
                 scoresByUser[userId] = (scoresByUser[userId] || []).filter(r => String(r.id) !== String(scoreId));
                 document.getElementById('mpg-scores').innerHTML = renderScores(userId);
                 renderStats(); renderOverview(document.getElementById('mpg-search').value);
+                refreshChart();
             } catch (e) {
                 console.error('deleteScore', e);
                 WardApp.showToast('Erro ao apagar', 'error');
@@ -943,6 +1149,7 @@
                 if (data && data[0]) assessments.push(data[0]);
                 WardApp.showToast('Avaliação criada!', 'success');
                 renderStats();
+                refreshChart();
                 if (currentStudentId) renderModalBody(currentStudentId);
             } catch (e) {
                 console.error('newAssessment', e);
