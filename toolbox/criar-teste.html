@@ -115,6 +115,7 @@ a{color:var(--accent);text-decoration:none}
 .used-title{font-size:13px;font-weight:700;color:var(--ink)}
 .used-title small{font-weight:600;color:var(--muted-2)}
 .used-meta{font-size:12px;font-weight:700;color:var(--accent-d)}
+.sync-state{font-size:11.5px;font-weight:600;color:var(--ok)}
 #btnClearUsed{margin-left:auto}
 #usedIn{width:100%;min-height:68px;max-height:200px;font-family:'SF Mono',Consolas,'Roboto Mono',monospace;font-size:12.5px;line-height:1.6;color:#33404d;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;resize:vertical;white-space:pre-wrap;word-break:break-all}
 #usedIn:focus{outline:none;border-color:var(--accent)}
@@ -295,6 +296,7 @@ a{color:var(--accent);text-decoration:none}
         <div class="used-head">
           <span class="used-title" id="usedTitle">Questões já usadas</span>
           <span class="used-meta" id="usedMeta"></span>
+          <span class="sync-state" id="syncState"></span>
           <button class="btn btn-ghost" id="btnClearUsed">Limpar usadas</button>
         </div>
         <textarea id="usedIn" spellcheck="false" placeholder="Cole os Question IDs que você já fez NESTE QBank + Step (vírgula, espaço ou quebra de linha). Cada QBank + Step guarda a sua própria lista, salva neste navegador, e essas questões não voltam a aparecer nas filtragens deste QBank + Step."></textarea>
@@ -951,6 +953,7 @@ function loadScope(){
   document.getElementById('scopeMeta').textContent=D.banks[state.bank]+' · '+D.steps[state.step]+' · '+stepRows.length+' questões';
   updateGermUI();updateHint();
   fullRender();
+  syncPull();          // traz o que estiver salvo na conta para este QBank+Step
 }
 
 /* ---------- questões já usadas (localStorage por bank) ---------- */
@@ -965,17 +968,159 @@ function updateUsedMeta(){
   var el=document.getElementById('usedMeta');
   el.textContent=usedSet.size?(usedSet.size+' usadas · '+inStep+' neste Step · '+(stepRows.length-inStep)+' disponíveis'):'';
 }
+/* ============ Sincronização com o Supabase (espelho do localStorage) ============
+   O localStorage continua mandando: é instantâneo, funciona offline e sem login.
+   O Supabase é só espelho, para a lista não se perder e seguir a pessoa entre
+   aparelhos. Se não houver sessão, se a rede cair ou a API recusar, o app segue
+   funcionando exatamente como antes — a sincronização apenas se desliga calada.
+
+   Multi-dispositivo (o ponto delicado): como é UMA lista por QBank+Step, o
+   último a salvar apagaria o que o outro registrou. Para evitar isso guardamos
+   também os IDs removidos DE PROPÓSITO ("lápides") e juntamos assim:
+       feitas    = (local ∪ servidor) − removidas
+       removidas = removidas do local ∪ do servidor
+   Se o mesmo ID estiver em papéis opostos nos dois lados, vence o lado com
+   carimbo de tempo mais recente. Assim nada some por acidente, e apagar
+   também se propaga.                                                          */
+var SYNC={on:false,pulling:false,pushT:null,lastPull:0};
+
+function syncToken(){
+  try{
+    var t=localStorage.getItem('_ward_tk');
+    if(t)return t;
+    var k=Object.keys(localStorage).filter(function(x){return x.indexOf('sb-')===0&&/-auth-token$/.test(x);})[0];
+    if(k){var v=JSON.parse(localStorage.getItem(k)||'null');if(v&&v.access_token)return v.access_token;}
+  }catch(e){}
+  return null;
+}
+function syncUser(){
+  try{var u=JSON.parse(localStorage.getItem('ward_user')||'null');return (u&&u.id)?u:null;}catch(e){return null;}
+}
+/* Chama a mesma API do site. NUNCA redireciona: um 401 aqui só desliga a
+   sincronização (o app do toolbox não pode expulsar ninguém da página).      */
+function apiQuery(body){
+  var h={'Content-Type':'application/json'},tk=syncToken();
+  if(tk)h['x-supabase-auth']=tk;
+  return fetch('/api/data/query',{method:'POST',headers:h,body:JSON.stringify(body)})
+    .then(function(r){
+      if(r.status===401){SYNC.on=false;updateSyncUI();return{data:null,error:{message:'sessão expirada'}};}
+      if(!r.ok)return{data:null,error:{message:'HTTP '+r.status}};
+      return r.json();
+    });
+}
+
+function metaKey(){return 'qbank_usedmeta::'+D.banks[state.bank]+'::'+D.steps[state.step];}
+function loadMeta(){try{return JSON.parse(localStorage.getItem(metaKey())||'{}')||{};}catch(e){return{};}}
+function saveMeta(m){try{localStorage.setItem(metaKey(),JSON.stringify(m));}catch(e){}}
+function setToText(set){return Array.from(set).sort(function(a,b){return a-b;}).join(',');}
+
+function updateSyncUI(){
+  var el=document.getElementById('syncState');if(!el)return;
+  el.textContent=SYNC.on?'☁️ sincronizado na sua conta':'';
+  el.title=SYNC.on?'A lista fica salva na sua conta e acompanha você em outros aparelhos.':'';
+}
+
+function syncPull(){
+  if(!SYNC.on||SYNC.pulling)return;
+  var bank=D.banks[state.bank],step=D.steps[state.step];
+  SYNC.pulling=true;SYNC.lastPull=Date.now();
+  apiQuery({table:'qbank_used_questions',action:'select',select:'*',
+            filters:[{col:'bank',type:'eq',val:bank},{col:'step',type:'eq',val:step}],
+            maybeSingle:true})
+    .then(function(res){
+      SYNC.pulling=false;
+      if(!res||res.error)return;
+      if(D.banks[state.bank]!==bank||D.steps[state.step]!==step)return;  // escopo mudou: descarta
+      mergeServer(res.data);
+    })
+    .catch(function(){SYNC.pulling=false;});
+}
+
+function mergeServer(row){
+  var localDone=parseUsed(document.getElementById('usedIn').value);
+  var meta=loadMeta(),localRem=new Set(meta.removed||[]),localTs=meta.ts||0;
+  var srvDone=new Set((row&&row.done_ids)||[]);
+  var srvRem=new Set((row&&row.removed_ids)||[]);
+  var srvTs=(row&&row.updated_at)?Date.parse(row.updated_at):0;
+
+  var done=new Set(),rem=new Set();
+  localDone.forEach(function(x){done.add(x);});srvDone.forEach(function(x){done.add(x);});
+  localRem.forEach(function(x){rem.add(x);});  srvRem.forEach(function(x){rem.add(x);});
+
+  // Conflito (feita num lado, removida no outro): vence o carimbo mais recente.
+  var newerLocal=localTs>=srvTs,conflicts=[];
+  rem.forEach(function(id){if(done.has(id))conflicts.push(id);});
+  conflicts.forEach(function(id){
+    var nDone=newerLocal?localDone.has(id):srvDone.has(id);
+    var nRem =newerLocal?localRem.has(id) :srvRem.has(id);
+    if(nDone&&!nRem)rem['delete'](id); else done['delete'](id);
+  });
+
+  var changed=(done.size!==localDone.size);
+  if(!changed){localDone.forEach(function(id){if(!done.has(id))changed=true;});}
+  if(changed){
+    var txt=setToText(done);
+    document.getElementById('usedIn').value=txt;
+    saveUsed(txt);usedSet=done;recomputeActive();pruneDown();fullRender();
+  }
+  saveMeta({removed:Array.from(rem),ts:Math.max(localTs,srvTs)||Date.now()});
+
+  // Servidor desatualizado em relação à junção? devolve o resultado.
+  var srvOutdated=(srvDone.size!==done.size)||(srvRem.size!==rem.size);
+  if(!srvOutdated){done.forEach(function(id){if(!srvDone.has(id))srvOutdated=true;});}
+  if(srvOutdated)syncPush(true);
+}
+
+function syncPush(now){
+  if(!SYNC.on)return;
+  clearTimeout(SYNC.pushT);
+  /* Snapshot AGORA: se a pessoa trocar de QBank/Step antes do envio sair, o
+     que vai para o servidor ainda é a lista do escopo que ela editou.        */
+  var snap={bank:D.banks[state.bank],step:D.steps[state.step],
+            done:Array.from(parseUsed(document.getElementById('usedIn').value)),
+            removed:(loadMeta().removed||[])};
+  var run=function(){
+    apiQuery({table:'qbank_used_questions',action:'upsert',
+      data:{bank:snap.bank,step:snap.step,done_ids:snap.done,removed_ids:snap.removed,
+            updated_at:new Date().toISOString()},
+      upsertOpts:{onConflict:'user_id,bank,step'}}).catch(function(){});
+  };
+  if(now)run(); else SYNC.pushT=setTimeout(run,1500);
+}
+
+/* Registra o que foi apagado de propósito, para a remoção também sincronizar. */
+function noteEdit(prevDone,newDone){
+  var meta=loadMeta(),rem=new Set(meta.removed||[]);
+  prevDone.forEach(function(id){if(!newDone.has(id))rem.add(id);});   // sumiu = lápide
+  newDone.forEach(function(id){rem['delete'](id);});                  // voltou = tira a lápide
+  saveMeta({removed:Array.from(rem),ts:Date.now()});
+}
+
 (function(){
   document.getElementById('usedIn').addEventListener('input',function(e){
     var val=e.target.value;
     saveUsed(val);                 // salva JÁ, com o QBank+Step atual (evita perder/errar escopo)
     clearTimeout(usedTimer);
-    usedTimer=setTimeout(function(){usedSet=parseUsed(val);recomputeActive();pruneDown();fullRender();},200);
+    usedTimer=setTimeout(function(){
+      var prev=usedSet;usedSet=parseUsed(val);
+      noteEdit(prev,usedSet);
+      recomputeActive();pruneDown();fullRender();syncPush();
+    },200);
   });
   document.getElementById('btnClearUsed').addEventListener('click',function(){
     clearTimeout(usedTimer);
-    document.getElementById('usedIn').value='';usedSet=new Set();saveUsed('');recomputeActive();pruneDown();fullRender();
+    var prev=usedSet;
+    document.getElementById('usedIn').value='';usedSet=new Set();saveUsed('');
+    noteEdit(prev,usedSet);        // limpar = lápide em tudo, para o outro aparelho não repor
+    recomputeActive();pruneDown();fullRender();syncPush(true);
   });
+  // Volta para a aba: busca o que outro aparelho tenha registrado (no máx. 1x/30s)
+  window.addEventListener('focus',function(){
+    if(SYNC.on&&Date.now()-SYNC.lastPull>30000)syncPull();
+  });
+  var u=syncUser();
+  SYNC.on=!!(u&&u.id&&syncToken());
+  updateSyncUI();
 })();
 
 /* ---------- Reordenar uma lista de IDs colada (modal) ---------- */

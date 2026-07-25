@@ -28,6 +28,7 @@ function getSupabase(authToken) {
 
 // Tables allowed through the proxy
 const ALLOWED_TABLES = [
+  'qbank_used_questions',
   'users', 'questionnaire_data', 'messages', 'landmarks',
   'user_preparation_status', 'schedules', 'schedule_delays',
   'links_repository', 'blog_posts', 'blog_comments', 'blog_reactions',

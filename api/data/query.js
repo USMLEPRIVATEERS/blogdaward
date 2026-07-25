@@ -51,7 +51,9 @@ const USER_SCOPED_TABLES = [
   'wasa_schedules', 'study_difficulties',
   'wardpedia_comments', 'wardpedia_favorites', 'wardpedia_views',
   // Progressão: se um aluno acessar, só enxerga os próprios dados (mentores veem tudo)
-  'student_assessment_scores', 'student_bureaucracy'
+  'student_assessment_scores', 'student_bureaucracy',
+  // Criar Teste: cada aluno só enxerga a própria lista de questões usadas
+  'qbank_used_questions'
 ];
 
 // =============================================
@@ -78,6 +80,7 @@ const OWNER_COLUMN = {
   wardpedia_views: 'user_id',
   assessment_enrollments: 'student_id', mentor_student_tasks: 'student_id',
   student_assessment_scores: 'user_id', student_bureaucracy: 'user_id',
+  qbank_used_questions: 'user_id',
 };
 
 // Operators that can widen scope past an enforced equality; rejected on
