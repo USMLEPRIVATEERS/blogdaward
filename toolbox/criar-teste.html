@@ -582,10 +582,35 @@ function syncSelAll(elId,ids,set,q,names){
 }
 
 /* ---------- output + chart + counter ---------- */
-function formatIds(ids,per){
-  var lines=[];
-  for(var i=0;i<ids.length;i+=per){ lines.push(ids.slice(i,i+per).join(',')); }
-  return lines.join('\n\n');
+/* Quebra a lista em linhas (cada linha = um bloco de teste que a pessoa copia)
+   SEM cortar um conjunto germinado ao meio. Um conjunto que não couber no
+   resto da linha vai inteiro para a próxima — a linha fecha com menos que o
+   alvo, mas nunca com um caso clínico partido entre dois testes.            */
+function germAtoms(ids,bankIdx,enabled){
+  var map=(GERM&&enabled)?GERM.byBank[D.banks[bankIdx]]:null;
+  var atoms=[],i=0;
+  while(i<ids.length){
+    var set=map?map[ids[i]]:null;
+    if(set){
+      var j=i+1;
+      while(j<ids.length&&map[ids[j]]===set)j++;   // membros do MESMO conjunto (mesma referência)
+      atoms.push(ids.slice(i,j));i=j;
+    }else{atoms.push([ids[i]]);i++;}
+  }
+  return atoms;
+}
+function formatIds(ids,per,opts){
+  opts=opts||{};
+  var bankIdx=(opts.bank!=null)?opts.bank:state.bank;
+  var enabled=(opts.enabled!=null)?opts.enabled:state.germ;
+  var atoms=germAtoms(ids,bankIdx,enabled),lines=[],cur=[];
+  for(var a=0;a<atoms.length;a++){
+    var at=atoms[a];
+    if(cur.length&&cur.length+at.length>per){lines.push(cur);cur=[];}
+    cur=cur.concat(at);
+  }
+  if(cur.length)lines.push(cur);
+  return lines.map(function(l){return l.join(',');}).join('\n\n');
 }
 
 /* ================== Questões germinadas ==================
@@ -962,7 +987,7 @@ function reorderIdList(text,bankIdx,stepIdx,mode,pull){
     var bankIdx=parseInt(bankSel.value,10),stepIdx=parseInt(stepSel.value,10),mode=modeSel.value;
     var pull=document.getElementById('rtPull').checked;
     var res=reorderIdList(text,bankIdx,stepIdx,mode,pull);
-    document.getElementById('rtOut').value=formatIds(res.ids,20);
+    document.getElementById('rtOut').value=formatIds(res.ids,20,{bank:bankIdx,enabled:true});
     document.getElementById('rtResultWrap').style.display='';
     var modeLabel=mode==='fluidez'?'Fluidez':mode==='aprendizado'?'Aprendizado':'Importância';
     var msg=res.known+' de '+res.total+' questões reordenadas por '+modeLabel+' ('+esc(D.banks[bankIdx])+' · '+esc(D.steps[stepIdx])+')';
