@@ -70,6 +70,13 @@ a{color:var(--accent);text-decoration:none}
 .hint{font-size:12.5px;color:var(--muted);background:var(--accent-l);border:1px solid #cfe6f7;border-radius:7px;padding:9px 12px;margin-top:12px;display:flex;gap:8px;align-items:flex-start}
 .hint b{color:var(--accent-d)}
 
+/* Questões germinadas */
+.germ-toggle{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--ink);background:var(--bg);border-radius:10px;padding:9px 13px;cursor:pointer;user-select:none;white-space:nowrap}
+.germ-toggle input{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;margin:0}
+.germ-toggle.off{color:var(--muted)}
+.germ-info{font-size:12px;font-weight:700;color:#7a4b00;background:#fff6e5;border:1px solid #ffe0ad;border-radius:99px;padding:2px 10px}
+.germ-info.none{display:none}
+
 /* Filter columns */
 .cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:0}
@@ -216,6 +223,12 @@ a{color:var(--accent);text-decoration:none}
             </select>
           </div>
         </div>
+        <div id="germWrap" style="display:none">
+          <div class="ctl-label">Germinadas</div>
+          <label class="germ-toggle" id="germLabel" title="Questões que dividem o mesmo caso clínico (Item X of N) saem juntas e na ordem certa">
+            <input type="checkbox" id="germChk" checked> 🔗 Manter juntas
+          </label>
+        </div>
         <div class="counter">
           <div class="n" id="selCount">0</div>
           <div class="t">questões selecionadas</div>
@@ -264,6 +277,7 @@ a{color:var(--accent);text-decoration:none}
     <div class="card-b">
       <div class="out-head">
         <span class="c"><b id="idsN">0</b> IDs · ordenados por <b id="modeName">Aprendizado</b></span>
+        <span class="germ-info none" id="germInfo"></span>
         <div class="perline">
           <span>Por linha</span>
           <div class="seg sm" id="perlineSeg">
@@ -322,7 +336,7 @@ a{color:var(--accent);text-decoration:none}
     </div>
     <div class="rt-body">
       <div class="rt-guide">
-        Cole <b>qualquer lista de Question IDs</b> — uma prova pronta, uma lista feita em outro lugar — e o app <b>reordena as mesmas questões</b> seguindo o modo de estudo escolhido. Ele <b>não filtra nem remove nada</b>, apenas muda a ordem: <b>Fluidez</b> (mais fáceis primeiro), <b>Aprendizado</b> (ordem didática por system/tópico) ou <b>Importância</b>. Confirme o QBank, o Step e o modo abaixo antes de reordenar.
+        Cole <b>qualquer lista de Question IDs</b> — uma prova pronta, uma lista feita em outro lugar — e o app <b>reordena as mesmas questões</b> seguindo o modo de estudo escolhido. Ele <b>não filtra nem remove nada</b>, apenas muda a ordem: <b>Fluidez</b> (mais fáceis primeiro), <b>Aprendizado</b> (ordem didática por system/tópico) ou <b>Importância</b>. Questões <b>germinadas</b> (mesmo caso clínico) que estiverem na sua lista saem juntas e na ordem dos itens. Confirme o QBank, o Step e o modo abaixo antes de reordenar.
       </div>
       <div class="rt-sels">
         <div class="rt-field"><label for="rtBank">QBank</label><select id="rtBank"></select></div>
@@ -421,6 +435,7 @@ function buildTopKey(){
 
 var state={bank:0,step:0,subjects:new Set(),systems:new Set(),topics:new Set(),
   sort:'aprendizado',tie:'fluidez',chartDim:'topic',chartTop:10,perLine:20,topAll:false,
+  germ:true,
   q:{subj:'',sys:'',top:''}};
 var stepRows=[];       // todas as questões do bank+step atual
 var activeRows=[];     // stepRows menos as já usadas (o que os filtros enxergam)
@@ -565,13 +580,137 @@ function formatIds(ids,per){
   for(var i=0;i<ids.length;i+=per){ lines.push(ids.slice(i,i+per).join(',')); }
   return lines.join('\n\n');
 }
+
+/* ================== Questões germinadas ==================
+   Conjuntos do UWorld que dividem o MESMO caso clínico ("Item X of N").
+   O item 1 carrega a vinheta; os seguintes só trazem o incremento —
+   por isso o bloco sai sempre junto e NA ORDEM DOS ITENS (nunca reordenado
+   por dificuldade), senão a pessoa lê uma questão sem o caso.
+
+   Onde o bloco é colocado na lista (o ponto delicado):
+   - Nenhum conjunto cruza System ou Step, então manter junto nunca quebra a
+     ordem didática de system. Só afeta tópico (24% dos conjuntos) e dificuldade.
+   - Fluidez: o bloco entra na posição do membro mais próximo da MÉDIA do
+     conjunto — assim um parceiro difícil não é jogado lá no começo, nem um
+     fácil lá no fim.
+   - Aprendizado / Importância: entra no primeiro ponto em que qualquer membro
+     apareceria, mantendo o conjunto dentro do seu system.                    */
+var GERM=null;   // {byBank:{banco:{qid:[ids do conjunto, em ordem de item]}}}
+
+function loadGerm(){
+  var urls=['criar-teste-germinadas.json','/toolbox/criar-teste-germinadas.json'];
+  var i=0;
+  (function next(){
+    if(i>=urls.length)return;
+    var u=urls[i++];
+    fetch(u).then(function(r){if(!r.ok)throw 0;return r.json();})
+      .then(function(j){setGerm(j);})
+      .catch(function(){next();});
+  })();
+}
+function setGerm(j){
+  try{
+    var byBank={};
+    (j&&j.sets||[]).forEach(function(s){
+      if(!s||s.length<3)return;
+      var bank=s[0],ids=s.slice(1);
+      var m=byBank[bank]||(byBank[bank]={});
+      for(var k=0;k<ids.length;k++)m[ids[k]]=ids;
+    });
+    GERM={byBank:byBank};
+    updateGermUI();updateHint();
+    refreshOutput();
+  }catch(e){console.error('germinadas',e);}
+}
+function germAvailable(){
+  return !!(GERM&&GERM.byBank[D.banks[state.bank]]);
+}
+function updateGermUI(){
+  var w=document.getElementById('germWrap');
+  if(w)w.style.display=germAvailable()?'':'none';
+}
+
+/* Agrupa os conjuntos dentro de uma lista já ordenada.
+   opts.avail: linhas que PODEM entrar (controla se parceiros ausentes são
+   puxados). opts.bank/opts.mode sobrescrevem o escopo atual.               */
+function applyGermination(ordered,opts){
+  opts=opts||{};
+  var plain={rows:ordered,blocks:0,added:0};
+  if(!GERM||!state.germ)return plain;
+  var bankIdx=(opts.bank!=null)?opts.bank:state.bank;
+  var mode=opts.mode||state.sort;
+  var map=GERM.byBank[D.banks[bankIdx]];
+  if(!map)return plain;
+
+  var availRows=opts.avail||activeRows;
+  var avail={};
+  for(var i=0;i<availRows.length;i++)avail[availRows[i][R_QID]]=availRows[i];
+
+  var pos={};
+  for(var k=0;k<ordered.length;k++)pos[ordered[k][R_QID]]=k;
+
+  var blockOf={},blocks=[],taken={};
+  for(var n=0;n<ordered.length;n++){
+    var q=ordered[n][R_QID],ids=map[q];
+    if(!ids||taken[q])continue;
+    var members=[];
+    for(var j=0;j<ids.length;j++){var r=avail[ids[j]];if(r)members.push(r);}
+    if(members.length<2)continue;            // sozinha: nada a agrupar
+
+    var trigger=-1;
+    if(mode==='fluidez'){
+      var sum=0;for(var a=0;a<members.length;a++)sum+=members[a][R_PCT];
+      var avg=sum/members.length,best=Infinity;
+      for(var b=0;b<members.length;b++){
+        var mq=members[b][R_QID];if(!(mq in pos))continue;
+        var d=Math.abs(members[b][R_PCT]-avg);
+        if(d<best){best=d;trigger=pos[mq];}
+      }
+    }
+    if(trigger<0){                            // aprendizado/importância (ou fallback)
+      for(var c=0;c<members.length;c++){
+        var mq2=members[c][R_QID];
+        if(mq2 in pos&&(trigger<0||pos[mq2]<trigger))trigger=pos[mq2];
+      }
+    }
+    if(trigger<0)continue;
+    var blk={members:members,trigger:trigger,done:false};
+    blocks.push(blk);
+    for(var e=0;e<members.length;e++){blockOf[members[e][R_QID]]=blk;taken[members[e][R_QID]]=1;}
+  }
+  if(!blocks.length)return plain;
+
+  var out=[],added=0;
+  for(var t=0;t<ordered.length;t++){
+    var row=ordered[t],blk2=blockOf[row[R_QID]];
+    if(!blk2){out.push(row);continue;}
+    if(blk2.done||t!==blk2.trigger)continue;  // só emite quando chega no gatilho
+    blk2.done=true;
+    for(var g=0;g<blk2.members.length;g++){
+      out.push(blk2.members[g]);
+      if(!(blk2.members[g][R_QID] in pos))added++;   // parceiro que não estava na seleção
+    }
+  }
+  return {rows:out,blocks:blocks.length,added:added};
+}
 function refreshOutput(){
   var sel=selectedRows();
   var ordered=orderRows(sel);
-  var ids=ordered.map(function(r){return r[R_QID];});
+  var g=applyGermination(ordered);
+  var ids=g.rows.map(function(r){return r[R_QID];});
   document.getElementById('idsOut').value=formatIds(ids,state.perLine);
   document.getElementById('idsN').textContent=ids.length;
   document.getElementById('selCount').textContent=ids.length;
+  var gi=document.getElementById('germInfo');
+  if(gi){
+    if(g.blocks){
+      gi.className='germ-info';
+      gi.textContent='🔗 '+g.blocks+' conjunto'+(g.blocks>1?'s':'')+' germinado'+(g.blocks>1?'s':'')+
+        ' junto'+(g.blocks>1?'s':'')+(g.added?' · +'+g.added+' questão'+(g.added>1?'es':'')+' do caso':'');
+      gi.title=g.added?'Parceiros do mesmo caso clínico que não estavam nos filtros foram incluídos para a vinheta não faltar.'
+                      :'Questões do mesmo caso clínico saem juntas e na ordem dos itens.';
+    }else{ gi.className='germ-info none'; gi.textContent=''; }
+  }
   renderChart(sel);
 }
 function renderChart(rows){
@@ -602,6 +741,12 @@ function pruneDown(){
 
 /* ---------- events ---------- */
 function fullRender(){renderSubjects();renderSystems();renderTopics();refreshOutput();}
+
+document.getElementById('germChk').addEventListener('change',function(){
+  state.germ=this.checked;
+  document.getElementById('germLabel').classList.toggle('off',!this.checked);
+  savePrefs();updateHint();refreshOutput();
+});
 
 function bindList(listId,setName){
   document.getElementById(listId).addEventListener('click',function(e){
@@ -696,6 +841,10 @@ function updateHint(){
   if(state.sort==='aprendizado'){h.innerHTML='<span>🎓</span><span><b>Aprendizado:</b> as questões seguem a ordem didática dos conteúdos e, dentro de cada tópico, das mais fáceis às mais difíceis. Para a sequência ideal, selecione um <b>Subject</b> e um <b>System</b>.</span>';}
   else if(state.sort==='importancia'){h.innerHTML='<span>📊</span><span><b>Importância:</b> systems e tópicos com mais questões aparecem primeiro; use o <b>desempate</b> ao lado para tópicos com a mesma quantidade.</span>';}
   else{h.innerHTML='<span>⚡</span><span><b>Fluidez:</b> todas as questões selecionadas em sequência contínua, das mais fáceis às mais difíceis.</span>';}
+  if(germAvailable()&&state.germ){
+    h.innerHTML+='<span style="margin-left:2px">🔗</span><span><b>Germinadas juntas:</b> questões que dividem o mesmo caso clínico saem lado a lado e na ordem dos itens'+
+      (state.sort==='fluidez'?', posicionadas pela dificuldade média do conjunto.':', no primeiro ponto em que o conjunto aparece.')+'</span>';
+  }
 }
 
 /* ---------- top selectors ---------- */
@@ -725,6 +874,7 @@ function loadScope(){
   loadUsed();          // carrega as usadas deste bank do localStorage
   recomputeActive();   // activeRows = stepRows - usadas
   document.getElementById('scopeMeta').textContent=D.banks[state.bank]+' · '+D.steps[state.step]+' · '+stepRows.length+' questões';
+  updateGermUI();updateHint();
   fullRender();
 }
 
@@ -770,8 +920,10 @@ function reorderIdList(text,bankIdx,stepIdx,mode){
   state.bank=bankIdx;state.step=stepIdx;state.sort=mode;
   var ordered;
   try{ordered=orderRows(known);}finally{state.bank=save.bank;state.step=save.step;state.sort=save.sort;}
-  var orderedIds=ordered.map(function(r){return r[R_QID];});
-  return {ids:orderedIds.concat(unknown),total:ids.length,known:known.length,unknown:unknown.length};
+  /* agrupa germinadas SÓ entre as questões coladas — não acrescenta IDs novos */
+  var g=applyGermination(ordered,{bank:bankIdx,mode:mode,avail:known});
+  var orderedIds=g.rows.map(function(r){return r[R_QID];});
+  return {ids:orderedIds.concat(unknown),total:ids.length,known:known.length,unknown:unknown.length,blocks:g.blocks};
 }
 (function(){
   var modal=document.getElementById('reorderModal');
@@ -803,6 +955,7 @@ function reorderIdList(text,bankIdx,stepIdx,mode){
     document.getElementById('rtResultWrap').style.display='';
     var modeLabel=mode==='fluidez'?'Fluidez':mode==='aprendizado'?'Aprendizado':'Importância';
     var msg=res.known+' de '+res.total+' questões reordenadas por '+modeLabel+' ('+esc(D.banks[bankIdx])+' · '+esc(D.steps[stepIdx])+')';
+    if(res.blocks)msg+=' · 🔗 '+res.blocks+' conjunto'+(res.blocks>1?'s':'')+' germinado'+(res.blocks>1?'s':'')+' agrupado'+(res.blocks>1?'s':'');
     if(res.unknown)msg+=' · '+res.unknown+' ID(s) não reconhecido(s) neste QBank+Step foram mantidos no fim';
     note.textContent=msg;
   });
@@ -815,14 +968,17 @@ function reorderIdList(text,bankIdx,stepIdx,mode){
 })();
 
 /* ---------- preferências (modo de estudo / qbank / step) em localStorage ---------- */
-function savePrefs(){try{localStorage.setItem('qbank_prefs',JSON.stringify({sort:state.sort,bank:D.banks[state.bank],step:D.steps[state.step]}));}catch(e){}}
+function savePrefs(){try{localStorage.setItem('qbank_prefs',JSON.stringify({sort:state.sort,bank:D.banks[state.bank],step:D.steps[state.step],germ:state.germ}));}catch(e){}}
 function loadPrefs(){
   try{
     var p=JSON.parse(localStorage.getItem('qbank_prefs')||'{}');
     if(p.sort==='fluidez'||p.sort==='aprendizado'||p.sort==='importancia')state.sort=p.sort;
     var bi=D.banks.indexOf(p.bank);if(bi>=0)state.bank=bi;
     var si=D.steps.indexOf(p.step);if(si>=0)state.step=si;
+    if(p.germ===false)state.germ=false;
   }catch(e){}
+  var chk=document.getElementById('germChk');
+  if(chk){chk.checked=state.germ;document.getElementById('germLabel').classList.toggle('off',!state.germ);}
 }
 function applyModeUI(){
   var seg=document.getElementById('sortSeg');
@@ -831,7 +987,7 @@ function applyModeUI(){
   var a=seg.querySelector('.on');document.getElementById('modeName').textContent=a?a.textContent:'Aprendizado';
 }
 
-loadPrefs();buildBanks();buildSteps();applyModeUI();updateHint();loadScope();
+loadPrefs();buildBanks();buildSteps();applyModeUI();updateHint();loadScope();loadGerm();
 })();
 </script>
 </body>
