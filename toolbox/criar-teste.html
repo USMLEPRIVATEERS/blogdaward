@@ -141,6 +141,9 @@ a{color:var(--accent);text-decoration:none}
 .rt-field label{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-2)}
 .rt-field select{font:inherit;font-size:13px;font-weight:600;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--ink);cursor:pointer}
 .rt-lbl{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted-2);margin-bottom:6px}
+.rt-pull{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;line-height:1.5;color:var(--muted);background:#fff6e5;border:1px solid #ffe0ad;border-radius:8px;padding:10px 12px;margin-bottom:14px;cursor:pointer}
+.rt-pull input{width:16px;height:16px;margin:1px 0 0;accent-color:var(--accent);cursor:pointer;flex:none}
+.rt-pull b{color:#7a4b00}
 #rtIn,#rtOut{width:100%;min-height:88px;font-family:'SF Mono',Consolas,'Roboto Mono',monospace;font-size:12.5px;line-height:1.6;color:#33404d;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;resize:vertical;white-space:pre-wrap;word-break:break-all}
 #rtOut{background:#fbfcfd;white-space:pre}
 #rtIn:focus,#rtOut:focus{outline:none;border-color:var(--accent)}
@@ -336,7 +339,7 @@ a{color:var(--accent);text-decoration:none}
     </div>
     <div class="rt-body">
       <div class="rt-guide">
-        Cole <b>qualquer lista de Question IDs</b> — uma prova pronta, uma lista feita em outro lugar — e o app <b>reordena as mesmas questões</b> seguindo o modo de estudo escolhido. Ele <b>não filtra nem remove nada</b>, apenas muda a ordem: <b>Fluidez</b> (mais fáceis primeiro), <b>Aprendizado</b> (ordem didática por system/tópico) ou <b>Importância</b>. Questões <b>germinadas</b> (mesmo caso clínico) que estiverem na sua lista saem juntas e na ordem dos itens. Confirme o QBank, o Step e o modo abaixo antes de reordenar.
+        Cole <b>qualquer lista de Question IDs</b> — uma prova pronta, uma lista feita em outro lugar — e o app <b>reordena as mesmas questões</b> seguindo o modo de estudo escolhido: <b>Fluidez</b> (mais fáceis primeiro), <b>Aprendizado</b> (ordem didática por system/tópico) ou <b>Importância</b>. Ele <b>nunca remove</b> nada. Questões <b>germinadas</b> (mesmo caso clínico) saem sempre juntas e na ordem dos itens. Confirme o QBank, o Step e o modo abaixo antes de reordenar.
       </div>
       <div class="rt-sels">
         <div class="rt-field"><label for="rtBank">QBank</label><select id="rtBank"></select></div>
@@ -347,6 +350,10 @@ a{color:var(--accent);text-decoration:none}
           <option value="importancia">Importância</option>
         </select></div>
       </div>
+      <label class="rt-pull" id="rtPullLabel" for="rtPull">
+        <input type="checkbox" id="rtPull" checked>
+        <span>🔗 <b>Completar os casos clínicos:</b> se uma questão germinada estiver sem o par, trazer a que falta (senão ela fica sem a vinheta).</span>
+      </label>
       <label class="rt-lbl" for="rtIn">Cole os Question IDs</label>
       <textarea id="rtIn" spellcheck="false" placeholder="Ex.: 12345, 67890, 24680  (vírgula, espaço ou quebra de linha)"></textarea>
       <div class="rt-actions">
@@ -636,7 +643,8 @@ function updateGermUI(){
 function applyGermination(ordered,opts){
   opts=opts||{};
   var plain={rows:ordered,blocks:0,added:0};
-  if(!GERM||!state.germ)return plain;
+  var enabled=(opts.enabled!=null)?opts.enabled:state.germ;
+  if(!GERM||!enabled)return plain;
   var bankIdx=(opts.bank!=null)?opts.bank:state.bank;
   var mode=opts.mode||state.sort;
   var map=GERM.byBank[D.banks[bankIdx]];
@@ -706,7 +714,7 @@ function refreshOutput(){
     if(g.blocks){
       gi.className='germ-info';
       gi.textContent='🔗 '+g.blocks+' conjunto'+(g.blocks>1?'s':'')+' germinado'+(g.blocks>1?'s':'')+
-        ' junto'+(g.blocks>1?'s':'')+(g.added?' · +'+g.added+' questão'+(g.added>1?'es':'')+' do caso':'');
+        ' junto'+(g.blocks>1?'s':'')+(g.added?' · +'+g.added+(g.added>1?' questões do caso':' questão do caso'):'');
       gi.title=g.added?'Parceiros do mesmo caso clínico que não estavam nos filtros foram incluídos para a vinheta não faltar.'
                       :'Questões do mesmo caso clínico saem juntas e na ordem dos itens.';
     }else{ gi.className='germ-info none'; gi.textContent=''; }
@@ -909,7 +917,7 @@ function parseIdArray(text){
   if(m)for(var i=0;i<m.length;i++){var n=parseInt(m[i],10);if(!(n in seen)){seen[n]=1;out.push(n);}}
   return out;
 }
-function reorderIdList(text,bankIdx,stepIdx,mode){
+function reorderIdList(text,bankIdx,stepIdx,mode,pull){
   var ids=parseIdArray(text);
   var rows=D.rows.filter(function(r){return r[R_BANK]===bankIdx&&r[R_STEP]===stepIdx;});
   var byId={};rows.forEach(function(r){byId[r[R_QID]]=r;});
@@ -920,10 +928,12 @@ function reorderIdList(text,bankIdx,stepIdx,mode){
   state.bank=bankIdx;state.step=stepIdx;state.sort=mode;
   var ordered;
   try{ordered=orderRows(known);}finally{state.bank=save.bank;state.step=save.step;state.sort=save.sort;}
-  /* agrupa germinadas SÓ entre as questões coladas — não acrescenta IDs novos */
-  var g=applyGermination(ordered,{bank:bankIdx,mode:mode,avail:known});
+  /* germinadas: sempre agrupa. Se "pull", pode trazer o par que falta
+     (avail = todas do escopo); senão agrupa só entre as coladas.        */
+  var g=applyGermination(ordered,{bank:bankIdx,mode:mode,avail:pull?rows:known,enabled:true});
   var orderedIds=g.rows.map(function(r){return r[R_QID];});
-  return {ids:orderedIds.concat(unknown),total:ids.length,known:known.length,unknown:unknown.length,blocks:g.blocks};
+  return {ids:orderedIds.concat(unknown),total:ids.length,known:known.length,
+          unknown:unknown.length,blocks:g.blocks,added:g.added};
 }
 (function(){
   var modal=document.getElementById('reorderModal');
@@ -950,12 +960,14 @@ function reorderIdList(text,bankIdx,stepIdx,mode){
     var text=document.getElementById('rtIn').value;
     if(!/\d/.test(text)){note.textContent='Cole ao menos um Question ID.';document.getElementById('rtResultWrap').style.display='none';return;}
     var bankIdx=parseInt(bankSel.value,10),stepIdx=parseInt(stepSel.value,10),mode=modeSel.value;
-    var res=reorderIdList(text,bankIdx,stepIdx,mode);
+    var pull=document.getElementById('rtPull').checked;
+    var res=reorderIdList(text,bankIdx,stepIdx,mode,pull);
     document.getElementById('rtOut').value=formatIds(res.ids,20);
     document.getElementById('rtResultWrap').style.display='';
     var modeLabel=mode==='fluidez'?'Fluidez':mode==='aprendizado'?'Aprendizado':'Importância';
     var msg=res.known+' de '+res.total+' questões reordenadas por '+modeLabel+' ('+esc(D.banks[bankIdx])+' · '+esc(D.steps[stepIdx])+')';
     if(res.blocks)msg+=' · 🔗 '+res.blocks+' conjunto'+(res.blocks>1?'s':'')+' germinado'+(res.blocks>1?'s':'')+' agrupado'+(res.blocks>1?'s':'');
+    if(res.added)msg+=' · +'+res.added+(res.added>1?' questões do mesmo caso incluídas':' questão do mesmo caso incluída');
     if(res.unknown)msg+=' · '+res.unknown+' ID(s) não reconhecido(s) neste QBank+Step foram mantidos no fim';
     note.textContent=msg;
   });
