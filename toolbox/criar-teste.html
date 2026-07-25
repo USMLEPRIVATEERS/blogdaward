@@ -599,6 +599,40 @@ function germAtoms(ids,bankIdx,enabled){
   }
   return atoms;
 }
+/* % de acertos por questão, por banco (cache — usado no ajuste dos blocos) */
+var _pctCache={};
+function pctMap(bankIdx){
+  if(_pctCache[bankIdx])return _pctCache[bankIdx];
+  var m={};
+  for(var i=0;i<D.rows.length;i++){var r=D.rows[i];if(r[R_BANK]===bankIdx)m[r[R_QID]]=r[R_PCT];}
+  return (_pctCache[bankIdx]=m);
+}
+function medianOf(arr){
+  if(!arr.length)return 0;
+  var s=arr.slice().sort(function(a,b){return a-b;});
+  return s[Math.floor(s.length/2)];
+}
+
+/* Um conjunto difícil ABRINDO o bloco assusta. Se a linha começa com um
+   conjunto mais difícil que o próprio bloco, ele desce algumas questões —
+   a pessoa aquece antes de encarar o caso. Nunca parte o conjunto, e nunca
+   corta outro conjunto no ponto de inserção.                               */
+function avoidHardOpening(line,map,pct){
+  if(!map||line.length<6)return line;
+  var set=map[line[0]];if(!set)return line;
+  var n=0;while(n<line.length&&map[line[n]]===set)n++;
+  if(n<2)return line;
+  var blk=line.slice(0,n),rest=line.slice(n);
+  if(rest.length<3)return line;
+  var hardest=Math.min.apply(null,blk.map(function(q){return pct[q]||0;}));
+  var med=medianOf(rest.map(function(q){return pct[q]||0;}));
+  if(hardest>=med)return line;               // não é mais difícil que o bloco: pode abrir
+  var k=Math.min(3,rest.length-1);
+  while(k<rest.length&&map[rest[k]]&&map[rest[k]]===map[rest[k-1]])k++;  // não corta outro conjunto
+  if(k>=rest.length)return line;
+  return rest.slice(0,k).concat(blk,rest.slice(k));
+}
+
 function formatIds(ids,per,opts){
   opts=opts||{};
   var bankIdx=(opts.bank!=null)?opts.bank:state.bank;
@@ -606,10 +640,19 @@ function formatIds(ids,per,opts){
   var atoms=germAtoms(ids,bankIdx,enabled),lines=[],cur=[];
   for(var a=0;a<atoms.length;a++){
     var at=atoms[a];
-    if(cur.length&&cur.length+at.length>per){lines.push(cur);cur=[];}
-    cur=cur.concat(at);
+    if(!cur.length){cur=at.slice();continue;}
+    if(cur.length+at.length<=per){cur=cur.concat(at);continue;}
+    /* Não cabe. Se for conjunto e ainda houver espaço, deixa transbordar para
+       ele FECHAR este bloco em vez de ABRIR o próximo (onde assustaria).    */
+    if(at.length>1&&cur.length<per){cur=cur.concat(at);lines.push(cur);cur=[];continue;}
+    lines.push(cur);cur=at.slice();
   }
   if(cur.length)lines.push(cur);
+  var map=(GERM&&enabled)?GERM.byBank[D.banks[bankIdx]]:null;
+  if(map){
+    var pct=pctMap(bankIdx);
+    lines=lines.map(function(l){return avoidHardOpening(l,map,pct);});
+  }
   return lines.map(function(l){return l.join(',');}).join('\n\n');
 }
 
@@ -621,12 +664,11 @@ function formatIds(ids,per,opts){
 
    Onde o bloco é colocado na lista (o ponto delicado):
    - Nenhum conjunto cruza System ou Step, então manter junto nunca quebra a
-     ordem didática de system. Só afeta tópico (24% dos conjuntos) e dificuldade.
-   - Fluidez: o bloco entra na posição do membro mais próximo da MÉDIA do
-     conjunto — assim um parceiro difícil não é jogado lá no começo, nem um
-     fácil lá no fim.
-   - Aprendizado / Importância: entra no primeiro ponto em que qualquer membro
-     apareceria, mantendo o conjunto dentro do seu system.                    */
+     ordem didática de system. Só afeta tópico (24% dos conjuntos).
+   - O bloco entra na posição da sua questão MAIS DIFÍCIL. Como um conjunto é
+     tão pesado quanto o seu pior item, ele nunca cai antes do ponto em que
+     essa questão apareceria sozinha — logo nunca vira uma surpresa difícil
+     para quem está no começo do bloco. O parceiro fácil apenas espera.      */
 var GERM=null;   // {byBank:{banco:{qid:[ids do conjunto, em ordem de item]}}}
 
 function loadGerm(){
@@ -690,17 +732,17 @@ function applyGermination(ordered,opts){
     for(var j=0;j<ids.length;j++){var r=avail[ids[j]];if(r)members.push(r);}
     if(members.length<2)continue;            // sozinha: nada a agrupar
 
-    var trigger=-1;
-    if(mode==='fluidez'){
-      var sum=0;for(var a=0;a<members.length;a++)sum+=members[a][R_PCT];
-      var avg=sum/members.length,best=Infinity;
-      for(var b=0;b<members.length;b++){
-        var mq=members[b][R_QID];if(!(mq in pos))continue;
-        var d=Math.abs(members[b][R_PCT]-avg);
-        if(d<best){best=d;trigger=pos[mq];}
-      }
+    /* Gatilho = posição da questão MAIS DIFÍCIL do conjunto que esteja na
+       lista. O conjunto nunca aparece antes do ponto em que a sua questão
+       mais difícil apareceria sozinha — então, em relação à vizinhança, ele
+       nunca é uma surpresa difícil. (Usar a média deixava o par difícil cair
+       cedo demais e assustar no começo do bloco.)                          */
+    var trigger=-1,worst=Infinity;
+    for(var b=0;b<members.length;b++){
+      var mq=members[b][R_QID];if(!(mq in pos))continue;
+      if(members[b][R_PCT]<worst){worst=members[b][R_PCT];trigger=pos[mq];}
     }
-    if(trigger<0){                            // aprendizado/importância (ou fallback)
+    if(trigger<0){                            // fallback: primeiro membro presente
       for(var c=0;c<members.length;c++){
         var mq2=members[c][R_QID];
         if(mq2 in pos&&(trigger<0||pos[mq2]<trigger))trigger=pos[mq2];
