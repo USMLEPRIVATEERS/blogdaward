@@ -131,6 +131,13 @@
                 <div id="sessions-list" class="sessions-list">
                     <!-- Filled by JS -->
                 </div>
+                <div id="sessions-more" class="sessions-more" style="display: none;">
+                    <span id="sessions-count" class="sessions-count"></span>
+                    <span class="sessions-more-btns">
+                        <button type="button" class="btn btn-sm" onclick="showMoreSessions()">Mostrar mais</button>
+                        <button type="button" class="btn btn-sm btn-outline" onclick="showAllSessions()">Mostrar todos</button>
+                    </span>
+                </div>
                 <div id="no-sessions" class="empty-state" style="display: none;">
                     <div class="empty-state-icon">📊</div>
                     <h3 class="empty-state-title">Nenhuma sessão registrada</h3>
@@ -301,6 +308,8 @@
         let userData = null;
         let allSessions = [];
         let filteredSessions = [];
+        const SESSIONS_PAGE = 30;      // quantos registros a lista mostra de início
+        let visibleSessions = SESSIONS_PAGE;
         let viewingAsStudentId = null;
         let targetUserId = null; // The user whose diary we're viewing
         let userPreparation = null; // User's current preparation focus
@@ -625,6 +634,7 @@
 
             allSessions = sessions || [];
             filteredSessions = [...allSessions];
+            visibleSessions = SESSIONS_PAGE;
 
             populateSystemFilter();
             updateStats();
@@ -646,6 +656,7 @@
             filteredSessions = system
                 ? allSessions.filter(s => s.system === system)
                 : [...allSessions];
+            visibleSessions = SESSIONS_PAGE;
             renderSessions();
         }
 
@@ -829,12 +840,14 @@
             if (filteredSessions.length === 0) {
                 container.innerHTML = '';
                 noSessions.style.display = 'block';
+                const emptyBox = document.getElementById('sessions-more');
+                if (emptyBox) emptyBox.style.display = 'none';
                 return;
             }
 
             noSessions.style.display = 'none';
 
-            container.innerHTML = filteredSessions.slice(0, 30).map(session => {
+            container.innerHTML = filteredSessions.slice(0, visibleSessions).map(session => {
                 const rate = Math.round((session.correct_answers / session.total_questions) * 100);
                 const rateColor = rate >= 70 ? 'text-success' : rate >= 50 ? 'text-warning' : 'text-danger';
                 const isViewing = viewingAsStudentId !== null;
@@ -858,6 +871,30 @@
                     </div>
                 `;
             }).join('');
+
+            renderSessionsFooter();
+        }
+
+        /* A lista mostrava só os 30 registros mais recentes e não avisava que
+           havia mais — quem lança quase todo dia via só o último mês. Agora a
+           contagem fica visível e dá para abrir o histórico inteiro.          */
+        function renderSessionsFooter() {
+            const box = document.getElementById('sessions-more');
+            const info = document.getElementById('sessions-count');
+            if (!box || !info) return;
+            const total = filteredSessions.length;
+            const shown = Math.min(visibleSessions, total);
+            info.textContent = 'Mostrando ' + shown + ' de ' + total + (total === 1 ? ' registro' : ' registros');
+            box.querySelector('.sessions-more-btns').style.display = shown < total ? '' : 'none';
+            box.style.display = total > SESSIONS_PAGE ? 'flex' : 'none';
+        }
+        function showMoreSessions() {
+            visibleSessions += SESSIONS_PAGE * 2;
+            renderSessions();
+        }
+        function showAllSessions() {
+            visibleSessions = filteredSessions.length;
+            renderSessions();
         }
 
         let savingSession = false;
@@ -1217,6 +1254,14 @@
             color: var(--gray-500);
             margin-top: 0.3rem;
         }
+
+        .sessions-more {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem;
+            padding-top: 0.9rem; border-top: 1px solid #e5e7eb;
+        }
+        .sessions-count { font-size: 0.85rem; color: #6b7280; font-weight: 600; }
+        .sessions-more-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
         .sessions-list {
             display: flex;
