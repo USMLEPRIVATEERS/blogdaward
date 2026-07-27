@@ -85,6 +85,13 @@
             </div>
         </div>
 
+        <!-- Evolução: volume + desempenho por dia, com faixas por bloco -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div id="grafico-uworld"></div>
+            </div>
+        </div>
+
         <!-- Charts Row -->
         <div class="charts-row mb-4">
             <!-- Progress Chart -->
@@ -304,6 +311,7 @@
     </div>
 
     <script src="js/app.js"></script>
+    <script src="js/ward-uworld-chart.js"></script>
     <script>
         let userData = null;
         let allSessions = [];
@@ -590,6 +598,8 @@
                     mentorRole: mentorRole
                 }));
 
+                chartAluno = _dn(student.full_name) || null;
+
                 // Update navbar links to maintain view_as context
                 updateNavbarForViewAs(studentId);
             }
@@ -638,6 +648,7 @@
 
             populateSystemFilter();
             updateStats();
+            renderEvolutionChart();
             renderWeeklyChart();
             renderSystemPerformance();
             renderCategoryPerformance();
@@ -658,6 +669,28 @@
                 : [...allSessions];
             visibleSessions = SESSIONS_PAGE;
             renderSessions();
+        }
+
+        /* Gráfico de evolução (js/ward-uworld-chart.js): volume por dia com
+           acertos/erros e média móvel, % de acerto com tendência, e faixas de
+           fundo por bloco de estudo — sem elas, uma queda no % parece piora do
+           aluno, quando na verdade acompanha a dificuldade do bloco.          */
+        let chartAluno = null;
+        function renderEvolutionChart() {
+            const box = document.getElementById('grafico-uworld');
+            if (!box || typeof WardUWorld === 'undefined') return;
+            try {
+                const sessoes = allSessions.map(s => ({
+                    date: s.date,
+                    system: s.system,
+                    correct: s.correct_answers,
+                    total: s.total_questions
+                }));
+                WardUWorld.render(box, sessoes, { aluno: chartAluno || undefined, meta: 60 });
+            } catch (e) {
+                console.error('Erro ao desenhar o gráfico de evolução:', e);
+                box.innerHTML = '';
+            }
         }
 
         function updateStats() {
