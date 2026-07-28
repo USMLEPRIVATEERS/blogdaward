@@ -1050,10 +1050,16 @@ function updateSyncUI(){
 
 function syncPull(){
   if(!SYNC.on||SYNC.pulling)return;
+  var u=syncUser();if(!u)return;
   var bank=D.banks[state.bank],step=D.steps[state.step];
   SYNC.pulling=true;SYNC.lastPull=Date.now();
+  /* O user_id vai EXPLÍCITO. A API só injeta o escopo do dono para quem não é
+     mentor; para mentores ela não injeta, e a busca casaria com a linha de
+     todos os alunos — o que faz o maybeSingle virar erro assim que existe mais
+     de um aluno na tabela (e faria o mentor puxar a lista de outra pessoa).  */
   apiQuery({table:'qbank_used_questions',action:'select',select:'*',
-            filters:[{col:'bank',type:'eq',val:bank},{col:'step',type:'eq',val:step}],
+            filters:[{col:'user_id',type:'eq',val:u.id},
+                     {col:'bank',type:'eq',val:bank},{col:'step',type:'eq',val:step}],
             maybeSingle:true})
     .then(function(res){
       SYNC.pulling=false;
@@ -1065,6 +1071,7 @@ function syncPull(){
 }
 
 function mergeServer(row){
+  if(Array.isArray(row))row=row[0]||null;      // defesa: se vier lista, usa a primeira
   var localDone=parseUsed(document.getElementById('usedIn').value);
   var meta=loadMeta(),localRem=new Set(meta.removed||[]),localTs=meta.ts||0;
   var srvDone=new Set((row&&row.done_ids)||[]);
@@ -1101,6 +1108,7 @@ function mergeServer(row){
 
 function syncPush(now){
   if(!SYNC.on)return;
+  var u=syncUser();if(!u)return;
   clearTimeout(SYNC.pushT);
   /* Snapshot AGORA: se a pessoa trocar de QBank/Step antes do envio sair, o
      que vai para o servidor ainda é a lista do escopo que ela editou.        */
@@ -1108,8 +1116,11 @@ function syncPush(now){
             done:Array.from(parseUsed(document.getElementById('usedIn').value)),
             removed:(loadMeta().removed||[])};
   var run=function(){
+    /* user_id explícito: a API só carimba o dono para quem não é mentor.
+       Sem ele, a gravação de um mentor iria com user_id nulo e falharia.    */
     apiQuery({table:'qbank_used_questions',action:'upsert',
-      data:{bank:snap.bank,step:snap.step,done_ids:snap.done,removed_ids:snap.removed,
+      data:{user_id:u.id,bank:snap.bank,step:snap.step,
+            done_ids:snap.done,removed_ids:snap.removed,
             updated_at:new Date().toISOString()},
       upsertOpts:{onConflict:'user_id,bank,step'}}).catch(function(){});
   };
