@@ -2289,6 +2289,84 @@
             }
         }
 
+        /* Um único renderizador para o card do topo. Antes havia duas marcações
+           separadas — a do item atual (com checkbox, média/dia e Registrar) e a
+           do "Próximo estudo" (só rótulos e datas). Quem estava adiantado caía
+           na segunda e ficava sem os botões. Agora as duas usam isto.        */
+        function renderStudyItemCard(item, opts) {
+            opts = opts || {};
+            const qpd = getQuestionsPerDay(item);
+            const sysEsc = item.system.replace(/'/g, "\\'");
+            const catEsc = item.category.replace(/'/g, "\\'");
+            return `
+                <div class="current-study-item" style="margin-bottom: ${opts.marginBottom || '0'};">
+                    ${opts.hint ? `
+                        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:0.5rem 0.75rem;margin-bottom:0.75rem;font-size:0.82rem;color:#1e40af;">
+                            ${opts.hint}
+                        </div>
+                    ` : ''}
+                    <div class="current-study-header">
+                        <div class="current-study-title">
+                            ${userScheduleType === 'subject' ? `
+                                <div class="current-study-label-row">
+                                    <span class="current-study-label">Subject:</span>
+                                    <span class="current-study-label-value">${item.category}</span>
+                                </div>
+                                <div class="current-study-label-row current-study-label-secondary">
+                                    <span class="current-study-label">System:</span>
+                                    <span class="current-study-label-value">${item.system}</span>
+                                </div>
+                            ` : `
+                                <div class="current-study-label-row">
+                                    <span class="current-study-label">System:</span>
+                                    <span class="current-study-label-value">${item.system}</span>
+                                </div>
+                                <div class="current-study-label-row current-study-label-secondary">
+                                    <span class="current-study-label">Category:</span>
+                                    <span class="current-study-label-value">${item.category}</span>
+                                </div>
+                            `}
+                        </div>
+                        <label class="current-study-complete-label">
+                            <span>Marcar<br>aqui</span>
+                            <input type="checkbox"
+                                class="schedule-card-checkbox"
+                                data-id="${item.id}"
+                                onchange="markCurrentComplete(${item.id}, ${!!opts.hasDelays}, this)">
+                        </label>
+                    </div>
+                    <div class="current-study-meta">
+                        <div class="current-study-meta-item">
+                            <div class="current-study-meta-label">📅 Início</div>
+                            <div class="current-study-meta-value">${formatShortDate(item.start_date)}</div>
+                        </div>
+                        <div class="current-study-meta-item">
+                            <div class="current-study-meta-label">🏁 Fim</div>
+                            <div class="current-study-meta-value">${formatShortDate(item.end_date)}</div>
+                        </div>
+                        ${qpd ? `
+                            <div class="current-study-meta-item">
+                                <div class="current-study-meta-label">📊 Média/dia</div>
+                                <div class="current-study-meta-value" style="font-weight: 700; color: #7c3aed;">~${qpd} questoes</div>
+                            </div>
+                        ` : ''}
+                        <div class="current-study-meta-item current-study-register">
+                            <button class="current-study-register-btn" onclick="openRegisterModal('${sysEsc}', '${catEsc}')">
+                                📝 Registrar
+                            </button>
+                        </div>
+                    </div>
+                    ${opts.alert ? `
+                        <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 0.5rem 0.75rem; margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: #92400e;">
+                            <span style="font-size: 1rem; flex-shrink: 0;">&#x26A0;&#xFE0F;</span>
+                            <span>${opts.alert}</span>
+                        </div>
+                    ` : ''}
+                    ${formatRecommendedLessons(item.recommended_lessons, item.id)}
+                </div>
+            `;
+        }
+
         function renderCurrentStudy(schedule) {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -2401,47 +2479,10 @@
                     currentCard.querySelector('.card-header').style.background = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
                     currentCard.querySelector('.card-header').innerHTML = '📅 Proximo estudo';
 
-                    // Parse recommended lessons for next item
-                    const nextLessonsHtml = formatRecommendedLessons(next.recommended_lessons, next.id);
-
-                    contentDiv.innerHTML = `
-                        <div>
-                            <div style="margin-bottom: 0.5rem;">
-                                <div style="margin: 0 0 0.75rem 0;">
-                                    ${userScheduleType === 'subject' ? `
-                                        <div class="current-study-label-row">
-                                            <span class="current-study-label">Subject:</span>
-                                            <span class="current-study-label-value">${next.category}</span>
-                                        </div>
-                                        <div class="current-study-label-row current-study-label-secondary">
-                                            <span class="current-study-label">System:</span>
-                                            <span class="current-study-label-value">${next.system}</span>
-                                        </div>
-                                    ` : `
-                                        <div class="current-study-label-row">
-                                            <span class="current-study-label">System:</span>
-                                            <span class="current-study-label-value">${next.system}</span>
-                                        </div>
-                                        <div class="current-study-label-row current-study-label-secondary">
-                                            <span class="current-study-label">Category:</span>
-                                            <span class="current-study-label-value">${next.category}</span>
-                                        </div>
-                                    `}
-                                </div>
-                                <div class="schedule-card-meta">
-                                    <div class="schedule-card-meta-item schedule-card-date">
-                                        <div class="schedule-card-meta-label">📅 Início</div>
-                                        <div class="schedule-card-meta-value schedule-card-date-value">${formatShortDate(next.start_date)}</div>
-                                    </div>
-                                    <div class="schedule-card-meta-item schedule-card-date">
-                                        <div class="schedule-card-meta-label">🏁 Fim</div>
-                                        <div class="schedule-card-meta-value schedule-card-date-value">${formatShortDate(next.end_date)}</div>
-                                    </div>
-                                </div>
-                            </div>
-                            ${nextLessonsHtml}
-                        </div>
-                    `;
+                    contentDiv.innerHTML = renderStudyItemCard(next, {
+                        hasDelays: hasDelays,
+                        hint: 'Voce esta adiantado no cronograma. Este e o proximo item — ja da para registrar questoes e marcar como concluido.'
+                    });
                 } else {
                     currentCard.style.display = 'none';
                 }
@@ -2478,71 +2519,11 @@
                     </div>
                 ` : '';
 
-                contentDiv.innerHTML = dailySummaryHtml + currentItems.map((item, index) => `
-                    <div class="current-study-item" style="margin-bottom: ${index === currentItems.length - 1 ? '0' : '1rem'};">
-                        <div class="current-study-header">
-                            <div class="current-study-title">
-                                ${userScheduleType === 'subject' ? `
-                                    <div class="current-study-label-row">
-                                        <span class="current-study-label">Subject:</span>
-                                        <span class="current-study-label-value">${item.category}</span>
-                                    </div>
-                                    <div class="current-study-label-row current-study-label-secondary">
-                                        <span class="current-study-label">System:</span>
-                                        <span class="current-study-label-value">${item.system}</span>
-                                    </div>
-                                ` : `
-                                    <div class="current-study-label-row">
-                                        <span class="current-study-label">System:</span>
-                                        <span class="current-study-label-value">${item.system}</span>
-                                    </div>
-                                    <div class="current-study-label-row current-study-label-secondary">
-                                        <span class="current-study-label">Category:</span>
-                                        <span class="current-study-label-value">${item.category}</span>
-                                    </div>
-                                `}
-                            </div>
-                            <label class="current-study-complete-label">
-                                <span>Marcar<br>aqui</span>
-                                <input type="checkbox"
-                                    class="schedule-card-checkbox"
-                                    data-id="${item.id}"
-                                    onchange="markCurrentComplete(${item.id}, ${hasDelays}, this)">
-                            </label>
-                        </div>
-                        <div class="current-study-meta">
-                            <div class="current-study-meta-item">
-                                <div class="current-study-meta-label">📅 Início</div>
-                                <div class="current-study-meta-value">${formatShortDate(item.start_date)}</div>
-                            </div>
-                            <div class="current-study-meta-item">
-                                <div class="current-study-meta-label">🏁 Fim</div>
-                                <div class="current-study-meta-value">${formatShortDate(item.end_date)}</div>
-                            </div>
-                            ${(() => {
-                                const qpd = getQuestionsPerDay(item);
-                                return qpd ? `
-                                    <div class="current-study-meta-item">
-                                        <div class="current-study-meta-label">📊 Média/dia</div>
-                                        <div class="current-study-meta-value" style="font-weight: 700; color: #7c3aed;">~${qpd} questoes</div>
-                                    </div>
-                                ` : '';
-                            })()}
-                            <div class="current-study-meta-item current-study-register">
-                                <button class="current-study-register-btn" onclick="openRegisterModal('${item.system.replace(/'/g, "\\'")}', '${item.category.replace(/'/g, "\\'")}')">
-                                    📝 Registrar
-                                </button>
-                            </div>
-                        </div>
-                        ${currentItemAlerts[item.id] ? `
-                            <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 0.5rem 0.75rem; margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: #92400e;">
-                                <span style="font-size: 1rem; flex-shrink: 0;">&#x26A0;&#xFE0F;</span>
-                                <span>${currentItemAlerts[item.id]}</span>
-                            </div>
-                        ` : ''}
-                        ${formatRecommendedLessons(item.recommended_lessons, item.id)}
-                    </div>
-                `).join('');
+                contentDiv.innerHTML = dailySummaryHtml + currentItems.map((item, index) => renderStudyItemCard(item, {
+                    hasDelays: hasDelays,
+                    alert: currentItemAlerts[item.id],
+                    marginBottom: index === currentItems.length - 1 ? '0' : '1rem'
+                })).join('');
             }
         }
 
