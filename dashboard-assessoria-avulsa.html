@@ -855,6 +855,54 @@
            sistema sabe (diario de UWorld e ultimo check-in).                */
         let checkInStatus = null;
 
+        /* Só abre à noite: de manhã o aluno ainda não teve o dia para render,
+           e um check-in às 8h não diz nada a ninguém. */
+        const CHECKIN_HORA_MINIMA = 18;
+
+        /* A data do check-in segue o fuso do ALUNO, nao o UTC. Com
+           toISOString() a noite brasileira (a partir das 21h) ja caia no dia
+           seguinte em UTC: o check-in era gravado na data errada e o dia
+           seguinte aparecia como ja respondido. O cron usa CURRENT_DATE, que
+           para o horario de Brasilia bate com a data local. */
+        function checkInDate(offsetDias) {
+            const d = new Date();
+            if (offsetDias) d.setDate(d.getDate() + offsetDias);
+            return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+                .toISOString().split('T')[0];
+        }
+
+        /* Quem registrou no diario ontem ou hoje ja contou como esta indo:
+           nao faz sentido interromper para perguntar de novo. */
+        async function registrouNoDiario() {
+            const ontem = checkInDate(-1);
+
+            const buscar = async tabela => {
+                const { data, error } = await WardApp.db
+                    .from(tabela)
+                    .select('id')
+                    .eq('user_id', targetUserId)
+                    .gte('date', ontem)
+                    .limit(1);
+                if (error) {
+                    console.error('[CHECK-IN] Erro ao checar ' + tabela + ':', error);
+                    return false;
+                }
+                return !!(data && data.length);
+            };
+
+            try {
+                const [uworld, estudos] = await Promise.all([
+                    buscar('uworld_diary'),
+                    buscar('study_diary')
+                ]);
+                return uworld || estudos;
+            } catch (err) {
+                // Na duvida, mostra o check-in: perder um registro e pior que insistir
+                console.error('[CHECK-IN] Nao consegui checar os diarios:', err);
+                return false;
+            }
+        }
+
         const CHECKIN_NOTA = {
             tranquilo:     { rotulo: 'Quer contar mais?',            dica: 'Opcional, mas ajuda muito' },
             preciso_ajuda: { rotulo: 'O que está travando?',         dica: 'Ex: não estou entendendo cardio, cansaço, cronograma apertado...' },
@@ -955,7 +1003,7 @@
         // If 'filled' is NULL -> show modal
         // If 'filled' is 0 (skipped) or 1 (filled) -> don't show modal
         async function checkAndShowCheckIn() {
-            const today = new Date().toISOString().split('T')[0];
+            const today = checkInDate(0);
 
             try {
                 // Simple query: check if 'filled' column is NULL
@@ -993,13 +1041,20 @@
                     checkIn = newCheckIn;
                 }
 
-                if (checkIn && checkIn.filled === null) {
-                    resetCheckInForm();
-                    await prefillCheckIn();
-                    setTimeout(() => {
-                        openModal('checkin-modal');
-                    }, 500);
-                }
+                // Ja respondeu ou pulou hoje
+                if (!checkIn || checkIn.filled !== null) return;
+
+                // Ainda e cedo: o dia do aluno nao aconteceu
+                if (new Date().getHours() < CHECKIN_HORA_MINIMA) return;
+
+                // Ja sabemos do dia dele pelo diario
+                if (await registrouNoDiario()) return;
+
+                resetCheckInForm();
+                await prefillCheckIn();
+                setTimeout(() => {
+                    openModal('checkin-modal');
+                }, 500);
 
             } catch (err) {
                 console.error('[CHECK-IN] Exceção ao verificar check-in:', err);
@@ -1007,7 +1062,7 @@
         }
 
         async function skipCheckIn() {
-            const today = new Date().toISOString().split('T')[0];
+            const today = checkInDate(0);
 
             // Fecha primeiro: o modal nao pode ficar preso esperando a rede
             closeModal('checkin-modal');
@@ -1051,7 +1106,7 @@
             submitBtn.disabled = true;
             submitBtn.innerHTML = '⏳ Enviando...';
 
-            const today = new Date().toISOString().split('T')[0];
+            const today = checkInDate(0);
 
             try {
                 const { error } = await WardApp.db
