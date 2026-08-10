@@ -209,12 +209,25 @@
                     <input type="number" id="session-time" class="form-input" min="0" placeholder="Ex: 60">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="session-mode">Modo</label>
-                    <select id="session-mode" class="form-input">
-                        <option value="untimed">Untimed</option>
-                        <option value="timed">Timed</option>
-                        <option value="tutor">Tutor</option>
-                    </select>
+                    <label class="form-label">Modo</label>
+                    <div class="mode-toggles">
+                        <label class="mode-toggle">
+                            <input type="checkbox" id="session-tutor" checked>
+                            <span class="mode-toggle-track"><span class="mode-toggle-thumb"></span></span>
+                            <span class="mode-toggle-text">
+                                <strong>Tutor</strong>
+                                <small>com explicação</small>
+                            </span>
+                        </label>
+                        <label class="mode-toggle">
+                            <input type="checkbox" id="session-timed">
+                            <span class="mode-toggle-track"><span class="mode-toggle-thumb"></span></span>
+                            <span class="mode-toggle-text">
+                                <strong>Timed</strong>
+                                <small>com cronômetro</small>
+                            </span>
+                        </label>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="session-notes">Observações</label>
@@ -281,12 +294,25 @@
                     <input type="number" id="edit-session-time" class="form-input" min="0">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="edit-session-mode">Modo</label>
-                    <select id="edit-session-mode" class="form-input">
-                        <option value="untimed">Untimed</option>
-                        <option value="timed">Timed</option>
-                        <option value="tutor">Tutor</option>
-                    </select>
+                    <label class="form-label">Modo</label>
+                    <div class="mode-toggles">
+                        <label class="mode-toggle">
+                            <input type="checkbox" id="edit-session-tutor">
+                            <span class="mode-toggle-track"><span class="mode-toggle-thumb"></span></span>
+                            <span class="mode-toggle-text">
+                                <strong>Tutor</strong>
+                                <small>com explicação</small>
+                            </span>
+                        </label>
+                        <label class="mode-toggle">
+                            <input type="checkbox" id="edit-session-timed">
+                            <span class="mode-toggle-track"><span class="mode-toggle-thumb"></span></span>
+                            <span class="mode-toggle-text">
+                                <strong>Timed</strong>
+                                <small>com cronômetro</small>
+                            </span>
+                        </label>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="edit-session-notes">Observações</label>
@@ -314,6 +340,62 @@
     <script src="js/ward-uworld-chart.js"></script>
     <script>
         let userData = null;
+        /* ===== Modo do UWorld =====
+           O UWorld tem dois interruptores independentes: tutor on/off e timed
+           on/off. O campo "mode" guardava um valor so e obrigava a escolher um
+           dos dois. Agora: mode = 'timed' | 'untimed', tutor_mode = boolean.
+           A coluna tutor_mode so passa a existir depois de rodar
+           sql/uworld-modo-tutor-timed.sql; ate la gravamos no formato antigo
+           para nada se perder.                                              */
+        let tutorColumnMissing = false;
+
+        function readTutor(s) {
+            return s.tutor_mode != null ? !!s.tutor_mode : s.mode === 'tutor';
+        }
+
+        function readTimed(s) {
+            return s.mode === 'timed';
+        }
+
+        function modeLabel(s) {
+            return [readTutor(s) ? 'Tutor' : null, readTimed(s) ? 'Timed' : 'Untimed']
+                .filter(Boolean).join(' · ');
+        }
+
+        function isMissingTutorColumn(error) {
+            const msg = ((error && (error.message || error.details || error.hint)) || '').toLowerCase();
+            return msg.includes('tutor_mode');
+        }
+
+        /* Formato antigo: cabe um valor so, entao alguma informacao se perde.
+           'timed' e o dado que vale a pena guardar, ja que tutor ligado e o
+           padrao e quase nao distingue uma sessao da outra.                 */
+        function legacyMode(mode, tutorMode) {
+            if (mode === 'timed') return 'timed';
+            return tutorMode ? 'tutor' : 'untimed';
+        }
+
+        // Grava respeitando o esquema disponivel. id => update; sem id => insert.
+        async function writeSessionRow(payload, tutorMode, id, ownerId) {
+            const run = withTutor => {
+                const row = Object.assign({}, payload);
+                if (withTutor) row.tutor_mode = tutorMode;
+                else row.mode = legacyMode(row.mode, tutorMode);
+                if (!id) return WardApp.db.from('uworld_diary').insert(row);
+                let q = WardApp.db.from('uworld_diary').update(row).eq('id', id);
+                if (ownerId != null) q = q.eq('user_id', ownerId);
+                return q;
+            };
+
+            if (!tutorColumnMissing) {
+                const res = await run(true);
+                if (!res.error || !isMissingTutorColumn(res.error)) return res;
+                tutorColumnMissing = true;
+                console.warn('Coluna tutor_mode ainda nao existe. Rode sql/uworld-modo-tutor-timed.sql. Gravando no formato antigo.');
+            }
+            return run(false);
+        }
+
         let allSessions = [];
         let filteredSessions = [];
         const SESSIONS_PAGE = 30;      // quantos registros a lista mostra de início
@@ -560,7 +642,9 @@
             document.getElementById('session-total').value = '';
             document.getElementById('session-correct').value = '';
             document.getElementById('session-time').value = '';
-            document.getElementById('session-mode').value = 'untimed';
+            // Padrao do UWorld na Ward: tutor ligado, sem cronometro
+            document.getElementById('session-tutor').checked = true;
+            document.getElementById('session-timed').checked = false;
             document.getElementById('session-notes').value = '';
 
             openModal('new-session-modal');
@@ -899,7 +983,7 @@
                             <span class="session-questions">${session.correct_answers}/${session.total_questions}</span>
                             <span class="session-rate ${rateColor}">${rate}%</span>
                         </div>
-                        <div class="session-mode">${session.mode || 'untimed'}</div>
+                        <div class="session-mode">${modeLabel(session)}</div>
                         ${session.time_minutes ? `<div class="session-time">⏱️ ${session.time_minutes}min</div>` : ''}
                     </div>
                 `;
@@ -957,7 +1041,8 @@
             const total = parseInt(document.getElementById('session-total').value);
             const correct = parseInt(document.getElementById('session-correct').value);
             const time = parseInt(document.getElementById('session-time').value) || null;
-            const mode = document.getElementById('session-mode').value;
+            const tutorMode = document.getElementById('session-tutor').checked;
+            const mode = document.getElementById('session-timed').checked ? 'timed' : 'untimed';
             const notes = document.getElementById('session-notes').value.trim();
 
             if (!date || !system || isNaN(total) || isNaN(correct)) {
@@ -988,7 +1073,7 @@
             await ensureOptionExists('system', system);
             await ensureOptionExists('category', category);
 
-            const { error } = await WardApp.db.from('uworld_diary').insert({
+            const { error } = await writeSessionRow({
                 user_id: userData.id,
                 date: date,
                 exam_type: examType || null,
@@ -1000,7 +1085,7 @@
                 time_minutes: time,
                 mode,
                 notes: notes || null
-            });
+            }, tutorMode);
 
             if (error) {
                 console.error('Error saving session:', error);
@@ -1045,7 +1130,8 @@
             document.getElementById('edit-session-total').value = session.total_questions;
             document.getElementById('edit-session-correct').value = session.correct_answers;
             document.getElementById('edit-session-time').value = session.time_minutes || '';
-            document.getElementById('edit-session-mode').value = session.mode || 'untimed';
+            document.getElementById('edit-session-tutor').checked = readTutor(session);
+            document.getElementById('edit-session-timed').checked = readTimed(session);
             document.getElementById('edit-session-notes').value = session.notes || '';
 
             openModal('edit-session-modal');
@@ -1061,7 +1147,8 @@
             const total = parseInt(document.getElementById('edit-session-total').value);
             const correct = parseInt(document.getElementById('edit-session-correct').value);
             const time = parseInt(document.getElementById('edit-session-time').value) || null;
-            const mode = document.getElementById('edit-session-mode').value;
+            const tutorMode = document.getElementById('edit-session-tutor').checked;
+            const mode = document.getElementById('edit-session-timed').checked ? 'timed' : 'untimed';
             const notes = document.getElementById('edit-session-notes').value.trim();
 
             if (!date || !system || isNaN(total) || isNaN(correct)) {
@@ -1079,23 +1166,19 @@
             await ensureOptionExists('system', system);
             await ensureOptionExists('category', category);
 
-            const { error } = await WardApp.db
-                .from('uworld_diary')
-                .update({
-                    date: date,
-                    exam_type: examType || null,
-                    subject: subject || null,
-                    system,
-                    category: category || null,
-                    total_questions: total,
-                    correct_answers: correct,
-                    time_minutes: time,
-                    mode,
-                    notes: notes || null,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', id)
-                .eq('user_id', userData.id);
+            const { error } = await writeSessionRow({
+                date: date,
+                exam_type: examType || null,
+                subject: subject || null,
+                system,
+                category: category || null,
+                total_questions: total,
+                correct_answers: correct,
+                time_minutes: time,
+                mode,
+                notes: notes || null,
+                updated_at: new Date().toISOString()
+            }, tutorMode, id, userData.id);
 
             if (error) {
                 console.error('Update error:', error);

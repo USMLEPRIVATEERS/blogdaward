@@ -299,18 +299,29 @@
                 <!-- 2. Contexto -->
                 <section class="reg-section">
                     <h4 class="reg-section-title">📅 Quando e como</h4>
-                    <div class="reg-grid-2">
-                        <div class="form-group">
-                            <label class="form-label" for="register-date">Data <span class="reg-req">*</span></label>
-                            <input type="date" id="register-date" class="form-input">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="register-mode">Modo</label>
-                            <select id="register-mode" class="form-input">
-                                <option value="untimed">Untimed</option>
-                                <option value="timed">Timed</option>
-                                <option value="tutor">Tutor</option>
-                            </select>
+                    <div class="form-group">
+                        <label class="form-label" for="register-date">Data <span class="reg-req">*</span></label>
+                        <input type="date" id="register-date" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Modo</label>
+                        <div class="mode-toggles">
+                            <label class="mode-toggle">
+                                <input type="checkbox" id="register-tutor" checked>
+                                <span class="mode-toggle-track"><span class="mode-toggle-thumb"></span></span>
+                                <span class="mode-toggle-text">
+                                    <strong>Tutor</strong>
+                                    <small>com explicação</small>
+                                </span>
+                            </label>
+                            <label class="mode-toggle">
+                                <input type="checkbox" id="register-timed">
+                                <span class="mode-toggle-track"><span class="mode-toggle-thumb"></span></span>
+                                <span class="mode-toggle-text">
+                                    <strong>Timed</strong>
+                                    <small>com cronômetro</small>
+                                </span>
+                            </label>
                         </div>
                     </div>
                 </section>
@@ -2132,7 +2143,11 @@
             document.getElementById('register-total').value = lastSession ? '' : '';
             document.getElementById('register-correct').value = lastSession ? '' : '';
             document.getElementById('register-time').value = lastSession?.time_minutes || '';
-            document.getElementById('register-mode').value = lastSession?.mode || 'untimed';
+            // Padrao do UWorld na Ward: tutor ligado, sem cronometro
+            document.getElementById('register-tutor').checked = lastSession
+                ? readTutor(lastSession) : true;
+            document.getElementById('register-timed').checked = lastSession
+                ? readTimed(lastSession) : false;
             document.getElementById('register-notes').value = '';
 
             // Show indicator if pre-filled from last session
@@ -2154,6 +2169,51 @@
             openModal('register-session-modal');
             // O foco vai direto para o primeiro campo que a pessoa precisa preencher
             setTimeout(() => document.getElementById('register-total')?.focus(), 120);
+        }
+
+        /* ===== Modo do UWorld =====
+           Tutor e timed sao interruptores independentes: mode guarda so o
+           cronometro ('timed' | 'untimed') e tutor_mode guarda o tutor.
+           A coluna tutor_mode so existe depois de rodar
+           sql/uworld-modo-tutor-timed.sql; ate la gravamos no formato antigo. */
+        let tutorColumnMissing = false;
+
+        function readTutor(s) {
+            return s.tutor_mode != null ? !!s.tutor_mode : s.mode === 'tutor';
+        }
+
+        function readTimed(s) {
+            return s.mode === 'timed';
+        }
+
+        function isMissingTutorColumn(error) {
+            const msg = ((error && (error.message || error.details || error.hint)) || '').toLowerCase();
+            return msg.includes('tutor_mode');
+        }
+
+        /* Formato antigo: cabe um valor so, entao alguma informacao se perde.
+           'timed' e o dado que vale a pena guardar, ja que tutor ligado e o
+           padrao e quase nao distingue uma sessao da outra.                 */
+        function legacyMode(mode, tutorMode) {
+            if (mode === 'timed') return 'timed';
+            return tutorMode ? 'tutor' : 'untimed';
+        }
+
+        async function writeSessionRow(payload, tutorMode) {
+            const run = withTutor => {
+                const row = Object.assign({}, payload);
+                if (withTutor) row.tutor_mode = tutorMode;
+                else row.mode = legacyMode(row.mode, tutorMode);
+                return WardApp.db.from('uworld_diary').insert(row);
+            };
+
+            if (!tutorColumnMissing) {
+                const res = await run(true);
+                if (!res.error || !isMissingTutorColumn(res.error)) return res;
+                tutorColumnMissing = true;
+                console.warn('Coluna tutor_mode ainda nao existe. Rode sql/uworld-modo-tutor-timed.sql. Gravando no formato antigo.');
+            }
+            return run(false);
         }
 
         // Mostra o % de acerto ao vivo enquanto a pessoa digita
@@ -2218,7 +2278,8 @@
             const total = parseInt(document.getElementById('register-total').value);
             const correct = parseInt(document.getElementById('register-correct').value);
             const time = parseInt(document.getElementById('register-time').value) || null;
-            const mode = document.getElementById('register-mode').value;
+            const tutorMode = document.getElementById('register-tutor').checked;
+            const mode = document.getElementById('register-timed').checked ? 'timed' : 'untimed';
             const notes = document.getElementById('register-notes').value.trim();
 
             if (!date || !system || isNaN(total) || isNaN(correct)) {
@@ -2256,7 +2317,7 @@
             await ensureOptionExists('system', system);
             await ensureOptionExists('category', category);
 
-            const { error } = await WardApp.db.from('uworld_diary').insert({
+            const { error } = await writeSessionRow({
                 user_id: userData.id,
                 date: date,
                 exam_type: examType || null,
@@ -2268,7 +2329,7 @@
                 time_minutes: time,
                 mode,
                 notes: notes || null
-            });
+            }, tutorMode);
 
             if (error) {
                 console.error('Error saving session:', error);

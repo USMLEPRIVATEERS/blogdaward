@@ -16,12 +16,58 @@
 --
 -- COMO USAR: rode a PARTE 1 primeiro e confira os numeros. Só depois, e se
 -- quiser limpar pelo banco em vez de pelo botao "Auditar", rode a PARTE 2.
+--
+-- ATENCAO: o editor SQL do Supabase mostra APENAS o resultado da ULTIMA
+-- consulta do script. Selecione e rode um bloco de cada vez (da para marcar
+-- o trecho com o mouse e apertar Run), ou comece pela consulta 1.0, que
+-- junta tudo num resultado so.
 -- ============================================================
 
 
 -- ============================================================
 -- PARTE 1 - DIAGNOSTICO (somente leitura, seguro)
 -- ============================================================
+
+-- 1.0 Resumo completo num resultado so (bom para o editor do Supabase)
+WITH grupos AS (
+    SELECT user_id, landmark_type, COUNT(*) AS qtd
+    FROM landmarks
+    GROUP BY user_id, landmark_type
+    HAVING COUNT(*) > 1
+),
+ranked AS (
+    SELECT
+        l.id,
+        l.completed,
+        COALESCE(jsonb_array_length(
+            CASE WHEN jsonb_typeof(l.notes::jsonb) = 'array' THEN l.notes::jsonb ELSE '[]'::jsonb END
+        ), 0) AS qtd_observacoes,
+        EXISTS (SELECT 1 FROM scheduled_calls sc WHERE sc.landmark_id = l.id) AS tem_agendamento,
+        ROW_NUMBER() OVER (
+            PARTITION BY l.user_id, l.landmark_type
+            ORDER BY
+                l.completed DESC,
+                COALESCE(jsonb_array_length(
+                    CASE WHEN jsonb_typeof(l.notes::jsonb) = 'array' THEN l.notes::jsonb ELSE '[]'::jsonb END
+                ), 0) DESC,
+                (EXISTS (SELECT 1 FROM scheduled_calls sc WHERE sc.landmark_id = l.id)) DESC,
+                l.id ASC
+        ) AS posicao
+    FROM landmarks l
+    WHERE (l.user_id, l.landmark_type) IN (SELECT user_id, landmark_type FROM grupos)
+)
+SELECT
+    (SELECT COUNT(*) FROM landmarks)                                  AS landmarks_no_total,
+    (SELECT COUNT(*) FROM grupos)                                     AS grupos_duplicados,
+    (SELECT COALESCE(SUM(qtd - 1), 0) FROM grupos)                    AS linhas_sobrando,
+    (SELECT COUNT(DISTINCT user_id) FROM grupos)                      AS alunos_afetados,
+    (SELECT COALESCE(MAX(qtd), 0) FROM grupos)                        AS maior_repeticao,
+    (SELECT COUNT(*) FROM ranked
+      WHERE posicao > 1 AND NOT completed AND qtd_observacoes = 0
+        AND NOT tem_agendamento)                                      AS seriam_apagadas,
+    (SELECT COUNT(*) FROM ranked
+      WHERE posicao > 1
+        AND (completed OR qtd_observacoes > 0 OR tem_agendamento))    AS precisam_decisao_manual;
 
 -- 1.1 Resumo geral: quantos grupos duplicados e quantas linhas sobrando
 SELECT
@@ -187,6 +233,67 @@ FROM (
 
 -- Troque para COMMIT quando os numeros estiverem certos.
 ROLLBACK;
+
+
+-- ============================================================
+-- PARTE 2B - OS CASOS QUE A LIMPEZA NAO RESOLVE
+-- ============================================================
+-- Sao os grupos em que MAIS DE UMA copia carrega progresso proprio
+-- (concluida, com observacoes ou com chamada agendada). Nenhuma limpeza
+-- automatica deveria escolher por voce qual delas sobrevive - o risco e
+-- apagar a observacao de um mentor ou desmarcar uma chamada ja feita.
+--
+-- Rode isto para ver caso a caso e decidir. Em muitos deles as duas copias
+-- dizem a mesma coisa e da para apagar a segunda pela propria pagina de
+-- landmarks do aluno.
+
+WITH grupos AS (
+    SELECT user_id, landmark_type
+    FROM landmarks
+    GROUP BY user_id, landmark_type
+    HAVING COUNT(*) > 1
+),
+ranked AS (
+    SELECT
+        l.*,
+        COALESCE(jsonb_array_length(
+            CASE WHEN jsonb_typeof(l.notes::jsonb) = 'array' THEN l.notes::jsonb ELSE '[]'::jsonb END
+        ), 0) AS qtd_observacoes,
+        EXISTS (SELECT 1 FROM scheduled_calls sc WHERE sc.landmark_id = l.id) AS tem_agendamento,
+        ROW_NUMBER() OVER (
+            PARTITION BY l.user_id, l.landmark_type
+            ORDER BY
+                l.completed DESC,
+                COALESCE(jsonb_array_length(
+                    CASE WHEN jsonb_typeof(l.notes::jsonb) = 'array' THEN l.notes::jsonb ELSE '[]'::jsonb END
+                ), 0) DESC,
+                (EXISTS (SELECT 1 FROM scheduled_calls sc WHERE sc.landmark_id = l.id)) DESC,
+                l.id ASC
+        ) AS posicao
+    FROM landmarks l
+    WHERE (l.user_id, l.landmark_type) IN (SELECT user_id, landmark_type FROM grupos)
+),
+conflitos AS (
+    SELECT DISTINCT user_id, landmark_type
+    FROM ranked
+    WHERE posicao > 1
+      AND (completed OR qtd_observacoes > 0 OR tem_agendamento)
+)
+SELECT
+    u.full_name,
+    r.landmark_type,
+    r.id,
+    CASE WHEN r.posicao = 1 THEN '<== ficaria' ELSE 'copia extra' END AS papel,
+    r.completed                                                       AS concluida,
+    r.qtd_observacoes,
+    r.tem_agendamento,
+    r.completion_date,
+    LEFT(r.title, 60)                                                 AS titulo,
+    r.notes                                                           AS observacoes
+FROM ranked r
+JOIN users u ON u.id = r.user_id
+JOIN conflitos c ON c.user_id = r.user_id AND c.landmark_type = r.landmark_type
+ORDER BY u.full_name, r.landmark_type, r.posicao;
 
 
 -- ============================================================
