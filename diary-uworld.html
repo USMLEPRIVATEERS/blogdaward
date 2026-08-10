@@ -223,7 +223,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('new-session-modal')">Cancelar</button>
-                <button class="btn btn-primary" onclick="saveSession()">Salvar</button>
+                <button class="btn btn-primary" id="btn-save-session" onclick="saveSession()">Salvar</button>
             </div>
         </div>
     </div>
@@ -930,6 +930,22 @@
             renderSessions();
         }
 
+        // Trava visual do botao de salvar (evita clique duplo criando sessoes repetidas)
+        function setSaveLoading(btnId, on, label) {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            if (on) {
+                btn.dataset.originalLabel = btn.textContent;
+                btn.classList.add('is-loading');
+                btn.disabled = true;
+                btn.textContent = label || 'Salvando...';
+            } else {
+                btn.classList.remove('is-loading');
+                btn.disabled = false;
+                if (btn.dataset.originalLabel) btn.textContent = btn.dataset.originalLabel;
+            }
+        }
+
         let savingSession = false;
         async function saveSession() {
             if (savingSession) return;
@@ -954,7 +970,17 @@
                 return;
             }
 
+            // Aviso de duplicata: mesma data, mesmo system e mesmos numeros
+            const dup = allSessions.find(s => s.date === date
+                && (s.system || '') === system
+                && Number(s.total_questions) === total
+                && Number(s.correct_answers) === correct);
+            if (dup && !confirm('Voce ja tem uma sessao identica neste dia (' + system + ', ' + correct + '/' + total + ').\n\nQuer registrar mesmo assim?')) {
+                return;
+            }
+
             savingSession = true;
+            setSaveLoading('btn-save-session', true);
 
             try {
             // Auto-add new options to database if they don't exist
@@ -987,6 +1013,7 @@
             await loadSessions();
             } finally {
                 savingSession = false;
+                setSaveLoading('btn-save-session', false);
             }
         }
 

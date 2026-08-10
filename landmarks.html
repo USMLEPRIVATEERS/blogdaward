@@ -2493,9 +2493,31 @@
                 return;
             }
 
-            await WardApp.db.from('landmarks').insert({
+            const landmarkType = 'call_system_' + system.toLowerCase();
+
+            // Nao criar a mesma chamada duas vezes para o mesmo aluno
+            const { data: existing, error: checkError } = await WardApp.db
+                .from('landmarks')
+                .select('id')
+                .eq('user_id', targetUserId)
+                .eq('landmark_type', landmarkType)
+                .limit(1);
+
+            if (checkError) {
+                console.error('Erro ao checar chamada existente:', checkError);
+                WardApp.showToast('Erro ao adicionar chamada', 'error');
+                return;
+            }
+
+            if (existing && existing.length) {
+                WardApp.showToast(`A chamada do System ${system} ja existe`, 'warning');
+                closeModal('add-system-modal');
+                return;
+            }
+
+            const { error: insertError } = await WardApp.db.from('landmarks').insert({
                 user_id: targetUserId,
-                landmark_type: 'call_system_' + system.toLowerCase(),
+                landmark_type: landmarkType,
                 title: `Chamada - Dra. Iria: System ${system} concluido`,
                 completed: false,
                 is_urgent: false,
@@ -2503,6 +2525,12 @@
                 order_position: 999,
                 group_name: 'system-calls'
             });
+
+            if (insertError) {
+                console.error('Erro ao adicionar chamada:', insertError);
+                WardApp.showToast('Erro ao adicionar chamada', 'error');
+                return;
+            }
 
             closeModal('add-system-modal');
             WardApp.showToast('Chamada adicionada!');

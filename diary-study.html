@@ -197,7 +197,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('new-entry-modal')">Cancelar</button>
-                <button class="btn btn-primary" onclick="saveEntry()">Salvar</button>
+                <button class="btn btn-primary" id="btn-save-entry" onclick="saveEntry()">Salvar</button>
             </div>
         </div>
     </div>
@@ -606,6 +606,22 @@
             }).join('');
         }
 
+        // Trava visual do botao de salvar (evita clique duplo criando entradas repetidas)
+        function setSaveLoading(btnId, on, label) {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            if (on) {
+                btn.dataset.originalLabel = btn.textContent;
+                btn.classList.add('is-loading');
+                btn.disabled = true;
+                btn.textContent = label || 'Salvando...';
+            } else {
+                btn.classList.remove('is-loading');
+                btn.disabled = false;
+                if (btn.dataset.originalLabel) btn.textContent = btn.dataset.originalLabel;
+            }
+        }
+
         let savingEntry = false;
         async function saveEntry() {
             if (savingEntry) return;
@@ -630,6 +646,7 @@
             }
 
             savingEntry = true;
+            setSaveLoading('btn-save-entry', true);
             try {
             const { error } = await WardApp.db.from('study_diary').insert({
                 user_id: userData.id,
@@ -657,6 +674,7 @@
             await loadEntries();
             } finally {
                 savingEntry = false;
+                setSaveLoading('btn-save-entry', false);
             }
         }
 
