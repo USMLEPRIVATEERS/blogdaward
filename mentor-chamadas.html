@@ -1260,29 +1260,25 @@
             return map[tz] || tz.split('/').pop().replace(/_/g, ' ');
         }
 
-        // Convert time from one timezone to another
-        // date: 'YYYY-MM-DD', time: 'HH:MM', fromTz/toTz: IANA timezone strings
-        function convertTime(date, time, fromTz, toTz) {
-            if (!date || !time || !fromTz || !toTz || fromTz === toTz) return time;
-            try {
-                const dt = new Date(`${date}T${time.substring(0,5)}:00`);
-                const fromStr = dt.toLocaleString('en-US', { timeZone: fromTz });
-                const toStr = dt.toLocaleString('en-US', { timeZone: toTz });
-                const fromDate = new Date(fromStr);
-                const toDate = new Date(toStr);
-                const diffMs = toDate - fromDate;
-                const result = new Date(dt.getTime() + diffMs);
-                return result.toTimeString().substring(0, 5);
-            } catch (e) { return time; }
+        // Converte um horario de parede entre fusos. Devolve { date, time, dayShift }:
+        // a data entra no resultado porque a diferenca de fuso muda o dia com
+        // frequencia (21h em Brasilia ja e o dia seguinte na Europa).
+        function convertZoned(date, time, fromTz, toTz) {
+            if (window.WardTZ && WardTZ.convert) return WardTZ.convert(date, time, fromTz, toTz);
+            return { date: date, time: String(time || '').substring(0, 5), dayShift: 0 };
         }
 
         function getStudentTimezoneLabel(call) {
             const studentTz = call.student_timezone || call.student?.timezone || 'America/Sao_Paulo';
             const mentorTz = document.getElementById('mentor-timezone')?.value || 'America/Sao_Paulo';
             if (studentTz === mentorTz) return '';
-            const convertedTime = convertTime(call.scheduled_date, call.scheduled_time, mentorTz, studentTz);
+            const conv = convertZoned(call.scheduled_date, call.scheduled_time, mentorTz, studentTz);
+            // Quando a conversao vira o dia, o mentor precisa ver isso: senao ele
+            // combina "quinta as 22h" com um aluno que ja esta na sexta.
+            const dayNote = conv.dayShift > 0 ? ' do dia seguinte'
+                : conv.dayShift < 0 ? ' do dia anterior' : '';
             const tzShort = friendlyTzName(studentTz);
-            return `<br><span style="font-size: 0.75rem; color: var(--gray-500);">🌍 ${convertedTime} no horario do aluno (${tzShort})</span>`;
+            return `<br><span style="font-size: 0.75rem; color: var(--gray-500);">🌍 ${conv.time}${dayNote} no horario do aluno (${tzShort})</span>`;
         }
 
         function formatTime(time) {
