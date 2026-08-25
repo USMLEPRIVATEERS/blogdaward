@@ -155,26 +155,15 @@
                             <button class="btn btn-secondary btn-sm" onclick="viewAsStudent()">👁️ Ver como Aluno</button>
                         </div>
 
-                        <!-- Progress Overview -->
+                        <!-- Cronograma: em dia / atrasado, sem percentual.
+                             A porcentagem de conclusao nao dizia nada sozinha —
+                             o que a mentora precisa saber e se o aluno esta ou
+                             nao devendo alguma coisa hoje. -->
                         <div class="student-progress mb-4">
-                            <h4>Progresso</h4>
-                            <div class="progress-container">
-                                <div class="progress-header">
-                                    <span>Questionário</span>
-                                    <span id="questionnaire-progress">0%</span>
-                                </div>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" id="questionnaire-fill" style="width: 0%"></div>
-                                </div>
-                            </div>
-                            <div class="progress-container mt-2">
-                                <div class="progress-header">
-                                    <span>Cronograma</span>
-                                    <span id="schedule-progress">0%</span>
-                                </div>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" id="schedule-fill" style="width: 0%"></div>
-                                </div>
+                            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;">
+                                <span style="font-size: 0.85rem; color: var(--gray-500);">Cronograma</span>
+                                <span id="schedule-status-badge" class="cronograma-badge">carregando...</span>
+                                <button class="btn btn-outline btn-sm" onclick="verDiarioUWorld()">📊 Diário UWorld do aluno</button>
                             </div>
                         </div>
 
@@ -298,6 +287,41 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('message-modal')">Cancelar</button>
                 <button class="btn btn-primary" onclick="sendMessage()">Enviar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Relatorio da ficha do aluno: abre sem sair do dashboard -->
+    <div id="ficha-relatorio-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 820px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="ficha-relatorio-titulo">Relatório</h3>
+                <button class="modal-close" onclick="closeModal('ficha-relatorio-modal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <p class="text-muted" style="font-size: 0.85rem;" id="ficha-relatorio-meta"></p>
+                <div id="ficha-relatorio-conteudo" class="ficha-relatorio-texto"></div>
+            </div>
+            <div class="modal-footer">
+                <a href="/relatorios" class="btn btn-secondary">Editar em Relatórios</a>
+                <button class="btn btn-primary" onclick="closeModal('ficha-relatorio-modal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progressao da ficha do aluno: mesma leitura da pagina de Progressao -->
+    <div id="ficha-progressao-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 820px;">
+            <div class="modal-header">
+                <h3 class="modal-title">🎯 Progressão de <span id="ficha-progressao-nome"></span></h3>
+                <button class="modal-close" onclick="closeModal('ficha-progressao-modal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <div id="ficha-progressao-conteudo"></div>
+            </div>
+            <div class="modal-footer">
+                <a href="/mentor-progressao" class="btn btn-secondary">Editar em Progressão</a>
+                <button class="btn btn-primary" onclick="closeModal('ficha-progressao-modal')">Fechar</button>
             </div>
         </div>
     </div>
@@ -898,28 +922,141 @@
             document.getElementById('selected-student-name').textContent = _dn(selectedStudent.full_name) || selectedStudent.email;
             document.getElementById('close-student-btn').style.display = 'block';
 
-            // Update progress bars
-            const questionnaireProgress = selectedStudent.questionnaire_step ? Math.round((selectedStudent.questionnaire_step / 11) * 100) : 0;
-            document.getElementById('questionnaire-progress').textContent = questionnaireProgress + '%';
-            document.getElementById('questionnaire-fill').style.width = questionnaireProgress + '%';
-
-            // Load schedule progress
-            const { data: scheduleData } = await WardApp.db
-                .from('schedules')
-                .select('completed')
-                .eq('user_id', studentId);
-
-            const scheduleTotal = scheduleData?.length || 0;
-            const scheduleCompleted = scheduleData?.filter(s => s.completed).length || 0;
-            const scheduleProgress = scheduleTotal > 0 ? Math.round((scheduleCompleted / scheduleTotal) * 100) : 0;
-
-            document.getElementById('schedule-progress').textContent = scheduleProgress + '%';
-            document.getElementById('schedule-fill').style.width = scheduleProgress + '%';
+            // Cronograma: em dia, atrasado ou sem cronograma. Mesmo criterio da
+            // secao "Status do Cronograma" — item com end_date ja vencido e nao
+            // concluido conta como atraso (a pessoa tem ate 23:59 do dia).
+            await renderCronogramaBadge(studentId);
 
             // Load timeline
             await loadStudentTimeline(studentId);
 
             renderStudents();
+        }
+
+        async function renderCronogramaBadge(studentId) {
+            const badge = document.getElementById('schedule-status-badge');
+            if (!badge) return;
+            badge.className = 'cronograma-badge';
+            badge.textContent = 'carregando...';
+
+            const { data, error } = await WardApp.db
+                .from('schedules')
+                .select('end_date, completed')
+                .eq('user_id', studentId);
+
+            if (error) {
+                console.error('[CRONOGRAMA]', error);
+                badge.classList.add('is-neutro');
+                badge.textContent = 'não foi possível verificar';
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                badge.classList.add('is-neutro');
+                badge.textContent = '— sem cronograma';
+                return;
+            }
+
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            const atrasados = data.filter(item => {
+                if (item.completed || !item.end_date) return false;
+                const fim = parseLocalDate(item.end_date);
+                fim.setHours(23, 59, 59, 999);
+                return fim < hoje;
+            }).length;
+
+            if (atrasados > 0) {
+                badge.classList.add('is-atrasado');
+                badge.textContent = `⚠️ atrasado (${atrasados} ${atrasados === 1 ? 'item' : 'itens'})`;
+            } else {
+                badge.classList.add('is-em-dia');
+                badge.textContent = '✅ em dia';
+            }
+        }
+
+        // Abre o diario de UWorld do aluno na visao dele, em outra aba.
+        function verDiarioUWorld() {
+            if (!selectedStudent) {
+                WardApp.showToast('Selecione um aluno primeiro', 'warning');
+                return;
+            }
+            localStorage.setItem('view_as_student', JSON.stringify({
+                id: selectedStudent.id,
+                name: _dn(selectedStudent.full_name) || selectedStudent.email,
+                mentorId: userData.id,
+                mentorRole: userData.role
+            }));
+            window.open('/diary-uworld?view_as=' + selectedStudent.id, '_blank');
+        }
+
+        // Dados da ficha aberta agora — alimentados por loadStudentTimeline.
+        let fichaAluno = null;
+
+        function abrirRelatorioDaFicha(indice) {
+            const r = fichaAluno && fichaAluno.relatorios[indice];
+            if (!r) return;
+            document.getElementById('ficha-relatorio-titulo').textContent = r.title || 'Relatório';
+            document.getElementById('ficha-relatorio-meta').textContent =
+                `${WardApp.formatDate(r.call_date)}${r.mentor?.full_name ? ' · ' + (_dn(r.mentor.full_name)) : ''}`;
+            // O texto e salvo como HTML e ja passa pelo saneamento da API na
+            // gravacao — a pagina de Relatorios o exibe do mesmo jeito.
+            document.getElementById('ficha-relatorio-conteudo').innerHTML = r.report_text || '<p class="text-muted">Relatório sem conteúdo.</p>';
+            openModal('ficha-relatorio-modal');
+        }
+
+        function abrirProgressaoDaFicha() {
+            if (!fichaAluno) return;
+            document.getElementById('ficha-progressao-nome').textContent = fichaAluno.nome;
+
+            const marcadosDe = chave => (fichaAluno.burocracia?.data || {})[chave] || {};
+            const feitos = inscricaoCount(fichaAluno.burocracia);
+            const pct = Math.round((feitos / INSCRICAO_TOTAL) * 100);
+
+            const stepsHTML = INSCRICAO_STEPS.map(step => {
+                const marcados = marcadosDe(step.key);
+                const n = step.items.filter(it => marcados[it.id]).length;
+                const itens = step.items.map(it => `
+                    <li style="display: flex; gap: 8px; padding: 3px 0; font-size: 0.85rem; color: ${marcados[it.id] ? '#065f46' : '#6b7280'};">
+                        <span>${marcados[it.id] ? '✅' : '⬜'}</span><span>${escHtml(it.label)}</span>
+                    </li>`).join('');
+                const obs = marcados.notes;
+                return `
+                    <div style="margin-bottom: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                            <strong style="font-size: 0.9rem;">${escHtml(step.label)}</strong>
+                            <span style="font-size: 0.8rem; color: #6b7280;">${n}/${step.items.length}</span>
+                        </div>
+                        <ul style="list-style: none; padding: 0; margin: 4px 0 0;">${itens}</ul>
+                        ${obs ? `<div style="font-size: 0.8rem; color: #6b7280; margin-top: 4px; padding-left: 4px; border-left: 2px solid #e5e7eb;">${escHtml(obs)}</div>` : ''}
+                    </div>`;
+            }).join('');
+
+            const notasHTML = fichaAluno.notas.length
+                ? fichaAluno.notas.map(n => {
+                    const temNota = n.correct_count != null && n.total_questions;
+                    const acerto = temNota ? Math.round((n.correct_count / n.total_questions) * 100) : null;
+                    const cor = acerto == null ? '#9ca3af' : acerto >= 70 ? '#10b981' : acerto >= 60 ? '#f59e0b' : '#ef4444';
+                    return `<div style="display: flex; justify-content: space-between; gap: 8px; font-size: 0.85rem; padding: 4px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span>${escHtml(fichaAluno.nomeDaAvaliacao[n.assessment_id] || 'Avaliação')}
+                                    ${n.taken_on ? `<span style="color: #9ca3af;"> · ${WardApp.formatDate(n.taken_on)}</span>` : ''}</span>
+                                <strong style="color: ${cor}; white-space: nowrap;">${temNota ? `${n.correct_count}/${n.total_questions} · ${acerto}%` : 'sem nota'}</strong>
+                            </div>`;
+                }).join('')
+                : '<p class="text-muted" style="font-size: 0.85rem;">Nenhuma avaliação registrada ainda.</p>';
+
+            document.getElementById('ficha-progressao-conteudo').innerHTML = `
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #6b7280;">
+                    <span>Inscrição (burocracia)</span><span>${feitos}/${INSCRICAO_TOTAL}</span>
+                </div>
+                <div style="height: 8px; background: #e5e7eb; border-radius: 999px; overflow: hidden; margin: 4px 0 1rem;">
+                    <div style="height: 100%; width: ${pct}%; background: ${pct >= 70 ? '#10b981' : pct >= 30 ? '#f59e0b' : '#ef4444'};"></div>
+                </div>
+                ${stepsHTML}
+                <h4 style="font-size: 0.95rem; margin: 1.25rem 0 0.25rem;">📝 Avaliações registradas</h4>
+                ${notasHTML}`;
+
+            openModal('ficha-progressao-modal');
         }
 
         async function loadStudentTimeline(studentId) {
@@ -990,9 +1127,23 @@
             const nomeDaAvaliacao = {};
             catalogoAvaliacoes.forEach(a => { nomeDaAvaliacao[a.id] = a.name; });
 
+            // Guardado para os modais: clicar num relatorio ou na progressao abre
+            // o conteudo aqui mesmo, sem ir para outra pagina nem consultar de novo.
+            fichaAluno = {
+                studentId,
+                nome: _dn(selectedStudent?.full_name) || selectedStudent?.email || 'Aluno',
+                relatorios: relatoriosAluno,
+                burocracia: burocraciaAluno[0] || null,
+                notas: notasAluno,
+                nomeDaAvaliacao
+            };
+
             const relatoriosHTML = relatoriosAluno.length
-                ? relatoriosAluno.map(r => `
-                    <div style="padding: 0.5rem 0; border-bottom: 1px solid #f3f4f6;">
+                ? relatoriosAluno.map((r, idx) => `
+                    <div class="ficha-clicavel" role="button" tabindex="0"
+                        onclick="abrirRelatorioDaFicha(${idx})"
+                        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirRelatorioDaFicha(${idx});}"
+                        title="Abrir o relatório completo">
                         <div style="font-size: 0.85rem;">
                             <strong>${escHtml(r.title || 'Relatório')}</strong>
                             <span style="color: #9ca3af;"> · ${WardApp.formatDate(r.call_date)}${r.mentor?.full_name ? ' · ' + escHtml(_dn(r.mentor.full_name)) : ''}</span>
@@ -1005,7 +1156,7 @@
             const pctInscricao = Math.round((feitosInscricao / INSCRICAO_TOTAL) * 100);
             const inscricaoPorStep = INSCRICAO_STEPS.map(step => {
                 const marcados = (burocraciaAluno[0]?.data || {})[step.key] || {};
-                const n = step.items.filter(id => marcados[id]).length;
+                const n = step.items.filter(it => marcados[it.id]).length;
                 return `<span class="badge" style="background: #f3f4f6; color: #374151; padding: 0.25rem 0.7rem; border-radius: 20px; font-size: 0.75rem;">${step.label}: ${n}/${step.items.length}</span>`;
             }).join(' ');
 
@@ -1027,15 +1178,18 @@
                     <div style="border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem;">
                         <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
                             <h4 style="margin: 0; font-size: 0.95rem;">🗒️ Últimos relatórios</h4>
-                            <a href="/relatorios" style="font-size: 0.75rem;">ver todos</a>
+                            <a href="/relatorios" style="font-size: 0.75rem;" onclick="event.stopPropagation();">ver todos</a>
                         </div>
                         ${relatoriosHTML}
                     </div>
 
-                    <div style="border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem;">
+                    <div class="ficha-clicavel" style="border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem;"
+                        role="button" tabindex="0" title="Abrir a progressão completa"
+                        onclick="abrirProgressaoDaFicha()"
+                        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirProgressaoDaFicha();}">
                         <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
                             <h4 style="margin: 0; font-size: 0.95rem;">🎯 Progressão</h4>
-                            <a href="/mentor-progressao" style="font-size: 0.75rem;">abrir página</a>
+                            <a href="/mentor-progressao" style="font-size: 0.75rem;" onclick="event.stopPropagation();">editar na página</a>
                         </div>
 
                         <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: #6b7280;">
@@ -2184,16 +2338,34 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
            avaliacoes ja registradas. Os numeros vem das mesmas tabelas da pagina
            de Progressao, entao os dois lugares nunca divergem.                  */
 
-        // Espelha o BUREAUCRACY de mentor-progressao.html: so os IDs importam
-        // aqui, porque a unica conta e "quantos itens ja foram marcados".
+        // Espelha o BUREAUCRACY de mentor-progressao.html. Os rotulos vem junto
+        // porque o painel de progressao abre a lista item a item aqui mesmo.
         const INSCRICAO_STEPS = [
             { key: 'step1', label: 'Step 1', items: [
-                'myintealth_open', 'myintealth_pay_open', 'notarycam', 'translate', 'ecfmg',
-                'myintealth_pay_establish', 'myintealth_confirm', 'fsmb_register', 'fsmb_pay',
-                'eligibility', 'prometric'
+                { id: 'myintealth_open', label: 'Abrir conta MyIntealth' },
+                { id: 'myintealth_pay_open', label: 'Pagar abertura de conta' },
+                { id: 'notarycam', label: 'Realizar NotaryCam' },
+                { id: 'translate', label: 'Traduzir diploma e histórico escolar' },
+                { id: 'ecfmg', label: 'Encontrar funcionário do ECFMG da faculdade' },
+                { id: 'myintealth_pay_establish', label: 'Pagar estabelecimento de conta MyIntealth' },
+                { id: 'myintealth_confirm', label: 'Confirmar tudo finalizado no MyIntealth' },
+                { id: 'fsmb_register', label: 'Inscrever no FSMB' },
+                { id: 'fsmb_pay', label: 'Pagar inscrição no FSMB' },
+                { id: 'eligibility', label: 'Pagar eligibility period' },
+                { id: 'prometric', label: 'Agendar no Prometric' }
             ]},
-            { key: 'step2ck', label: 'Step 2 CK', items: ['apply', 'pay_application', 'eligibility', 'prometric'] },
-            { key: 'step3', label: 'Step 3', items: ['apply', 'pay_application', 'eligibility', 'prometric'] }
+            { key: 'step2ck', label: 'Step 2 CK', items: [
+                { id: 'apply', label: 'Inscrever / aplicar (MyIntealth)' },
+                { id: 'pay_application', label: 'Pagar inscrição' },
+                { id: 'eligibility', label: 'Pagar eligibility period' },
+                { id: 'prometric', label: 'Agendar no Prometric' }
+            ]},
+            { key: 'step3', label: 'Step 3', items: [
+                { id: 'apply', label: 'Inscrever / aplicar (FSMB / Oasis)' },
+                { id: 'pay_application', label: 'Pagar inscrição' },
+                { id: 'eligibility', label: 'Pagar eligibility period' },
+                { id: 'prometric', label: 'Agendar no Prometric' }
+            ]}
         ];
         const INSCRICAO_TOTAL = INSCRICAO_STEPS.reduce((n, st) => n + st.items.length, 0);
 
@@ -2216,7 +2388,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             let feitos = 0;
             INSCRICAO_STEPS.forEach(step => {
                 const marcados = data[step.key] || {};
-                step.items.forEach(id => { if (marcados[id]) feitos++; });
+                step.items.forEach(it => { if (marcados[it.id]) feitos++; });
             });
             return feitos;
         }
@@ -4056,6 +4228,51 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
         .schedule-status-grid,
         .pending-calls-grid,
         .feed-full-content,
+        .cronograma-badge {
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            background: #f3f4f6;
+            color: #374151;
+        }
+        .cronograma-badge.is-em-dia { background: #d1fae5; color: #065f46; }
+        .cronograma-badge.is-atrasado { background: #fee2e2; color: #991b1b; }
+        .cronograma-badge.is-neutro { background: #f3f4f6; color: #6b7280; }
+
+        /* Linhas e cartoes da ficha do aluno que abrem um detalhe ao clique */
+        .ficha-clicavel {
+            cursor: pointer;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f3f4f6;
+            border-radius: 6px;
+            transition: background 0.15s ease;
+        }
+        .ficha-clicavel:hover,
+        .ficha-clicavel:focus-visible {
+            background: #f9fafb;
+            outline: none;
+        }
+        .ficha-clicavel:focus-visible {
+            box-shadow: 0 0 0 2px #c7d2fe;
+        }
+        .ficha-relatorio-texto {
+            line-height: 1.6;
+        }
+        .ficha-relatorio-texto img {
+            max-width: 100%;
+            height: auto;
+        }
+        .ficha-relatorio-texto table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .ficha-relatorio-texto td,
+        .ficha-relatorio-texto th {
+            border: 1px solid #e5e7eb;
+            padding: 4px 8px;
+        }
+
         #pending-landmarks-list {
             scrollbar-width: thin;
             scrollbar-color: var(--gray-300) transparent;
