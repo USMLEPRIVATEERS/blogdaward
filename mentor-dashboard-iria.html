@@ -957,24 +957,112 @@
                 }
             });
 
-            // Build landmarks HTML - EDITABLE
-            let landmarksHTML = '<div class="landmarks-overview mb-4">';
-            landmarksHTML += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h4 style="margin: 0;">📍 Landmarks do Aluno <small style="font-weight: normal; color: #6b7280;">(clique para editar)</small></h4>
-                <button class="btn btn-sm btn-primary" onclick="openNewLandmarkModal()">+ Novo Evento</button>
-            </div>`;
-
             const completedCount = landmarks.filter(l => l.completed).length;
             const pendingCount = landmarks.filter(l => !l.completed).length;
             const urgentCount = landmarks.filter(l => l.is_urgent && !l.completed).length;
 
-            landmarksHTML += `<div class="landmark-stats mb-3" style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                <span class="badge" style="background: #d1fae5; color: #065f46; padding: 0.5rem 1rem; border-radius: 20px;">✅ ${completedCount} Concluidos</span>
-                <span class="badge" style="background: #fef3c7; color: #92400e; padding: 0.5rem 1rem; border-radius: 20px;">⏳ ${pendingCount} Pendentes</span>
-                ${urgentCount > 0 ? `<span class="badge" style="background: #fee2e2; color: #991b1b; padding: 0.5rem 1rem; border-radius: 20px;">🔴 ${urgentCount} Urgentes</span>` : ''}
-            </div>`;
+            /* O que abre primeiro na ficha do aluno: ultimos relatorios de
+               chamada e onde ele esta na progressao. A grade de ~70 landmarks
+               que ficava aqui empurrava tudo isso para fora da tela e confundia
+               mais do que ajudava — ela continua logo abaixo, recolhida.
+               As tabelas de progressao podem nao existir em algum ambiente,
+               entao cada leitura falha por conta propria. */
+            const lerFicha = async run => {
+                try {
+                    const { data, error } = await run();
+                    if (error) { console.warn('[FICHA DO ALUNO]', error.message || error); return []; }
+                    return data || [];
+                } catch (err) { console.warn('[FICHA DO ALUNO]', err); return []; }
+            };
 
-            // Show each group with EDITABLE landmarks
+            const [relatoriosAluno, burocraciaAluno, notasAluno, catalogoAvaliacoes] = await Promise.all([
+                lerFicha(() => WardApp.db.from('call_reports')
+                    .select('title, call_date, report_text, mentor:mentor_id(full_name)')
+                    .eq('student_id', studentId).order('call_date', { ascending: false }).limit(4)),
+                lerFicha(() => WardApp.db.from('student_bureaucracy')
+                    .select('user_id, data').eq('user_id', studentId)),
+                lerFicha(() => WardApp.db.from('student_assessment_scores')
+                    .select('assessment_id, taken_on, correct_count, total_questions')
+                    .eq('user_id', studentId).order('taken_on', { ascending: false })),
+                lerFicha(() => WardApp.db.from('ward_assessments').select('id, name'))
+            ]);
+
+            const nomeDaAvaliacao = {};
+            catalogoAvaliacoes.forEach(a => { nomeDaAvaliacao[a.id] = a.name; });
+
+            const relatoriosHTML = relatoriosAluno.length
+                ? relatoriosAluno.map(r => `
+                    <div style="padding: 0.5rem 0; border-bottom: 1px solid #f3f4f6;">
+                        <div style="font-size: 0.85rem;">
+                            <strong>${escHtml(r.title || 'Relatório')}</strong>
+                            <span style="color: #9ca3af;"> · ${WardApp.formatDate(r.call_date)}${r.mentor?.full_name ? ' · ' + escHtml(_dn(r.mentor.full_name)) : ''}</span>
+                        </div>
+                        ${reportSnippet(r.report_text, 160) ? `<div style="font-size: 0.8rem; color: #6b7280; margin-top: 2px;">${escHtml(reportSnippet(r.report_text, 160))}</div>` : ''}
+                    </div>`).join('')
+                : '<p class="text-muted" style="font-size: 0.85rem; margin: 0;">Nenhum relatório de chamada registrado ainda.</p>';
+
+            const feitosInscricao = inscricaoCount(burocraciaAluno[0]);
+            const pctInscricao = Math.round((feitosInscricao / INSCRICAO_TOTAL) * 100);
+            const inscricaoPorStep = INSCRICAO_STEPS.map(step => {
+                const marcados = (burocraciaAluno[0]?.data || {})[step.key] || {};
+                const n = step.items.filter(id => marcados[id]).length;
+                return `<span class="badge" style="background: #f3f4f6; color: #374151; padding: 0.25rem 0.7rem; border-radius: 20px; font-size: 0.75rem;">${step.label}: ${n}/${step.items.length}</span>`;
+            }).join(' ');
+
+            const notasHTML = notasAluno.length
+                ? notasAluno.slice(0, 6).map(n => {
+                    const temNota = n.correct_count != null && n.total_questions;
+                    const acerto = temNota ? Math.round((n.correct_count / n.total_questions) * 100) : null;
+                    const cor = acerto == null ? '#9ca3af' : acerto >= 70 ? '#10b981' : acerto >= 60 ? '#f59e0b' : '#ef4444';
+                    return `<div style="display: flex; justify-content: space-between; gap: 8px; font-size: 0.82rem; padding: 3px 0;">
+                                <span>${escHtml(nomeDaAvaliacao[n.assessment_id] || 'Avaliação')}
+                                    ${n.taken_on ? `<span style="color: #9ca3af;"> · ${WardApp.formatDate(n.taken_on)}</span>` : ''}</span>
+                                <strong style="color: ${cor}; white-space: nowrap;">${temNota ? `${n.correct_count}/${n.total_questions} · ${acerto}%` : 'sem nota'}</strong>
+                            </div>`;
+                }).join('')
+                : '<p class="text-muted" style="font-size: 0.85rem; margin: 0;">Nenhuma avaliação registrada ainda.</p>';
+
+            let landmarksHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                    <div style="border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+                            <h4 style="margin: 0; font-size: 0.95rem;">🗒️ Últimos relatórios</h4>
+                            <a href="/relatorios" style="font-size: 0.75rem;">ver todos</a>
+                        </div>
+                        ${relatoriosHTML}
+                    </div>
+
+                    <div style="border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+                            <h4 style="margin: 0; font-size: 0.95rem;">🎯 Progressão</h4>
+                            <a href="/mentor-progressao" style="font-size: 0.75rem;">abrir página</a>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: #6b7280;">
+                            <span>Inscrição (burocracia)</span><span>${feitosInscricao}/${INSCRICAO_TOTAL}</span>
+                        </div>
+                        <div style="height: 6px; background: #e5e7eb; border-radius: 999px; overflow: hidden; margin: 4px 0 8px;">
+                            <div style="height: 100%; width: ${pctInscricao}%; background: ${pctInscricao >= 70 ? '#10b981' : pctInscricao >= 30 ? '#f59e0b' : '#ef4444'};"></div>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 0.75rem;">${inscricaoPorStep}</div>
+
+                        <div style="font-size: 0.78rem; color: #6b7280; margin-bottom: 2px;">Avaliações registradas</div>
+                        ${notasHTML}
+                    </div>
+                </div>`;
+
+            // A grade completa de landmarks continua disponivel, mas recolhida.
+            landmarksHTML += `<details class="landmarks-overview mb-4">
+                <summary style="cursor: pointer; font-size: 0.9rem; color: #6b7280;">
+                    📍 Landmarks do Aluno
+                    <span style="font-size: 0.8rem;">(${completedCount} concluídos · ${pendingCount} pendentes${urgentCount > 0 ? ` · ${urgentCount} urgentes` : ''})</span>
+                </summary>
+                <div style="margin-top: 0.75rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                        <small style="color: #6b7280;">clique num item para editar</small>
+                        <button class="btn btn-sm btn-primary" onclick="openNewLandmarkModal()">+ Novo Evento</button>
+                    </div>`;
+
             for (const [key, group] of Object.entries(landmarkGroups)) {
                 if (group.items.length > 0) {
                     landmarksHTML += `<div class="landmark-group-section mb-2">
@@ -984,7 +1072,6 @@
                     group.items.forEach(lm => {
                         const statusClass = lm.completed ? 'completed' : (lm.is_urgent ? 'urgent' : 'pending');
                         const icon = lm.completed ? '✅' : (lm.is_urgent ? '🔴' : '⏳');
-                        // Make each landmark clickable for editing
                         landmarksHTML += `<span class="landmark-chip ${statusClass} clickable"
                             onclick="openEditLandmarkModal(${lm.id}, '${lm.title.replace(/'/g, "\\'")}', ${lm.completed}, ${lm.is_urgent})"
                             title="Clique para editar: ${lm.title}">${icon} ${lm.title.substring(0, 30)}${lm.title.length > 30 ? '...' : ''}</span>`;
@@ -993,7 +1080,7 @@
                     landmarksHTML += '</div></div>';
                 }
             }
-            landmarksHTML += '</div>';
+            landmarksHTML += '</div></details>';
             landmarksHTML += '<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 1rem 0;">';
 
             // Student Statistics
