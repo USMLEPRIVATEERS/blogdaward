@@ -205,10 +205,16 @@
                     </div>
                 </div>
                 <div class="card-body">
-                    <div style="margin-bottom: 0.5rem;">
-                        <label style="font-size: 0.8rem; color: var(--gray-500); cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                    <div style="margin-bottom: 0.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;">
+                        <select id="feed-type-filter" onchange="onFeedFilterChange()"
+                            style="font-size: 0.8rem; padding: 3px 8px; border: 1px solid var(--gray-300); border-radius: 6px; background: #fff; color: var(--gray-700);">
+                            <option value="all">Todas as atividades</option>
+                            <option value="checkin">Somente check-ins</option>
+                            <option value="uworld">Somente sessões de UWorld</option>
+                        </select>
+                        <label id="feed-noise-toggle" style="font-size: 0.8rem; color: var(--gray-500); cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
                             <input type="checkbox" id="feed-show-schedule" onchange="onFeedFilterChange()">
-                            Mostrar adições ao cronograma
+                            Mostrar cronograma e aulas assistidas
                         </label>
                     </div>
                     <div id="global-activity-feed" class="activity-feed">
@@ -864,6 +870,7 @@ Cardiovascular	Physiology	62	FALSE
     <div id="toast-container" class="toast-container"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="js/timezone-detect.js"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -1872,22 +1879,25 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             return WardApp._prs ? WardApp._prs(name) : name;
         }
 
-        function convertTimeTz(date, time, fromTz, toTz) {
-            if (!date || !time || !fromTz || !toTz || fromTz === toTz) return time;
-            try {
-                const dt = new Date(`${date}T${time.substring(0,5)}:00`);
-                const diffMs = new Date(dt.toLocaleString('en-US', { timeZone: toTz })) - new Date(dt.toLocaleString('en-US', { timeZone: fromTz }));
-                return new Date(dt.getTime() + diffMs).toTimeString().substring(0, 5);
-            } catch (e) { return time; }
+        // Converte um horario de parede entre fusos. Devolve { date, time, dayShift }:
+        // a data entra no resultado porque a diferenca de fuso muda o dia com
+        // frequencia (21h em Brasilia ja e o dia seguinte na Europa).
+        function convertZoned(date, time, fromTz, toTz) {
+            if (window.WardTZ && WardTZ.convert) return WardTZ.convert(date, time, fromTz, toTz);
+            return { date: date, time: String(time || '').substring(0, 5), dayShift: 0 };
         }
 
         function getStudentTzLabel(item) {
             const studentTz = item.student_timezone || 'America/Sao_Paulo';
             const mentorTz = userData?.timezone || 'America/Sao_Paulo';
             if (studentTz === mentorTz) return '';
-            const converted = convertTimeTz(item.scheduled_date, item.scheduled_time, mentorTz, studentTz);
+            const conv = convertZoned(item.scheduled_date, item.scheduled_time, mentorTz, studentTz);
+            // Se a conversao vira o dia, o mentor precisa saber: senao combina
+            // "quinta as 22h" com um aluno que ja esta na sexta.
+            const dayNote = conv.dayShift > 0 ? ' do dia seguinte'
+                : conv.dayShift < 0 ? ' do dia anterior' : '';
             const tzShort = studentTz.split('/').pop().replace(/_/g, ' ');
-            return `<br><span style="font-size: 0.7rem; color: #9ca3af;">🌍 ${converted} para o aluno (${tzShort})</span>`;
+            return `<br><span style="font-size: 0.7rem; color: #9ca3af;">🌍 ${conv.time}${dayNote} para o aluno (${tzShort})</span>`;
         }
 
         // Capture feed item as image and copy to clipboard
@@ -1960,18 +1970,45 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             renderFeedItems(container);
         }
 
+        /* Ruido do dia a dia: adicoes ao cronograma e "marquei a aula como
+           assistida" chegam as centenas e afogam check-in, diario e pedido de
+           ajuda — o que o mentor realmente precisa ver. Ficam atras do
+           checkbox, desmarcado por padrao. */
+        const FEED_RUIDO = ['schedule_created', 'watched_lesson'];
+
+        const FEED_VAZIO = {
+            all: 'Nenhuma atividade neste periodo',
+            checkin: 'Nenhum check-in neste periodo',
+            uworld: 'Nenhuma sessao de UWorld neste periodo'
+        };
+
+        // Filtro de tipo (Todas / Check-ins / UWorld) + o checkbox de ruido.
+        // Quando um tipo especifico esta selecionado o checkbox nao tem efeito,
+        // entao ele some para nao parecer que nao funciona.
+        function applyFeedFilters(items) {
+            const tipo = document.getElementById('feed-type-filter')?.value || 'all';
+            const toggle = document.getElementById('feed-noise-toggle');
+            if (toggle) toggle.style.display = tipo === 'all' ? 'inline-flex' : 'none';
+
+            if (tipo !== 'all') return items.filter(item => item.type === tipo);
+
+            const mostrarRuido = document.getElementById('feed-show-schedule')?.checked;
+            return mostrarRuido ? items : items.filter(item => !FEED_RUIDO.includes(item.type));
+        }
+
+        function feedEmptyMessage() {
+            const tipo = document.getElementById('feed-type-filter')?.value || 'all';
+            return FEED_VAZIO[tipo] || FEED_VAZIO.all;
+        }
+
         function renderFeedItems(container) {
             const cutoff = getFeedCutoffDate();
-            const showSchedule = document.getElementById('feed-show-schedule')?.checked;
-            let filtered = cutoff
+            const filtered = applyFeedFilters(cutoff
                 ? allFeedItems.filter(item => item.date && item.date >= cutoff)
-                : [...allFeedItems];
-            if (!showSchedule) {
-                filtered = filtered.filter(item => item.type !== 'schedule_created');
-            }
+                : [...allFeedItems]);
 
             if (filtered.length === 0) {
-                container.innerHTML = '<p class="text-muted">Nenhuma atividade neste periodo</p>';
+                container.innerHTML = `<p class="text-muted">${feedEmptyMessage()}</p>`;
                 return;
             }
 

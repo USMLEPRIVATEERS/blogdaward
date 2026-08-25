@@ -359,6 +359,7 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
+    <script src="js/timezone-detect.js"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -377,22 +378,25 @@
             return WardApp._prs ? WardApp._prs(val) : val;
         }
 
-        function convertTimeTz(date, time, fromTz, toTz) {
-            if (!date || !time || !fromTz || !toTz || fromTz === toTz) return time;
-            try {
-                const dt = new Date(`${date}T${time.substring(0,5)}:00`);
-                const diffMs = new Date(dt.toLocaleString('en-US', { timeZone: toTz })) - new Date(dt.toLocaleString('en-US', { timeZone: fromTz }));
-                return new Date(dt.getTime() + diffMs).toTimeString().substring(0, 5);
-            } catch (e) { return time; }
+        // Converte um horario de parede entre fusos. Devolve { date, time, dayShift }:
+        // a data entra no resultado porque a diferenca de fuso muda o dia com
+        // frequencia (21h em Brasilia ja e o dia seguinte na Europa).
+        function convertZoned(date, time, fromTz, toTz) {
+            if (window.WardTZ && WardTZ.convert) return WardTZ.convert(date, time, fromTz, toTz);
+            return { date: date, time: String(time || '').substring(0, 5), dayShift: 0 };
         }
 
         function getStudentTzLabel(item) {
             const studentTz = item.student_timezone || 'America/Sao_Paulo';
             const mentorTz = userData?.timezone || 'America/Sao_Paulo';
             if (studentTz === mentorTz) return '';
-            const converted = convertTimeTz(item.scheduled_date, item.scheduled_time, mentorTz, studentTz);
+            const conv = convertZoned(item.scheduled_date, item.scheduled_time, mentorTz, studentTz);
+            // Se a conversao vira o dia, o mentor precisa saber: senao combina
+            // "quinta as 22h" com um aluno que ja esta na sexta.
+            const dayNote = conv.dayShift > 0 ? ' do dia seguinte'
+                : conv.dayShift < 0 ? ' do dia anterior' : '';
             const tzShort = studentTz.split('/').pop().replace(/_/g, ' ');
-            return `<br><span style="font-size: 0.7rem; color: #9ca3af;">🌍 ${converted} para o aluno (${tzShort})</span>`;
+            return `<br><span style="font-size: 0.7rem; color: #9ca3af;">🌍 ${conv.time}${dayNote} para o aluno (${tzShort})</span>`;
         }
 
         // Helper to sort users alphabetically by name

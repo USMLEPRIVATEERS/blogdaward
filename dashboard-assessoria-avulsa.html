@@ -486,6 +486,7 @@
         <div class="loading-spinner"></div>
     </div>
 
+    <script src="js/timezone-detect.js"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -554,13 +555,12 @@
                 return WardApp._prs ? WardApp._prs(val) : val;
             }
 
-            function convertTime(date, time, fromTz, toTz) {
-                if (!date || !time || !fromTz || !toTz || fromTz === toTz) return time;
-                try {
-                    const dt = new Date(`${date}T${time.substring(0,5)}:00`);
-                    const diffMs = new Date(dt.toLocaleString('en-US', { timeZone: toTz })) - new Date(dt.toLocaleString('en-US', { timeZone: fromTz }));
-                    return new Date(dt.getTime() + diffMs).toTimeString().substring(0, 5);
-                } catch (e) { return time; }
+            // Converte um horario de parede entre fusos. Devolve { date, time, dayShift }:
+            // a data entra no resultado porque a diferenca de fuso muda o dia com
+            // frequencia (21h em Brasilia ja e o dia seguinte na Europa).
+            function convertZoned(date, time, fromTz, toTz) {
+                if (window.WardTZ && WardTZ.convert) return WardTZ.convert(date, time, fromTz, toTz);
+                return { date: date, time: String(time || '').substring(0, 5), dayShift: 0 };
             }
 
             // Update user name
@@ -1221,20 +1221,14 @@
                 }
 
                 container.innerHTML = calls.map(call => {
-                    let datetime = '';
+                    let datetime = 'Data a definir';
                     if (call.scheduled_date && call.scheduled_time) {
                         const sTz = call.student_timezone || 'America/Sao_Paulo';
                         const mTz = call.mentor?.timezone || 'America/Sao_Paulo';
-                        const bt = call.scheduled_time.substring(0, 5);
-                        if (sTz !== mTz) {
-                            const st = convertTime(call.scheduled_date, bt, mTz, sTz);
-                            const tzS = sTz.split('/').pop().replace(/_/g, ' ');
-                            datetime = `${WardApp.formatDate(call.scheduled_date)} às ${st} (${tzS})`;
-                        } else {
-                            datetime = `${WardApp.formatDate(call.scheduled_date)} às ${bt}`;
-                        }
-                    } else {
-                        datetime = 'Data a definir';
+                        const conv = convertZoned(call.scheduled_date, call.scheduled_time, mTz, sTz);
+                        datetime = sTz === mTz
+                            ? `${WardApp.formatDate(conv.date)} às ${conv.time}`
+                            : `${WardApp.formatDate(conv.date)} às ${conv.time} (${sTz.split('/').pop().replace(/_/g, ' ')})`;
                     }
                     const statusColors = {
                         scheduled: '#10b981',

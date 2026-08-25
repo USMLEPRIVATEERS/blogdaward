@@ -213,10 +213,16 @@
                 <button class="btn btn-sm btn-outline" onclick="loadGlobalFeed()">🔄 Atualizar</button>
             </div>
             <div class="card-body">
-                <div style="margin-bottom: 0.5rem;">
-                    <label style="font-size: 0.8rem; color: var(--gray-500); cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
-                        <input type="checkbox" id="feed-show-schedule" onchange="onFeedFilterChange()">
-                        Mostrar adições ao cronograma
+                    <div style="margin-bottom: 0.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;">
+                    <select id="feed-type-filter" onchange="onFeedFilterChange()"
+                    style="font-size: 0.8rem; padding: 3px 8px; border: 1px solid var(--gray-300); border-radius: 6px; background: #fff; color: var(--gray-700);">
+                    <option value="all">Todas as atividades</option>
+                    <option value="checkin">Somente check-ins</option>
+                    <option value="uworld">Somente sessões de UWorld</option>
+                    </select>
+                    <label id="feed-noise-toggle" style="font-size: 0.8rem; color: var(--gray-500); cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" id="feed-show-schedule" onchange="onFeedFilterChange()">
+                    Mostrar cronograma e aulas assistidas
                     </label>
                 </div>
                 <div id="global-activity-feed" class="activity-feed">
@@ -238,16 +244,31 @@
             </div>
         </div>
 
-        <!-- All Pending Landmarks Section - Students who haven't scheduled yet -->
+        <!-- Panorama por aluno: ultimo relatorio + progressao (burocracia e notas) -->
         <div class="card mt-4">
             <div class="card-header">
-                📋 Falta Agendar com os Alunos
-                <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Todos os landmarks pendentes)</span>
+                <span>
+                    🧭 Panorama dos Alunos
+                    <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(último relatório, inscrição e notas)</span>
+                </span>
+                <a href="/mentor-progressao" class="btn btn-sm btn-outline">Abrir progressão</a>
             </div>
             <div class="card-body">
-                <div id="pending-landmarks-list" class="pending-calls-grid" style="max-height: 600px; overflow-y: auto;">
+                <div id="student-overview-list" class="pending-calls-grid" style="max-height: 600px; overflow-y: auto;">
                     <!-- Filled by JS -->
                 </div>
+
+                <!-- A lista completa de landmarks pendentes continua aqui, mas
+                     recolhida: aberta por padrao ela tomava a tela inteira e
+                     escondia o que importa no dia a dia. -->
+                <details id="pending-landmarks-details" style="margin-top: 1.25rem;" ontoggle="onPendingLandmarksToggle(this)">
+                    <summary style="cursor: pointer; font-size: 0.85rem; color: var(--gray-500);">
+                        📋 Ver landmarks pendentes por aluno
+                    </summary>
+                    <div id="pending-landmarks-list" class="pending-calls-grid" style="max-height: 420px; overflow-y: auto; margin-top: 0.75rem;">
+                        <!-- Filled by JS -->
+                    </div>
+                </details>
             </div>
         </div>
     </main>
@@ -532,6 +553,7 @@
     <div id="toast-container" class="toast-container"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="js/timezone-detect.js"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -598,7 +620,7 @@
             await loadScheduleStatus();
             await loadScheduleDelays();
             await loadPendingCalls();
-            await loadPendingLandmarks();
+            await loadStudentOverview();
             await loadGlobalFeed();
             await loadDiaryPreference();
         });
@@ -730,7 +752,7 @@
                 WardApp.showToast(`✅ Landmarks de pesquisa adicionadas para ${addedCount} aluno(s)!`, 'success');
                 // Reload to show updated data
                 await loadStudents();
-                await loadPendingLandmarks();
+                await refreshStudentPanels();
             } else {
                 WardApp.showToast('ℹ️ Nenhum aluno novo precisou de landmarks de pesquisa', 'info');
             }
@@ -1212,22 +1234,25 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             return WardApp._prs ? WardApp._prs(name) : name;
         }
 
-        function convertTimeTz(date, time, fromTz, toTz) {
-            if (!date || !time || !fromTz || !toTz || fromTz === toTz) return time;
-            try {
-                const dt = new Date(`${date}T${time.substring(0,5)}:00`);
-                const diffMs = new Date(dt.toLocaleString('en-US', { timeZone: toTz })) - new Date(dt.toLocaleString('en-US', { timeZone: fromTz }));
-                return new Date(dt.getTime() + diffMs).toTimeString().substring(0, 5);
-            } catch (e) { return time; }
+        // Converte um horario de parede entre fusos. Devolve { date, time, dayShift }:
+        // a data entra no resultado porque a diferenca de fuso muda o dia com
+        // frequencia (21h em Brasilia ja e o dia seguinte na Europa).
+        function convertZoned(date, time, fromTz, toTz) {
+            if (window.WardTZ && WardTZ.convert) return WardTZ.convert(date, time, fromTz, toTz);
+            return { date: date, time: String(time || '').substring(0, 5), dayShift: 0 };
         }
 
         function getStudentTzLabel(item) {
             const studentTz = item.student_timezone || 'America/Sao_Paulo';
             const mentorTz = userData?.timezone || 'America/Sao_Paulo';
             if (studentTz === mentorTz) return '';
-            const converted = convertTimeTz(item.scheduled_date, item.scheduled_time, mentorTz, studentTz);
+            const conv = convertZoned(item.scheduled_date, item.scheduled_time, mentorTz, studentTz);
+            // Se a conversao vira o dia, o mentor precisa saber: senao combina
+            // "quinta as 22h" com um aluno que ja esta na sexta.
+            const dayNote = conv.dayShift > 0 ? ' do dia seguinte'
+                : conv.dayShift < 0 ? ' do dia anterior' : '';
             const tzShort = studentTz.split('/').pop().replace(/_/g, ' ');
-            return `<br><span style="font-size: 0.7rem; color: #9ca3af;">🌍 ${converted} para o aluno (${tzShort})</span>`;
+            return `<br><span style="font-size: 0.7rem; color: #9ca3af;">🌍 ${conv.time}${dayNote} para o aluno (${tzShort})</span>`;
         }
 
         // Capture feed item as image and copy to clipboard
@@ -1279,15 +1304,42 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             _renderGlobalFeed(container);
         }
 
+        /* Ruido do dia a dia: adicoes ao cronograma e "marquei a aula como
+           assistida" chegam as centenas e afogam check-in, diario e pedido de
+           ajuda — o que o mentor realmente precisa ver. Ficam atras do
+           checkbox, desmarcado por padrao. */
+        const FEED_RUIDO = ['schedule_created', 'watched_lesson'];
+
+        const FEED_VAZIO = {
+            all: 'Nenhuma atividade recente',
+            checkin: 'Nenhum check-in recente',
+            uworld: 'Nenhuma sessao de UWorld recente'
+        };
+
+        // Filtro de tipo (Todas / Check-ins / UWorld) + o checkbox de ruido.
+        // Quando um tipo especifico esta selecionado o checkbox nao tem efeito,
+        // entao ele some para nao parecer que nao funciona.
+        function applyFeedFilters(items) {
+            const tipo = document.getElementById('feed-type-filter')?.value || 'all';
+            const toggle = document.getElementById('feed-noise-toggle');
+            if (toggle) toggle.style.display = tipo === 'all' ? 'inline-flex' : 'none';
+
+            if (tipo !== 'all') return items.filter(item => item.type === tipo);
+
+            const mostrarRuido = document.getElementById('feed-show-schedule')?.checked;
+            return mostrarRuido ? items : items.filter(item => !FEED_RUIDO.includes(item.type));
+        }
+
+        function feedEmptyMessage() {
+            const tipo = document.getElementById('feed-type-filter')?.value || 'all';
+            return FEED_VAZIO[tipo] || FEED_VAZIO.all;
+        }
+
         function _renderGlobalFeed(container) {
-            const showSchedule = document.getElementById('feed-show-schedule')?.checked;
-            let items = window._allFeedItems || [];
-            if (!showSchedule) {
-                items = items.filter(item => item.type !== 'schedule_created');
-            }
+            const items = applyFeedFilters(window._allFeedItems || []);
 
             if (items.length === 0) {
-                container.innerHTML = '<p class="text-muted">Nenhuma atividade recente</p>';
+                container.innerHTML = `<p class="text-muted">${feedEmptyMessage()}</p>`;
                 return;
             }
 
@@ -2037,6 +2089,182 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             }).join('');
         }
 
+        /* ===== Panorama dos alunos =====
+           A lista de landmarks pendentes mostrava dezenas de linhas por aluno e
+           virava ruido. O que a mentora precisa ver de relance e outra coisa:
+           qual foi o ultimo relatorio de chamada, quanto da inscricao (burocracia
+           do MyIntealth/FSMB/Prometric) ja andou e como estao as notas das
+           avaliacoes ja registradas. Os numeros vem das mesmas tabelas da pagina
+           de Progressao, entao os dois lugares nunca divergem.                  */
+
+        // Espelha o BUREAUCRACY de mentor-progressao.html: so os IDs importam
+        // aqui, porque a unica conta e "quantos itens ja foram marcados".
+        const INSCRICAO_STEPS = [
+            { key: 'step1', label: 'Step 1', items: [
+                'myintealth_open', 'myintealth_pay_open', 'notarycam', 'translate', 'ecfmg',
+                'myintealth_pay_establish', 'myintealth_confirm', 'fsmb_register', 'fsmb_pay',
+                'eligibility', 'prometric'
+            ]},
+            { key: 'step2ck', label: 'Step 2 CK', items: ['apply', 'pay_application', 'eligibility', 'prometric'] },
+            { key: 'step3', label: 'Step 3', items: ['apply', 'pay_application', 'eligibility', 'prometric'] }
+        ];
+        const INSCRICAO_TOTAL = INSCRICAO_STEPS.reduce((n, st) => n + st.items.length, 0);
+
+        function escHtml(v) {
+            return String(v == null ? '' : v)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        // Tira as tags do relatorio (ele e salvo como HTML) para caber numa linha.
+        function reportSnippet(html, max = 120) {
+            const txt = String(html || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ')
+                .replace(/\s+/g, ' ').trim();
+            if (!txt) return '';
+            return txt.length > max ? txt.slice(0, max).trimEnd() + '…' : txt;
+        }
+
+        function inscricaoCount(bureau) {
+            const data = (bureau && bureau.data) || {};
+            let feitos = 0;
+            INSCRICAO_STEPS.forEach(step => {
+                const marcados = data[step.key] || {};
+                step.items.forEach(id => { if (marcados[id]) feitos++; });
+            });
+            return feitos;
+        }
+
+        let studentOverviewLoaded = false;
+
+        async function loadStudentOverview() {
+            const container = document.getElementById('student-overview-list');
+            if (!container) return;
+            container.innerHTML = '<p class="text-muted">Carregando panorama...</p>';
+
+            const ids = allStudents.map(s => s.id);
+            if (!ids.length) {
+                container.innerHTML = '<p class="text-muted">Nenhum aluno cadastrado</p>';
+                return;
+            }
+
+            // As tabelas de progressao podem nao existir ainda em algum ambiente:
+            // cada leitura falha por conta propria e o cartao continua util.
+            const ler = async run => {
+                try {
+                    const { data, error } = await run();
+                    if (error) { console.warn('[PANORAMA]', error.message || error); return []; }
+                    return data || [];
+                } catch (err) { console.warn('[PANORAMA]', err); return []; }
+            };
+
+            const [relatorios, burocracias, notas, avaliacoes] = await Promise.all([
+                ler(() => WardApp.db.from('call_reports')
+                    .select('student_id, title, call_date, report_text, mentor:mentor_id(full_name)')
+                    .in('student_id', ids)
+                    .order('call_date', { ascending: false })),
+                ler(() => WardApp.db.from('student_bureaucracy')
+                    .select('user_id, data').in('user_id', ids)),
+                ler(() => WardApp.db.from('student_assessment_scores')
+                    .select('user_id, assessment_id, taken_on, correct_count, total_questions')
+                    .in('user_id', ids)
+                    .order('taken_on', { ascending: false })),
+                ler(() => WardApp.db.from('ward_assessments').select('id, name'))
+            ]);
+
+            const porAluno = {};
+            ids.forEach(id => { porAluno[id] = { relatorios: [], notas: [], bureau: null }; });
+            relatorios.forEach(r => { if (porAluno[r.student_id]) porAluno[r.student_id].relatorios.push(r); });
+            notas.forEach(n => { if (porAluno[n.user_id]) porAluno[n.user_id].notas.push(n); });
+            burocracias.forEach(b => { if (porAluno[b.user_id]) porAluno[b.user_id].bureau = b; });
+
+            const nomeAvaliacao = {};
+            avaliacoes.forEach(a => { nomeAvaliacao[a.id] = a.name; });
+
+            studentOverviewLoaded = true;
+            renderStudentOverview(porAluno, nomeAvaliacao);
+        }
+
+        function renderStudentOverview(porAluno, nomeAvaliacao) {
+            const container = document.getElementById('student-overview-list');
+            if (!container) return;
+
+            // Quem tem relatorio mais antigo (ou nenhum) sobe: e de quem a
+            // mentora precisa se lembrar primeiro.
+            const ordenados = [...allStudents].sort((a, b) => {
+                const ra = porAluno[a.id]?.relatorios[0]?.call_date || '';
+                const rb = porAluno[b.id]?.relatorios[0]?.call_date || '';
+                if (ra === rb) return (_dn(a.full_name) || '').localeCompare(_dn(b.full_name) || '', 'pt-BR');
+                return ra < rb ? -1 : 1;
+            });
+
+            container.innerHTML = ordenados.map(aluno => {
+                const dados = porAluno[aluno.id] || { relatorios: [], notas: [], bureau: null };
+                const nome = _dn(aluno.full_name) || aluno.email || 'Aluno';
+
+                const ultimo = dados.relatorios[0];
+                const relatorioHtml = ultimo
+                    ? `<div style="font-size: 0.8rem; color: var(--gray-600);">
+                           <strong>${escHtml(ultimo.title || 'Relatório')}</strong>
+                           <span style="color: var(--gray-400);"> · ${WardApp.formatDate(ultimo.call_date)}${ultimo.mentor?.full_name ? ' · ' + escHtml(_dn(ultimo.mentor.full_name)) : ''}</span>
+                           ${reportSnippet(ultimo.report_text) ? `<div style="color: var(--gray-500); margin-top: 2px;">${escHtml(reportSnippet(ultimo.report_text))}</div>` : ''}
+                       </div>`
+                    : '<div style="font-size: 0.8rem; color: var(--gray-400);">Nenhum relatório registrado</div>';
+
+                const feitos = inscricaoCount(dados.bureau);
+                const pct = Math.round((feitos / INSCRICAO_TOTAL) * 100);
+                const inscricaoHtml = `
+                    <div style="margin-top: 0.6rem;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--gray-500);">
+                            <span>Inscrição (burocracia)</span><span>${feitos}/${INSCRICAO_TOTAL}</span>
+                        </div>
+                        <div style="height: 6px; background: #e5e7eb; border-radius: 999px; overflow: hidden; margin-top: 3px;">
+                            <div style="height: 100%; width: ${pct}%; background: ${pct >= 70 ? '#10b981' : pct >= 30 ? '#f59e0b' : '#ef4444'};"></div>
+                        </div>
+                    </div>`;
+
+                const ultimasNotas = dados.notas.slice(0, 3).map(n => {
+                    const temNota = n.correct_count != null && n.total_questions;
+                    const acerto = temNota ? Math.round((n.correct_count / n.total_questions) * 100) : null;
+                    const cor = acerto == null ? '#9ca3af' : acerto >= 70 ? '#10b981' : acerto >= 60 ? '#f59e0b' : '#ef4444';
+                    const rotulo = nomeAvaliacao[n.assessment_id] || 'Avaliação';
+                    return `<span style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.72rem; background: #f3f4f6; border-radius: 999px; padding: 2px 8px;">
+                                ${escHtml(rotulo)}
+                                <strong style="color: ${cor};">${temNota ? `${n.correct_count}/${n.total_questions} · ${acerto}%` : 'sem nota'}</strong>
+                            </span>`;
+                }).join(' ');
+
+                const notasHtml = dados.notas.length
+                    ? `<div style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 4px;">${ultimasNotas}</div>`
+                    : '<div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--gray-400);">Nenhuma avaliação registrada</div>';
+
+                return `
+                    <div class="pending-call-card" style="display: block;">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px;">
+                            <strong>${escHtml(nome)}</strong>
+                            <a href="/relatorios" style="font-size: 0.72rem; color: var(--primary, #2563eb);">relatórios</a>
+                        </div>
+                        <div style="margin-top: 0.4rem;">${relatorioHtml}</div>
+                        ${inscricaoHtml}
+                        ${notasHtml}
+                    </div>`;
+            }).join('');
+        }
+
+        // Os dois paineis andam juntos: o de landmarks so recarrega se ja tiver
+        // sido aberto alguma vez.
+        async function refreshStudentPanels() {
+            await loadStudentOverview();
+            if (pendingLandmarksLoaded) await loadPendingLandmarks();
+        }
+
+        let pendingLandmarksLoaded = false;
+
+        function onPendingLandmarksToggle(el) {
+            if (!el.open || pendingLandmarksLoaded) return;
+            pendingLandmarksLoaded = true;
+            loadPendingLandmarks();
+        }
+
         async function loadPendingLandmarks() {
             // Load pending landmarks for Iria that are NOT yet scheduled
             const { data: pendingLandmarks, error } = await WardApp.db
@@ -2406,7 +2634,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
 
             WardApp.showToast('Call marcada como concluida!');
             await loadPendingCalls();
-            await loadPendingLandmarks();
+            await refreshStudentPanels();
             await updateStats();
 
             if (selectedStudent) {
@@ -2441,7 +2669,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
 
             WardApp.showToast('Chamada concluída com sucesso!');
             await loadPendingCalls();
-            await loadPendingLandmarks();
+            await refreshStudentPanels();
             await updateStats();
 
             if (selectedStudent) {

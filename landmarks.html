@@ -1376,24 +1376,28 @@
             return map[tz] || tz.split('/').pop().replace(/_/g, ' ');
         }
 
-        // Convert time from mentor timezone to student timezone for display
-        // date: 'YYYY-MM-DD', time: 'HH:MM', mentorTz/studentTz: IANA timezone strings
+        // Converte um horario do fuso do mentor para o fuso do aluno.
+        // Devolve SEMPRE { date, time, dayShift } — nunca uma string solta, para
+        // ninguem interpolar o objeto inteiro num template por engano.
         function convertTime(date, time, fromTz, toTz) {
-            if (!date || !time || !fromTz || !toTz || fromTz === toTz) return { time: time, date: date };
-            try {
-                // Build a date in the source timezone
-                const dt = new Date(`${date}T${time.substring(0,5)}:00`);
-                const fromStr = dt.toLocaleString('en-US', { timeZone: fromTz });
-                const toStr = dt.toLocaleString('en-US', { timeZone: toTz });
-                const fromDate = new Date(fromStr);
-                const toDate = new Date(toStr);
-                const diffMs = toDate - fromDate;
-                const result = new Date(dt.getTime() + diffMs);
-                return {
-                    time: result.toTimeString().substring(0, 5),
-                    date: result.toISOString().substring(0, 10)
-                };
-            } catch (e) { return { time: time, date: date }; }
+            if (window.WardTZ && WardTZ.convert) return WardTZ.convert(date, time, fromTz, toTz);
+            return { date: date, time: String(time || '').substring(0, 5), dayShift: 0 };
+        }
+
+        // Data + hora de uma chamada ja no fuso do aluno, prontas para exibir.
+        function callWhenForStudent(call, studentTz) {
+            if (!call || !call.scheduled_date || !call.scheduled_time) return null;
+            const mentorTz = (call.mentor && call.mentor.timezone) || 'America/Sao_Paulo';
+            const tz = studentTz || getStudentTimezone();
+            const conv = convertTime(call.scheduled_date, call.scheduled_time, mentorTz, tz);
+            const sameZone = !tz || tz === mentorTz;
+            return {
+                date: conv.date,
+                time: conv.time,
+                label: sameZone
+                    ? `${WardApp.formatDate(conv.date)} às ${conv.time}`
+                    : `${WardApp.formatDate(conv.date)} às ${conv.time} (${friendlyTzName(tz)})`
+            };
         }
 
         // Convert student-selected time BACK to mentor timezone for storing
@@ -2373,21 +2377,8 @@
                 document.getElementById('call-modal-call-id').value = callId;
 
                 // Format call info
-                let datetime = '';
-                if (call.scheduled_date && call.scheduled_time) {
-                    const studentTz = call.student_timezone || getStudentTimezone();
-                    const mentorTz = call.mentor?.timezone || 'America/Sao_Paulo';
-                    const baseTime = call.scheduled_time.substring(0, 5);
-                    if (studentTz !== mentorTz) {
-                        const studentTime = convertTime(call.scheduled_date, baseTime, mentorTz, studentTz);
-                        const tzShort = friendlyTzName(studentTz);
-                        datetime = `${WardApp.formatDate(call.scheduled_date)} às ${studentTime} (${tzShort})`;
-                    } else {
-                        datetime = `${WardApp.formatDate(call.scheduled_date)} às ${baseTime}`;
-                    }
-                } else {
-                    datetime = 'Data a definir';
-                }
+                const when = callWhenForStudent(call, call.student_timezone || getStudentTimezone());
+                const datetime = when ? when.label : 'Data a definir';
 
                 const statusLabels = {
                     scheduled: 'Agendada',
