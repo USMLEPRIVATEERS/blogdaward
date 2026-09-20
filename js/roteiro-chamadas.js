@@ -32,26 +32,26 @@
 
     var CHAMADAS = [
         // ---------- Imersão no USMLE ----------
-        { grupo: 'imersao', tipo: 'call_marcos_plataforma', titulo: 'Marcos Vilela: como usar a plataforma' },
-        { grupo: 'imersao', tipo: 'call_iria_uworld', titulo: 'Iria da Costa: como resolver questões do UWorld' },
-        { grupo: 'imersao', tipo: 'call_iria_caminhos', titulo: 'Iria: o que é USMLE e quais caminhos' },
-        { grupo: 'imersao', tipo: 'call_guilherme_anki_setup', titulo: 'Guilherme: configurando o Anki' },
-        { grupo: 'imersao', tipo: 'call_marcos_myintealth_conta', titulo: 'Marcos: criar conta no Myintealth' },
-        { grupo: 'imersao', tipo: 'call_marcos_notarycam', titulo: 'Marcos: notarycam' },
-        { grupo: 'imersao', tipo: 'call_marcos_myintealth_final', titulo: 'Marcos: finalizar myintealth' },
-        { grupo: 'imersao', tipo: 'call_iria_materiais', titulo: 'Iria: materiais de estudo para usar na preparação' },
-        { grupo: 'imersao', tipo: 'call_iria_visto', titulo: 'Iria: visto' },
-        { grupo: 'imersao', tipo: 'call_iria_familia', titulo: 'Iria: situação familiar com a decisão de USMLE' },
-        { grupo: 'imersao', tipo: 'call_iria_financeiro', titulo: 'Iria: planejamento financeiro' },
+        { grupo: 'imersao', tipo: 'call_marcos_plataforma', titulo: 'Marcos Vilela: como usar a plataforma da Ward Academy' },
+        { grupo: 'imersao', tipo: 'call_iria_uworld', titulo: 'Iria da Costa: como resolver as questões do UWorld' },
+        { grupo: 'imersao', tipo: 'call_iria_caminhos', titulo: 'Iria: o que é o USMLE e quais caminhos ele abre' },
+        { grupo: 'imersao', tipo: 'call_guilherme_anki_setup', titulo: 'Guilherme: configurando o Anki do zero' },
+        { grupo: 'imersao', tipo: 'call_marcos_myintealth_conta', titulo: 'Marcos: criando a sua conta no Myintealth' },
+        { grupo: 'imersao', tipo: 'call_marcos_notarycam', titulo: 'Marcos: reconhecendo os documentos no NotaryCam' },
+        { grupo: 'imersao', tipo: 'call_marcos_myintealth_final', titulo: 'Marcos: finalizando a inscrição no Myintealth' },
+        { grupo: 'imersao', tipo: 'call_iria_materiais', titulo: 'Iria: quais materiais de estudo usar na preparação' },
+        { grupo: 'imersao', tipo: 'call_iria_visto', titulo: 'Iria: como funciona o visto para os Estados Unidos' },
+        { grupo: 'imersao', tipo: 'call_iria_familia', titulo: 'Iria: conversando com a família sobre a decisão do USMLE' },
+        { grupo: 'imersao', tipo: 'call_iria_financeiro', titulo: 'Iria: planejando o lado financeiro da jornada' },
 
         // ---------- Chamadas de seguimento (sempre disponíveis) ----------
         {
             grupo: 'seguimento', tipo: 'call_marcos_ajuste_cronograma',
-            titulo: 'Marcos: ajuste de cronograma', repetivel: true
+            titulo: 'Marcos: ajustando o seu cronograma de estudos', repetivel: true
         },
         {
             grupo: 'seguimento', tipo: 'call_iria_system',
-            titulo: 'Iria: avaliar conclusão de system', repetivel: true,
+            titulo: 'Iria: avaliando a conclusão de um system', repetivel: true,
             pergunta: {
                 rotulo: 'Qual system você concluiu?',
                 dica: 'Ex: Cardiologia, Neurologia, Renal...'
@@ -59,7 +59,7 @@
         },
         {
             grupo: 'seguimento', tipo: 'call_iria_orientacoes',
-            titulo: 'Iria: solicitar orientações gerais', repetivel: true,
+            titulo: 'Iria: orientações gerais sobre a sua preparação', repetivel: true,
             pergunta: {
                 rotulo: 'Sobre o que você quer conversar?',
                 dica: 'Escreva em uma linha o que precisa tratar'
@@ -67,50 +67,50 @@
         },
         {
             grupo: 'seguimento', tipo: 'call_guilherme_anki_update',
-            titulo: 'Guilherme: atualização do Anki', repetivel: true
+            titulo: 'Guilherme: atualizando e revisando o seu Anki', repetivel: true
         },
 
         // ---------- Planejamento de prova ----------
-        { grupo: 'prova', tipo: 'call_iria_second_pass', titulo: 'Iria: planejamento de segunda passada' },
-        { grupo: 'prova', tipo: 'call_iria_simulados', titulo: 'Iria: organização dos simulados' },
-        { grupo: 'prova', tipo: 'call_marcos_fsmb', titulo: 'Marcos: inscrição no FSMB' },
-        { grupo: 'prova', tipo: 'call_marcos_claude', titulo: 'Marcos: Claude para step 1' },
-        { grupo: 'prova', tipo: 'call_iria_materiais_reta_final', titulo: 'Iria: materiais de estudo reta final' },
-        { grupo: 'prova', tipo: 'call_guilherme_anki_reta_final', titulo: 'Guilherme: Anki reta final' },
+        { grupo: 'prova', tipo: 'call_iria_second_pass', titulo: 'Iria: planejando a segunda passada no conteúdo' },
+        { grupo: 'prova', tipo: 'call_iria_simulados', titulo: 'Iria: organizando os simulados até a prova' },
+        { grupo: 'prova', tipo: 'call_marcos_fsmb', titulo: 'Marcos: fazendo a sua inscrição no FSMB' },
+        { grupo: 'prova', tipo: 'call_marcos_claude', titulo: 'Marcos: usando o Claude na preparação para o Step 1' },
+        { grupo: 'prova', tipo: 'call_iria_materiais_reta_final', titulo: 'Iria: escolhendo os materiais de estudo da reta final' },
+        { grupo: 'prova', tipo: 'call_guilherme_anki_reta_final', titulo: 'Guilherme: ajustando o Anki para a reta final' },
         {
             grupo: 'prova', tipo: 'call_iria_self_assessment',
-            titulo: 'Iria: avaliar resultado no self assessment', repetivel: true,
+            titulo: 'Iria: avaliando o seu resultado no self assessment', repetivel: true,
             pergunta: {
                 rotulo: 'Qual simulado você fez?',
                 dica: 'Ex: UWSA1, NBME 28, NBME 29...'
             }
         },
-        { grupo: 'prova', tipo: 'call_marcos_eligibility', titulo: 'Marcos: marcar o elegibility period no FSMB' },
-        { grupo: 'prova', tipo: 'call_marcos_preditivos', titulo: 'Marcos: organizar materiais preditivos já realizados' },
-        { grupo: 'prova', tipo: 'call_iria_predicao', titulo: 'Iria: avaliar predição e definir data de prova' },
-        { grupo: 'prova', tipo: 'call_marcos_prometric', titulo: 'Marcos: agendar prova no Prometric' },
-        { grupo: 'prova', tipo: 'call_iria_predicao_check', titulo: 'Iria: checar se predição permite fazer a prova' },
-        { grupo: 'prova', tipo: 'call_iria_pre_prova', titulo: 'Iria: chamada pré prova' }
+        { grupo: 'prova', tipo: 'call_marcos_eligibility', titulo: 'Marcos: marcando o eligibility period no FSMB' },
+        { grupo: 'prova', tipo: 'call_marcos_preditivos', titulo: 'Marcos: organizando os materiais preditivos já realizados' },
+        { grupo: 'prova', tipo: 'call_iria_predicao', titulo: 'Iria: avaliando a predição e definindo a data da prova' },
+        { grupo: 'prova', tipo: 'call_marcos_prometric', titulo: 'Marcos: agendando a sua prova no Prometric' },
+        { grupo: 'prova', tipo: 'call_iria_predicao_check', titulo: 'Iria: checando se a predição permite marcar a prova' },
+        { grupo: 'prova', tipo: 'call_iria_pre_prova', titulo: 'Iria: conversa de preparação para o dia da prova' }
     ];
 
     // Sequencia de pesquisa com o Marcos. Fica fora do roteiro padrao: so
     // aparece para quem o Marcos liberar no dashboard dele.
     var PESQUISA = [
-        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_onboarding', titulo: 'Marcos: onboarding em pesquisa' },
-        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_ideia', titulo: 'Marcos: validação da ideia de pesquisa' },
-        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_databases', titulo: 'Marcos: usar as databases corretamente' },
-        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_triagem_titulo', titulo: 'Marcos: triagem por título e resumo' },
-        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_triagem_manuscrito', titulo: 'Marcos: triagem por manuscritos' },
-        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_extracao', titulo: 'Marcos: extração de dados' },
-        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_vies', titulo: 'Marcos: risco de viés' },
-        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_escrita', titulo: 'Marcos: escrita científica do manuscrito' },
-        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_submissao', titulo: 'Marcos: submissão do manuscrito' }
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_onboarding', titulo: 'Marcos: primeiros passos na pesquisa científica' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_ideia', titulo: 'Marcos: validando a ideia da sua pesquisa' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_databases', titulo: 'Marcos: usando as databases corretamente na busca' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_triagem_titulo', titulo: 'Marcos: fazendo a triagem por título e resumo' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_triagem_manuscrito', titulo: 'Marcos: fazendo a triagem por manuscrito completo' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_extracao', titulo: 'Marcos: extraindo os dados dos estudos' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_vies', titulo: 'Marcos: avaliando o risco de viés dos estudos' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_escrita', titulo: 'Marcos: escrevendo o manuscrito do seu artigo' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_submissao', titulo: 'Marcos: submetendo o manuscrito para a revista' }
     ];
 
     // Chamada do Dr. Fernando: so para quem o Marcos marcar como aluno dele.
     // O tipo e o mesmo de antes para nao soltar os agendamentos ja existentes.
     var FERNANDO = [
-        { grupo: 'fernando', tipo: 'call_fernando_research', titulo: 'Fernando: mentoria em pesquisa' }
+        { grupo: 'fernando', tipo: 'call_fernando_research', titulo: 'Fernando: mentoria em pesquisa científica' }
     ];
 
     var TODAS = CHAMADAS.concat(PESQUISA, FERNANDO);
