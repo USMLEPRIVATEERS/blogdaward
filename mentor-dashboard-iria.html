@@ -590,6 +590,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script src="js/timezone-detect.js"></script>
+    <script src="js/roteiro-chamadas.js"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -597,23 +598,8 @@
         let selectedStudent = null;
         let currentCallDetails = null;
 
-        // Default landmarks template
-        const defaultLandmarks = [
-            { group: 'setup', title: 'Entrada na Ward Academy', type: 'entry' },
-            { group: 'first-round', title: '1a Chamada - Dra. Iria: Background e USMLE', type: 'call_iria_1' },
-            { group: 'first-round', title: '1a Chamada - Guilherme: Configurando Anki', type: 'call_guilherme_1' },
-            { group: 'first-round', title: '1a Chamada - Marcos: Organizando proximos passos', type: 'call_marcos_1' },
-            { group: 'second-round', title: '2a Chamada - Dra. Iria: Como usar o UWorld', type: 'call_iria_2' },
-            { group: 'second-round', title: '2a Chamada - Guilherme: Uso do Anki nas ultimas semanas', type: 'call_guilherme_2' },
-            { group: 'second-round', title: '3a Chamada - Dra. Iria: Inscrição no MyIntealth', type: 'call_iria_3' },
-            { group: 'second-round', title: '4a Chamada - Dra. Iria: Desempenho no Blocao', type: 'call_iria_4' },
-            { group: 'second-pass', title: 'Chamada - Dra. Iria: Second Pass', type: 'call_iria_second_pass' },
-            { group: 'second-pass', title: 'Chamada - Dra. Iria: Simulados (NBMEs)', type: 'call_iria_nbmes' },
-            { group: 'dedicated', title: 'Chamada - Dra. Iria: Dedicated', type: 'call_iria_dedicated' },
-            { group: 'dedicated', title: 'Chamada - Dra. Iria: Agendar a prova', type: 'call_iria_schedule' },
-            { group: 'dedicated', title: 'Chamada - Dra. Iria: Pre-prova', type: 'call_iria_pre_exam' },
-            { group: 'dedicated', title: 'Chamada - Dra. Iria: Pos-prova', type: 'call_iria_post_exam' }
-        ];
+        // Roteiro unico da Ward Academy (js/roteiro-chamadas.js).
+        const defaultLandmarks = WardRoteiro.CHAMADAS;
 
         // Parse date string as local date (avoids timezone shift)
         function parseLocalDate(dateString) {
@@ -672,41 +658,19 @@
 
                 if (!existing || existing.length === 0) {
                     // Check if student wants research (from questionnaire step 9)
-                    const { data: researchData } = await WardApp.db
-                        .from('questionnaire_data')
-                        .select('data')
-                        .eq('user_id', student.id)
-                        .eq('step', 9)
-                        .maybeSingle();
-
-                    const wantsResearchWard = researchData?.data?.wants_research_ward;
-                    const wantsResearch = wantsResearchWard === 'immediately' || wantsResearchWard === 'after_usmle';
-
-                    // Add research landmarks if they want research
-                    let landmarksToCreate = [...defaultLandmarks];
-                    if (wantsResearch) {
-                        landmarksToCreate.push(
-                            { group: 'research', title: '2a Chamada - Marcos: Conversa sobre pesquisa', type: 'call_marcos_research_2' },
-                            { group: 'research', title: '3a Chamada - Marcos: Usar databases corretamente', type: 'call_marcos_research_3' },
-                            { group: 'research', title: '4a Chamada - Marcos: Validando ideia de revisao', type: 'call_marcos_research_4' },
-                            { group: 'research', title: '5a Chamada - Marcos: Triagem por titulo e resumo', type: 'call_marcos_research_5' },
-                            { group: 'research', title: '6a Chamada - Marcos: Triagem por manuscritos', type: 'call_marcos_research_6' },
-                            { group: 'research', title: '7a Chamada - Marcos: Extracao de dados', type: 'call_marcos_research_7' },
-                            { group: 'research', title: '8a Chamada - Marcos: Risco de vies', type: 'call_marcos_research_8' },
-                            { group: 'research', title: '9a Chamada - Marcos: Escrita cientifica', type: 'call_marcos_research_9' },
-                            { group: 'research', title: '10a Chamada - Marcos: Submissao do manuscrito', type: 'call_marcos_research_10' }
-                        );
-                    }
+                    // Pesquisa e a chamada do Dr. Fernando ficam fora do roteiro
+                    // padrao: quem libera e o Marcos, no dashboard dele.
+                    const landmarksToCreate = [...defaultLandmarks];
 
                     const landmarks = landmarksToCreate.map((lm, index) => ({
                         user_id: student.id,
-                        landmark_type: lm.type,
-                        title: lm.title,
+                        landmark_type: lm.tipo,
+                        title: lm.titulo,
                         completed: false,
                         is_urgent: false,
                         notes: [],
                         order_position: index,
-                        group_name: lm.group
+                        group_name: lm.grupo
                     }));
 
                     await WardApp.db.from('landmarks').insert(landmarks);
@@ -714,85 +678,12 @@
             }
         }
 
-        // Add research landmarks to existing students who want research but don't have them yet
-        async function addResearchLandmarksToExistingStudents() {
-            if (!confirm('Isso vai adicionar landmarks de pesquisa para todos os alunos que indicaram interesse em pesquisa no questionário. Continuar?')) {
-                return;
-            }
-
-            let addedCount = 0;
-            for (const student of allStudents) {
-                // Check if student wants research
-                const { data: researchData } = await WardApp.db
-                    .from('questionnaire_data')
-                    .select('data')
-                    .eq('user_id', student.id)
-                    .eq('step', 9)
-                    .maybeSingle();
-
-                const wantsResearchWard = researchData?.data?.wants_research_ward;
-                const wantsResearch = wantsResearchWard === 'immediately' || wantsResearchWard === 'after_usmle';
-
-                if (wantsResearch) {
-                    // Check if student already has research landmarks
-                    const { data: existingResearch } = await WardApp.db
-                        .from('landmarks')
-                        .select('id')
-                        .eq('user_id', student.id)
-                        .eq('group_name', 'research')
-                        .limit(1);
-
-                    // If no research landmarks exist, add them
-                    if (!existingResearch || existingResearch.length === 0) {
-                        // Get current max order_position for this student
-                        const { data: maxOrder } = await WardApp.db
-                            .from('landmarks')
-                            .select('order_position')
-                            .eq('user_id', student.id)
-                            .order('order_position', { ascending: false })
-                            .limit(1);
-
-                        const startOrder = (maxOrder && maxOrder[0]) ? maxOrder[0].order_position + 1 : 0;
-
-                        const researchLandmarks = [
-                            { group: 'research', title: '2a Chamada - Marcos: Conversa sobre pesquisa', type: 'call_marcos_research_2' },
-                            { group: 'research', title: '3a Chamada - Marcos: Usar databases corretamente', type: 'call_marcos_research_3' },
-                            { group: 'research', title: '4a Chamada - Marcos: Validando ideia de revisao', type: 'call_marcos_research_4' },
-                            { group: 'research', title: '5a Chamada - Marcos: Triagem por titulo e resumo', type: 'call_marcos_research_5' },
-                            { group: 'research', title: '6a Chamada - Marcos: Triagem por manuscritos', type: 'call_marcos_research_6' },
-                            { group: 'research', title: '7a Chamada - Marcos: Extracao de dados', type: 'call_marcos_research_7' },
-                            { group: 'research', title: '8a Chamada - Marcos: Risco de vies', type: 'call_marcos_research_8' },
-                            { group: 'research', title: '9a Chamada - Marcos: Escrita cientifica', type: 'call_marcos_research_9' },
-                            { group: 'research', title: '10a Chamada - Marcos: Submissao do manuscrito', type: 'call_marcos_research_10' }
-                        ];
-
-                        const landmarks = researchLandmarks.map((lm, index) => ({
-                            user_id: student.id,
-                            landmark_type: lm.type,
-                            title: lm.title,
-                            completed: false,
-                            is_urgent: false,
-                            notes: [],
-                            order_position: startOrder + index,
-                            group_name: lm.group
-                        }));
-
-                        await WardApp.db.from('landmarks').insert(landmarks);
-                        addedCount++;
-                        console.log(`Added research landmarks for student ${_dn(student.full_name) || student.email}`);
-                    }
-                }
-            }
-
-            if (addedCount > 0) {
-                WardApp.showToast(`✅ Landmarks de pesquisa adicionadas para ${addedCount} aluno(s)!`, 'success');
-                // Reload to show updated data
-                await loadStudents();
-                await refreshStudentPanels();
-            } else {
-                WardApp.showToast('ℹ️ Nenhum aluno novo precisou de landmarks de pesquisa', 'info');
-            }
+        // O backfill de pesquisa pelo questionario saiu: quem libera a sequencia
+        // e o Marcos, aluno a aluno, no dashboard dele ("Pesquisa liberada").
+        function addResearchLandmarksToExistingStudents() {
+            WardApp.showToast('As chamadas de pesquisa agora são liberadas pelo Marcos, no dashboard dele.', 'info');
         }
+
 
         // Store landmark counts per student per mentor
         let studentLandmarkCounts = {};
