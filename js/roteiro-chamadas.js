@@ -1,0 +1,169 @@
+/*
+ * WardRoteiro — roteiro de chamadas da Ward Academy (fonte unica).
+ *
+ * Antes cada pagina carregava a sua propria copia da lista (landmarks.html,
+ * os dashboards do Marcos e da Iria, o questionario): quatro listas que sempre
+ * acabavam divergindo. Aqui e o unico lugar onde o roteiro existe.
+ *
+ * Convencoes:
+ *   - titulo no formato "Mentor: assunto", sem numero e sem duracao;
+ *   - `tipo` e o identificador estavel no banco (landmark_type). O titulo pode
+ *     ser reescrito a vontade; o tipo, nao;
+ *   - `repetivel: true` marca as chamadas que nunca sao concluidas: a linha e um
+ *     botao permanente, e cada agendamento gera uma OCORRENCIA com o tipo
+ *     acrescido de SUFIXO_OCORRENCIA;
+ *   - `pergunta` obriga o aluno a escrever algo antes de agendar (o system que
+ *     concluiu, o assunto, o simulado). O texto vai para o titulo da ocorrencia
+ *     e para as observacoes do agendamento, entao o mentor ve na hora.
+ */
+(function () {
+    'use strict';
+
+    // Ocorrencias de chamadas repetiveis carregam este sufixo no landmark_type.
+    // A auditoria de landmarks usa isso para NAO tratar duas ocorrencias da
+    // mesma chamada como duplicata.
+    var SUFIXO_OCORRENCIA = '__oc';
+
+    var GRUPOS = [
+        { chave: 'imersao', titulo: 'Imersão no USMLE' },
+        { chave: 'seguimento', titulo: 'Chamadas de seguimento' },
+        { chave: 'prova', titulo: 'Planejamento de prova' }
+    ];
+
+    var CHAMADAS = [
+        // ---------- Imersão no USMLE ----------
+        { grupo: 'imersao', tipo: 'call_marcos_plataforma', titulo: 'Marcos Vilela: como usar a plataforma' },
+        { grupo: 'imersao', tipo: 'call_iria_uworld', titulo: 'Iria da Costa: como resolver questões do UWorld' },
+        { grupo: 'imersao', tipo: 'call_iria_caminhos', titulo: 'Iria: o que é USMLE e quais caminhos' },
+        { grupo: 'imersao', tipo: 'call_guilherme_anki_setup', titulo: 'Guilherme: configurando o Anki' },
+        { grupo: 'imersao', tipo: 'call_marcos_myintealth_conta', titulo: 'Marcos: criar conta no Myintealth' },
+        { grupo: 'imersao', tipo: 'call_marcos_notarycam', titulo: 'Marcos: notarycam' },
+        { grupo: 'imersao', tipo: 'call_marcos_myintealth_final', titulo: 'Marcos: finalizar myintealth' },
+        { grupo: 'imersao', tipo: 'call_iria_materiais', titulo: 'Iria: materiais de estudo para usar na preparação' },
+        { grupo: 'imersao', tipo: 'call_iria_visto', titulo: 'Iria: visto' },
+        { grupo: 'imersao', tipo: 'call_iria_familia', titulo: 'Iria: situação familiar com a decisão de USMLE' },
+        { grupo: 'imersao', tipo: 'call_iria_financeiro', titulo: 'Iria: planejamento financeiro' },
+
+        // ---------- Chamadas de seguimento (sempre disponíveis) ----------
+        {
+            grupo: 'seguimento', tipo: 'call_marcos_ajuste_cronograma',
+            titulo: 'Marcos: ajuste de cronograma', repetivel: true
+        },
+        {
+            grupo: 'seguimento', tipo: 'call_iria_system',
+            titulo: 'Iria: avaliar conclusão de system', repetivel: true,
+            pergunta: {
+                rotulo: 'Qual system você concluiu?',
+                dica: 'Ex: Cardiologia, Neurologia, Renal...'
+            }
+        },
+        {
+            grupo: 'seguimento', tipo: 'call_iria_orientacoes',
+            titulo: 'Iria: solicitar orientações gerais', repetivel: true,
+            pergunta: {
+                rotulo: 'Sobre o que você quer conversar?',
+                dica: 'Escreva em uma linha o que precisa tratar'
+            }
+        },
+        {
+            grupo: 'seguimento', tipo: 'call_guilherme_anki_update',
+            titulo: 'Guilherme: atualização do Anki', repetivel: true
+        },
+
+        // ---------- Planejamento de prova ----------
+        { grupo: 'prova', tipo: 'call_iria_second_pass', titulo: 'Iria: planejamento de segunda passada' },
+        { grupo: 'prova', tipo: 'call_iria_simulados', titulo: 'Iria: organização dos simulados' },
+        { grupo: 'prova', tipo: 'call_marcos_fsmb', titulo: 'Marcos: inscrição no FSMB' },
+        { grupo: 'prova', tipo: 'call_marcos_claude', titulo: 'Marcos: Claude para step 1' },
+        { grupo: 'prova', tipo: 'call_iria_materiais_reta_final', titulo: 'Iria: materiais de estudo reta final' },
+        { grupo: 'prova', tipo: 'call_guilherme_anki_reta_final', titulo: 'Guilherme: Anki reta final' },
+        {
+            grupo: 'prova', tipo: 'call_iria_self_assessment',
+            titulo: 'Iria: avaliar resultado no self assessment', repetivel: true,
+            pergunta: {
+                rotulo: 'Qual simulado você fez?',
+                dica: 'Ex: UWSA1, NBME 28, NBME 29...'
+            }
+        },
+        { grupo: 'prova', tipo: 'call_marcos_eligibility', titulo: 'Marcos: marcar o elegibility period no FSMB' },
+        { grupo: 'prova', tipo: 'call_marcos_preditivos', titulo: 'Marcos: organizar materiais preditivos já realizados' },
+        { grupo: 'prova', tipo: 'call_iria_predicao', titulo: 'Iria: avaliar predição e definir data de prova' },
+        { grupo: 'prova', tipo: 'call_marcos_prometric', titulo: 'Marcos: agendar prova no Prometric' },
+        { grupo: 'prova', tipo: 'call_iria_predicao_check', titulo: 'Iria: checar se predição permite fazer a prova' },
+        { grupo: 'prova', tipo: 'call_iria_pre_prova', titulo: 'Iria: chamada pré prova' }
+    ];
+
+    // Sequencia de pesquisa com o Marcos. Fica fora do roteiro padrao: so
+    // aparece para quem o Marcos liberar no dashboard dele.
+    var PESQUISA = [
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_onboarding', titulo: 'Marcos: onboarding em pesquisa' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_ideia', titulo: 'Marcos: validação da ideia de pesquisa' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_databases', titulo: 'Marcos: usar as databases corretamente' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_triagem_titulo', titulo: 'Marcos: triagem por título e resumo' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_triagem_manuscrito', titulo: 'Marcos: triagem por manuscritos' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_extracao', titulo: 'Marcos: extração de dados' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_vies', titulo: 'Marcos: risco de viés' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_escrita', titulo: 'Marcos: escrita científica do manuscrito' },
+        { grupo: 'pesquisa', tipo: 'call_marcos_pesquisa_submissao', titulo: 'Marcos: submissão do manuscrito' }
+    ];
+
+    // Chamada do Dr. Fernando: so para quem o Marcos marcar como aluno dele.
+    // O tipo e o mesmo de antes para nao soltar os agendamentos ja existentes.
+    var FERNANDO = [
+        { grupo: 'fernando', tipo: 'call_fernando_research', titulo: 'Fernando: mentoria em pesquisa' }
+    ];
+
+    var TODAS = CHAMADAS.concat(PESQUISA, FERNANDO);
+
+    var porTipo = {};
+    TODAS.forEach(function (c) { porTipo[c.tipo] = c; });
+
+    function tipoBase(tipo) {
+        if (!tipo) return '';
+        return tipo.slice(-SUFIXO_OCORRENCIA.length) === SUFIXO_OCORRENCIA
+            ? tipo.slice(0, -SUFIXO_OCORRENCIA.length)
+            : tipo;
+    }
+
+    function ehOcorrencia(tipo) {
+        return !!tipo && tipo.slice(-SUFIXO_OCORRENCIA.length) === SUFIXO_OCORRENCIA;
+    }
+
+    function definicao(tipo) {
+        return porTipo[tipoBase(tipo)] || null;
+    }
+
+    function ehRepetivel(tipo) {
+        var d = definicao(tipo);
+        return !!(d && d.repetivel);
+    }
+
+    // Uma chamada do roteiro atual? Serve para separar o que e historico.
+    function doRoteiro(tipo) {
+        return !!definicao(tipo);
+    }
+
+    function mentorDoTitulo(titulo) {
+        var t = String(titulo || '');
+        if (/Iria/i.test(t)) return 'iria';
+        if (/Marcos/i.test(t)) return 'marcos';
+        if (/Guilherme/i.test(t)) return 'guilherme';
+        if (/Fernando/i.test(t)) return 'fernando';
+        return '';
+    }
+
+    window.WardRoteiro = {
+        SUFIXO_OCORRENCIA: SUFIXO_OCORRENCIA,
+        GRUPOS: GRUPOS,
+        CHAMADAS: CHAMADAS,
+        PESQUISA: PESQUISA,
+        FERNANDO: FERNANDO,
+        TODAS: TODAS,
+        tipoBase: tipoBase,
+        ehOcorrencia: ehOcorrencia,
+        definicao: definicao,
+        ehRepetivel: ehRepetivel,
+        doRoteiro: doRoteiro,
+        mentorDoTitulo: mentorDoTitulo
+    };
+})();
