@@ -61,6 +61,7 @@
             <div class="alert-content">
                 <strong>Como funciona:</strong> cada item é uma chamada com um mentor. Clique para deixar uma observação, ou use <strong>Agendar</strong> para marcar o horário.
                 <br><strong>Legenda:</strong> 📞 a agendar &nbsp;·&nbsp; 📹 agendada &nbsp;·&nbsp; ✅ concluída &nbsp;·&nbsp; 🔁 sempre disponível &nbsp;·&nbsp; 📝 com anotações
+                <br><span id="step-atual"></span>
             </div>
         </div>
 
@@ -116,7 +117,7 @@
             <!-- Chamadas do roteiro antigo que voce ja fez ou ja agendou -->
             <div class="landmark-group" id="historico-group" style="display: none;">
                 <h3 class="landmark-group-title">Chamadas anteriores</h3>
-                <p class="grupo-nota">Chamadas do roteiro antigo que você já fez ou já agendou.</p>
+                <p class="grupo-nota">Chamadas de um Step que você já passou, ou do roteiro antigo, que você já fez ou já agendou.</p>
                 <div class="landmark-list" data-group="historico"></div>
             </div>
 
@@ -1218,6 +1219,7 @@
         let currentLandmarkId = null;
         let landmarksPorId = {};
         let roteiroJaCompletado = false;
+        let stepAtual = WardRoteiro.STEP_PADRAO;  // prova escolhida no dashboard
         let pesquisaLiberada = false;   // liberado pelo Marcos
         let alunoDoFernando = false;    // marcado pelo Marcos
         let viewingAsStudentId = null;
@@ -1405,9 +1407,9 @@
         }
 
         // O roteiro vive em js/roteiro-chamadas.js, carregado antes deste script.
-        // Pesquisa e a chamada do Dr. Fernando ficam de fora do padrao: entram
-        // so para quem o Marcos liberar no dashboard dele.
-        const defaultLandmarks = WardRoteiro.CHAMADAS;
+        // Ele depende da prova que o aluno escolheu no dashboard; pesquisa e a
+        // chamada do Dr. Fernando ficam de fora do padrao e entram so para quem
+        // o Marcos liberar no dashboard dele.
 
         document.addEventListener('DOMContentLoaded', async () => {
             userData = await WardApp.checkAuth();
@@ -1471,6 +1473,17 @@
 
             pesquisaLiberada = !!(perfil && perfil.research_enabled);
             alunoDoFernando = !!(perfil && perfil.fernando_interested);
+
+            // Em que prova o aluno esta focando (ele escolhe no dashboard, em
+            // "Preparacao Atual"). Quem nunca escolheu segue no Step 1.
+            const { data: prep } = await WardApp.db
+                .from('user_preparation_status')
+                .select('currently_preparing_for')
+                .eq('user_id', targetUserId)
+                .maybeSingle();
+
+            stepAtual = WardRoteiro.normalizaStep(prep && prep.currently_preparing_for);
+            mostrarStepAtual();
 
             document.getElementById('research-group').style.display = pesquisaLiberada ? '' : 'none';
             document.getElementById('research-info').style.display = pesquisaLiberada ? 'none' : '';
@@ -1612,12 +1625,30 @@
                 lm.scheduled_calls = callsMap[lm.id] || [];
             });
 
+            // O aluno trocou de prova: as chamadas da prova anterior viram
+            // "Chamadas anteriores" tambem NO BANCO, em segundo plano. Sem isso os
+            // paineis dos mentores continuam cobrando chamadas de uma prova que ja
+            // passou. So mexe nesse sentido — nunca desfaz uma organizacao manual.
+            landmarks
+                .filter(lm => WardRoteiro.definicao(lm.landmark_type)
+                           && !WardRoteiro.noStep(lm.landmark_type, stepAtual)
+                           && lm.group_name !== 'historico')
+                .forEach(lm => {
+                    lm.group_name = 'historico';
+                    // .then() de proposito: o builder so dispara a requisicao quando
+                    // alguem pede o resultado. Aqui nao esperamos por ela.
+                    WardApp.db.from('landmarks').update({ group_name: 'historico' }).eq('id', lm.id)
+                        .then(({ error }) => error && console.error('Nao consegui mover para o historico:', error));
+                });
+
             // Auto-fix landmarks with missing group_name (background, non-blocking)
             const missingGroup = landmarks.filter(lm => !lm.group_name);
             if (missingGroup.length > 0) {
                 missingGroup.forEach(lm => {
                     const inferred = inferGroupFromType(lm.landmark_type);
-                    WardApp.db.from('landmarks').update({ group_name: inferred }).eq('id', lm.id);
+                    lm.group_name = inferred;
+                    WardApp.db.from('landmarks').update({ group_name: inferred }).eq('id', lm.id)
+                        .then(({ error }) => error && console.error('Nao consegui gravar o grupo:', error));
                 });
             }
 
@@ -1632,10 +1663,19 @@
         // Monta o roteiro do aluno. Pesquisa e a chamada do Dr. Fernando ficam
         // de fora do padrao: so entram para quem o Marcos liberou.
         function roteiroDoAluno() {
-            let lista = WardRoteiro.CHAMADAS.slice();
-            if (pesquisaLiberada) lista = lista.concat(WardRoteiro.PESQUISA);
-            if (alunoDoFernando) lista = lista.concat(WardRoteiro.FERNANDO);
-            return lista;
+            return WardRoteiro.roteiro(stepAtual, {
+                pesquisa: pesquisaLiberada,
+                fernando: alunoDoFernando
+            });
+        }
+
+        // Diz na pagina qual prova esta valendo e o que acontece ao trocar.
+        function mostrarStepAtual() {
+            const el = document.getElementById('step-atual');
+            if (!el) return;
+            el.innerHTML = `<strong>Roteiro do ${WardRoteiro.rotuloStep(stepAtual)}.</strong> `
+                + 'Quando voc\u00ea passar e trocar a prova no seu dashboard, as chamadas de '
+                + 'prepara\u00e7\u00e3o voltam com o nome da prova nova, prontas para agendar.';
         }
 
         async function createDefaultLandmarks() {
@@ -1675,7 +1715,9 @@
         // Fernando) aparecam para quem ja tem a pagina montada, sem duplicar o
         // que ja existe.
         async function completarRoteiro(existentes) {
-            const tenho = new Set((existentes || []).map(lm => WardRoteiro.tipoBase(lm.landmark_type)));
+            // Comparar pelo tipo concreto: o sufixo do step faz parte dele, entao
+            // trocar de prova faz as chamadas daquela prova entrarem como novas.
+            const tenho = new Set((existentes || []).map(lm => WardRoteiro.semOcorrencia(lm.landmark_type)));
             const faltando = roteiroDoAluno().filter(lm => !tenho.has(lm.tipo));
             if (!faltando.length) return false;
 
@@ -1715,8 +1757,9 @@
         // e do roteiro atual vai para "Chamadas anteriores", para o aluno nao
         // perder de vista o que ja fez no roteiro antigo.
         function inferGroupFromType(type) {
-            const def = WardRoteiro.definicao(type);
-            if (def) return def.grupo;
+            const grupo = WardRoteiro.grupoDe(type, stepAtual);
+            if (grupo !== 'historico') return grupo;
+            if (WardRoteiro.definicao(type)) return 'historico';
             if (/^call_extra_/.test(type)) return 'extras';
             return 'historico';
         }
@@ -1990,8 +2033,24 @@
             };
 
             landmarks.forEach(lm => {
-                const group = groups[lm.group_name] ? lm.group_name : inferGroupFromType(lm.landmark_type);
+                // O grupo e calculado na hora: uma chamada de um Step que o aluno
+                // ja passou vai para "Chamadas anteriores" mesmo que o banco ainda
+                // diga "prova". Tipo desconhecido cai no group_name guardado.
+                const conhecido = !!WardRoteiro.definicao(lm.landmark_type) || /^call_extra_/.test(lm.landmark_type || '');
+                const group = conhecido
+                    ? inferGroupFromType(lm.landmark_type)
+                    : (groups[lm.group_name] ? lm.group_name : 'historico');
                 if (groups[group]) groups[group].push(lm);
+            });
+
+            // Chamada de um Step que o aluno passou sem usar (nunca concluiu, nunca
+            // agendou, sem observacao) nao vira "Chamadas anteriores": o historico e
+            // o que aconteceu, nao o que deixou de acontecer.
+            groups.historico = groups.historico.filter(lm => {
+                if (!WardRoteiro.definicao(lm.landmark_type)) return true;  // legado: mostra
+                if (WardRoteiro.ehOcorrencia(lm.landmark_type)) return true;
+                const temNota = Array.isArray(lm.notes) ? lm.notes.length > 0 : !!lm.notes;
+                return lm.completed || (lm.scheduled_calls || []).length > 0 || temNota;
             });
 
             // Dentro de cada grupo: a ordem do roteiro manda, e as ocorrencias de
@@ -2029,7 +2088,8 @@
                     const ehOcorrencia = WardRoteiro.ehOcorrencia(lm.landmark_type);
                     // A "vaga" de uma chamada repetivel nunca e concluida: ela fica
                     // ali para ser agendada de novo quantas vezes for preciso.
-                    const ehVaga = !!(def && def.repetivel && !ehOcorrencia);
+                    // No historico a vaga ja nao esta mais disponivel: e so registro.
+                    const ehVaga = !!(def && def.repetivel && !ehOcorrencia) && !ehHistorico;
 
                     const mentorHint = WardRoteiro.mentorDoTitulo(lm.title);
                     const chamadas = lm.scheduled_calls || [];
@@ -3678,7 +3738,7 @@
                 .insert({
                     user_id: targetUserId,
                     landmark_type: vaga.landmark_type + WardRoteiro.SUFIXO_OCORRENCIA,
-                    title: `${def.titulo} — ${sufixo}`,
+                    title: `${vaga.title} — ${sufixo}`,
                     completed: false,
                     is_urgent: false,
                     notes: [],

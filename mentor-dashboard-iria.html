@@ -598,8 +598,10 @@
         let selectedStudent = null;
         let currentCallDetails = null;
 
-        // Roteiro unico da Ward Academy (js/roteiro-chamadas.js).
-        const defaultLandmarks = WardRoteiro.CHAMADAS;
+        // Roteiro unico da Ward Academy (js/roteiro-chamadas.js). Aluno novo
+        // comeca no Step 1; se ele trocar de prova no dashboard, a propria pagina
+        // de chamadas dele completa o roteiro da prova nova.
+        const defaultLandmarks = WardRoteiro.roteiro(WardRoteiro.STEP_PADRAO);
 
         // Parse date string as local date (avoids timezone shift)
         function parseLocalDate(dateString) {
@@ -706,7 +708,8 @@
             const { data: allLandmarks } = await WardApp.db
                 .from('landmarks')
                 .select('user_id, title, completed')
-                .eq('completed', false);
+                .eq('completed', false)
+                .neq('group_name', 'historico');   // chamada de uma prova ja passada nao conta
 
             // Count pending landmarks per student per mentor
             studentLandmarkCounts = {};
@@ -736,7 +739,7 @@
                 .from('landmarks')
                 .select('id')
                 .eq('completed', false)
-                .or('group_name.eq.first_round,group_name.eq.second_round,group_name.eq.system_calls');
+                .in('group_name', ['imersao', 'seguimento', 'prova', 'pesquisa', 'fernando']);
 
             document.getElementById('pending-calls').textContent = pendingCalls?.length || 0;
 
@@ -2493,6 +2496,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 .from('landmarks')
                 .select('*')
                 .eq('completed', false)
+                .neq('group_name', 'historico')   // chamada de uma prova ja passada nao aparece
                 .like('landmark_type', 'call_iria%');
 
             const container = document.getElementById('pending-landmarks-list');
