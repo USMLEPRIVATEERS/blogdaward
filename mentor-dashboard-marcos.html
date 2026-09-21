@@ -958,7 +958,7 @@ Cardiovascular	Physiology	62	FALSE
             // Load all stats in parallel
             const [studentsRes, callsRes, postsRes, projectsRes, linksRes] = await Promise.all([
                 WardApp.db.from('users').select('*').in('role', ['aluno', 'assessoria']),
-                WardApp.db.from('landmarks').select('id').eq('completed', false).or('group_name.eq.first_round,group_name.eq.second_round,group_name.eq.system_calls'),
+                WardApp.db.from('landmarks').select('id').eq('completed', false).in('group_name', ['imersao', 'seguimento', 'prova', 'pesquisa', 'fernando']),
                 WardApp.db.from('blog_posts').select('id'),
                 WardApp.db.from('research_projects').select('id'),
                 WardApp.db.from('links_repository').select('id')
@@ -1140,6 +1140,7 @@ Cardiovascular	Physiology	62	FALSE
                 .from('landmarks')
                 .select('*')
                 .eq('completed', false)
+                .neq('group_name', 'historico')   // chamada de uma prova ja passada nao aparece
                 .like('landmark_type', 'call_marcos%');
 
             if (error) {
@@ -5052,21 +5053,22 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             // Roteiro unico da Ward Academy (js/roteiro-chamadas.js). Pesquisa e
             // a chamada do Dr. Fernando ficam fora do padrao: entram so para os
             // alunos liberados aqui no dashboard.
-            const defaultLandmarks = WardRoteiro.CHAMADAS;
-            const roteiroDe = aluno => {
-                let lista = WardRoteiro.CHAMADAS.slice();
-                if (aluno.research_enabled) lista = lista.concat(WardRoteiro.PESQUISA);
-                if (aluno.fernando_interested) lista = lista.concat(WardRoteiro.FERNANDO);
-                return lista;
-            };
+            // Cada aluno tem o roteiro da prova que ele escolheu no dashboard
+            // ("Preparacao Atual"). Quem nunca escolheu segue no Step 1.
+            const prepRows = await fetchAllRows('user_preparation_status', 'user_id, currently_preparing_for', allStudents.map(s => s.id));
+            const stepPorAluno = {};
+            (prepRows || []).forEach(r => { stepPorAluno[r.user_id] = WardRoteiro.normalizaStep(r.currently_preparing_for); });
+            const stepDe = id => stepPorAluno[id] || WardRoteiro.STEP_PADRAO;
+
+            const roteiroDe = aluno => WardRoteiro.roteiro(stepDe(aluno.id), {
+                pesquisa: aluno.research_enabled,
+                fernando: aluno.fernando_interested
+            });
 
             // Only audit actual alunos (not assessoria)
             const students = allStudents.filter(s => s.role === 'aluno');
             const studentIds = students.map(s => s.id);
 
-            // Build a lookup of default landmark by type for title/group sync
-            const defaultByType = {};
-            WardRoteiro.TODAS.forEach(lm => { defaultByType[lm.tipo] = lm; });
 
             // Load all existing landmarks with id/title/group so we can compare and update.
             // IMPORTANTE: paginado. Sem isso o Supabase corta a resposta (max rows) e a
@@ -5093,10 +5095,14 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             const toUpdate = [];
             liveLandmarks.forEach(lm => {
                 if (WardRoteiro.ehOcorrencia(lm.landmark_type)) return; // ocorrencia: titulo e proprio
-                const def = defaultByType[lm.landmark_type];
+                // O titulo sai do proprio tipo, que ja carrega a prova: uma chamada
+                // do Step 1 continua com o nome do Step 1 mesmo depois que o aluno
+                // passou para o Step 2 CK.
+                const def = WardRoteiro.resolvida(lm.landmark_type);
                 if (!def) return; // tipo fora do roteiro (extra/legado) - nao mexe
-                if (lm.title !== def.titulo || lm.group_name !== def.grupo) {
-                    toUpdate.push({ id: lm.id, newTitle: def.titulo, newGroup: def.grupo });
+                const grupo = WardRoteiro.grupoDe(lm.landmark_type, stepDe(lm.user_id));
+                if (lm.title !== def.titulo || lm.group_name !== grupo) {
+                    toUpdate.push({ id: lm.id, newTitle: def.titulo, newGroup: grupo });
                 }
             });
 
@@ -5168,6 +5174,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             // Reorder ALL students' landmarks to match canonical defaultLandmarks order
             const typeToIndex = {};
             WardRoteiro.TODAS.forEach((lm, idx) => { typeToIndex[lm.tipo] = idx; });
+            const indiceDe = tipo => typeToIndex[WardRoteiro.tipoBase(tipo)];
 
             let reorderedCount = 0;
             const allLandmarksForReorder = await fetchAllRows('landmarks', 'id, user_id, landmark_type, order_position', studentIds);
@@ -5175,7 +5182,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             const reorderUpdates = [];
             (allLandmarksForReorder || []).forEach(lm => {
                 if (WardRoteiro.ehOcorrencia(lm.landmark_type)) return; // ocorrencia fica junto da vaga
-                const canonIdx = typeToIndex[lm.landmark_type];
+                const canonIdx = indiceDe(lm.landmark_type);
                 const desiredPos = canonIdx !== undefined ? canonIdx : 900;
                 if (lm.order_position !== desiredPos) {
                     reorderUpdates.push({ id: lm.id, order_position: desiredPos });
