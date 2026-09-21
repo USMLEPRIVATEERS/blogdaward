@@ -3831,12 +3831,26 @@
                 const linkTitle = window.scheduleLinkMode.title;
                 const { data: existingLm } = await WardApp.db
                     .from('landmarks')
-                    .select('id')
+                    .select('*')
                     .eq('user_id', targetUserId)
                     .eq('title', linkTitle)
                     .limit(1)
                     .maybeSingle();
-                if (existingLm && existingLm.id) {
+                const defLink = existingLm ? WardRoteiro.definicao(existingLm.landmark_type) : null;
+                const vagaDoLink = !!(defLink && defLink.repetivel
+                    && !WardRoteiro.ehOcorrencia(existingLm.landmark_type));
+
+                if (vagaDoLink) {
+                    // Chamada repetivel: o link agenda uma OCORRENCIA, como na pagina.
+                    // Agendar a propria vaga a marcaria como ocupada e ela tem de
+                    // continuar livre para o proximo agendamento.
+                    const ocorrencia = await criarOcorrencia(existingLm, defLink, date, resposta);
+                    if (!ocorrencia) {
+                        WardApp.showToast('Erro ao registrar a chamada', 'error');
+                        return;
+                    }
+                    effectiveLandmarkId = ocorrencia.id;
+                } else if (existingLm && existingLm.id) {
                     effectiveLandmarkId = existingLm.id;
                     // Reagenda: remove um eventual agendamento anterior dessa mesma chamada
                     await WardApp.db
