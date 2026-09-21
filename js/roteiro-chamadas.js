@@ -66,6 +66,7 @@
         { grupo: 'imersao', tipo: 'call_iria_uworld', titulo: 'Iria da Costa: como resolver as questões do UWorld do {STEP}' },
         { grupo: 'imersao', tipo: 'call_iria_caminhos', porJornada: true, titulo: 'Iria: o que é o USMLE e quais caminhos ele abre' },
         { grupo: 'imersao', tipo: 'call_guilherme_anki_setup', porJornada: true, titulo: 'Guilherme: configurando o Anki do zero' },
+        { grupo: 'imersao', tipo: 'call_guilherme_anki_update', porJornada: true, titulo: 'Guilherme: revisando o seu Anki' },
         { grupo: 'imersao', tipo: 'call_marcos_myintealth_conta', porJornada: true, titulo: 'Marcos: criando a sua conta no Myintealth' },
         { grupo: 'imersao', tipo: 'call_marcos_notarycam', porJornada: true, titulo: 'Marcos: reconhecendo os documentos no NotaryCam' },
         // O Myintealth e da ECFMG: vale para Step 1 e Step 2 CK. O Step 3 e pelo FSMB.
@@ -98,11 +99,6 @@
                 dica: 'Escreva em uma linha o que precisa tratar'
             }
         },
-        {
-            grupo: 'seguimento', tipo: 'call_guilherme_anki_update', porJornada: true,
-            titulo: 'Guilherme: atualizando e revisando o seu Anki', repetivel: true
-        },
-
         // ---------- Planejamento de prova ----------
         // Este bloco inteiro se repete a cada prova, com o nome da prova no titulo.
         { grupo: 'prova', tipo: 'call_iria_second_pass', titulo: 'Iria: planejando a segunda passada no conteúdo do {STEP}' },
