@@ -302,7 +302,7 @@
                     <thead>
                         <tr>
                             <th onclick="sortStudentsBy('name')" style="cursor: pointer; user-select: none;">
-                                Nome <span id="sort-icon-name" style="opacity: 0.3;">▼</span>
+                                Nome <span id="sort-icon-name" style="opacity: 1;">▲</span>
                             </th>
                             <th onclick="sortStudentsBy('email')" style="cursor: pointer; user-select: none;">
                                 Email <span id="sort-icon-email" style="opacity: 0.3;">▼</span>
@@ -984,7 +984,7 @@ Cardiovascular	Physiology	62	FALSE
                 WardApp.db.from('links_repository').select('id')
             ]);
 
-            allStudents = studentsRes.data || [];
+            allStudents = ordenarPorNome(studentsRes.data);
             const completedQuestionnaires = allStudents.filter(s => s.questionnaire_completed).length;
 
             document.getElementById('total-students').textContent = allStudents.length;
@@ -2067,6 +2067,24 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             return WardApp._prs ? WardApp._prs(name) : name;
         }
 
+        // Ordem alfabetica pelo nome que APARECE na tela. O full_name pode vir
+        // codificado do banco, entao ordenar pelo valor cru (inclusive com
+        // .order('full_name') no Supabase) devolvia uma ordem sem sentido para
+        // quem le. O collator de pt-BR ainda deixa o acento junto da letra sem
+        // acento — Alvaro cai entre Alice e Ana, nao depois de Zeca.
+        const _collatorNome = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
+        function compararPorNome(a, b) {
+            const na = _dn(a.full_name) || '';
+            const nb = _dn(b.full_name) || '';
+            // Cadastro sem nome nao tem onde entrar no alfabeto: vai para o fim
+            // em vez de encabecar a lista.
+            if (!na !== !nb) return na ? -1 : 1;
+            return _collatorNome.compare(na, nb);
+        }
+        function ordenarPorNome(lista) {
+            return (lista || []).slice().sort(compararPorNome);
+        }
+
         // Converte um horario de parede entre fusos. Devolve { date, time, dayShift }:
         // a data entra no resultado porque a diferenca de fuso muda o dia com
         // frequencia (21h em Brasilia ja e o dia seguinte na Europa).
@@ -2936,10 +2954,12 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 let aVal, bVal;
 
                 switch (column) {
-                    case 'name':
-                        aVal = (_dn(a.full_name) || '').toLowerCase();
-                        bVal = (_dn(b.full_name) || '').toLowerCase();
-                        break;
+                    case 'name': {
+                        // Mesmo collator da ordem padrao, para o clique na
+                        // coluna concordar com o que a tela ja mostrava.
+                        const cmp = compararPorNome(a, b);
+                        return currentSortDirection === 'asc' ? cmp : -cmp;
+                    }
                     case 'email':
                         aVal = (a.email || '').toLowerCase();
                         bVal = (b.email || '').toLowerCase();
@@ -5459,7 +5479,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             // Reload students to get fresh fernando_interested values
             const { data: freshStudents } = await WardApp.db.from('users').select('id, full_name, email, role, fernando_interested').in('role', ['aluno', 'assessoria']);
             if (freshStudents) {
-                allStudents = freshStudents;
+                allStudents = ordenarPorNome(freshStudents);
                 loadFernandoInterested();
             }
 
