@@ -357,6 +357,12 @@ CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
                         <span style="background: rgba(59, 130, 246, 0.15); padding: 0.5rem; border-radius: 8px;">📋</span>
                         <span id="gen-title-label">Categorias</span> e Questões
                     </h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.85rem;">
+                        <button type="button" class="btn btn-primary btn-sm" onclick="carregarCronogramaPadrao()">
+                            📋 Usar o cronograma padrão da Ward
+                        </button>
+                        <span id="gen-padrao-info" style="color: #94a3b8; font-size: 0.8rem;"></span>
+                    </div>
                     <div class="form-group">
                         <label class="form-label" style="color: #94a3b8;" id="gen-data-label">Cole aqui os dados (separados por TAB): System → Category → Questions → Data de Início → Data de Fim → Aulas Recomendadas → ✓</label>
                         <textarea id="gen-data-input" class="form-textarea generator-input" rows="10" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; background: #0d1421; color: #f1f5f9; border: 1px solid #2d3a4f;" placeholder="System	Category	Questions	Data de Início	Data de Fim	Aulas Recomendadas	✓
@@ -426,6 +432,7 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
     </div>
 
     <script src="js/app.js"></script>
+    <script src="js/cronograma-padrao.js"></script>
     <script>
         let userData = null;
         let allStudents = [];
@@ -1346,15 +1353,49 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
         }
 
         // Parse input data for generator
+        // Preenche o campo com o cronograma padrao da Ward (js/cronograma-padrao.js).
+        // Serve tanto para montar um cronograma do zero quanto para recomecar um
+        // que saiu do prumo — por isso pede confirmacao se ja houver algo escrito.
+        function carregarCronogramaPadrao() {
+            if (typeof WardCronograma === 'undefined') {
+                WardApp.showToast('Cronograma padrão não carregou. Recarregue a página.', 'error');
+                return;
+            }
+            const campo = document.getElementById('gen-data-input');
+            if (campo.value.trim() && !confirm(
+                'Isso substitui o que está no campo pelo cronograma padrão da Ward '
+                + '(' + WardCronograma.PADRAO.length + ' blocos). Continuar?')) {
+                return;
+            }
+            campo.value = WardCronograma.comoTabela();
+            const info = document.getElementById('gen-padrao-info');
+            if (info) {
+                info.textContent = WardCronograma.PADRAO.length + ' blocos · '
+                    + WardCronograma.totalDeQuestoes().toLocaleString('pt-BR') + ' questões';
+            }
+            WardApp.showToast('Cronograma padrão carregado — agora é só gerar');
+        }
+
+        // A primeira linha so e cabecalho quando NAO parece dado. O teste antigo
+        // era "contem 'system' ou 'category'", e quase todo system do UWorld
+        // termina em "System" ("Cardiovascular System", "Nervous System"): ao
+        // atualizar o cronograma, o primeiro bloco pendente do aluno era lido
+        // como cabecalho e sumia a cada atualizacao.
+        function pareceCabecalho(linha) {
+            const parts = (linha || '').split('\t');
+            const questoes = parseInt((parts[2] || '').trim(), 10);
+            if (Number.isFinite(questoes) && questoes > 0) return false;   // tem questoes: e dado
+            const txt = (linha || '').toLowerCase();
+            return txt.includes('system') || txt.includes('category')
+                || txt.includes('subject') || txt.includes('quest');
+        }
+
         function parseGenInputData(text) {
             const lines = text.trim().split('\n');
             const data = [];
 
-            // Check if first line is header
-            let startIndex = 0;
-            if (lines.length > 0 && (lines[0].toLowerCase().includes('system') || lines[0].toLowerCase().includes('category'))) {
-                startIndex = 1;
-            }
+            // Pula a primeira linha so quando ela e mesmo cabecalho
+            const startIndex = (lines.length > 0 && pareceCabecalho(lines[0])) ? 1 : 0;
 
             for (let i = startIndex; i < lines.length; i++) {
                 if (!lines[i].trim()) continue;
