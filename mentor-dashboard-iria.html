@@ -723,15 +723,14 @@
             const { data: students, error } = await WardApp.db
                 .from('users')
                 .select('*')
-                .eq('role', 'aluno')
-                .order('full_name');
+                .eq('role', 'aluno');
 
             if (error) {
                 console.error('Error loading students:', error);
                 return;
             }
 
-            allStudents = students || [];
+            allStudents = ordenarPorNome(students);
 
             // Load all landmarks to count per mentor per student
             const { data: allLandmarks } = await WardApp.db
@@ -1470,6 +1469,24 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
         function _dn(name) {
             if (!name) return name;
             return WardApp._prs ? WardApp._prs(name) : name;
+        }
+
+        // Ordem alfabetica pelo nome que APARECE na tela. O full_name pode vir
+        // codificado do banco, entao ordenar pelo valor cru (inclusive com
+        // .order('full_name') no Supabase) devolvia uma ordem sem sentido para
+        // quem le. O collator de pt-BR ainda deixa o acento junto da letra sem
+        // acento — Alvaro cai entre Alice e Ana, nao depois de Zeca.
+        const _collatorNome = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
+        function compararPorNome(a, b) {
+            const na = _dn(a.full_name) || '';
+            const nb = _dn(b.full_name) || '';
+            // Cadastro sem nome nao tem onde entrar no alfabeto: vai para o fim
+            // em vez de encabecar a lista.
+            if (!na !== !nb) return na ? -1 : 1;
+            return _collatorNome.compare(na, nb);
+        }
+        function ordenarPorNome(lista) {
+            return (lista || []).slice().sort(compararPorNome);
         }
 
         // Converte um horario de parede entre fusos. Devolve { date, time, dayShift }:
