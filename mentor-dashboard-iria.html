@@ -54,7 +54,7 @@
                     </div>
                     <div style="text-align: center;">
                         <div style="font-size: 1.25rem; font-weight: 700; color: #fbbf24;" id="pending-calls">0</div>
-                        <div style="font-size: 0.7rem; color: rgba(255,255,255,0.7);">Calls</div>
+                        <div style="font-size: 0.7rem; color: rgba(255,255,255,0.7);">Calls feitas</div>
                     </div>
                     <div style="text-align: center;">
                         <div style="font-size: 1.25rem; font-weight: 700; color: #f87171;" id="urgent-landmarks">0</div>
@@ -639,26 +639,55 @@
                 return;
             }
 
+            // A lista de alunos e pre-requisito de quase tudo; o resto nao
+            // depende um do outro, entao vai junto em vez de um de cada vez.
             await loadStudents();
-            await ensureAllStudentsHaveLandmarks();
-            await loadScheduleStatus();
-            await loadScheduleDelays();
-            await loadPendingCalls();
-            await loadStudentOverview();
-            await loadGlobalFeed();
-            await loadDiaryPreference();
+            await Promise.all([
+                ensureAllStudentsHaveLandmarks(),
+                loadScheduleStatus(),
+                loadScheduleDelays(),
+                loadPendingCalls(),
+                loadStudentOverview(),
+                loadGlobalFeed(),
+                loadDiaryPreference()
+            ].map(p => Promise.resolve(p).catch(e => console.error('carga do dashboard', e))));
         });
+
+        // Busca todas as linhas de uma tabela para uma lista de alunos, em
+        // paginas de 1000 — que e o teto de linhas por resposta do Supabase.
+        // Sem isso, ou se faz uma consulta por aluno (dezenas de idas e voltas),
+        // ou a resposta vem cortada em silencio.
+        async function carregarEmPaginas(tabela, colunas, ids) {
+            if (!ids || !ids.length) return [];
+            const PAGINA = 1000;
+            const tudo = [];
+            for (let de = 0; ; de += PAGINA) {
+                const { data, error } = await WardApp.db
+                    .from(tabela)
+                    .select(colunas)
+                    .in('user_id', ids)
+                    .range(de, de + PAGINA - 1);
+                if (error) { console.error('carregarEmPaginas(' + tabela + ')', error); break; }
+                const linhas = data || [];
+                tudo.push(...linhas);
+                if (linhas.length < PAGINA) break;
+            }
+            return tudo;
+        }
 
         // Ensure all students have default landmarks
         async function ensureAllStudentsHaveLandmarks() {
-            for (const student of allStudents) {
-                const { data: existing } = await WardApp.db
-                    .from('landmarks')
-                    .select('id')
-                    .eq('user_id', student.id)
-                    .limit(1);
+            // Uma consulta so para saber quem ja tem chamada, em vez de uma por
+            // aluno: com 35 alunos eram 35 idas e voltas ANTES de a pagina
+            // comecar a montar o resto.
+            const ids = allStudents.map(s => s.id);
+            const existentes = await carregarEmPaginas('landmarks', 'user_id', ids);
+            const jaTem = new Set((existentes || []).map(l => l.user_id));
+            const semLandmarks = allStudents.filter(s => !jaTem.has(s.id));
+            if (!semLandmarks.length) return;
 
-                if (!existing || existing.length === 0) {
+            for (const student of semLandmarks) {
+                {
                     // Check if student wants research (from questionnaire step 9)
                     // Pesquisa e a chamada do Dr. Fernando ficam fora do roteiro
                     // padrao: quem libera e o Marcos, no dashboard dele.
@@ -734,14 +763,16 @@
         async function updateStats() {
             document.getElementById('total-students').textContent = allStudents.length;
 
-            // Count pending calls (landmarks not completed)
-            const { data: pendingCalls } = await WardApp.db
-                .from('landmarks')
-                .select('id')
-                .eq('completed', false)
-                .in('group_name', ['imersao', 'seguimento', 'prova', 'pesquisa', 'fernando']);
+            // Chamadas que ESTA mentora ja realizou — o registro dela, nao a
+            // contagem de tudo que existe para agendar na plataforma.
+            const feitas = await WardApp.db
+                .from('scheduled_calls')
+                .select('id', { count: 'exact', head: true })
+                .eq('mentor_id', userData.id)
+                .eq('status', 'completed');
 
-            document.getElementById('pending-calls').textContent = pendingCalls?.length || 0;
+            document.getElementById('pending-calls').textContent =
+                (feitas.count != null ? feitas.count : (feitas.data?.length || 0));
 
             // Count urgent landmarks
             const { data: urgentLandmarks } = await WardApp.db
@@ -2649,12 +2680,17 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
-            // Query schedules per student (avoids API overload and row limit issues)
-            const studentStatus = await Promise.all(allStudents.map(async (student) => {
-                const { data: studentSchedules } = await WardApp.db
-                    .from('schedules')
-                    .select('end_date, completed, system, category')
-                    .eq('user_id', student.id);
+            // Um unico carregamento paginado no lugar de uma consulta por aluno.
+            const ids = allStudents.map(s => s.id);
+            const todosOsBlocos = await carregarEmPaginas(
+                'schedules', 'user_id, end_date, completed, system, category', ids);
+            const blocosPorAluno = {};
+            todosOsBlocos.forEach(b => {
+                (blocosPorAluno[b.user_id] = blocosPorAluno[b.user_id] || []).push(b);
+            });
+
+            const studentStatus = allStudents.map((student) => {
+                const studentSchedules = blocosPorAluno[student.id] || [];
 
                 if (!studentSchedules || studentSchedules.length === 0) {
                     return {
@@ -2697,7 +2733,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                         end_date: item.end_date
                     }))
                 };
-            }));
+            });
 
             // Sort: overdue first, then no schedule, then on track
             const sorted = studentStatus.sort((a, b) => {
