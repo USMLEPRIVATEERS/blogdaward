@@ -62,7 +62,7 @@
                     </div>
                     <div style="text-align: center;">
                         <div style="font-size: 1.25rem; font-weight: 700; color: #fbbf24;" id="pending-calls">0</div>
-                        <div style="font-size: 0.7rem; color: rgba(255,255,255,0.7);">Calls</div>
+                        <div style="font-size: 0.7rem; color: rgba(255,255,255,0.7);">Calls feitas</div>
                     </div>
                     <div style="text-align: center;">
                         <div style="font-size: 1.25rem; font-weight: 700; color: #60a5fa;" id="blog-posts">0</div>
@@ -372,6 +372,23 @@
             <div class="card-body">
                 <div id="pending-landmarks-list" style="max-height: 600px; overflow-y: auto;">
                     <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Observacoes deixadas nas chamadas, de qualquer mentor -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-between align-center">
+                <span>📝 Observações nas chamadas <span id="obs-contador" class="text-muted" style="font-size: 0.8rem; font-weight: normal;"></span></span>
+                <button class="btn btn-secondary btn-sm" onclick="mostrarObsConferidas()">👁️ Ver conferidas</button>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3" style="font-size: 0.9rem;">
+                    Toda observação deixada em qualquer chamada, de qualquer mentor. Fale com o aluno no
+                    WhatsApp para garantir que ele (ou o mentor) viu, e marque como conferida.
+                </p>
+                <div id="observacoes-list" style="max-height: 520px; overflow-y: auto;">
+                    <!-- Preenchido por JS -->
                 </div>
             </div>
         </div>
@@ -958,7 +975,10 @@ Cardiovascular	Physiology	62	FALSE
             // Load all stats in parallel
             const [studentsRes, callsRes, postsRes, projectsRes, linksRes] = await Promise.all([
                 WardApp.db.from('users').select('*').in('role', ['aluno', 'assessoria']),
-                WardApp.db.from('landmarks').select('id').eq('completed', false).in('group_name', ['imersao', 'seguimento', 'prova', 'pesquisa', 'fernando']),
+                // Chamadas que ESTE mentor ja realizou — o registro dele, nao
+                // a contagem de tudo que existe para agendar.
+                WardApp.db.from('scheduled_calls').select('id', { count: 'exact', head: true })
+                    .eq('mentor_id', userData.id).eq('status', 'completed'),
                 WardApp.db.from('blog_posts').select('id'),
                 WardApp.db.from('research_projects').select('id'),
                 WardApp.db.from('links_repository').select('id')
@@ -969,7 +989,8 @@ Cardiovascular	Physiology	62	FALSE
 
             document.getElementById('total-students').textContent = allStudents.length;
             document.getElementById('completed-questionnaires').textContent = completedQuestionnaires;
-            document.getElementById('pending-calls').textContent = callsRes.data?.length || 0;
+            document.getElementById('pending-calls').textContent =
+                (callsRes.count != null ? callsRes.count : (callsRes.data?.length || 0));
             document.getElementById('blog-posts').textContent = postsRes.data?.length || 0;
             document.getElementById('research-projects').textContent = projectsRes.data?.length || 0;
             document.getElementById('total-links').textContent = linksRes.data?.length || 0;
@@ -977,12 +998,137 @@ Cardiovascular	Physiology	62	FALSE
             loadFernandoInterested();
             loadPesquisaLiberada();
 
-            await loadGlobalFeed();
+            // O status do cronograma tem de terminar antes da tabela de alunos
+            // (ele preenche studentsWithoutSchedule); o resto nao depende de
+            // nada e vai junto.
+            const emParalelo = Promise.all([
+                loadGlobalFeed(),
+                loadPendingCalls(),
+                loadScheduleDelays(),
+                loadNetworkingRequests(),
+                loadObservacoes()
+            ].map(p => Promise.resolve(p).catch(e => console.error('carga do dashboard', e))));
             await loadScheduleStatus(); // Must run before renderStudentsTable to populate studentsWithoutSchedule
             await renderStudentsTable();
-            await loadPendingCalls();
-            await loadScheduleDelays();
-            await loadNetworkingRequests();
+            await emParalelo;
+        }
+
+        // Escapa o texto que vem do banco antes de virar HTML: observacao de
+        // aluno e texto livre.
+        function escapeHtml(t) {
+            return String(t == null ? '' : t).replace(/[&<>"']/g, c =>
+                ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        // ===== Observacoes deixadas nas chamadas =====
+        // Qualquer mentor (ou o proprio aluno) pode deixar observacao numa
+        // chamada. Elas ficam em landmarks.notes e ninguem era avisado: e o
+        // Marcos quem cobra no WhatsApp, entao aparecem aqui.
+        let obsConferidas = new Set(JSON.parse(localStorage.getItem('obs_conferidas') || '[]'));
+        let obsMostrarConferidas = false;
+        let obsCache = [];
+
+        async function loadObservacoes() {
+            const ids = allStudents.map(s => s.id);
+            if (!ids.length) return;
+
+            // Tenta filtrar no servidor; se o filtro em coluna JSON nao passar,
+            // busca tudo e filtra aqui — o resultado na tela e o mesmo.
+            let linhas = null;
+            const tentativa = await WardApp.db
+                .from('landmarks')
+                .select('id, user_id, title, notes, updated_at')
+                .in('user_id', ids.slice(0, 200))
+                .neq('notes', '[]');
+            if (!tentativa.error) linhas = tentativa.data || [];
+            if (linhas === null) {
+                linhas = await fetchAllRows('landmarks', 'id, user_id, title, notes, updated_at', ids) || [];
+            }
+
+            const porAluno = {};
+            allStudents.forEach(a => { porAluno[a.id] = a; });
+
+            obsCache = [];
+            linhas.forEach(lm => {
+                const notas = Array.isArray(lm.notes) ? lm.notes : [];
+                if (!notas.length) return;
+                const ultima = notas[notas.length - 1] || {};
+                const aluno = porAluno[lm.user_id];
+                if (!aluno) return;
+                obsCache.push({
+                    chave: lm.id + '|' + (ultima.date || ''),
+                    aluno: _dn(aluno.full_name) || aluno.email || 'Aluno',
+                    telefone: (aluno.phone || '').replace(/\D/g, ''),
+                    titulo: lm.title || 'Chamada',
+                    mentor: WardRoteiro.mentorDoTitulo(lm.title || '') || '',
+                    texto: ultima.text || '',
+                    autor: ultima.author || '',
+                    data: ultima.date || lm.updated_at || '',
+                    anteriores: notas.length - 1
+                });
+            });
+
+            obsCache.sort((a, b) => String(b.data).localeCompare(String(a.data)));
+            renderObservacoes();
+        }
+
+        function renderObservacoes() {
+            const container = document.getElementById('observacoes-list');
+            if (!container) return;
+            const lista = obsCache.filter(o => obsMostrarConferidas || !obsConferidas.has(o.chave));
+            const pendentes = obsCache.filter(o => !obsConferidas.has(o.chave)).length;
+
+            const contador = document.getElementById('obs-contador');
+            if (contador) contador.textContent = pendentes ? `(${pendentes} para conferir)` : '(tudo conferido)';
+
+            if (!lista.length) {
+                container.innerHTML = '<p class="text-muted">' +
+                    (obsCache.length ? 'Todas as observações já foram conferidas.' : 'Nenhuma observação nas chamadas.') +
+                    '</p>';
+                return;
+            }
+
+            container.innerHTML = lista.map(o => {
+                const quando = o.data ? new Date(o.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+                const conferida = obsConferidas.has(o.chave);
+                const msg = encodeURIComponent(
+                    `Oi ${o.aluno}! Passando para garantir que você viu a observação da chamada "${o.titulo}": ${o.texto}`);
+                const zap = o.telefone
+                    ? `<a class="btn btn-sm" style="background: linear-gradient(135deg, #25D366 0%, #128C7E 100%); color: #fff;" target="_blank" rel="noopener" href="https://wa.me/${o.telefone}?text=${msg}">💬 WhatsApp</a>`
+                    : '<span class="text-muted" style="font-size: 0.78rem;">sem telefone cadastrado</span>';
+                return `
+                    <div style="border: 1px solid var(--gray-200); border-left: 4px solid ${conferida ? 'var(--gray-300)' : 'var(--accent-orange, #C45700)'}; border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 0.75rem; background: ${conferida ? 'var(--gray-50)' : '#fff'};">
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: space-between; align-items: baseline;">
+                            <strong>${escapeHtml(o.aluno)}</strong>
+                            <span class="text-muted" style="font-size: 0.78rem;">${quando}</span>
+                        </div>
+                        <div style="font-size: 0.85rem; color: var(--gray-600); margin: 0.15rem 0 0.5rem;">${escapeHtml(o.titulo)}</div>
+                        <div style="background: var(--gray-50); border-radius: 8px; padding: 0.6rem 0.75rem; font-size: 0.9rem;">
+                            ${escapeHtml(o.texto)}
+                            ${o.anteriores > 0 ? `<div class="text-muted" style="font-size: 0.75rem; margin-top: 0.35rem;">+ ${o.anteriores} observação(ões) anterior(es) nesta chamada</div>` : ''}
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.6rem;">
+                            <span class="text-muted" style="font-size: 0.78rem;">por ${escapeHtml(o.autor || 'alguém')}</span>
+                            <span style="flex: 1;"></span>
+                            ${zap}
+                            <button class="btn btn-outline btn-sm" onclick="marcarObsConferida('${o.chave}')">
+                                ${conferida ? '↩️ Desmarcar' : '✓ Conferida'}
+                            </button>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function marcarObsConferida(chave) {
+            if (obsConferidas.has(chave)) obsConferidas.delete(chave);
+            else obsConferidas.add(chave);
+            localStorage.setItem('obs_conferidas', JSON.stringify([...obsConferidas]));
+            renderObservacoes();
+        }
+
+        function mostrarObsConferidas() {
+            obsMostrarConferidas = !obsMostrarConferidas;
+            renderObservacoes();
         }
 
         async function loadScheduleStatus() {
@@ -1005,12 +1151,20 @@ Cardiovascular	Physiology	62	FALSE
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
-            // Query schedules per student (avoids API overload and row limit issues)
-            const studentStatus = await Promise.all(allStudents.map(async (student) => {
-                const { data: studentSchedules } = await WardApp.db
-                    .from('schedules')
-                    .select('end_date, completed, system, category')
-                    .eq('user_id', student.id);
+            // Uma carga unica e paginada no lugar de uma consulta por aluno:
+            // com dezenas de alunos eram dezenas de idas e voltas so para
+            // montar este painel. fetchAllRows ja pagina e respeita o teto de
+            // linhas do Supabase.
+            const idsDosAlunos = allStudents.map(s => s.id);
+            const todosOsBlocos = await fetchAllRows(
+                'schedules', 'user_id, end_date, completed, system, category', idsDosAlunos) || [];
+            const blocosPorAluno = {};
+            todosOsBlocos.forEach(b => {
+                (blocosPorAluno[b.user_id] = blocosPorAluno[b.user_id] || []).push(b);
+            });
+
+            const studentStatus = allStudents.map((student) => {
+                const studentSchedules = blocosPorAluno[student.id] || [];
 
                 if (!studentSchedules || studentSchedules.length === 0) {
                     return {
@@ -1053,7 +1207,7 @@ Cardiovascular	Physiology	62	FALSE
                         end_date: item.end_date
                     }))
                 };
-            }));
+            });
 
             // Populate global set of students without schedule (for use in renderStudentsTable)
             studentsWithoutSchedule.clear();
