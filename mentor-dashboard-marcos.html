@@ -316,6 +316,9 @@
                             <th onclick="sortStudentsBy('checkin')" style="cursor: pointer; user-select: none;">
                                 Último Check-in <span id="sort-icon-checkin" style="opacity: 0.3;">▼</span>
                             </th>
+                            <th onclick="sortStudentsBy('mentoria')" style="cursor: pointer; user-select: none; min-width: 150px;" title="Tempo de mentoria: quem vence antes aparece primeiro">
+                                Mentoria <span id="sort-icon-mentoria" style="opacity: 0.3;">▼</span>
+                            </th>
                             <th>Ações</th>
                         </tr>
                     </thead>
@@ -795,6 +798,23 @@ Cardiovascular	Physiology	62	FALSE
         </div>
     </div>
 
+    <!-- Mentoria: tempo de acesso e renovacao -->
+    <div id="mentoria-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 520px;">
+            <div class="modal-header">
+                <h3 class="modal-title">🎓 Tempo de mentoria</h3>
+                <button class="modal-close" onclick="closeModal('mentoria-modal')">&times;</button>
+            </div>
+            <div class="modal-body" id="mentoria-modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <!-- Filled by JS -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('mentoria-modal')">Fechar</button>
+                <button class="btn btn-primary" id="mentoria-renovar-btn" onclick="renovarMentoria()">🔄 Renovar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Other Mentors Calls Modal -->
     <div id="other-mentors-calls-modal" class="modal-overlay">
         <div class="modal" style="max-width: 800px;">
@@ -920,6 +940,7 @@ Cardiovascular	Physiology	62	FALSE
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script src="js/timezone-detect.js"></script>
     <script src="js/roteiro-chamadas.js"></script>
+    <script src="js/mentoria-acesso.js"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -2936,7 +2957,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             }
 
             // Update sort icons
-            ['name', 'email', 'questionnaire', 'schedule', 'checkin'].forEach(col => {
+            ['name', 'email', 'questionnaire', 'schedule', 'checkin', 'mentoria'].forEach(col => {
                 const icon = document.getElementById(`sort-icon-${col}`);
                 if (icon) {
                     if (col === column) {
@@ -2980,6 +3001,12 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                         aVal = lastCheckinMap[a.id] ? new Date(lastCheckinMap[a.id]).getTime() : 0;
                         bVal = lastCheckinMap[b.id] ? new Date(lastCheckinMap[b.id]).getTime() : 0;
                         break;
+                    case 'mentoria':
+                        // Crescente = quem vence antes primeiro. Acesso
+                        // permanente e quem nao se aplica vao para o fim.
+                        aVal = ordemDaMentoria(a);
+                        bVal = ordemDaMentoria(b);
+                        break;
                 }
 
                 if (currentSortDirection === 'asc') {
@@ -2990,6 +3017,160 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             });
 
             renderStudentsTable();
+        }
+
+        // =====================================================
+        // TEMPO DE MENTORIA
+        // Quem entrou antes de junho de 2026 tem acesso permanente; de la para
+        // ca, cada pagamento compra 18 meses. A regra inteira esta em
+        // js/mentoria-acesso.js (o dashboard da Iria le a mesma coisa); aqui so
+        // mora o que e desta tela: a celula, a ordenacao e a renovacao.
+        // =====================================================
+
+        // Chave de ordenacao: crescente = quem vence primeiro no topo. Acesso
+        // permanente e quem nao e aluno de mentoria ficam no fim, sempre.
+        function ordemDaMentoria(aluno) {
+            if (!window.WardMentoria) return Number.MAX_SAFE_INTEGER;
+            const sit = WardMentoria.situacao(aluno);
+            if (sit.estado === 'nao-aplica') return Number.MAX_SAFE_INTEGER;
+            if (sit.estado === 'sem-data') return Number.MAX_SAFE_INTEGER - 2;
+            if (sit.vitalicia) return Number.MAX_SAFE_INTEGER - 1;
+            return sit.diasRestantes;
+        }
+
+        const COR_DA_MENTORIA = {
+            vitalicia: '#5b21b6', ativa: '#065f46', vencendo: '#92400e',
+            vencida: '#991b1b', 'sem-data': '#6b7280', 'nao-aplica': '#9ca3af'
+        };
+
+        function celulaDaMentoria(aluno) {
+            if (!window.WardMentoria) return '<span class="text-muted">—</span>';
+            const sit = WardMentoria.situacao(aluno);
+            if (sit.estado === 'nao-aplica') {
+                return '<span class="text-muted" style="font-size: 0.75rem;">assessoria avulsa</span>';
+            }
+            if (sit.estado === 'sem-data') {
+                return '<span class="text-muted" style="font-size: 0.75rem;">sem data de início</span>';
+            }
+            const cor = COR_DA_MENTORIA[sit.estado] || '#374151';
+            const renovar = sit.vitalicia ? '' :
+                `<button class="btn btn-xs btn-outline" onclick="abrirMentoria(${aluno.id})" style="margin-top: 0.3rem;">🔄 Renovar</button>`;
+            // O cabecalho da coluna ja diz "Mentoria", entao a segunda linha e
+            // so o tempo. Sem nowrap: espremida contra a coluna de Acoes, ela
+            // passava por baixo dos botoes.
+            return `
+                <div style="font-size: 0.78rem; font-weight: 700; color: ${cor}; white-space: nowrap;">${escapeHtml(sit.rotulo)}</div>
+                <div style="font-size: 0.7rem; color: #6b7280;">há ${escapeHtml(sit.tempoNaMentoria)}</div>
+                ${renovar}
+            `;
+        }
+
+        let alunoDaMentoria = null;
+
+        function abrirMentoria(studentId) {
+            const aluno = allStudents.find(a => a.id === studentId);
+            if (!aluno) return;
+            alunoDaMentoria = aluno;
+            renderMentoriaModal();
+            openModal('mentoria-modal');
+        }
+
+        function renderMentoriaModal() {
+            const aluno = alunoDaMentoria;
+            const corpo = document.getElementById('mentoria-modal-body');
+            const rodape = document.getElementById('mentoria-renovar-btn');
+            if (!aluno || !corpo) return;
+
+            const sit = WardMentoria.situacao(aluno);
+            const cor = COR_DA_MENTORIA[sit.estado] || '#374151';
+            const novoFim = WardMentoria.fimAposRenovar(sit);
+
+            const linha = (rotulo, valor) => `
+                <div style="display: flex; justify-content: space-between; gap: 1rem; padding: 0.5rem 0; border-bottom: 1px solid var(--gray-200);">
+                    <span style="color: #6b7280; font-size: 0.85rem;">${rotulo}</span>
+                    <span style="font-weight: 600; font-size: 0.9rem; text-align: right;">${valor}</span>
+                </div>`;
+
+            const historico = sit.renovacoes.length
+                ? sit.renovacoes.slice().reverse().map(r => `
+                    <li style="font-size: 0.82rem; color: #374151; margin-bottom: 0.3rem;">
+                        ${escapeHtml(WardMentoria.formataData(r.data))} — mais ${escapeHtml(String(r.meses || 18))} meses,
+                        até ${escapeHtml(WardMentoria.formataData(r.ate))}${r.por ? ' · ' + escapeHtml(r.por) : ''}
+                    </li>`).join('')
+                : '<li style="font-size: 0.82rem; color: #9ca3af;">Nenhuma renovação marcada ainda.</li>';
+
+            corpo.innerHTML = `
+                <div style="margin-bottom: 1rem;">
+                    <div style="font-size: 1.05rem; font-weight: 700;">${escapeHtml(_dn(aluno.full_name) || aluno.email || 'Aluno')}</div>
+                    <div style="font-size: 0.82rem; color: #6b7280;">${escapeHtml(aluno.email || '')}</div>
+                </div>
+                <div style="background: #f9fafb; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem;">
+                    <div style="font-size: 1.1rem; font-weight: 700; color: ${cor};">${escapeHtml(sit.rotulo)}</div>
+                </div>
+                ${linha('Início da mentoria', escapeHtml(WardMentoria.formataData(sit.inicio)))}
+                ${linha('Na mentoria há', escapeHtml(sit.tempoNaMentoria))}
+                ${linha('Acesso até', sit.vitalicia ? 'não vence' : escapeHtml(WardMentoria.formataData(sit.fim)))}
+                <h4 style="margin: 1.25rem 0 0.5rem; font-size: 0.95rem;">🔄 Renovações</h4>
+                <ul style="margin: 0; padding-left: 1.1rem;">${historico}</ul>
+                ${sit.vitalicia ? `
+                    <p style="margin-top: 1.25rem; font-size: 0.85rem; color: #5b21b6; background: #ede9fe; padding: 0.75rem; border-radius: 8px;">
+                        Cadastro anterior a 01/06/2026: o acesso é permanente e não precisa de renovação.
+                    </p>` : `
+                    <p style="margin-top: 1.25rem; font-size: 0.85rem; color: #6b7280;">
+                        Marcar a renovação soma ${WardMentoria.MESES_POR_PAGAMENTO} meses: o acesso passa a valer até
+                        <strong>${escapeHtml(WardMentoria.formataData(novoFim))}</strong>.
+                        ${sit.estado === 'vencida'
+                            ? 'Como o prazo já venceu, os meses contam a partir de hoje.'
+                            : 'Os meses entram em cima do prazo atual, então nada do que ele já pagou se perde.'}
+                    </p>`}
+            `;
+
+            if (rodape) {
+                rodape.style.display = sit.vitalicia ? 'none' : '';
+                rodape.disabled = false;
+                rodape.textContent = `🔄 Renovar até ${WardMentoria.formataData(novoFim)}`;
+            }
+        }
+
+        async function renovarMentoria() {
+            const aluno = alunoDaMentoria;
+            const botao = document.getElementById('mentoria-renovar-btn');
+            if (!aluno) return;
+
+            const renovacao = WardMentoria.dadosDaRenovacao(aluno, _dn(userData?.full_name) || 'Marcos');
+            if (!renovacao) {
+                WardApp.showToast('Este aluno tem acesso permanente, não há o que renovar', 'warning');
+                return;
+            }
+
+            const nome = _dn(aluno.full_name) || aluno.email;
+            const confirmado = confirm(
+                `Marcar a renovação de ${nome} por mais ${WardMentoria.MESES_POR_PAGAMENTO} meses?\n\n` +
+                `O acesso passa a valer até ${WardMentoria.formataData(renovacao.novoFim)}.`);
+            if (!confirmado) return;
+
+            if (botao) { botao.disabled = true; botao.textContent = 'Salvando...'; }
+            const { error } = await WardApp.db.from('users')
+                .update(renovacao.campos).eq('id', aluno.id);
+
+            if (error) {
+                if (botao) botao.disabled = false;
+                renderMentoriaModal();
+                // Enquanto o SQL nao for rodado as colunas nao existem e o banco
+                // responde com um erro cru. Melhor dizer o que falta fazer.
+                const texto = error.message || JSON.stringify(error);
+                const faltaColuna = /mentoria_/.test(texto) && /column|coluna/i.test(texto);
+                WardApp.showToast(faltaColuna
+                    ? 'Falta rodar sql/81_mentoria_acesso.sql no Supabase para guardar a renovação'
+                    : 'Erro ao renovar: ' + texto, 'error');
+                return;
+            }
+
+            // Espelha no objeto em memoria para a tabela nao precisar recarregar.
+            Object.assign(aluno, renovacao.campos);
+            renderMentoriaModal();
+            await renderStudentsTable();
+            WardApp.showToast(`Renovado até ${WardMentoria.formataData(renovacao.novoFim)}`);
         }
 
         function getProgressColor(percentage) {
@@ -3082,6 +3263,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                                 : '<span class="text-muted">Nunca</span>'
                             }
                         </td>
+                        <td style="min-width: 150px;">${celulaDaMentoria(student)}</td>
                         <td>
                             <button class="btn btn-xs btn-outline" onclick="viewStudent(${student.id})">Ver</button>
                             <button class="btn btn-xs btn-outline" onclick="viewCheckIns(${student.id}, '${decryptedName.replace(/'/g, "\\'")}')">📊 Check-ins</button>
@@ -3099,7 +3281,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             if (regularStudents.length > 0) {
                 html += `
                     <tr class="group-header">
-                        <td colspan="6" style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; font-weight: 700; padding: 0.75rem 1rem; font-size: 1rem;">
+                        <td colspan="7" style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; font-weight: 700; padding: 0.75rem 1rem; font-size: 1rem;">
                             🎓 Alunos (${regularStudents.length})
                         </td>
                     </tr>
@@ -3112,7 +3294,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 const showAssessoria = document.getElementById('toggle-assessoria')?.checked;
                 html += `
                     <tr class="group-header assessoria-table-row" style="${showAssessoria ? '' : 'display: none;'}">
-                        <td colspan="6" style="background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%); color: white; font-weight: 700; padding: 0.75rem 1rem; font-size: 1rem;">
+                        <td colspan="7" style="background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%); color: white; font-weight: 700; padding: 0.75rem 1rem; font-size: 1rem;">
                             📋 Assessoria Avulsa (${assessoriaStudents.length})
                         </td>
                     </tr>
@@ -3125,7 +3307,7 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
 
             // If no students
             if (regularStudents.length === 0 && assessoriaStudents.length === 0) {
-                html = '<tr><td colspan="6" class="text-muted text-center">Nenhum aluno encontrado</td></tr>';
+                html = '<tr><td colspan="7" class="text-muted text-center">Nenhum aluno encontrado</td></tr>';
             }
 
             tbody.innerHTML = html;
@@ -3990,8 +4172,14 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
         }
 
         function exportStudents() {
-            const csv = 'Nome\tEmail\tQuestionario\tRole\n' +
-                allStudents.map(s => `${_dn(s.full_name) || ''}\t${s.email}\t${s.questionnaire_completed ? 'Completo' : 'Pendente'}\t${s.role}`).join('\n');
+            const csv = 'Nome\tEmail\tQuestionario\tRole\tInicio da mentoria\tNa mentoria ha\tAcesso ate\tSituacao\n' +
+                allStudents.map(s => {
+                    const m = window.WardMentoria ? WardMentoria.situacao(s) : null;
+                    const inicio = m && m.inicio ? WardMentoria.formataData(m.inicio) : '';
+                    const ate = m && m.vitalicia ? 'permanente' : (m && m.fim ? WardMentoria.formataData(m.fim) : '');
+                    return `${_dn(s.full_name) || ''}\t${s.email}\t${s.questionnaire_completed ? 'Completo' : 'Pendente'}\t${s.role}`
+                        + `\t${inicio}\t${m ? m.tempoNaMentoria : ''}\t${ate}\t${m ? m.rotulo : ''}`;
+                }).join('\n');
 
             const blob = new Blob([csv], { type: 'text/tab-separated-values' });
             const url = URL.createObjectURL(blob);
