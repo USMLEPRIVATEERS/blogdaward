@@ -165,6 +165,13 @@
                                 <span id="schedule-status-badge" class="cronograma-badge">carregando...</span>
                                 <button class="btn btn-outline btn-sm" onclick="verDiarioUWorld()">📊 Diário UWorld do aluno</button>
                             </div>
+                            <!-- Ha quanto tempo o aluno esta na mentoria e quanto
+                                 falta do acesso que ele pagou. -->
+                            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 0.6rem;">
+                                <span style="font-size: 0.85rem; color: var(--gray-500);">Mentoria</span>
+                                <span id="mentoria-badge" class="cronograma-badge">carregando...</span>
+                                <span id="mentoria-detalhe" style="font-size: 0.8rem; color: var(--gray-500);"></span>
+                            </div>
                         </div>
 
                         <!-- Timeline -->
@@ -591,6 +598,7 @@
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script src="js/timezone-detect.js"></script>
     <script src="js/roteiro-chamadas.js"></script>
+    <script src="js/mentoria-acesso.js"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -862,11 +870,26 @@
             // secao "Status do Cronograma" — item com end_date ja vencido e nao
             // concluido conta como atraso (a pessoa tem ate 23:59 do dia).
             await renderCronogramaBadge(studentId);
+            renderMentoriaBadge(selectedStudent);
 
             // Load timeline
             await loadStudentTimeline(studentId);
 
             renderStudents();
+        }
+
+        // Tempo de mentoria do aluno selecionado. A regra toda (quem tem acesso
+        // permanente, quantos meses cada pagamento compra) mora em
+        // js/mentoria-acesso.js, que o dashboard do Marcos usa tambem.
+        function renderMentoriaBadge(aluno) {
+            const badge = document.getElementById('mentoria-badge');
+            const detalhe = document.getElementById('mentoria-detalhe');
+            if (!badge || !detalhe || !window.WardMentoria) return;
+
+            const sit = WardMentoria.situacao(aluno);
+            badge.className = 'cronograma-badge ' + WardMentoria.classeDoEstado(sit.estado);
+            badge.textContent = sit.rotulo;
+            detalhe.textContent = sit.estado === 'nao-aplica' ? 'assessoria avulsa' : sit.detalhe;
         }
 
         async function renderCronogramaBadge(studentId) {
@@ -4268,6 +4291,12 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
         .cronograma-badge.is-em-dia { background: #d1fae5; color: #065f46; }
         .cronograma-badge.is-atrasado { background: #fee2e2; color: #991b1b; }
         .cronograma-badge.is-neutro { background: #f3f4f6; color: #6b7280; }
+        /* Tempo de mentoria: verde enquanto ha folga, ambar quando esta perto
+           do fim, vermelho quando venceu, roxo para o acesso permanente. */
+        .cronograma-badge.is-ativa { background: #d1fae5; color: #065f46; }
+        .cronograma-badge.is-vencendo { background: #fef3c7; color: #92400e; }
+        .cronograma-badge.is-vencida { background: #fee2e2; color: #991b1b; }
+        .cronograma-badge.is-vitalicia { background: #ede9fe; color: #5b21b6; }
 
         /* Linhas e cartoes da ficha do aluno que abrem um detalhe ao clique */
         .ficha-clicavel {
