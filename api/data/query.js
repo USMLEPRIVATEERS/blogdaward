@@ -6,7 +6,10 @@ const { verifyAuth, verifyAdmin } = require('../_lib/auth');
 // =============================================
 const USER_SELF_UPDATE_COLUMNS = [
   'diaries_enabled', 'full_name', 'timezone',
-  'first_login_completed', 'questionnaire_step'
+  'first_login_completed', 'questionnaire_step',
+  // O aluno preenche a propria data de nascimento, pelo questionario ou pela
+  // janela do dashboard.
+  'birth_date'
 ];
 
 // =============================================
@@ -25,12 +28,45 @@ const ADMIN_WRITE_TABLES = [
 ];
 
 // =============================================
+// SECURITY: Parceiro externo (Dr. Andre Donato)
+//
+// Nao e mentor: nao pode herdar o isAdmin, que libera leitura de tudo e
+// escrita em `users`. Ele so enxerga os alunos que o Marcos liberou
+// (users.donato_liberado), e so nas tabelas abaixo. O recorte e feito aqui no
+// servidor, nao na tela — o filtro e injetado em TODA consulta dele.
+//
+// Chave = tabela permitida; valor = coluna que diz de quem e a linha.
+// =============================================
+const PARCEIRO_ROLES = ['parceiro_donato'];
+
+const PARCEIRO_TABLES = {
+  users: 'id',
+  donato_intake: 'user_id',
+  landmarks: 'user_id',
+  scheduled_calls: 'student_id',
+  call_reports: 'student_id',
+  user_preparation_status: 'user_id'
+};
+
+// O que ele pode ESCREVER, e em que tabelas. Fora disso, so leitura.
+// Ele registra a conversa (call_reports) e marca a chamada dele como feita
+// (landmarks). Nunca escreve em `users` nem no formulario do aluno.
+const PARCEIRO_WRITE_TABLES = ['call_reports', 'landmarks'];
+
+// =============================================
 // SECURITY: Columns that are NEVER returned in responses
 // =============================================
 const BLOCKED_COLUMNS = ['password_hash'];
 
 // Extra columns blocked for non-admin users
 const NON_ADMIN_BLOCKED_COLUMNS = ['password_hash', 'cpf'];
+
+// O parceiro externo tambem nao recebe contato direto nem dado de acesso do
+// aluno: a conversa dele passa pela Ward.
+const PARCEIRO_BLOCKED_COLUMNS = [
+  'password_hash', 'cpf', 'phone', 'whatsapp', 'email', 'auth_id',
+  'reset_token', 'reset_token_expires'
+];
 
 // =============================================
 // SECURITY: Tables where non-admin users can only access their own rows
@@ -53,7 +89,9 @@ const USER_SCOPED_TABLES = [
   // Progressão: se um aluno acessar, só enxerga os próprios dados (mentores veem tudo)
   'student_assessment_scores', 'student_bureaucracy',
   // Criar Teste: cada aluno só enxerga a própria lista de questões usadas
-  'qbank_used_questions'
+  'qbank_used_questions',
+  // Fellow e Alternate: o formulario de pre-chamada e de cada aluno
+  'donato_intake'
 ];
 
 // =============================================
@@ -81,6 +119,7 @@ const OWNER_COLUMN = {
   assessment_enrollments: 'student_id', mentor_student_tasks: 'student_id',
   student_assessment_scores: 'user_id', student_bureaucracy: 'user_id',
   qbank_used_questions: 'user_id',
+  donato_intake: 'user_id',
 };
 
 // Operators that can widen scope past an enforced equality; rejected on
@@ -149,6 +188,15 @@ function stripSensitiveColumns(data, extraCols) {
 // =============================================
 // SECURITY: Check if filters already contain a user_id restriction
 // =============================================
+// Normaliza o `data` de um write para uma lista de linhas, so para conferir
+// de quem e cada linha antes de gravar.
+function sanitizedDataPreview(data) {
+  if (!data) return [];
+  const d = typeof data === 'string' ? (() => { try { return JSON.parse(data); } catch (e) { return null; } })() : data;
+  if (!d) return [];
+  return Array.isArray(d) ? d : [d];
+}
+
 function hasUserIdFilter(filters) {
   if (!filters || !Array.isArray(filters)) return false;
   return filters.some(f => f.col === 'user_id' && f.type === 'eq');
@@ -179,7 +227,53 @@ module.exports = async function handler(req, res) {
     }
 
     const isAdmin = auth.role && auth.role.startsWith('mentor_');
+    const isParceiro = PARCEIRO_ROLES.includes(auth.role);
     const userId = auth.uid;
+
+    // =============================================
+    // SECURITY: Parceiro externo — recorte por aluno liberado
+    // =============================================
+    if (isParceiro) {
+      const parceiroCol = PARCEIRO_TABLES[table];
+      if (!parceiroCol) {
+        return res.status(403).json({ error: 'Table not allowed for this role' });
+      }
+      if (action === 'delete') {
+        return res.status(403).json({ error: 'Not allowed for this role' });
+      }
+      if (action !== 'select' && !PARCEIRO_WRITE_TABLES.includes(table)) {
+        return res.status(403).json({ error: 'Read-only for this role' });
+      }
+      // Operadores que poderiam alargar o recorte depois de injetado.
+      if (Array.isArray(filters) && filters.some(f => SCOPE_WIDENING_OPS.includes(f.type))) {
+        return res.status(403).json({ error: 'Operator not allowed for this role' });
+      }
+
+      const db = getSupabase();
+      const { data: liberados, error: libErr } = await db
+        .from('users').select('id').eq('donato_liberado', true);
+      if (libErr) {
+        console.error('Parceiro scope error:', libErr);
+        return res.status(500).json({ error: 'Failed to resolve partner scope' });
+      }
+      const ids = (liberados || []).map(r => r.id);
+      // Ele sempre enxerga a PROPRIA linha em `users` — e dela que o login e o
+      // cabecalho da pagina vivem. Escrever continua barrado.
+      if (table === 'users' && !ids.includes(userId)) ids.push(userId);
+      // Nenhum aluno liberado: a resposta e vazia, nunca a base inteira.
+      if (!ids.length) {
+        if (action !== 'select') return res.status(403).json({ error: 'No students released' });
+        return res.status(200).json({ data: (single || maybeSingle) ? null : [], count: 0, error: null });
+      }
+
+      // Escrita: cada linha tem de ser de um aluno liberado.
+      if (action !== 'select' && sanitizedDataPreview(req.body.data).some(row =>
+            row && row[parceiroCol] !== undefined && !ids.includes(Number(row[parceiroCol])))) {
+        return res.status(403).json({ error: 'Access denied: student not released' });
+      }
+
+      filters = [...(filters || []), { type: 'in', col: parceiroCol, val: ids }];
+    }
 
     // =============================================
     // SECURITY: Block non-admin write operations on protected tables
@@ -468,7 +562,9 @@ module.exports = async function handler(req, res) {
     // every depth (covers the users table AND any embedded users(...) join on
     // other tables), closing the embedded-join leak.
     // =============================================
-    const extraStrip = isAdmin ? null : NON_ADMIN_BLOCKED_COLUMNS.filter(c => !BLOCKED_COLUMNS.includes(c));
+    const extraStrip = isAdmin ? null
+      : (isParceiro ? PARCEIRO_BLOCKED_COLUMNS : NON_ADMIN_BLOCKED_COLUMNS)
+          .filter(c => !BLOCKED_COLUMNS.includes(c));
     const safeData = stripSensitiveColumns(result.data, extraStrip);
 
     return res.status(200).json({

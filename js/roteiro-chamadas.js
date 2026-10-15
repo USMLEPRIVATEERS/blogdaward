@@ -59,6 +59,12 @@
         { chave: 'prova', titulo: 'Planejamento de prova' }
     ];
 
+    // Ordem das duas conversas com o Dr. Andre, e qual previa destrava cada uma.
+    var SESSOES_DONATO = [
+        { n: 1, previa: 'call_marcos_donato_previa_1', sessao: 'call_donato_rota_1' },
+        { n: 2, previa: 'call_marcos_donato_previa_2', sessao: 'call_donato_rota_2' }
+    ];
+
     var CHAMADAS = [
         // ---------- Imersão no USMLE ----------
         // A maior parte e de jornada: acontece uma vez, seja qual for a prova.
@@ -144,7 +150,27 @@
         { grupo: 'fernando', porJornada: true, tipo: 'call_fernando_research', titulo: 'Fernando: mentoria em pesquisa científica' }
     ];
 
-    var TODAS = CHAMADAS.concat(PESQUISA, FERNANDO);
+    // Fellow e via alternativa, com o Dr. Andre Donato. So para quem o Marcos
+    // liberar. Sao duas chamadas com ele, e antes de cada uma o aluno passa por
+    // uma previa com o Marcos para organizar o caso — e a previa que destrava o
+    // contato do Dr. Andre na pagina Fellow e Alternate.
+    //
+    // As duas chamadas com o Dr. Andre NAO se agendam pela plataforma (ele
+    // atende por WhatsApp); elas existem como landmark para carregar o
+    // relatorio e aparecer no roteiro. Quem marca `agendavel: false` cuida
+    // disso na tela.
+    var DONATO = [
+        { grupo: 'donato', porJornada: true, tipo: 'call_marcos_donato_previa_1',
+          titulo: 'Marcos: preparando a sua 1ª conversa com o Dr. André Donato' },
+        { grupo: 'donato', porJornada: true, agendavel: false, tipo: 'call_donato_rota_1',
+          titulo: 'André Donato: o seu perfil serve para a via alternativa?' },
+        { grupo: 'donato', porJornada: true, tipo: 'call_marcos_donato_previa_2',
+          titulo: 'Marcos: preparando a sua 2ª conversa com o Dr. André Donato' },
+        { grupo: 'donato', porJornada: true, agendavel: false, tipo: 'call_donato_rota_2',
+          titulo: 'André Donato: carreira, visto e aplicação' }
+    ];
+
+    var TODAS = CHAMADAS.concat(PESQUISA, FERNANDO, DONATO);
 
     var porTipo = {};
     TODAS.forEach(function (c) { porTipo[c.tipo] = c; });
@@ -258,7 +284,15 @@
         var lista = CHAMADAS.filter(function (c) { return existeNoStep(c, s); });
         if (op.pesquisa) lista = lista.concat(PESQUISA);
         if (op.fernando) lista = lista.concat(FERNANDO);
+        if (op.donato) lista = lista.concat(DONATO);
         return lista.map(function (c) { return resolve(c, s); });
+    }
+
+    // A chamada se agenda pela plataforma? As do Dr. Andre nao: ele atende por
+    // WhatsApp, e a pagina Fellow e Alternate cuida do contato.
+    function ehAgendavel(tipo) {
+        var def = definicao(tipo);
+        return !def || def.agendavel !== false;
     }
 
     // Esta chamada faz parte do roteiro de agora, ou e de uma prova anterior?
@@ -282,6 +316,7 @@
         if (/Iria/i.test(t)) return 'iria';
         if (/Marcos/i.test(t)) return 'marcos';
         if (/Guilherme/i.test(t)) return 'guilherme';
+        if (/Donato/i.test(t)) return 'donato';
         if (/Fernando/i.test(t)) return 'fernando';
         return '';
     }
@@ -294,7 +329,10 @@
         CHAMADAS: CHAMADAS,
         PESQUISA: PESQUISA,
         FERNANDO: FERNANDO,
+        DONATO: DONATO,
+        SESSOES_DONATO: SESSOES_DONATO,
         TODAS: TODAS,
+        ehAgendavel: ehAgendavel,
         normalizaStep: normalizaStep,
         rotuloStep: rotuloStep,
         sufixoStep: sufixoStep,

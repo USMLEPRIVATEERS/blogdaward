@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="js/devtools-protection.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward Academy - Fellow e Alternate</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .fa-hero {
+            background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
+            color: white;
+            border-radius: 14px;
+            padding: 1.75rem;
+            margin-bottom: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .fa-hero::after {
+            content: '🧭';
+            position: absolute;
+            right: -10px;
+            bottom: -24px;
+            font-size: 8rem;
+            opacity: 0.12;
+        }
+        .fa-hero h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
+        .fa-hero p { margin: 0; opacity: 0.92; max-width: 60ch; line-height: 1.55; }
+
+        /* Trilha de passos: o aluno vê onde está sem precisar ler tudo. */
+        .fa-passos { display: flex; flex-direction: column; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+        .fa-passo {
+            display: flex; gap: 0.85rem; align-items: flex-start;
+            padding: 0.85rem 1rem; border-radius: 10px;
+            border: 1px solid var(--gray-200); background: white;
+        }
+        .fa-passo.feito { border-color: #a7f3d0; background: #f0fdfa; }
+        .fa-passo.agora { border-color: #0f766e; box-shadow: 0 0 0 2px rgba(15,118,110,0.12); }
+        .fa-passo.travado { opacity: 0.55; }
+        .fa-passo-num {
+            flex: 0 0 1.6rem; height: 1.6rem; border-radius: 999px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; font-weight: 700;
+            background: var(--gray-200); color: var(--gray-500);
+        }
+        .fa-passo.feito .fa-passo-num { background: #10b981; color: white; }
+        .fa-passo.agora .fa-passo-num { background: #0f766e; color: white; }
+        .fa-passo-corpo { flex: 1 1 0; min-width: 0; }
+        .fa-passo-titulo { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.15rem; }
+        .fa-passo-texto { font-size: 0.84rem; color: var(--gray-500); line-height: 1.5; }
+        .fa-passo-acao { margin-top: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+        .fa-selo {
+            display: inline-block; font-size: 0.72rem; font-weight: 700;
+            padding: 0.15rem 0.55rem; border-radius: 999px; margin-left: 0.4rem;
+            background: var(--gray-200); color: var(--gray-500); vertical-align: middle;
+        }
+        .fa-selo.ok { background: #d1fae5; color: #065f46; }
+        .fa-selo.espera { background: #fef3c7; color: #92400e; }
+
+        .fa-sessoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+        .fa-sessao {
+            border: 1px solid var(--gray-200); border-radius: 12px; padding: 1.1rem; background: white;
+        }
+        .fa-sessao h4 { margin: 0 0 0.35rem; font-size: 1rem; }
+        .fa-sessao p { margin: 0 0 0.8rem; font-size: 0.85rem; color: var(--gray-500); line-height: 1.5; }
+
+        .fa-qr { display: none; margin-top: 0.75rem; text-align: center; }
+        .fa-qr img { width: 180px; height: 180px; border: 1px solid var(--gray-200); border-radius: 8px; background: white; }
+        .fa-qr p { font-size: 0.78rem; color: var(--gray-500); margin: 0.5rem 0 0; }
+
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+        .form-campo label {
+            display: block; font-size: 0.82rem; font-weight: 600;
+            margin-bottom: 0.3rem; color: var(--gray-700, #374151);
+        }
+        .form-campo .ajuda { font-weight: 400; color: var(--gray-500); }
+        .form-campo input, .form-campo select, .form-campo textarea {
+            width: 100%; padding: 0.6rem 0.7rem; border: 1px solid var(--gray-200);
+            border-radius: 8px; font-size: 0.9rem; font-family: inherit;
+        }
+        .form-campo textarea { resize: vertical; min-height: 80px; }
+        .form-secao { margin-bottom: 1.75rem; }
+        .form-secao h3 {
+            font-size: 1rem; margin: 0 0 0.25rem;
+            padding-bottom: 0.4rem; border-bottom: 2px solid var(--gray-200);
+        }
+        .form-secao .sub { font-size: 0.82rem; color: var(--gray-500); margin: 0 0 1rem; }
+        .campo-largo { grid-column: 1 / -1; }
+
+        @media (max-width: 600px) {
+            .fa-hero { padding: 1.25rem; }
+            .fa-hero h1 { font-size: 1.2rem; }
+            .fa-passo { padding: 0.75rem; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="javascript:void(0)" onclick="WardApp.goToDashboard()" class="logo" style="text-decoration: none; color: inherit; cursor: pointer;">
+                <span class="logo-icon">🎓</span>
+                <span>WARD ACADEMY</span>
+            </a>
+
+            <button class="mobile-menu-toggle">☰</button>
+
+            <nav class="nav-menu">
+                <a href="/dashboard" class="nav-link">Dashboard</a>
+                <a href="/cronograma" class="nav-link">Cronograma</a>
+                <a href="/landmarks" class="nav-link">Chamadas</a>
+                <a href="/curso" class="nav-link">Curso</a>
+                <a href="/wardpedia" class="nav-link">Wardpedia</a>
+                <a href="/links" class="nav-link">Links</a>
+                <a href="/blog" class="nav-link">Blog</a>
+                <a href="/pesquisa" class="nav-link">Pesquisa</a>
+            </nav>
+
+            <div class="nav-user">
+                <a href="/profile" class="user-menu-btn">
+                    <span>👤</span>
+                    <span class="user-name">Perfil</span>
+                </a>
+                <button class="btn-logout" onclick="WardApp.logout()">🚪 Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container" style="padding-top: 1.5rem; padding-bottom: 3rem;">
+        <div id="carregando" class="text-muted" style="padding: 2rem 0;">Carregando...</div>
+
+        <div id="sem-acesso" style="display: none;">
+            <div class="card">
+                <div class="card-body" style="text-align: center; padding: 2.5rem 1.5rem;">
+                    <div style="font-size: 3rem;">🧭</div>
+                    <h2 style="margin: 0.5rem 0;">Fellow e Alternate</h2>
+                    <p class="text-muted" style="max-width: 48ch; margin: 0 auto;">
+                        Esta trilha ainda não foi liberada para você. Ela é definida na conversa
+                        de acompanhamento com o Marcos, a partir do seu perfil.
+                    </p>
+                    <a href="/landmarks" class="btn btn-outline mt-4">Ver as minhas chamadas →</a>
+                </div>
+            </div>
+        </div>
+
+        <div id="conteudo" style="display: none;">
+            <div class="fa-hero">
+                <h1>🧭 Fellow e Alternate</h1>
+                <p>
+                    Nem todo médico formado precisa refazer residência nos Estados Unidos. Para
+                    algumas especialidades existe a <strong>via alternativa</strong>: entrar direto
+                    como <em>fellow</em> e contar esse tempo para a certificação do board. Esta
+                    trilha é para descobrir, com quem já fez o caminho, se o <strong>seu</strong>
+                    perfil serve — e, se servir, o que fazer em que ordem.
+                </p>
+            </div>
+
+            <!-- Quem é -->
+            <div class="card mb-4">
+                <div class="card-header">👨‍⚕️ Quem vai conversar com você</div>
+                <div class="card-body">
+                    <p style="margin: 0 0 0.75rem; line-height: 1.6;">
+                        <strong>Dr. André Donato</strong> — anestesiologista formado pela UFCSPA,
+                        residência no HC-USP, observerships em Stanford e no Hospital for Special
+                        Surgery. Step 1, Step 2 CK, Step 3 e OET concluídos, ECFMG Certified.
+                        Fez <strong>match para fellowship de Neuroanestesia na UCSF</strong>, em
+                        San Francisco, <strong>pelo caminho alternativo, sem refazer residência</strong>.
+                        Levou cerca de dois anos e meio, conciliando com a rotina de anestesista.
+                    </p>
+                    <p class="text-muted" style="margin: 0; font-size: 0.86rem; line-height: 1.55;">
+                        Um aviso que ele mesmo faz questão de dar: <strong>a via alternativa muda a
+                        estratégia, não a carga.</strong> Ele fez todos os Steps e o OET. Não é atalho
+                        de estudo — é uma porta de entrada diferente, que serve para alguns perfis e
+                        não serve para outros. Se o seu não servir, ele vai dizer isso.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Trilha -->
+            <div class="card mb-4">
+                <div class="card-header">📍 Como funciona</div>
+                <div class="card-body">
+                    <ul class="fa-passos" id="trilha"></ul>
+                </div>
+            </div>
+
+            <!-- As duas conversas -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    📞 As suas duas conversas com o Dr. André
+                </div>
+                <div class="card-body">
+                    <p class="text-muted" style="margin: 0 0 1rem; font-size: 0.86rem; line-height: 1.55;">
+                        Antes de cada uma você passa por uma <strong>prévia com o Marcos</strong>, que
+                        organiza o seu caso e manda para ele estudar antes. É o que faz a conversa
+                        render: ele chega sabendo quem você é.
+                    </p>
+                    <div class="fa-sessoes" id="sessoes"></div>
+                </div>
+            </div>
+
+            <!-- Curso -->
+            <div class="card mb-4" id="card-curso">
+                <div class="card-header">🎓 Curso Rota Médica nos EUA</div>
+                <div class="card-body" id="corpo-curso"></div>
+            </div>
+
+            <!-- Formulário -->
+            <div class="card" id="card-form">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                    <span>📋 Formulário de pré-chamada</span>
+                    <span id="estado-form"></span>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted" style="margin: 0 0 1.5rem; font-size: 0.87rem; line-height: 1.55; max-width: 70ch;">
+                        São os dados que o Dr. André pediu para conseguir avaliar o seu caso
+                        <strong>antes</strong> da conversa. Não precisa preencher tudo de uma vez — dá
+                        para salvar e voltar depois. O que você não souber, deixe em branco: é melhor
+                        em branco do que chutado.
+                    </p>
+
+                    <form id="form-intake" onsubmit="return false;">
+                        <div class="form-secao">
+                            <h3>Perfil</h3>
+                            <p class="sub">A sua formação e o seu tempo de prática.</p>
+                            <div class="form-grid">
+                                <div class="form-campo">
+                                    <label for="especialidade">Especialidade</label>
+                                    <input type="text" id="especialidade" placeholder="Anestesiologia, Radiologia...">
+                                </div>
+                                <div class="form-campo">
+                                    <label for="tem_rqe">Tem RQE ou residência concluída?</label>
+                                    <select id="tem_rqe">
+                                        <option value="">—</option>
+                                        <option value="sim">Sim</option>
+                                        <option value="nao">Não</option>
+                                    </select>
+                                </div>
+                                <div class="form-campo">
+                                    <label for="anos_residencia">Anos de residência</label>
+                                    <input type="text" id="anos_residencia" placeholder="3 anos">
+                                </div>
+                                <div class="form-campo">
+                                    <label for="anos_pratica">Anos de prática depois da residência</label>
+                                    <input type="text" id="anos_pratica" placeholder="8 anos">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-secao">
+                            <h3>USMLE</h3>
+                            <p class="sub">Em que etapa você está. Se já passou, coloque a nota.</p>
+                            <div class="form-grid">
+                                <div class="form-campo">
+                                    <label for="step1_status">Step 1</label>
+                                    <select id="step1_status">
+                                        <option value="">—</option>
+                                        <option value="nao_comecou">Ainda não comecei</option>
+                                        <option value="estudando">Estudando</option>
+                                        <option value="agendado">Prova agendada</option>
+                                        <option value="aprovado">Aprovado</option>
+                                        <option value="reprovado">Reprovado</option>
+                                    </select>
+                                </div>
+                                <div class="form-campo">
+                                    <label for="step1_nota">Nota do Step 1 <span class="ajuda">(se já fez)</span></label>
+                                    <input type="text" id="step1_nota" placeholder="Pass / 240">
+                                </div>
+                                <div class="form-campo">
+                                    <label for="step2_status">Step 2 CK</label>
+                                    <select id="step2_status">
+                                        <option value="">—</option>
+                                        <option value="nao_comecou">Ainda não comecei</option>
+                                        <option value="estudando">Estudando</option>
+                                        <option value="agendado">Prova agendada</option>
+                                        <option value="aprovado">Aprovado</option>
+                                        <option value="reprovado">Reprovado</option>
+                                    </select>
+                                </div>
+                                <div class="form-campo">
+                                    <label for="step2_nota">Nota do Step 2 CK</label>
+                                    <input type="text" id="step2_nota" placeholder="250">
+                                </div>
+                                <div class="form-campo">
+                                    <label for="step3_status">Step 3</label>
+                                    <select id="step3_status">
+                                        <option value="">—</option>
+                                        <option value="nao_comecou">Ainda não comecei</option>
+                                        <option value="estudando">Estudando</option>
+                                        <option value="agendado">Prova agendada</option>
+                                        <option value="aprovado">Aprovado</option>
+                                    </select>
+                                </div>
+                                <div class="form-campo">
+                                    <label for="oet_status">OET / inglês</label>
+                                    <select id="oet_status">
+                                        <option value="">—</option>
+                                        <option value="nao_comecou">Ainda não comecei</option>
+                                        <option value="estudando">Estudando</option>
+                                        <option value="agendado">Prova agendada</option>
+                                        <option value="aprovado">Aprovado</option>
+                                    </select>
+                                </div>
+                                <div class="form-campo">
+                                    <label for="ecfmg_certificado">ECFMG Certified?</label>
+                                    <select id="ecfmg_certificado">
+                                        <option value="">—</option>
+                                        <option value="sim">Sim</option>
+                                        <option value="nao">Ainda não</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-secao">
+                            <h3>Experiência e contatos nos Estados Unidos</h3>
+                            <p class="sub">
+                                Os contatos que você já tem são o dado mais valioso da conversa —
+                                a porta quase sempre é uma pessoa, não um formulário.
+                            </p>
+                            <div class="form-grid">
+                                <div class="form-campo">
+                                    <label for="observership_feito">Já fez observership ou estágio nos EUA?</label>
+                                    <select id="observership_feito">
+                                        <option value="">—</option>
+                                        <option value="sim">Sim</option>
+                                        <option value="nao">Não</option>
+                                    </select>
+                                </div>
+                                <div class="form-campo">
+                                    <label for="observership_onde">Onde e quando</label>
+                                    <input type="text" id="observership_onde" placeholder="Cleveland Clinic, 2024">
+                                </div>
+                                <div class="form-campo campo-largo">
+                                    <label for="contatos_eua">
+                                        Contatos que você já tem nos EUA
+                                        <span class="ajuda">— professor, colega, chefe de serviço, alguém da sua área</span>
+                                    </label>
+                                    <textarea id="contatos_eua" placeholder="Ex.: um ex-colega de residência que é attending na Emory; um professor que me orientou e hoje está em Boston."></textarea>
+                                </div>
+                                <div class="form-campo campo-largo">
+                                    <label for="producao_cientifica">Produção científica</label>
+                                    <textarea id="producao_cientifica" placeholder="Artigos publicados, apresentações em congresso, participação em pesquisa."></textarea>
+                                </div>
+                                <div class="form-campo campo-largo">
+                                    <label for="cv_url">Link do seu currículo atualizado <span class="ajuda">— Google Drive, Dropbox, LinkedIn</span></label>
+                                    <input type="url" id="cv_url" placeholder="https://...">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-secao">
+                            <h3>Visto</h3>
+                            <p class="sub">Para saber que portas estão abertas. Ninguém aqui dá consultoria de imigração — isso se confirma com o GME da instituição.</p>
+                            <div class="form-grid">
+                                <div class="form-campo">
+                                    <label for="visto_atual">Visto que você tem hoje</label>
+                                    <select id="visto_atual">
+                                        <option value="">—</option>
+                                        <option value="nenhum">Nenhum</option>
+                                        <option value="b1b2">B1/B2 válido</option>
+                                        <option value="j1">J-1</option>
+                                        <option value="h1b">H-1B</option>
+                                        <option value="o1">O-1</option>
+                                        <option value="green_card">Green card</option>
+                                        <option value="outro">Outro</option>
+                                    </select>
+                                </div>
+                                <div class="form-campo">
+                                    <label for="negativa_visto">Já teve visto negado?</label>
+                                    <select id="negativa_visto">
+                                        <option value="">—</option>
+                                        <option value="nao">Não</option>
+                                        <option value="sim">Sim</option>
+                                    </select>
+                                </div>
+                                <div class="form-campo campo-largo">
+                                    <label for="negativa_visto_detalhe">Se sim, o que aconteceu</label>
+                                    <input type="text" id="negativa_visto_detalhe" placeholder="Ano e motivo, se souber">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-secao">
+                            <h3>O seu plano</h3>
+                            <p class="sub">O que você quer, em quanto tempo e com quanto.</p>
+                            <div class="form-grid">
+                                <div class="form-campo">
+                                    <label for="tempo_aceita_fellow">
+                                        Quanto tempo aceita ficar como fellow ou faculty nos EUA?
+                                        <span class="ajuda">— alguns boards pedem cerca de 4 anos</span>
+                                    </label>
+                                    <input type="text" id="tempo_aceita_fellow" placeholder="Até 4 anos / o necessário">
+                                </div>
+                                <div class="form-campo">
+                                    <label for="janela">Quando pretende ir</label>
+                                    <input type="text" id="janela" placeholder="A partir de 2028">
+                                </div>
+                                <div class="form-campo">
+                                    <label for="orcamento_faixa">Faixa de orçamento para o processo</label>
+                                    <select id="orcamento_faixa">
+                                        <option value="">—</option>
+                                        <option value="ate_50k">Até R$50 mil</option>
+                                        <option value="50_100k">R$50 a 100 mil</option>
+                                        <option value="100_200k">R$100 a 200 mil</option>
+                                        <option value="acima_200k">Acima de R$200 mil</option>
+                                        <option value="nao_sei">Ainda não sei</option>
+                                    </select>
+                                </div>
+                                <div class="form-campo campo-largo">
+                                    <label for="objetivo">O que você quer, em uma frase</label>
+                                    <textarea id="objetivo" placeholder="Ex.: fazer fellowship de dor nos EUA e ficar, sem refazer residência."></textarea>
+                                </div>
+                                <div class="form-campo campo-largo">
+                                    <label for="observacoes_aluno">Alguma coisa que você queira perguntar a ele</label>
+                                    <textarea id="observacoes_aluno" placeholder="Dúvidas específicas que você quer que ele responda na conversa."></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; border-top: 1px solid var(--gray-200); padding-top: 1.25rem;">
+                            <button type="button" class="btn btn-outline" id="btn-salvar" onclick="salvarRascunho()">💾 Salvar rascunho</button>
+                            <button type="button" class="btn btn-primary" id="btn-enviar" onclick="enviarForm()">✅ Enviar para o Marcos revisar</button>
+                            <span class="text-muted" id="aviso-salvo" style="font-size: 0.82rem;"></span>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/timezone-detect.js"></script>
+    <script src="js/roteiro-chamadas.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        // Contato e curso do parceiro. Ficam aqui em cima porque mudam sem aviso.
+        const WHATSAPP_DONATO = '5511981070146';
+        const CURSO_DONATO = 'https://hotmart.com/pt-br/club/andre-busatto-de-donato';
+
+        let userData = null;
+        let intake = null;        // linha de donato_intake, ou null
+        let landmarks = [];       // landmarks do grupo donato
+        let chamadas = [];        // scheduled_calls das prévias
+
+        const CAMPOS_TEXTO = [
+            'especialidade', 'anos_residencia', 'anos_pratica',
+            'step1_status', 'step1_nota', 'step2_status', 'step2_nota', 'step3_status', 'oet_status',
+            'observership_onde', 'contatos_eua', 'producao_cientifica', 'cv_url',
+            'visto_atual', 'negativa_visto_detalhe',
+            'tempo_aceita_fellow', 'janela', 'objetivo', 'orcamento_faixa', 'observacoes_aluno'
+        ];
+        const CAMPOS_BOOL = ['tem_rqe', 'ecfmg_certificado', 'observership_feito', 'negativa_visto'];
+
+        function escapeHtml(t) {
+            return String(t == null ? '' : t).replace(/[&<>"']/g, c =>
+                ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function _dn(name) {
+            if (!name) return name;
+            return WardApp._prs ? WardApp._prs(name) : name;
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            userData = await WardApp.checkAuth();
+            if (!userData) return;
+
+            const { data: perfil } = await WardApp.db
+                .from('users')
+                .select('id, full_name, donato_liberado, donato_liberado_em')
+                .eq('id', userData.id)
+                .maybeSingle();
+
+            document.getElementById('carregando').style.display = 'none';
+
+            if (!perfil || !perfil.donato_liberado) {
+                document.getElementById('sem-acesso').style.display = '';
+                return;
+            }
+            document.getElementById('conteudo').style.display = '';
+
+            await Promise.all([carregarIntake(), carregarChamadas()]);
+            preencherForm();
+            renderTudo();
+        });
+
+        async function carregarIntake() {
+            const { data } = await WardApp.db
+                .from('donato_intake')
+                .select('*')
+                .eq('user_id', userData.id)
+                .maybeSingle();
+            intake = data || null;
+        }
+
+        // As prévias com o Marcos são landmarks normais; o que destrava o
+        // contato do Dr. André é a prévia estar CONCLUÍDA.
+        async function carregarChamadas() {
+            const tipos = WardRoteiro.DONATO.map(c => c.tipo);
+            const { data: lms } = await WardApp.db
+                .from('landmarks')
+                .select('id, landmark_type, title, completed, completed_at')
+                .eq('user_id', userData.id)
+                .in('landmark_type', tipos);
+            landmarks = lms || [];
+
+            const ids = landmarks.map(l => l.id);
+            if (!ids.length) { chamadas = []; return; }
+            const { data: scs } = await WardApp.db
+                .from('scheduled_calls')
+                .select('id, landmark_id, scheduled_date, scheduled_time, status')
+                .eq('student_id', userData.id)
+                .in('landmark_id', ids);
+            chamadas = scs || [];
+        }
+
+        function landmarkDe(tipo) {
+            return landmarks.find(l => l.landmark_type === tipo) || null;
+        }
+
+        // "Feita" = o landmark foi concluído OU existe chamada com status
+        // completed. As duas coisas acontecem por caminhos diferentes na
+        // plataforma, e qualquer uma delas basta.
+        function feita(tipo) {
+            const lm = landmarkDe(tipo);
+            if (!lm) return false;
+            if (lm.completed) return true;
+            return chamadas.some(c => c.landmark_id === lm.id && c.status === 'completed');
+        }
+
+        function agendada(tipo) {
+            const lm = landmarkDe(tipo);
+            if (!lm) return null;
+            return chamadas.find(c => c.landmark_id === lm.id && c.status === 'scheduled') || null;
+        }
+
+        const formEnviado = () => !!(intake && intake.enviado_em);
+        const formRevisado = () => !!(intake && intake.revisado_em);
+        const cursoLiberado = () => !!(intake && intake.curso_liberado_em);
+
+        // ---------------------------------------------------------------
+        // Trilha
+        // ---------------------------------------------------------------
+        function renderTrilha() {
+            const passos = [
+                {
+                    titulo: 'Preencher o formulário de pré-chamada',
+                    texto: 'É o que o Dr. André lê antes de falar com você. Sem ele, a conversa vira entrevista.',
+                    feito: formEnviado(),
+                    acao: formEnviado() ? '' : '<button class="btn btn-sm btn-primary" onclick="irParaForm()">Preencher agora</button>'
+                },
+                {
+                    titulo: 'O Marcos revisa',
+                    texto: formRevisado()
+                        ? 'Revisado. O seu caso já está organizado para ele.'
+                        : 'Ele confere o que você escreveu e organiza o caso antes de mandar.',
+                    feito: formRevisado()
+                },
+                {
+                    titulo: 'Prévia com o Marcos',
+                    texto: 'Meia hora para alinhar o que perguntar e o que esperar da conversa.',
+                    feito: feita('call_marcos_donato_previa_1'),
+                    acao: feita('call_marcos_donato_previa_1') ? ''
+                        : '<a class="btn btn-sm btn-outline" href="/landmarks">Agendar nas minhas chamadas →</a>'
+                },
+                {
+                    titulo: 'Conversa com o Dr. André',
+                    texto: 'Ele diz se o seu perfil serve para a via alternativa — e, se não servir, por quê.',
+                    feito: feita('call_donato_rota_1')
+                }
+            ];
+
+            let achouAtual = false;
+            document.getElementById('trilha').innerHTML = passos.map((p, i) => {
+                let classe = 'fa-passo';
+                if (p.feito) classe += ' feito';
+                else if (!achouAtual) { classe += ' agora'; achouAtual = true; }
+                else classe += ' travado';
+                return `
+                    <li class="${classe}">
+                        <span class="fa-passo-num">${p.feito ? '✓' : i + 1}</span>
+                        <div class="fa-passo-corpo">
+                            <div class="fa-passo-titulo">${escapeHtml(p.titulo)}</div>
+                            <div class="fa-passo-texto">${escapeHtml(p.texto)}</div>
+                            ${p.acao && !p.feito ? `<div class="fa-passo-acao">${p.acao}</div>` : ''}
+                        </div>
+                    </li>`;
+            }).join('');
+        }
+
+        // ---------------------------------------------------------------
+        // As duas sessões
+        // ---------------------------------------------------------------
+        function mensagemWhatsApp(n) {
+            const nome = _dn(userData.full_name) || 'aluno(a) da Ward Academy';
+            return `Olá, Dr. André! Sou ${nome}, aluno(a) da mentoria da Ward Academy. `
+                + `Já fiz a chamada de preparação com o Marcos e gostaria de saber a sua `
+                + `disponibilidade para a ${n}ª conversa sobre fellowship e via alternativa. Obrigado!`;
+        }
+
+        function linkWhatsApp(n) {
+            return 'https://wa.me/' + WHATSAPP_DONATO + '?text=' + encodeURIComponent(mensagemWhatsApp(n));
+        }
+
+        function renderSessoes() {
+            const descricoes = {
+                1: 'Panorama, o seu perfil, a via alternativa e as vias estaduais. No fim desta conversa você sabe se o seu caso serve para a via alternativa.',
+                2: 'Meses depois, quando a rota já está definida: orientação de carreira, visto e aplicação.'
+            };
+
+            document.getElementById('sessoes').innerHTML = WardRoteiro.SESSOES_DONATO.map(s => {
+                const previaFeita = feita(s.previa);
+                const sessaoFeita = feita(s.sessao);
+                const marcada = agendada(s.previa);
+                const anterior = s.n === 1 ? true : feita(WardRoteiro.SESSOES_DONATO[0].sessao);
+
+                let selo = '<span class="fa-selo">a fazer</span>';
+                if (sessaoFeita) selo = '<span class="fa-selo ok">feita</span>';
+                else if (previaFeita) selo = '<span class="fa-selo ok">liberada</span>';
+                else if (marcada) selo = '<span class="fa-selo espera">prévia marcada</span>';
+
+                let acao;
+                if (sessaoFeita) {
+                    acao = '<p class="text-muted" style="font-size: 0.82rem; margin: 0;">Conversa realizada. O relatório fica nas suas chamadas.</p>';
+                } else if (!anterior) {
+                    acao = '<p class="text-muted" style="font-size: 0.82rem; margin: 0;">Abre depois da 1ª conversa.</p>';
+                } else if (previaFeita) {
+                    acao = `
+                        <a class="btn btn-primary btn-sm" href="${linkWhatsApp(s.n)}" target="_blank" rel="noopener">
+                            💬 Falar com o Dr. André no WhatsApp
+                        </a>
+                        <button class="btn btn-outline btn-sm" onclick="mostrarQR(${s.n})">📱 Ver QR code</button>
+                        <div class="fa-qr" id="qr-${s.n}">
+                            <img alt="QR code do WhatsApp do Dr. André Donato" id="qr-img-${s.n}">
+                            <p>Aponte a câmera do celular para abrir a conversa já com a mensagem pronta.</p>
+                        </div>`;
+                } else if (marcada) {
+                    acao = `<p class="text-muted" style="font-size: 0.82rem; margin: 0;">
+                                Prévia com o Marcos marcada para
+                                <strong>${WardApp.formatDate(marcada.scheduled_date)}</strong>,
+                                ${String(marcada.scheduled_time).substring(0, 5)}.
+                                Depois dela o contato do Dr. André aparece aqui.
+                            </p>`;
+                } else {
+                    acao = `<a class="btn btn-primary btn-sm" href="/landmarks">📅 Agendar a prévia com o Marcos</a>
+                            <p class="text-muted" style="font-size: 0.78rem; margin: 0.5rem 0 0;">
+                                É o passo recomendado: ele organiza o seu caso e manda para o
+                                Dr. André estudar antes.
+                            </p>`;
+                }
+
+                return `
+                    <div class="fa-sessao">
+                        <h4>${s.n}ª conversa ${selo}</h4>
+                        <p>${escapeHtml(descricoes[s.n])}</p>
+                        ${acao}
+                    </div>`;
+            }).join('');
+        }
+
+        // O QR só é gerado quando o aluno pede, e a partir do mesmo link do botão.
+        function mostrarQR(n) {
+            const caixa = document.getElementById('qr-' + n);
+            const img = document.getElementById('qr-img-' + n);
+            if (!caixa || !img) return;
+            if (caixa.style.display === 'block') { caixa.style.display = 'none'; return; }
+            if (!img.getAttribute('src')) {
+                img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=360x360&data='
+                    + encodeURIComponent(linkWhatsApp(n));
+            }
+            caixa.style.display = 'block';
+        }
+
+        // ---------------------------------------------------------------
+        // Curso
+        // ---------------------------------------------------------------
+        function renderCurso() {
+            const corpo = document.getElementById('corpo-curso');
+            if (cursoLiberado()) {
+                corpo.innerHTML = `
+                    <p style="margin: 0 0 1rem; line-height: 1.6;">
+                        O seu acesso está liberado. São <strong>15 aulas em 4 módulos</strong>, do
+                        "vale a pena ir?" até a construção de um currículo competitivo, gravadas
+                        pelo próprio Dr. André.
+                    </p>
+                    <a class="btn btn-primary" href="${CURSO_DONATO}" target="_blank" rel="noopener">
+                        ▶️ Abrir o curso Rota Médica nos EUA
+                    </a>
+                    <p class="text-muted" style="margin: 0.75rem 0 0; font-size: 0.8rem;">
+                        O acesso foi criado com o e-mail da sua conta na Ward. Se pedir login,
+                        use ele na Hotmart.
+                    </p>`;
+            } else if (formEnviado()) {
+                corpo.innerHTML = `
+                    <p class="text-muted" style="margin: 0; line-height: 1.6;">
+                        O curso entra junto com a trilha. Assim que o Marcos revisar o seu
+                        formulário e criar o seu acesso na Hotmart, o botão aparece aqui.
+                    </p>`;
+            } else {
+                corpo.innerHTML = `
+                    <p class="text-muted" style="margin: 0; line-height: 1.6;">
+                        O curso <strong>Rota Médica nos EUA</strong> entra junto com esta trilha:
+                        15 aulas em 4 módulos gravadas pelo Dr. André. Preencha o formulário
+                        abaixo para liberar.
+                    </p>`;
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Formulário
+        // ---------------------------------------------------------------
+        function valorBool(v) {
+            if (v === true) return 'sim';
+            if (v === false) return 'nao';
+            return '';
+        }
+
+        function preencherForm() {
+            if (!intake) return;
+            CAMPOS_TEXTO.forEach(c => {
+                const el = document.getElementById(c);
+                if (el && intake[c] != null) el.value = intake[c];
+            });
+            CAMPOS_BOOL.forEach(c => {
+                const el = document.getElementById(c);
+                if (el) el.value = valorBool(intake[c]);
+            });
+        }
+
+        function lerForm() {
+            const dados = { user_id: userData.id };
+            CAMPOS_TEXTO.forEach(c => {
+                const el = document.getElementById(c);
+                dados[c] = el && el.value.trim() ? el.value.trim() : null;
+            });
+            CAMPOS_BOOL.forEach(c => {
+                const el = document.getElementById(c);
+                const v = el ? el.value : '';
+                dados[c] = v === 'sim' ? true : (v === 'nao' ? false : null);
+            });
+            return dados;
+        }
+
+        async function gravar(extra) {
+            const dados = Object.assign(lerForm(), extra || {});
+            const { error } = await WardApp.db
+                .from('donato_intake')
+                .upsert(dados, { onConflict: 'user_id' });
+            if (error) {
+                WardApp.showToast('Erro ao salvar: ' + (error.message || JSON.stringify(error)), 'error');
+                return false;
+            }
+            await carregarIntake();
+            return true;
+        }
+
+        async function salvarRascunho() {
+            const btn = document.getElementById('btn-salvar');
+            btn.disabled = true;
+            if (await gravar()) {
+                document.getElementById('aviso-salvo').textContent =
+                    'Rascunho salvo. Dá para fechar e voltar depois.';
+                WardApp.showToast('Rascunho salvo');
+                renderTudo();
+            }
+            btn.disabled = false;
+        }
+
+        async function enviarForm() {
+            const dados = lerForm();
+            // O mínimo para o Dr. André conseguir avaliar o caso antes da conversa.
+            const faltando = [];
+            if (!dados.especialidade) faltando.push('especialidade');
+            if (!dados.step1_status) faltando.push('em que etapa você está no Step 1');
+            if (!dados.objetivo) faltando.push('o que você quer, em uma frase');
+            if (faltando.length) {
+                WardApp.showToast('Falta preencher: ' + faltando.join(', '), 'warning');
+                return;
+            }
+
+            const btn = document.getElementById('btn-enviar');
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+            if (await gravar({ enviado_em: new Date().toISOString() })) {
+                WardApp.showToast('Enviado. O Marcos foi avisado.');
+                renderTudo();
+            }
+            btn.disabled = false;
+            btn.textContent = '✅ Enviar para o Marcos revisar';
+        }
+
+        function irParaForm() {
+            document.getElementById('card-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function renderEstadoForm() {
+            const el = document.getElementById('estado-form');
+            const btnEnviar = document.getElementById('btn-enviar');
+            if (formRevisado()) {
+                el.innerHTML = '<span class="fa-selo ok">revisado pelo Marcos</span>';
+                btnEnviar.textContent = '✅ Reenviar com as alterações';
+            } else if (formEnviado()) {
+                el.innerHTML = '<span class="fa-selo espera">aguardando revisão</span>';
+                btnEnviar.textContent = '✅ Reenviar com as alterações';
+            } else {
+                el.innerHTML = '<span class="fa-selo">não enviado</span>';
+            }
+        }
+
+        function renderTudo() {
+            renderTrilha();
+            renderSessoes();
+            renderCurso();
+            renderEstadoForm();
+        }
+    </script>
+</body>
+</html>

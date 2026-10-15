@@ -267,6 +267,17 @@
                 </details>
             </div>
         </div>
+        <!-- Calendario de aniversarios dos alunos -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-between align-center" style="flex-wrap: wrap; gap: 0.5rem;">
+                <span>🎂 Aniversários dos alunos</span>
+                <span id="aniv-hoje-selo" style="display: none; font-size: 0.8rem; font-weight: 700; background: #fef3c7; color: #92400e; padding: 0.2rem 0.65rem; border-radius: 999px;"></span>
+            </div>
+            <div class="card-body">
+                <div id="aniversarios-card"><p class="text-muted">Carregando...</p></div>
+            </div>
+        </div>
+
     </main>
         <!-- Kanban Board (Embedded) -->
         <div style="margin-top: 3rem; padding-top: 2rem; border-top: 2px solid #e5e7eb;">
@@ -599,6 +610,7 @@
     <script src="js/timezone-detect.js"></script>
     <script src="js/roteiro-chamadas.js"></script>
     <script src="js/mentoria-acesso.js"></script>
+    <script src="js/aniversarios.js"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -765,6 +777,7 @@
 
             updateStats();
             renderStudents();
+            renderAniversarios(allStudents);
         }
 
         async function updateStats() {
@@ -876,6 +889,26 @@
             await loadStudentTimeline(studentId);
 
             renderStudents();
+        }
+
+        // Calendario de aniversarios. A regra (quem faz hoje, 29/02, ordem dos
+        // meses) mora em js/aniversarios.js, compartilhado pelos dashboards.
+        function renderAniversarios(pessoas) {
+            const alvo = document.getElementById('aniversarios-card');
+            if (!alvo || !window.WardAniversarios) return;
+            // So aluno de mentoria: a propria linha do mentor e a assessoria
+            // avulsa entravam na conta de "quem ainda nao preencheu".
+            const lista = (pessoas || []).filter(p => p && p.role === 'aluno');
+            alvo.innerHTML = WardAniversarios.cartaoHTML(lista, { nome: _dn });
+
+            const doDia = WardAniversarios.aniversariantesDoDia(lista);
+            const selo = document.getElementById('aniv-hoje-selo');
+            if (selo && doDia.length) {
+                selo.textContent = '🎉 ' + (doDia.length === 1
+                    ? (_dn(doDia[0].full_name) || 'um aluno') + ' faz aniversário hoje'
+                    : doDia.length + ' aniversariantes hoje');
+                selo.style.display = '';
+            }
         }
 
         // Tempo de mentoria do aluno selecionado. A regra toda (quem tem acesso
