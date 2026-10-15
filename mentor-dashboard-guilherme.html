@@ -550,11 +550,22 @@ Dica: Use as tags do AnKing em vez de decks separados!`
             // Load students
             const { data: students } = await WardApp.db
                 .from('users')
-                .select('id, full_name, email, birth_date, role')
+                .select('id, full_name, email, role')
                 .eq('role', 'aluno');
 
             // Sort alphabetically by decrypted name
             allStudents = sortUsersByName(students || []);
+
+            // Consulta a parte: enquanto sql/83 nao rodar, birth_date nao
+            // existe e pedir a coluna junto derrubaria a lista de alunos.
+            const { data: datas } = await WardApp.db
+                .from('users')
+                .select('id, birth_date')
+                .eq('role', 'aluno');
+            const porId = {};
+            (datas || []).forEach(d => { porId[d.id] = d.birth_date; });
+            allStudents.forEach(a => { a.birth_date = porId[a.id] || null; });
+
             renderAniversarios(allStudents);
 
             // Load check-in data for frequency chart

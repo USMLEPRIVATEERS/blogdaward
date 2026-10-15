@@ -1479,13 +1479,22 @@
             // dashboard dele. Enquanto nao libera, o aluno ve o aviso do acordo.
             const { data: perfil } = await WardApp.db
                 .from('users')
-                .select('research_enabled, fernando_interested, donato_liberado')
+                .select('research_enabled, fernando_interested')
                 .eq('id', targetUserId)
                 .maybeSingle();
 
             pesquisaLiberada = !!(perfil && perfil.research_enabled);
             alunoDoFernando = !!(perfil && perfil.fernando_interested);
-            alunoDoDonato = !!(perfil && perfil.donato_liberado);
+
+            // Em consulta separada de proposito: enquanto sql/82 nao rodar, a
+            // coluna nao existe e o Postgres derruba a consulta inteira. Junto
+            // das outras, isso faria pesquisa e Fernando sumirem da pagina.
+            const { data: liberacao } = await WardApp.db
+                .from('users')
+                .select('donato_liberado')
+                .eq('id', targetUserId)
+                .maybeSingle();
+            alunoDoDonato = !!(liberacao && liberacao.donato_liberado);
 
             // Em que prova o aluno esta focando (ele escolhe no dashboard, em
             // "Preparacao Atual"). Quem nunca escolheu segue no Step 1.
