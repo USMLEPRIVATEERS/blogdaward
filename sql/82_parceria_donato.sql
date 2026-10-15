@@ -123,13 +123,15 @@ ALTER TABLE donato_intake ENABLE ROW LEVEL SECURITY;
 -- ---------------------------------------------------------------------------
 -- 4. A conta do Dr. Andre
 -- ---------------------------------------------------------------------------
--- Rode este bloco DEPOIS de trocar o e-mail pelo definitivo. A senha e trocada
--- no primeiro acesso; o cadastro segue o mesmo caminho dos outros membros.
+-- NAO crie a conta dele por SQL. O login da plataforma e por CPF, e a senha
+-- precisa de hash bcrypt: um INSERT a mao deixa a conta sem CPF (impossivel
+-- de logar) e com a senha em texto puro no banco.
 --
--- INSERT INTO users (email, password_hash, full_name, role, first_login_completed)
--- VALUES ('andrebdonato1@gmail.com', 'trocar-no-primeiro-acesso',
---         'Andre Donato', 'parceiro_donato', FALSE)
--- ON CONFLICT (email) DO UPDATE SET role = 'parceiro_donato';
+-- Crie pela tela de Membros (/admin-members), escolhendo a funcao
+-- "Dr. Andre Donato (parceiro)". Ela cuida do CPF, do hash e do resto.
+--
+-- Se a conta dele JA existir com outro papel, promova:
+--   UPDATE users SET role = 'parceiro_donato' WHERE cpf = '<CPF dele, so digitos>';
 
 -- ---------------------------------------------------------------------------
 -- 5. Conferencia

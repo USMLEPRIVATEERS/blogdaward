@@ -44,7 +44,7 @@ module.exports = async function handler(req, res) {
     }
 
     // SECURITY: Validate role against allowed values
-    const ALLOWED_ROLES = ['aluno', 'assessoria', 'externo', 'mentor_iria', 'mentor_marcos', 'mentor_guilherme', 'mentor_fernando'];
+    const ALLOWED_ROLES = ['aluno', 'assessoria', 'externo', 'mentor_iria', 'mentor_marcos', 'mentor_guilherme', 'mentor_fernando', 'parceiro_donato'];
     if (role && !ALLOWED_ROLES.includes(role)) {
       return res.status(400).json({ error: 'Role invalido' });
     }
