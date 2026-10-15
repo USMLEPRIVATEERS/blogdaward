@@ -27,8 +27,28 @@
 
     // Cadastro anterior a esta data = acesso permanente.
     var CORTE_VITALICIO = '2026-06-01';
-    // Cada pagamento compra este tanto de meses.
-    var MESES_POR_PAGAMENTO = 18;
+    // Cada pagamento compra este tanto de meses, por plano.
+    //   mentoria  - o plano completo
+    //   bolsista  - 100% gratuito, prazo mais curto
+    //   intensivo - pagou menos, mas o prazo e o mesmo do completo
+    var MESES_POR_PLANO = { mentoria: 18, bolsista: 9, intensivo: 18 };
+    var PLANO_PADRAO = 'mentoria';
+    // Mantido pelo nome antigo: e o plano completo, e quem ja usava isto
+    // estava falando do plano completo.
+    var MESES_POR_PAGAMENTO = MESES_POR_PLANO.mentoria;
+
+    function planoDe(usuario) {
+        var p = usuario && usuario.plano;
+        return MESES_POR_PLANO[p] ? p : PLANO_PADRAO;
+    }
+
+    function mesesDe(usuario) {
+        return MESES_POR_PLANO[planoDe(usuario)];
+    }
+
+    var ROTULO_PLANO = {
+        mentoria: 'Mentoria', bolsista: 'Bolsista', intensivo: 'Intensivo'
+    };
     // A partir de quantos dias para o fim a tela passa a avisar.
     var DIAS_DE_AVISO = 60;
     // Fuso em que a Ward cadastra e conta os dias. Nao e detalhe: created_at
@@ -190,10 +210,13 @@
                 inicio < paraData(CORTE_VITALICIO));
 
         var fim = vitalicia ? null
-            : (paraData(usuario.mentoria_fim) || somaMeses(inicio, MESES_POR_PAGAMENTO));
+            : (paraData(usuario.mentoria_fim) || somaMeses(inicio, mesesDe(usuario)));
 
         var tempoNaMentoria = formataPeriodo(inicio, agora);
         var sit = {
+            plano: planoDe(usuario),
+            rotuloPlano: ROTULO_PLANO[planoDe(usuario)],
+            mesesDoPlano: mesesDe(usuario),
             estado: 'vitalicia',
             vitalicia: vitalicia,
             inicio: inicio,
@@ -230,7 +253,7 @@
         var agora = referencia ? paraData(referencia) : hoje();
         if (!sit || sit.vitalicia) return null;
         var partida = (sit.fim && sit.fim > agora) ? sit.fim : agora;
-        return somaMeses(partida, MESES_POR_PAGAMENTO);
+        return somaMeses(partida, sit.mesesDoPlano || MESES_POR_PAGAMENTO);
     }
 
     // O que gravar em `users` ao marcar a renovacao. `por` e o nome de quem
@@ -241,7 +264,7 @@
         var novoFim = fimAposRenovar(sit, referencia);
         var registro = {
             data: paraISO(referencia ? paraData(referencia) : hoje()),
-            meses: MESES_POR_PAGAMENTO,
+            meses: sit.mesesDoPlano,
             ate: paraISO(novoFim),
             por: por || null
         };
@@ -269,6 +292,11 @@
     window.WardMentoria = {
         CORTE_VITALICIO: CORTE_VITALICIO,
         MESES_POR_PAGAMENTO: MESES_POR_PAGAMENTO,
+        MESES_POR_PLANO: MESES_POR_PLANO,
+        PLANO_PADRAO: PLANO_PADRAO,
+        ROTULO_PLANO: ROTULO_PLANO,
+        planoDe: planoDe,
+        mesesDe: mesesDe,
         DIAS_DE_AVISO: DIAS_DE_AVISO,
         paraData: paraData,
         dataDoCadastro: dataDoCadastro,

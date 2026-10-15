@@ -27,7 +27,7 @@ module.exports = async function handler(req, res) {
       return res.status(403).json({ error: 'Access denied: only mentor_marcos can create members' });
     }
 
-    const { cpf, email, password, full_name, role } = req.body;
+    const { cpf, email, password, full_name, role, plano } = req.body;
 
     if (!cpf || !password || !full_name) {
       return res.status(400).json({ error: 'Missing required fields: cpf, password, full_name' });
@@ -42,6 +42,12 @@ module.exports = async function handler(req, res) {
     if (cleanCpf.length !== 11) {
       return res.status(400).json({ error: 'CPF invalido' });
     }
+
+    // SECURITY: Validate plan. So faz sentido para aluno; qualquer outra
+    // coisa e ignorada em vez de recusada, para nao travar a criacao.
+    const ALLOWED_PLANOS = ['mentoria', 'bolsista', 'intensivo'];
+    const planoLimpo = (role === 'aluno' && ALLOWED_PLANOS.includes(plano))
+      ? plano : (role === 'aluno' ? 'mentoria' : null);
 
     // SECURITY: Validate role against allowed values
     const ALLOWED_ROLES = ['aluno', 'assessoria', 'externo', 'mentor_iria', 'mentor_marcos', 'mentor_guilherme', 'mentor_fernando', 'parceiro_donato'];
@@ -91,6 +97,7 @@ module.exports = async function handler(req, res) {
         password_hash: passwordHash,
         full_name: sanitize(full_name),
         role: role || 'aluno',
+        ...(planoLimpo ? { plano: planoLimpo } : {}),
         first_login_completed: false,
         questionnaire_step: 0,
         status: 'active'

@@ -62,6 +62,7 @@
                 <strong>Como funciona:</strong> cada item é uma chamada com um mentor. Clique para deixar uma observação, ou use <strong>Agendar</strong> para marcar o horário.
                 <br><strong>Legenda:</strong> 📞 a agendar &nbsp;·&nbsp; 📹 agendada &nbsp;·&nbsp; ✅ concluída &nbsp;·&nbsp; 🔁 sempre disponível &nbsp;·&nbsp; 📝 com anotações
                 <br><span id="step-atual"></span>
+                <br><span id="plano-atual"></span>
             </div>
         </div>
 
@@ -1223,6 +1224,29 @@
     </style>
 
     <script src="js/app.js"></script>
+    <!-- Bolsista tentando marcar com a Dra. Iria -->
+    <div id="agenda-iria-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 460px;">
+            <div class="modal-header">
+                <h3 class="modal-title">📅 Agenda da Dra. Iria</h3>
+                <button class="modal-close" onclick="closeModal('agenda-iria-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin: 0 0 1rem; line-height: 1.65;">
+                    A agenda da <strong>Dra. Iria</strong> está cheia no momento.
+                </p>
+                <p style="margin: 0; line-height: 1.65;">
+                    Marque uma conversa com o <strong>Marcos</strong>: ele vê o seu caso e,
+                    se for o melhor caminho, abre um horário com ela para você.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('agenda-iria-modal')">Fechar</button>
+                <button class="btn btn-primary" onclick="agendarComOMarcos()">📅 Agendar com o Marcos</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/timezone-detect.js"></script>
     <script src="js/roteiro-chamadas.js"></script>
     <script>
@@ -1234,6 +1258,8 @@
         let pesquisaLiberada = false;   // liberado pelo Marcos
         let alunoDoFernando = false;    // marcado pelo Marcos
         let alunoDoDonato = false;      // liberado pelo Marcos
+        let planoDoAluno = 'mentoria';  // mentoria | bolsista | intensivo
+        let iriaLiberadas = 0;          // chamadas com a Iria que o Marcos liberou
         let viewingAsStudentId = null;
         let targetUserId = null; // The user whose landmarks we're viewing
 
@@ -1496,6 +1522,18 @@
                 .maybeSingle();
             alunoDoDonato = !!(liberacao && liberacao.donato_liberado);
 
+            // Em consulta separada pelo mesmo motivo das outras: enquanto
+            // sql/84 nao rodar, as colunas nao existem e pedir junto derrubaria
+            // a consulta inteira.
+            const { data: planoRow } = await WardApp.db
+                .from('users')
+                .select('plano, iria_liberadas')
+                .eq('id', targetUserId)
+                .maybeSingle();
+            planoDoAluno = WardRoteiro.normalizaPlano(planoRow && planoRow.plano);
+            iriaLiberadas = Number(planoRow && planoRow.iria_liberadas) || 0;
+            mostrarPlano();
+
             // Em que prova o aluno esta focando (ele escolhe no dashboard, em
             // "Preparacao Atual"). Quem nunca escolheu segue no Step 1.
             const { data: prep } = await WardApp.db
@@ -1689,7 +1727,8 @@
             return WardRoteiro.roteiro(stepAtual, {
                 pesquisa: pesquisaLiberada,
                 fernando: alunoDoFernando,
-                donato: alunoDoDonato
+                donato: alunoDoDonato,
+                plano: planoDoAluno
             });
         }
 
@@ -1700,6 +1739,39 @@
             el.innerHTML = `<strong>Roteiro do ${WardRoteiro.rotuloStep(stepAtual)}.</strong> `
                 + 'Quando voc\u00ea passar e trocar a prova no seu dashboard, as chamadas de '
                 + 'prepara\u00e7\u00e3o voltam com o nome da prova nova, prontas para agendar.';
+        }
+
+        // Diz em que plano o aluno esta, quando nao e o completo.
+        function mostrarPlano() {
+            const el = document.getElementById('plano-atual');
+            if (!el) return;
+            if (planoDoAluno === 'bolsista') {
+                el.innerHTML = '<strong>Plano Bolsista.</strong> O roteiro é o mesmo, '
+                    + 'tirando as frentes do Dr. Fernando e do Dr. André. Chamadas com a '
+                    + 'Dra. Iria passam pelo Marcos.';
+            } else if (planoDoAluno === 'intensivo') {
+                el.innerHTML = '<strong>Plano Intensivo.</strong> São seis chamadas: '
+                    + 'duas com a Dra. Iria, duas com o Marcos e duas com o Guilherme.';
+            } else {
+                el.textContent = '';
+            }
+        }
+
+        function avisarAgendaDaIria() {
+            document.getElementById('agenda-iria-modal').classList.add('active');
+        }
+
+        // Leva o aluno para a vaga de seguimento do Marcos, que esta sempre
+        // aberta — e dali ele libera (ou nao) a chamada com a Iria.
+        function agendarComOMarcos() {
+            closeModal('agenda-iria-modal');
+            const alvo = Object.values(landmarksPorId).find(lm =>
+                lm.landmark_type === 'call_marcos_ajuste_cronograma' && !lm.completed);
+            if (alvo) {
+                openScheduleModal(alvo.id, alvo.title, 'marcos');
+                return;
+            }
+            WardApp.showToast('Procure a chamada de seguimento com o Marcos aqui na página', 'info');
         }
 
         async function createDefaultLandmarks() {
@@ -2143,8 +2215,13 @@
                     // As conversas com o Dr. Andre sao marcadas por WhatsApp na
                     // pagina Fellow e Alternate, nao pela agenda da plataforma.
                     const agendavelAqui = WardRoteiro.ehAgendavel(lm.landmark_type);
+                    // O bolsista precisa de liberacao do Marcos para marcar com
+                    // a Dra. Iria; o botao vira um aviso em vez de sumir, para
+                    // ele saber o que fazer.
+                    const permissao = WardRoteiro.podeAgendar(lm.landmark_type, planoDoAluno, iriaLiberadas);
+                    const precisaLiberacao = permissao.motivo === 'iria_precisa_liberacao';
                     const podeAgendar = !ehHistorico && !lm.completed && agendavelAqui
-                        && (lm.landmark_type || '').startsWith('call_');
+                        && permissao.pode && (lm.landmark_type || '').startsWith('call_');
                     const tituloEsc = String(lm.title).replace(/'/g, "\\'");
 
                     return `
@@ -2173,6 +2250,9 @@
                             ` : ''}
                             ${!agendavelAqui && !lm.completed && !ehHistorico ? `
                                 <a class="btn btn-sm btn-primary" href="/fellow-alternate">🧭 Abrir a trilha</a>
+                            ` : ''}
+                            ${precisaLiberacao && !lm.completed && !ehHistorico ? `
+                                <button class="btn btn-sm btn-outline" onclick="avisarAgendaDaIria()">📅 Agendar</button>
                             ` : ''}
                             <button class="btn btn-sm" onclick="openEditLandmarkModal(${lm.id})" title="Anotações">✏️</button>
                             ${!lm.completed && !ehVaga && !ehHistorico ? `

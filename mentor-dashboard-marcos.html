@@ -3128,12 +3128,18 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 return '<span class="text-muted" style="font-size: 0.75rem;">sem data de início</span>';
             }
             const cor = COR_DA_MENTORIA[sit.estado] || '#374151';
-            const renovar = sit.vitalicia ? '' :
-                `<button class="btn btn-xs btn-outline" onclick="abrirMentoria(${aluno.id})" style="margin-top: 0.3rem;">🔄 Renovar</button>`;
+            // O botao existe SEMPRE: mesmo com acesso permanente o Marcos
+            // precisa entrar para ver o plano e liberar a Dra. Iria.
+            const renovar = `<button class="btn btn-xs btn-outline" onclick="abrirMentoria(${aluno.id})" style="margin-top: 0.3rem;">`
+                + (sit.vitalicia ? '⚙️ Plano' : '🔄 Renovar') + '</button>';
+            const selo = sit.plano && sit.plano !== 'mentoria'
+                ? `<div style="font-size: 0.68rem; font-weight: 700; color: #5b21b6; text-transform: uppercase; letter-spacing: 0.03em;">${escapeHtml(sit.rotuloPlano)}</div>`
+                : '';
             // O cabecalho da coluna ja diz "Mentoria", entao a segunda linha e
             // so o tempo. Sem nowrap: espremida contra a coluna de Acoes, ela
             // passava por baixo dos botoes.
             return `
+                ${selo}
                 <div style="font-size: 0.78rem; font-weight: 700; color: ${cor}; white-space: nowrap;">${escapeHtml(sit.rotulo)}</div>
                 <div style="font-size: 0.7rem; color: #6b7280;">há ${escapeHtml(sit.tempoNaMentoria)}</div>
                 ${renovar}
@@ -3182,9 +3188,24 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 <div style="background: #f9fafb; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem;">
                     <div style="font-size: 1.1rem; font-weight: 700; color: ${cor};">${escapeHtml(sit.rotulo)}</div>
                 </div>
+                ${linha('Plano', escapeHtml(sit.rotuloPlano) + ' · ' + sit.mesesDoPlano + ' meses por pagamento')}
                 ${linha('Início da mentoria', escapeHtml(WardMentoria.formataData(sit.inicio)))}
                 ${linha('Na mentoria há', escapeHtml(sit.tempoNaMentoria))}
                 ${linha('Acesso até', sit.vitalicia ? 'não vence' : escapeHtml(WardMentoria.formataData(sit.fim)))}
+                ${sit.plano === 'bolsista' ? `
+                    <h4 style="margin: 1.25rem 0 0.5rem; font-size: 0.95rem;">👩‍⚕️ Chamadas com a Dra. Iria</h4>
+                    <p style="margin: 0 0 0.6rem; font-size: 0.85rem; color: #6b7280; line-height: 1.55;">
+                        Bolsista não agenda com a Dra. Iria por conta própria: ele vê que a agenda
+                        dela está cheia e é mandado falar com você. Aqui você abre o horário.
+                    </p>
+                    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                        <span style="font-weight: 700; font-size: 1.05rem;">${Number(aluno.iria_liberadas) || 0}</span>
+                        <span style="font-size: 0.85rem; color: #6b7280;">liberada(s) e ainda não usada(s)</span>
+                        <button class="btn btn-xs btn-primary" onclick="liberarIria(1)">➕ Liberar 1</button>
+                        <button class="btn btn-xs btn-outline" onclick="liberarIria(-1)"
+                                ${(Number(aluno.iria_liberadas) || 0) < 1 ? 'disabled' : ''}>➖ Tirar 1</button>
+                    </div>
+                ` : ''}
                 <h4 style="margin: 1.25rem 0 0.5rem; font-size: 0.95rem;">🔄 Renovações</h4>
                 <ul style="margin: 0; padding-left: 1.1rem;">${historico}</ul>
                 ${sit.vitalicia ? `
@@ -3205,6 +3226,30 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 rodape.disabled = false;
                 rodape.textContent = `🔄 Renovar até ${WardMentoria.formataData(novoFim)}`;
             }
+        }
+
+        // Abre (ou retira) uma chamada com a Dra. Iria para um bolsista.
+        async function liberarIria(delta) {
+            const aluno = alunoDaMentoria;
+            if (!aluno) return;
+            const atual = Number(aluno.iria_liberadas) || 0;
+            const novo = Math.max(0, atual + delta);
+            if (novo === atual) return;
+
+            const { error } = await WardApp.db.from('users')
+                .update({ iria_liberadas: novo }).eq('id', aluno.id);
+            if (error) {
+                const texto = error.message || JSON.stringify(error);
+                WardApp.showToast(/iria_liberadas/.test(texto)
+                    ? 'Falta rodar sql/84_planos.sql no Supabase'
+                    : 'Erro: ' + texto, 'error');
+                return;
+            }
+            aluno.iria_liberadas = novo;
+            renderMentoriaModal();
+            WardApp.showToast(delta > 0
+                ? 'Liberada 1 chamada com a Dra. Iria'
+                : 'Liberação retirada');
         }
 
         async function renovarMentoria() {
