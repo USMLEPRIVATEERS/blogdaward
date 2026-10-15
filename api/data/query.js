@@ -24,7 +24,10 @@ const ADMIN_WRITE_TABLES = [
   'wardpedia_systems', 'wardpedia_categories',
   // Progressão dos alunos: só mentores escrevem
   'ward_assessments', 'student_assessment_scores',
-  'student_bureaucracy', 'faculty_ecfmg_contacts'
+  'student_bureaucracy', 'faculty_ecfmg_contacts',
+  // Relatório de chamada: quem escreve é o mentor que atendeu. O aluno lê o
+  // que é dele (regra em USER_SCOPED_TABLES) e não escreve nada.
+  'call_reports'
 ];
 
 // =============================================
@@ -90,6 +93,15 @@ const USER_SCOPED_TABLES = [
   'student_assessment_scores', 'student_bureaucracy',
   // Criar Teste: cada aluno só enxerga a própria lista de questões usadas
   'qbank_used_questions',
+  // Relatório de chamada: estava exposto a QUALQUER usuário logado, que lia
+  // (e escrevia) o prontuário de todos os outros alunos. Nenhuma tela de aluno
+  // consulta esta tabela, então escopar não tira nada de ninguém.
+  'call_reports',
+  // Recados do mentor para o aluno, pelo mesmo motivo. Toda leitura já
+  // filtrava por user_id na tela; o que faltava era o servidor garantir.
+  // O broadcast grava uma linha por aluno, então nada depende de ler as
+  // dos outros.
+  'messages', 'mentor_messages',
   // Fellow e Alternate: o formulario de pre-chamada e de cada aluno
   'donato_intake'
 ];
@@ -120,6 +132,8 @@ const OWNER_COLUMN = {
   student_assessment_scores: 'user_id', student_bureaucracy: 'user_id',
   qbank_used_questions: 'user_id',
   donato_intake: 'user_id',
+  call_reports: 'student_id',
+  messages: 'user_id', mentor_messages: 'user_id',
 };
 
 // Operators that can widen scope past an enforced equality; rejected on
@@ -279,7 +293,7 @@ module.exports = async function handler(req, res) {
     // SECURITY: Block non-admin write operations on protected tables
     // Exception: users can update safe columns on their own row
     // =============================================
-    if (!isAdmin && ADMIN_WRITE_TABLES.includes(table)) {
+    if (!isAdmin && !isParceiro && ADMIN_WRITE_TABLES.includes(table)) {
       let allowed = false;
       if (table === 'users' && action === 'update' && data) {
         const updateCols = Object.keys(typeof data === 'string' ? JSON.parse(data) : data);
@@ -340,7 +354,7 @@ module.exports = async function handler(req, res) {
     // Tables WITHOUT an owner column here (genuine cross-user reads) keep the
     // prior user_id-based write checks and unrestricted SELECT.
     // =============================================
-    if (!isAdmin && USER_SCOPED_TABLES.includes(table)) {
+    if (!isAdmin && !isParceiro && USER_SCOPED_TABLES.includes(table)) {
       const ownerCol = OWNER_COLUMN[table];
 
       if (ownerCol) {

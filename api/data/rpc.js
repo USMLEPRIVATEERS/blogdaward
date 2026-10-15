@@ -27,7 +27,7 @@ const RPC_IDENTITY_PARAM = {
 };
 
 // SECURITY: roles that may be assigned at registration time
-const ALLOWED_ROLES = ['aluno', 'assessoria', 'externo', 'mentor_iria', 'mentor_marcos', 'mentor_guilherme', 'mentor_fernando'];
+const ALLOWED_ROLES = ['aluno', 'assessoria', 'externo', 'mentor_iria', 'mentor_marcos', 'mentor_guilherme', 'mentor_fernando', 'parceiro_donato'];
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
