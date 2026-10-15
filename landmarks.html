@@ -114,6 +114,17 @@
                 <div class="landmark-list" data-group="fernando"></div>
             </div>
 
+            <!-- Fellow e via alternativa, com o Dr. Andre Donato -->
+            <div class="landmark-group" id="donato-group" style="display: none;">
+                <h3 class="landmark-group-title">Fellow e Alternate — Dr. André Donato</h3>
+                <p class="grupo-nota">
+                    As conversas com o Dr. André são marcadas direto com ele, pelo WhatsApp, depois
+                    da prévia com o Marcos. Tudo acontece na
+                    <a href="/fellow-alternate">página Fellow e Alternate</a>.
+                </p>
+                <div class="landmark-list" data-group="donato"></div>
+            </div>
+
             <!-- Chamadas do roteiro antigo que voce ja fez ou ja agendou -->
             <div class="landmark-group" id="historico-group" style="display: none;">
                 <h3 class="landmark-group-title">Chamadas anteriores</h3>
@@ -1222,6 +1233,7 @@
         let stepAtual = WardRoteiro.STEP_PADRAO;  // prova escolhida no dashboard
         let pesquisaLiberada = false;   // liberado pelo Marcos
         let alunoDoFernando = false;    // marcado pelo Marcos
+        let alunoDoDonato = false;      // liberado pelo Marcos
         let viewingAsStudentId = null;
         let targetUserId = null; // The user whose landmarks we're viewing
 
@@ -1467,12 +1479,13 @@
             // dashboard dele. Enquanto nao libera, o aluno ve o aviso do acordo.
             const { data: perfil } = await WardApp.db
                 .from('users')
-                .select('research_enabled, fernando_interested')
+                .select('research_enabled, fernando_interested, donato_liberado')
                 .eq('id', targetUserId)
                 .maybeSingle();
 
             pesquisaLiberada = !!(perfil && perfil.research_enabled);
             alunoDoFernando = !!(perfil && perfil.fernando_interested);
+            alunoDoDonato = !!(perfil && perfil.donato_liberado);
 
             // Em que prova o aluno esta focando (ele escolhe no dashboard, em
             // "Preparacao Atual"). Quem nunca escolheu segue no Step 1.
@@ -1488,6 +1501,7 @@
             document.getElementById('research-group').style.display = pesquisaLiberada ? '' : 'none';
             document.getElementById('research-info').style.display = pesquisaLiberada ? 'none' : '';
             document.getElementById('fernando-group').style.display = alunoDoFernando ? '' : 'none';
+            document.getElementById('donato-group').style.display = alunoDoDonato ? '' : 'none';
 
             await loadLandmarks();
             initDragAndDrop();
@@ -1665,7 +1679,8 @@
         function roteiroDoAluno() {
             return WardRoteiro.roteiro(stepAtual, {
                 pesquisa: pesquisaLiberada,
-                fernando: alunoDoFernando
+                fernando: alunoDoFernando,
+                donato: alunoDoDonato
             });
         }
 
@@ -2116,7 +2131,11 @@
                             ? 'Concluída em ' + WardApp.formatDate(lm.completion_date)
                             : '⏳ Aguardando agendamento'));
 
-                    const podeAgendar = !ehHistorico && !lm.completed && (lm.landmark_type || '').startsWith('call_');
+                    // As conversas com o Dr. Andre sao marcadas por WhatsApp na
+                    // pagina Fellow e Alternate, nao pela agenda da plataforma.
+                    const agendavelAqui = WardRoteiro.ehAgendavel(lm.landmark_type);
+                    const podeAgendar = !ehHistorico && !lm.completed && agendavelAqui
+                        && (lm.landmark_type || '').startsWith('call_');
                     const tituloEsc = String(lm.title).replace(/'/g, "\\'");
 
                     return `
@@ -2142,6 +2161,9 @@
                                 <button class="btn btn-sm ${temAgendada && !ehVaga ? 'btn-outline' : 'btn-primary'}" onclick="openScheduleModal(${lm.id}, '${tituloEsc}', '${mentorHint}')">
                                     ${ehVaga ? '📅 Agendar' : (temAgendada ? '📅 Reagendar' : '📅 Agendar')}
                                 </button>
+                            ` : ''}
+                            ${!agendavelAqui && !lm.completed && !ehHistorico ? `
+                                <a class="btn btn-sm btn-primary" href="/fellow-alternate">🧭 Abrir a trilha</a>
                             ` : ''}
                             <button class="btn btn-sm" onclick="openEditLandmarkModal(${lm.id})" title="Anotações">✏️</button>
                             ${!lm.completed && !ehVaga && !ehHistorico ? `

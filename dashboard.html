@@ -449,6 +449,25 @@
             </div>
         </div>
 
+        <!-- Fellow e Alternate: so aparece para quem o Marcos liberou -->
+        <div class="card mt-4" id="card-fellow-alternate" style="display: none;">
+            <div style="background: linear-gradient(135deg, #0f766e 0%, #115e59 100%); border-radius: 12px; padding: 1.5rem; position: relative; overflow: hidden;">
+                <div style="position: absolute; top: -18px; right: -14px; font-size: 7rem; opacity: 0.12;">🧭</div>
+                <div style="position: relative; z-index: 1; color: white;">
+                    <div style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.4rem;">🧭 Fellow e Alternate</div>
+                    <p style="margin: 0 0 1rem; opacity: 0.92; font-size: 0.9rem; line-height: 1.55; max-width: 58ch;">
+                        A trilha para descobrir se o seu perfil serve para entrar nos Estados Unidos
+                        direto como <em>fellow</em>, sem refazer residência — com o Dr. André Donato,
+                        que fez esse caminho e deu match na UCSF.
+                    </p>
+                    <a href="/fellow-alternate" class="btn" style="background: white; color: #115e59; font-weight: 600;">
+                        Abrir a trilha →
+                    </a>
+                    <span id="fa-pendencia" style="display: none; margin-left: 0.75rem; font-size: 0.82rem; background: rgba(255,255,255,0.22); padding: 0.25rem 0.6rem; border-radius: 999px;"></span>
+                </div>
+            </div>
+        </div>
+
         <!-- Quick Access -->
         <div class="card mt-4">
             <div class="card-header">
@@ -807,7 +826,49 @@
         <div class="loading-spinner"></div>
     </div>
 
+    <!-- Pedido da data de nascimento: aparece enquanto o aluno nao preencher -->
+    <div id="nascimento-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 440px;">
+            <div class="modal-header">
+                <h3 class="modal-title">🎂 Falta a sua data de nascimento</h3>
+                <button class="modal-close" onclick="fecharNascimento()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin: 0 0 1rem; line-height: 1.6; font-size: 0.92rem;">
+                    Quando você entrou, o cadastro ainda não pedia isso. É rápido:
+                    a Ward usa a data para lembrar do seu aniversário e para os
+                    documentos do processo.
+                </p>
+                <input type="date" id="nascimento-input" class="form-input" style="width: 100%;">
+                <p id="nascimento-erro" style="display: none; color: #991b1b; font-size: 0.82rem; margin: 0.5rem 0 0;"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharNascimento()">Agora não</button>
+                <button class="btn btn-primary" id="nascimento-salvar" onclick="salvarNascimento()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Parabens: aparece uma vez por aniversario -->
+    <div id="aniversario-modal" class="modal-overlay" onclick="if (event.target === this) fecharAniversario()">
+        <div class="modal" style="max-width: 420px; overflow: hidden;">
+            <div style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; padding: 2rem 1.5rem; text-align: center; position: relative;">
+                <button class="modal-close" onclick="fecharAniversario()" style="position: absolute; top: 0.6rem; right: 0.8rem; color: white;">&times;</button>
+                <div style="font-size: 3.5rem; line-height: 1;">🎉</div>
+                <h3 id="aniversario-titulo" style="margin: 0.6rem 0 0; font-size: 1.4rem;"></h3>
+                <div id="aniversario-idade" style="font-size: 0.85rem; opacity: 0.9; margin-top: 0.2rem;"></div>
+            </div>
+            <div class="modal-body" style="text-align: center;">
+                <p id="aniversario-texto" style="margin: 0; line-height: 1.65; font-size: 0.95rem;"></p>
+            </div>
+            <div class="modal-footer" style="justify-content: center;">
+                <button class="btn btn-primary" onclick="fecharAniversario()">Obrigado!</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/timezone-detect.js"></script>
+    <script src="js/aniversarios.js"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -971,6 +1032,9 @@
 
             // Load toggle states
             loadToggleStates();
+
+            carregarFellowAlternate();
+            cuidarDoAniversario();
 
             // Check tutorial status (only for students, not mentors viewing as students)
             if (userData.role === 'aluno' && !viewingAsStudent) {
@@ -1253,6 +1317,112 @@
         });
 
         // Toggle handlers
+        // Trilha Fellow e Alternate (parceria com o Dr. Andre Donato). O cartao
+        // so existe para quem o Marcos liberou, e o selo diz o proximo passo.
+        async function carregarFellowAlternate() {
+            const card = document.getElementById('card-fellow-alternate');
+            if (!card) return;
+
+            const { data: perfil } = await WardApp.db
+                .from('users').select('donato_liberado')
+                .eq('id', targetUserId).maybeSingle();
+            if (!perfil || !perfil.donato_liberado) return;
+
+            card.style.display = '';
+
+            const { data: intake } = await WardApp.db
+                .from('donato_intake').select('enviado_em, revisado_em, curso_liberado_em')
+                .eq('user_id', targetUserId).maybeSingle();
+
+            const selo = document.getElementById('fa-pendencia');
+            if (!selo) return;
+            let texto = '';
+            if (!intake || !intake.enviado_em) texto = 'falta preencher o formulário';
+            else if (!intake.revisado_em) texto = 'aguardando a revisão do Marcos';
+            else if (!intake.curso_liberado_em) texto = 'revisado — curso a caminho';
+            if (texto) { selo.textContent = texto; selo.style.display = ''; }
+        }
+
+        // Data de nascimento: ou pede, ou dá os parabéns. Nunca as duas coisas
+        // na mesma visita — seria duas janelas na cara de quem acabou de entrar.
+        async function cuidarDoAniversario() {
+            if (viewingAsStudent || userData.role !== 'aluno') return;
+
+            const { data: perfil } = await WardApp.db
+                .from('users').select('birth_date').eq('id', userData.id).maybeSingle();
+
+            if (!perfil || !perfil.birth_date) {
+                // Pedido adiado nesta sessão: não insiste de novo agora.
+                try { if (sessionStorage.getItem('nascimento_adiado')) return; } catch (e) {}
+                document.getElementById('nascimento-modal').classList.add('active');
+                return;
+            }
+
+            const A = window.WardAniversarios;
+            if (!A) return;
+            if (A.posicaoNaJanela(perfil.birth_date) === null) return;
+            if (A.jaViu(userData.id)) return;
+            mostrarParabens(perfil.birth_date);
+        }
+
+        function mostrarParabens(nascimento) {
+            const A = window.WardAniversarios;
+            const ano = A.hoje().getFullYear();
+            const msg = A.mensagemDoAno(ano);
+            const idade = A.idadeEm(nascimento);
+            document.getElementById('aniversario-titulo').textContent = msg.titulo;
+            document.getElementById('aniversario-texto').textContent = msg.texto;
+            const elIdade = document.getElementById('aniversario-idade');
+            elIdade.textContent = (idade != null && idade > 0 && idade < 120) ? idade + ' anos' : '';
+            document.getElementById('aniversario-modal').classList.add('active');
+            // Marca na hora de mostrar: se a pessoa fechar a aba sem clicar em
+            // nada, a janela nao volta a perturbar.
+            A.marcarVisto(userData.id);
+        }
+
+        function fecharAniversario() {
+            document.getElementById('aniversario-modal').classList.remove('active');
+        }
+
+        function fecharNascimento() {
+            document.getElementById('nascimento-modal').classList.remove('active');
+            try { sessionStorage.setItem('nascimento_adiado', '1'); } catch (e) {}
+        }
+
+        async function salvarNascimento() {
+            const input = document.getElementById('nascimento-input');
+            const erro = document.getElementById('nascimento-erro');
+            const btn = document.getElementById('nascimento-salvar');
+            const valor = input.value;
+
+            const mostraErro = (t) => { erro.textContent = t; erro.style.display = ''; };
+            erro.style.display = 'none';
+
+            if (!valor) return mostraErro('Escolha a data.');
+            const d = WardAniversarios.paraData(valor);
+            const hoje = WardAniversarios.hoje();
+            if (!d || d >= hoje) return mostraErro('A data precisa ser no passado.');
+            if (hoje.getFullYear() - d.getFullYear() > 120) return mostraErro('Confira o ano.');
+
+            btn.disabled = true;
+            btn.textContent = 'Salvando...';
+            const { error } = await WardApp.db.from('users')
+                .update({ birth_date: valor }).eq('id', userData.id);
+            btn.disabled = false;
+            btn.textContent = 'Salvar';
+
+            if (error) return mostraErro('Não consegui salvar: ' + (error.message || 'tente de novo.'));
+
+            document.getElementById('nascimento-modal').classList.remove('active');
+            WardApp.showToast('Obrigado! Data salva.');
+
+            // Se hoje já for o dia, os parabéns vêm na sequência.
+            if (WardAniversarios.posicaoNaJanela(valor) !== null
+                && !WardAniversarios.jaViu(userData.id)) {
+                setTimeout(() => mostrarParabens(valor), 400);
+            }
+        }
+
         async function loadToggleStates() {
             // Load from database
             const { data: userPrefs } = await WardApp.db

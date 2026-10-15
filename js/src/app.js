@@ -560,6 +560,9 @@ async function login(cpf, password) {
                 case 'externo':
                     window.location.href = '/dashboard-externo';
                     break;
+                case 'parceiro_donato':
+                    window.location.href = '/mentor-dashboard-donato';
+                    break;
                 default:
                     window.location.href = '/dashboard';
             }
@@ -1872,6 +1875,9 @@ function updateNavbarForRole() {
         case 'mentor_fernando':
             dashboardLink.href = '/mentor-dashboard-fernando';
             break;
+        case 'parceiro_donato':
+            dashboardLink.href = '/mentor-dashboard-donato';
+            break;
         default:
             // Keep dashboard.html for students
             dashboardLink.href = '/dashboard';
@@ -1951,6 +1957,9 @@ function goToDashboard() {
             break;
         case 'externo':
             window.location.href = '/dashboard-externo';
+            break;
+        case 'parceiro_donato':
+            window.location.href = '/mentor-dashboard-donato';
             break;
         default:
             window.location.href = '/dashboard';

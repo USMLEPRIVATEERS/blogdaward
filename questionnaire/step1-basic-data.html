@@ -48,6 +48,13 @@
                 </div>
 
                 <div class="form-group">
+                    <label class="form-label" for="birth_date">
+                        Data de Nascimento <span class="required">*</span>
+                    </label>
+                    <input type="date" id="birth_date" class="form-input" required>
+                </div>
+
+                <div class="form-group">
                     <label class="form-label" for="cpf">
                         CPF <span class="required">*</span>
                     </label>
@@ -209,6 +216,7 @@
             if (data) {
                 document.getElementById('full_name').value = data.full_name || '';
                 document.getElementById('email_confirm').value = data.email_confirm || '';
+                document.getElementById('birth_date').value = data.birth_date || '';
                 document.getElementById('cpf').value = data.cpf || '';
                 document.getElementById('orcid').value = data.orcid || '';
                 document.getElementById('address_line1').value = data.address_line1 || '';
@@ -224,6 +232,16 @@
                 document.getElementById('intended_specialty_usa').value = data.intended_specialty_usa || '';
             }
         });
+
+        // Mantem users.birth_date em dia com o que o aluno respondeu aqui.
+        async function espelharNascimento(data) {
+            if (!data) return;
+            const u = await WardApp.checkAuth();
+            if (!u) return;
+            const alvo = (typeof viewAsStudentId !== 'undefined' && viewAsStudentId) || u.id;
+            await WardApp.db.from('users').update({ birth_date: data }).eq('id', alvo)
+                .then(({ error }) => { if (error) console.error('birth_date', error); });
+        }
 
         // CPF Mask
         document.getElementById('cpf').addEventListener('input', function(e) {
@@ -246,6 +264,7 @@
             const formData = {
                 full_name: document.getElementById('full_name').value,
                 email_confirm: document.getElementById('email_confirm').value,
+                birth_date: document.getElementById('birth_date').value || null,
                 cpf: document.getElementById('cpf').value,
                 orcid: document.getElementById('orcid').value,
                 address_line1: document.getElementById('address_line1').value,
@@ -263,6 +282,9 @@
 
             WardApp.showLoading();
             const success = await WardApp.saveQuestionnaireProgress(1, formData);
+            // O calendario de aniversarios le de users.birth_date, nao do JSON
+            // do questionario — por isso a data vai para os dois lugares.
+            await espelharNascimento(formData.birth_date);
             WardApp.hideLoading();
 
             if (success) {
@@ -275,6 +297,7 @@
             const formData = {
                 full_name: document.getElementById('full_name').value,
                 email_confirm: document.getElementById('email_confirm').value,
+                birth_date: document.getElementById('birth_date').value || null,
                 cpf: document.getElementById('cpf').value,
                 orcid: document.getElementById('orcid').value,
                 address_line1: document.getElementById('address_line1').value,
@@ -291,6 +314,7 @@
             };
 
             await WardApp.saveQuestionnaireProgress(1, formData);
+            await espelharNascimento(formData.birth_date);
             // Redirect to correct dashboard based on role
             let userData = JSON.parse(localStorage.getItem('userData') || 'null');
 

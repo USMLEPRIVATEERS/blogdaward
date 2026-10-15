@@ -329,6 +329,19 @@
             </div>
         </div>
 
+        <!-- Fellow e Alternate: parceria com o Dr. Andre Donato -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-between align-center" style="flex-wrap: wrap; gap: 0.5rem;">
+                <span>🧭 Fellow e Alternate — Dr. André Donato <span id="donato-contador" style="font-size: 0.8rem; color: #6b7280; font-weight: 400;"></span></span>
+                <button class="btn btn-sm btn-primary" onclick="abrirLiberarDonato()">👥 Liberar alunos</button>
+            </div>
+            <div class="card-body">
+                <div id="donato-lista">
+                    <p class="text-muted">Carregando...</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Schedule Status Section -->
         <div class="card mt-4">
             <div class="card-header d-flex justify-between align-center" style="flex-wrap: wrap; gap: 0.5rem;">
@@ -429,6 +442,17 @@
                     </div>
             </div>
         </div>
+        <!-- Calendario de aniversarios dos alunos -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-between align-center" style="flex-wrap: wrap; gap: 0.5rem;">
+                <span>🎂 Aniversários dos alunos</span>
+                <span id="aniv-hoje-selo" style="display: none; font-size: 0.8rem; font-weight: 700; background: #fef3c7; color: #92400e; padding: 0.2rem 0.65rem; border-radius: 999px;"></span>
+            </div>
+            <div class="card-body">
+                <div id="aniversarios-card"><p class="text-muted">Carregando...</p></div>
+            </div>
+        </div>
+
     </main>
         <!-- Kanban Board (Embedded) -->
         <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #e5e7eb;">
@@ -889,6 +913,49 @@ Cardiovascular	Physiology	62	FALSE
         </div>
     </div>
 
+    <!-- Liberar alunos para o Dr. Andre -->
+    <div id="donato-liberar-modal" class="modal-overlay">
+        <div class="modal modal-lg">
+            <div class="modal-header" style="background: linear-gradient(135deg, #0f766e, #115e59); color: white;">
+                <h3 class="modal-title" style="color: white;">🧭 Liberar alunos para o Dr. André Donato</h3>
+                <button class="modal-close" onclick="closeModal('donato-liberar-modal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                    O aluno liberado passa a ver a trilha <strong>Fellow e Alternate</strong> no
+                    dashboard dele, e o Dr. André passa a enxergar esse aluno no painel dele.
+                </p>
+                <p style="color: #92400e; background: #fef3c7; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.84rem; margin-bottom: 1rem;">
+                    Ele é parceiro externo. Libere só depois do consentimento do aluno e do termo
+                    de sigilo assinado.
+                </p>
+                <input type="text" id="donato-busca" class="form-input" placeholder="Buscar aluno..." oninput="renderLiberarDonato()" style="margin-bottom: 1rem;">
+                <div id="donato-liberar-lista"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('donato-liberar-modal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulario de pre-chamada de um aluno -->
+    <div id="donato-form-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 720px;">
+            <div class="modal-header">
+                <h3 class="modal-title">📋 Formulário de pré-chamada</h3>
+                <button class="modal-close" onclick="closeModal('donato-form-modal')">&times;</button>
+            </div>
+            <div class="modal-body" id="donato-form-corpo" style="max-height: 70vh; overflow-y: auto;">
+                <!-- Filled by JS -->
+            </div>
+            <div class="modal-footer" style="flex-wrap: wrap; gap: 0.5rem;">
+                <button class="btn btn-secondary" onclick="closeModal('donato-form-modal')">Fechar</button>
+                <button class="btn btn-outline" id="donato-copiar-btn" onclick="copiarBriefing()">📋 Copiar briefing</button>
+                <button class="btn btn-primary" id="donato-ok-btn" onclick="aprovarDonato()">✅ Revisado e curso liberado</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Fernando Interested Students Modal -->
     <div id="fernando-interested-modal" class="modal-overlay">
         <div class="modal modal-lg">
@@ -941,6 +1008,7 @@ Cardiovascular	Physiology	62	FALSE
     <script src="js/timezone-detect.js"></script>
     <script src="js/roteiro-chamadas.js"></script>
     <script src="js/mentoria-acesso.js"></script>
+    <script src="js/aniversarios.js"></script>
     <script src="js/app.js"></script>
     <script>
         let userData = null;
@@ -1027,7 +1095,9 @@ Cardiovascular	Physiology	62	FALSE
                 loadPendingCalls(),
                 loadScheduleDelays(),
                 loadNetworkingRequests(),
-                loadObservacoes()
+                loadObservacoes(),
+                loadDonato(),
+                renderAniversarios(allStudents)
             ].map(p => Promise.resolve(p).catch(e => console.error('carga do dashboard', e))));
             await loadScheduleStatus(); // Must run before renderStudentsTable to populate studentsWithoutSchedule
             await renderStudentsTable();
@@ -3171,6 +3241,298 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             renderMentoriaModal();
             await renderStudentsTable();
             WardApp.showToast(`Renovado até ${WardMentoria.formataData(renovacao.novoFim)}`);
+        }
+
+        // =====================================================
+        // FELLOW E ALTERNATE — parceria com o Dr. Andre Donato
+        //
+        // O Marcos libera o aluno (users.donato_liberado), o aluno preenche o
+        // formulario (donato_intake) e o Marcos confirma que revisou E que ja
+        // criou o acesso dele ao curso na Hotmart. So depois disso o aluno ve
+        // o botao do curso.
+        // =====================================================
+
+        let intakesDonato = [];     // linhas de donato_intake
+        let alunoDonatoAberto = null;
+
+        const ROTULO_STATUS = {
+            nao_comecou: 'ainda não começou', estudando: 'estudando',
+            agendado: 'prova agendada', aprovado: 'aprovado', reprovado: 'reprovado'
+        };
+        const ROTULO_VISTO = {
+            nenhum: 'nenhum', b1b2: 'B1/B2 válido', j1: 'J-1', h1b: 'H-1B',
+            o1: 'O-1', green_card: 'green card', outro: 'outro'
+        };
+        const ROTULO_ORCAMENTO = {
+            ate_50k: 'até R$50 mil', '50_100k': 'R$50 a 100 mil',
+            '100_200k': 'R$100 a 200 mil', acima_200k: 'acima de R$200 mil',
+            nao_sei: 'ainda não sabe'
+        };
+
+        async function loadDonato() {
+            const { data } = await WardApp.db.from('donato_intake').select('*');
+            intakesDonato = data || [];
+            renderDonato();
+        }
+
+        function intakeDe(alunoId) {
+            return intakesDonato.find(i => i.user_id === alunoId) || null;
+        }
+
+        // Em que ponto da trilha o aluno esta. A ordem importa: e o que o
+        // Marcos precisa fazer a seguir que fica em destaque.
+        function estadoDonato(aluno) {
+            const i = intakeDe(aluno.id);
+            if (!i || !i.enviado_em) return { chave: 'sem_form', texto: 'não preencheu o formulário', cor: '#6b7280' };
+            if (!i.revisado_em) return { chave: 'revisar', texto: 'aguardando a sua revisão', cor: '#92400e' };
+            if (!i.curso_liberado_em) return { chave: 'curso', texto: 'revisado — falta liberar o curso', cor: '#92400e' };
+            return { chave: 'pronto', texto: 'pronto para a conversa', cor: '#065f46' };
+        }
+
+        function renderDonato() {
+            const container = document.getElementById('donato-lista');
+            const contador = document.getElementById('donato-contador');
+            if (!container) return;
+
+            const liberados = allStudents.filter(a => a.donato_liberado);
+            if (contador) {
+                const pendentes = liberados.filter(a => ['revisar', 'curso'].includes(estadoDonato(a).chave)).length;
+                contador.textContent = liberados.length
+                    ? `(${liberados.length} liberado${liberados.length === 1 ? '' : 's'}`
+                        + (pendentes ? ` · ${pendentes} esperando você)` : ')')
+                    : '';
+            }
+
+            if (!liberados.length) {
+                container.innerHTML = '<p class="text-muted">Nenhum aluno liberado ainda. Use <strong>Liberar alunos</strong> para começar.</p>';
+                return;
+            }
+
+            // Quem espera por você primeiro.
+            const peso = { revisar: 0, curso: 1, sem_form: 2, pronto: 3 };
+            const ordenados = liberados.slice().sort((a, b) => {
+                const d = peso[estadoDonato(a).chave] - peso[estadoDonato(b).chave];
+                return d !== 0 ? d : compararPorNome(a, b);
+            });
+
+            container.innerHTML = ordenados.map(aluno => {
+                const e = estadoDonato(aluno);
+                const i = intakeDe(aluno.id);
+                return `
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--gray-200);">
+                        <div style="min-width: 0;">
+                            <div style="font-weight: 600;">${escapeHtml(_dn(aluno.full_name) || aluno.email || 'Aluno')}</div>
+                            <div style="font-size: 0.8rem; color: ${e.cor}; font-weight: 600;">${escapeHtml(e.texto)}</div>
+                            ${i && i.especialidade ? `<div style="font-size: 0.78rem; color: #6b7280;">${escapeHtml(i.especialidade)}</div>` : ''}
+                        </div>
+                        <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+                            ${i && i.enviado_em
+                                ? `<button class="btn btn-xs btn-primary" onclick="abrirFormDonato(${aluno.id})">📋 Ver formulário</button>`
+                                : '<span class="text-muted" style="font-size: 0.78rem;">aguardando o aluno</span>'}
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        // ---------------- liberar ----------------
+        function abrirLiberarDonato() {
+            renderLiberarDonato();
+            openModal('donato-liberar-modal');
+        }
+
+        function renderLiberarDonato() {
+            const busca = (document.getElementById('donato-busca')?.value || '').toLowerCase();
+            const lista = ordenarPorNome(allStudents.filter(a => a.role === 'aluno'))
+                .filter(a => !busca || (_dn(a.full_name) || '').toLowerCase().includes(busca)
+                          || (a.email || '').toLowerCase().includes(busca));
+
+            document.getElementById('donato-liberar-lista').innerHTML = lista.map(a => `
+                <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid var(--gray-200); cursor: pointer;">
+                    <input type="checkbox" ${a.donato_liberado ? 'checked' : ''}
+                           onchange="alternarDonato(${a.id}, this.checked)">
+                    <span style="flex: 1 1 0; min-width: 0;">
+                        <span style="font-weight: 600;">${escapeHtml(_dn(a.full_name) || 'Sem nome')}</span>
+                        <span style="display: block; font-size: 0.78rem; color: #6b7280;">${escapeHtml(a.email || '')}</span>
+                    </span>
+                </label>`).join('') || '<p class="text-muted">Nenhum aluno encontrado.</p>';
+        }
+
+        async function alternarDonato(alunoId, marcado) {
+            const campos = marcado
+                ? { donato_liberado: true, donato_liberado_em: new Date().toISOString() }
+                : { donato_liberado: false, donato_liberado_em: null };
+            const { error } = await WardApp.db.from('users').update(campos).eq('id', alunoId);
+            if (error) {
+                WardApp.showToast('Erro: ' + (error.message || JSON.stringify(error)), 'error');
+                renderLiberarDonato();
+                return;
+            }
+            const aluno = allStudents.find(a => a.id === alunoId);
+            if (aluno) Object.assign(aluno, campos);
+            WardApp.showToast(marcado ? 'Aluno liberado para o Dr. André' : 'Liberação removida');
+            renderDonato();
+        }
+
+        // ---------------- formulário ----------------
+        function abrirFormDonato(alunoId) {
+            alunoDonatoAberto = allStudents.find(a => a.id === alunoId) || null;
+            if (!alunoDonatoAberto) return;
+            renderFormDonato();
+            openModal('donato-form-modal');
+        }
+
+        function linhaForm(rotulo, valor) {
+            if (valor == null || valor === '') return '';
+            return `<div style="display: flex; gap: 1rem; padding: 0.45rem 0; border-bottom: 1px solid var(--gray-200);">
+                        <span style="flex: 0 0 42%; color: #6b7280; font-size: 0.84rem;">${rotulo}</span>
+                        <span style="flex: 1 1 0; font-size: 0.88rem; white-space: pre-wrap;">${escapeHtml(String(valor))}</span>
+                    </div>`;
+        }
+
+        const simNao = v => v === true ? 'sim' : (v === false ? 'não' : '');
+
+        function renderFormDonato() {
+            const aluno = alunoDonatoAberto;
+            const i = intakeDe(aluno.id) || {};
+            const e = estadoDonato(aluno);
+            const corpo = document.getElementById('donato-form-corpo');
+
+            corpo.innerHTML = `
+                <div style="margin-bottom: 1rem;">
+                    <div style="font-size: 1.05rem; font-weight: 700;">${escapeHtml(_dn(aluno.full_name) || aluno.email)}</div>
+                    <div style="font-size: 0.82rem; color: ${e.cor}; font-weight: 600;">${escapeHtml(e.texto)}</div>
+                    ${i.enviado_em ? `<div style="font-size: 0.78rem; color: #6b7280;">Enviado em ${WardApp.formatDate(i.enviado_em)}</div>` : ''}
+                </div>
+                <h4 style="font-size: 0.92rem; margin: 1rem 0 0.25rem;">Perfil</h4>
+                ${linhaForm('Especialidade', i.especialidade)}
+                ${linhaForm('RQE / residência concluída', simNao(i.tem_rqe))}
+                ${linhaForm('Anos de residência', i.anos_residencia)}
+                ${linhaForm('Anos de prática', i.anos_pratica)}
+                <h4 style="font-size: 0.92rem; margin: 1rem 0 0.25rem;">USMLE</h4>
+                ${linhaForm('Step 1', [ROTULO_STATUS[i.step1_status] || i.step1_status, i.step1_nota].filter(Boolean).join(' · '))}
+                ${linhaForm('Step 2 CK', [ROTULO_STATUS[i.step2_status] || i.step2_status, i.step2_nota].filter(Boolean).join(' · '))}
+                ${linhaForm('Step 3', ROTULO_STATUS[i.step3_status] || i.step3_status)}
+                ${linhaForm('OET / inglês', ROTULO_STATUS[i.oet_status] || i.oet_status)}
+                ${linhaForm('ECFMG Certified', simNao(i.ecfmg_certificado))}
+                <h4 style="font-size: 0.92rem; margin: 1rem 0 0.25rem;">Experiência e contatos</h4>
+                ${linhaForm('Observership', simNao(i.observership_feito))}
+                ${linhaForm('Onde e quando', i.observership_onde)}
+                ${linhaForm('Contatos nos EUA', i.contatos_eua)}
+                ${linhaForm('Produção científica', i.producao_cientifica)}
+                ${i.cv_url ? linhaForm('Currículo', i.cv_url) : ''}
+                <h4 style="font-size: 0.92rem; margin: 1rem 0 0.25rem;">Visto</h4>
+                ${linhaForm('Visto atual', ROTULO_VISTO[i.visto_atual] || i.visto_atual)}
+                ${linhaForm('Já teve visto negado', simNao(i.negativa_visto))}
+                ${linhaForm('Detalhe', i.negativa_visto_detalhe)}
+                <h4 style="font-size: 0.92rem; margin: 1rem 0 0.25rem;">Plano</h4>
+                ${linhaForm('Tempo como fellow/faculty', i.tempo_aceita_fellow)}
+                ${linhaForm('Janela', i.janela)}
+                ${linhaForm('Orçamento', ROTULO_ORCAMENTO[i.orcamento_faixa] || i.orcamento_faixa)}
+                ${linhaForm('Objetivo', i.objetivo)}
+                ${linhaForm('O que quer perguntar', i.observacoes_aluno)}
+                ${i.curso_liberado_em ? `
+                    <p style="margin-top: 1.25rem; font-size: 0.84rem; color: #065f46; background: #d1fae5; padding: 0.7rem; border-radius: 8px;">
+                        Revisado e curso liberado em ${WardApp.formatDate(i.curso_liberado_em)}.
+                        O aluno já vê o botão do Rota Médica.
+                    </p>` : `
+                    <p style="margin-top: 1.25rem; font-size: 0.84rem; color: #6b7280;">
+                        Ao confirmar, o aluno passa a ver o botão do curso <strong>Rota Médica nos
+                        EUA</strong>. Confirme só depois de criar o acesso dele na Hotmart.
+                    </p>`}
+            `;
+
+            const btn = document.getElementById('donato-ok-btn');
+            if (btn) {
+                btn.style.display = i.curso_liberado_em ? 'none' : '';
+                btn.disabled = false;
+                btn.textContent = '✅ Revisado e curso liberado';
+            }
+        }
+
+        // O briefing que vai para o Dr. Andre antes da conversa.
+        function briefingTexto(aluno) {
+            const i = intakeDe(aluno.id) || {};
+            const l = (r, v) => (v == null || v === '') ? null : r + ': ' + v;
+            return [
+                _dn(aluno.full_name) || aluno.email,
+                '',
+                l('Especialidade', i.especialidade),
+                l('RQE / residência concluída', simNao(i.tem_rqe)),
+                l('Anos de residência', i.anos_residencia),
+                l('Anos de prática', i.anos_pratica),
+                l('Step 1', [ROTULO_STATUS[i.step1_status] || i.step1_status, i.step1_nota].filter(Boolean).join(' · ')),
+                l('Step 2 CK', [ROTULO_STATUS[i.step2_status] || i.step2_status, i.step2_nota].filter(Boolean).join(' · ')),
+                l('Step 3', ROTULO_STATUS[i.step3_status] || i.step3_status),
+                l('OET', ROTULO_STATUS[i.oet_status] || i.oet_status),
+                l('ECFMG Certified', simNao(i.ecfmg_certificado)),
+                l('Observership', [simNao(i.observership_feito), i.observership_onde].filter(Boolean).join(' — ')),
+                l('Contatos nos EUA', i.contatos_eua),
+                l('Produção científica', i.producao_cientifica),
+                l('Currículo', i.cv_url),
+                l('Visto', ROTULO_VISTO[i.visto_atual] || i.visto_atual),
+                l('Visto negado antes', [simNao(i.negativa_visto), i.negativa_visto_detalhe].filter(Boolean).join(' — ')),
+                l('Tempo como fellow/faculty', i.tempo_aceita_fellow),
+                l('Janela', i.janela),
+                l('Orçamento', ROTULO_ORCAMENTO[i.orcamento_faixa] || i.orcamento_faixa),
+                l('Objetivo', i.objetivo),
+                l('Quer perguntar', i.observacoes_aluno)
+            ].filter(v => v !== null).join('\n');
+        }
+
+        function copiarBriefing() {
+            if (!alunoDonatoAberto) return;
+            const texto = briefingTexto(alunoDonatoAberto);
+            navigator.clipboard.writeText(texto)
+                .then(() => WardApp.showToast('Briefing copiado'))
+                .catch(() => WardApp.showToast('Não consegui copiar', 'error'));
+        }
+
+        async function aprovarDonato() {
+            const aluno = alunoDonatoAberto;
+            if (!aluno) return;
+            const i = intakeDe(aluno.id);
+            if (!i) return;
+
+            const nome = _dn(aluno.full_name) || aluno.email;
+            if (!confirm(`Confirmar que o formulário de ${nome} está revisado E que o acesso dele `
+                + `ao curso Rota Médica já foi criado na Hotmart?\n\nIsso libera o botão do curso `
+                + `para ele.`)) return;
+
+            const btn = document.getElementById('donato-ok-btn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+
+            const agora = new Date().toISOString();
+            const campos = { revisado_em: i.revisado_em || agora, revisado_por: userData.id, curso_liberado_em: agora };
+            const { error } = await WardApp.db.from('donato_intake').update(campos).eq('id', i.id);
+            if (error) {
+                if (btn) { btn.disabled = false; btn.textContent = '✅ Revisado e curso liberado'; }
+                WardApp.showToast('Erro: ' + (error.message || JSON.stringify(error)), 'error');
+                return;
+            }
+            Object.assign(i, campos);
+            renderFormDonato();
+            renderDonato();
+            WardApp.showToast('Curso liberado para ' + nome);
+        }
+
+        // Calendario de aniversarios. A regra (quem faz hoje, 29/02, ordem dos
+        // meses) mora em js/aniversarios.js, compartilhado pelos dashboards.
+        function renderAniversarios(pessoas) {
+            const alvo = document.getElementById('aniversarios-card');
+            if (!alvo || !window.WardAniversarios) return;
+            // So aluno de mentoria: a propria linha do mentor e a assessoria
+            // avulsa entravam na conta de "quem ainda nao preencheu".
+            const lista = (pessoas || []).filter(p => p && p.role === 'aluno');
+            alvo.innerHTML = WardAniversarios.cartaoHTML(lista, { nome: _dn });
+
+            const doDia = WardAniversarios.aniversariantesDoDia(lista);
+            const selo = document.getElementById('aniv-hoje-selo');
+            if (selo && doDia.length) {
+                selo.textContent = '🎉 ' + (doDia.length === 1
+                    ? (_dn(doDia[0].full_name) || 'um aluno') + ' faz aniversário hoje'
+                    : doDia.length + ' aniversariantes hoje');
+                selo.style.display = '';
+            }
         }
 
         function getProgressColor(percentage) {
