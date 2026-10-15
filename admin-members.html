@@ -72,7 +72,10 @@
                     <div class="form-group" style="flex: 1;">
                         <select id="filter-role" class="form-input" onchange="filterMembers()">
                             <option value="">Todas as funções</option>
-                            <option value="aluno">🎓 Aluno</option>
+                            <option value="aluno">🎓 Aluno (todos os planos)</option>
+                            <option value="aluno:mentoria">&nbsp;&nbsp;↳ Mentoria</option>
+                            <option value="aluno:bolsista">&nbsp;&nbsp;↳ Bolsista</option>
+                            <option value="aluno:intensivo">&nbsp;&nbsp;↳ Intensivo</option>
                             <option value="assessoria">📋 Assessoria</option>
                             <option value="externo">🌐 Externo</option>
                             <option value="mentor_iria">👩‍⚕️ Dra. Iria</option>
@@ -159,7 +162,9 @@
                 <div class="form-group">
                     <label class="form-label" for="new-role">Função *</label>
                     <select id="new-role" class="form-input">
-                        <option value="aluno">🎓 Aluno</option>
+                        <option value="aluno:mentoria">🎓 Aluno — Mentoria</option>
+                        <option value="aluno:bolsista">🎓 Aluno — Bolsista</option>
+                        <option value="aluno:intensivo">🎓 Aluno — Intensivo</option>
                         <option value="assessoria">📋 Assessoria</option>
                         <option value="externo">🌐 Externo</option>
                         <option value="mentor_iria">👩‍⚕️ Dra. Iria</option>
@@ -202,7 +207,9 @@
                 <div class="form-group">
                     <label class="form-label" for="edit-role">Função *</label>
                     <select id="edit-role" class="form-input">
-                        <option value="aluno">🎓 Aluno</option>
+                        <option value="aluno:mentoria">🎓 Aluno — Mentoria</option>
+                        <option value="aluno:bolsista">🎓 Aluno — Bolsista</option>
+                        <option value="aluno:intensivo">🎓 Aluno — Intensivo</option>
                         <option value="assessoria">📋 Assessoria</option>
                         <option value="externo">🌐 Externo</option>
                         <option value="mentor_iria">👩‍⚕️ Dra. Iria</option>
@@ -537,13 +544,26 @@
             `;
         }
 
+        // "aluno:bolsista" -> { role: 'aluno', plano: 'bolsista' }. O papel
+        // continua sendo 'aluno' nos tres planos; so o campo `plano` muda.
+        function separaFuncao(valor) {
+            const partes = String(valor || '').split(':');
+            return { role: partes[0], plano: partes[1] || null };
+        }
+
+        function juntaFuncao(role, plano) {
+            return role === 'aluno' ? 'aluno:' + (plano || 'mentoria') : role;
+        }
+
+        const ROTULO_PLANO = { mentoria: 'Mentoria', bolsista: 'Bolsista', intensivo: 'Intensivo' };
+
         async function addMember() {
             const name = document.getElementById('new-name').value.trim();
             const cpfFormatted = document.getElementById('new-cpf').value;
             const cpf = cpfFormatted.replace(/\D/g, '');
             const email = document.getElementById('new-email').value.trim();
             const password = document.getElementById('new-password').value;
-            const role = document.getElementById('new-role').value;
+            const { role, plano } = separaFuncao(document.getElementById('new-role').value);
 
             if (!name || !cpf || !password) {
                 WardApp.showToast('Preencha nome, CPF e senha', 'warning');
@@ -576,7 +596,8 @@
                         email: email || '',
                         password,
                         full_name: name,
-                        role
+                        role,
+                        plano
                     })
                 });
 
@@ -610,7 +631,7 @@
             document.getElementById('edit-name').value = _dn(member.full_name) || '';
             document.getElementById('edit-cpf').value = formatCPF(_dn(member.cpf));
             document.getElementById('edit-email').value = member.email || '';
-            document.getElementById('edit-role').value = member.role || 'aluno';
+            document.getElementById('edit-role').value = juntaFuncao(member.role || 'aluno', member.plano);
             document.getElementById('edit-status').value = member.status || 'active';
             document.getElementById('edit-password').value = '';
 
@@ -623,7 +644,7 @@
             const cpfFormatted = document.getElementById('edit-cpf').value;
             const cpf = cpfFormatted.replace(/\D/g, '');
             const email = document.getElementById('edit-email').value.trim();
-            const role = document.getElementById('edit-role').value;
+            const { role, plano } = separaFuncao(document.getElementById('edit-role').value);
             const status = document.getElementById('edit-status').value;
             const password = document.getElementById('edit-password').value;
 
@@ -645,6 +666,10 @@
                 status,
                 updated_at: new Date().toISOString()
             };
+            // O plano so existe para aluno. Gravar em consulta separada: se o
+            // sql/84 ainda nao tiver rodado, a coluna nao existe e o UPDATE
+            // inteiro falharia, levando junto nome, CPF e status.
+            const planoParaGravar = role === 'aluno' ? (plano || 'mentoria') : null;
 
             // Update user data (without password)
             const { error } = await WardApp.db
@@ -655,6 +680,13 @@
             if (error) {
                 WardApp.showToast('Erro ao atualizar: ' + error.message, 'error');
                 return;
+            }
+
+            if (planoParaGravar !== null) {
+                const { error: ePlano } = await WardApp.db.from('users')
+                    .update({ plano: planoParaGravar, plano_alterado_em: new Date().toISOString() })
+                    .eq('id', memberId);
+                if (ePlano) console.error('plano', ePlano);
             }
 
             // Update password separately with bcrypt if provided

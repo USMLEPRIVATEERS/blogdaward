@@ -59,6 +59,44 @@
         { chave: 'prova', titulo: 'Planejamento de prova' }
     ];
 
+    // ------------------------------------------------------------- PLANOS
+    //
+    // O aluno e sempre role = 'aluno'; o que muda e o plano.
+    //
+    //   mentoria  - roteiro inteiro.
+    //   bolsista  - 100% gratuito: roteiro inteiro MENOS as frentes do Dr.
+    //               Fernando e do Dr. Andre, que so entram se ele migrar para
+    //               o plano pago. Chamada com a Dra. Iria so com liberacao do
+    //               Marcos (users.iria_liberadas) — ela nao pode ser
+    //               sobrecarregada por quem nao paga.
+    //   intensivo - pagou bem menos: mesma plataforma, mas SEIS chamadas, e
+    //               so estas. Sem seguimento, sem extras, sem Fernando nem
+    //               Dr. Andre.
+    var INTENSIVO_CHAMADAS = [
+        'call_iria_uworld',              // tecnica de questao
+        'call_iria_simulados',           // organizando os NBMEs
+        'call_marcos_myintealth_conta',  // cadastro no Myintealth
+        'call_marcos_myintealth_final',  // finalizando o Myintealth
+        'call_guilherme_anki_setup',     // configurando o Anki
+        'call_guilherme_anki_update'     // a rechamada do Anki
+    ];
+
+    var PLANOS = {
+        mentoria:  { rotulo: 'Mentoria',  fernando: true,  donato: true,  iriaLivre: true,  extras: true },
+        bolsista:  { rotulo: 'Bolsista',  fernando: false, donato: false, iriaLivre: false, extras: true },
+        intensivo: { rotulo: 'Intensivo', fernando: false, donato: false, iriaLivre: true,  extras: false,
+                     apenas: INTENSIVO_CHAMADAS }
+    };
+    var PLANO_PADRAO = 'mentoria';
+
+    function normalizaPlano(plano) {
+        return PLANOS[plano] ? plano : PLANO_PADRAO;
+    }
+
+    function regraDoPlano(plano) {
+        return PLANOS[normalizaPlano(plano)];
+    }
+
     // Ordem das duas conversas com o Dr. Andre, e qual previa destrava cada uma.
     var SESSOES_DONATO = [
         { n: 1, previa: 'call_marcos_donato_previa_1', sessao: 'call_donato_rota_1' },
@@ -281,11 +319,41 @@
     function roteiro(step, opcoes) {
         var s = normalizaStep(step);
         var op = opcoes || {};
+        var regra = regraDoPlano(op.plano);
+
         var lista = CHAMADAS.filter(function (c) { return existeNoStep(c, s); });
-        if (op.pesquisa) lista = lista.concat(PESQUISA);
-        if (op.fernando) lista = lista.concat(FERNANDO);
-        if (op.donato) lista = lista.concat(DONATO);
+        // O intensivo tem uma lista fechada: o resto do roteiro nao se aplica.
+        if (regra.apenas) {
+            lista = lista.filter(function (c) { return regra.apenas.indexOf(c.tipo) !== -1; });
+        }
+        if (op.pesquisa && !regra.apenas) lista = lista.concat(PESQUISA);
+        if (op.fernando && regra.fernando) lista = lista.concat(FERNANDO);
+        if (op.donato && regra.donato) lista = lista.concat(DONATO);
         return lista.map(function (c) { return resolve(c, s); });
+    }
+
+    // O plano permite agendar esta chamada por conta propria?
+    // Devolve { pode, motivo }. O bolsista precisa de liberacao do Marcos para
+    // qualquer chamada com a Dra. Iria.
+    function podeAgendar(tipo, plano, iriaLiberadas) {
+        var regra = regraDoPlano(plano);
+        if (!ehAgendavel(tipo)) return { pode: false, motivo: 'fora_da_plataforma' };
+        if (regra.iriaLivre) return { pode: true, motivo: null };
+        if (mentorDoTipo(tipo) !== 'iria') return { pode: true, motivo: null };
+        return (Number(iriaLiberadas) || 0) > 0
+            ? { pode: true, motivo: null }
+            : { pode: false, motivo: 'iria_precisa_liberacao' };
+    }
+
+    // Mentor de uma chamada pelo TIPO (o titulo pode ser reescrito).
+    function mentorDoTipo(tipo) {
+        var t = String(tipo || '');
+        if (/^call_iria_/.test(t)) return 'iria';
+        if (/^call_marcos_/.test(t)) return 'marcos';
+        if (/^call_guilherme_/.test(t)) return 'guilherme';
+        if (/^call_fernando_/.test(t)) return 'fernando';
+        if (/^call_donato_/.test(t)) return 'donato';
+        return mentorDoTitulo(definicao(t) && definicao(t).titulo);
     }
 
     // A chamada se agenda pela plataforma? As do Dr. Andre nao: ele atende por
@@ -330,6 +398,13 @@
         PESQUISA: PESQUISA,
         FERNANDO: FERNANDO,
         DONATO: DONATO,
+        PLANOS: PLANOS,
+        PLANO_PADRAO: PLANO_PADRAO,
+        INTENSIVO_CHAMADAS: INTENSIVO_CHAMADAS,
+        normalizaPlano: normalizaPlano,
+        regraDoPlano: regraDoPlano,
+        podeAgendar: podeAgendar,
+        mentorDoTipo: mentorDoTipo,
         SESSOES_DONATO: SESSOES_DONATO,
         TODAS: TODAS,
         ehAgendavel: ehAgendavel,
