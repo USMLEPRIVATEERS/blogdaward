@@ -273,8 +273,18 @@
             mentor_iria: '👩‍⚕️ Dra. Iria',
             mentor_marcos: '🛠️ Marcos (Admin)',
             mentor_guilherme: '🃏 Guilherme',
-            mentor_fernando: '🔬 Dr. Fernando Vasconcellos'
+            mentor_fernando: '🔬 Dr. Fernando Vasconcellos',
+            parceiro_donato: '🧭 Dr. André Donato (parceiro)'
         };
+
+        // "🎓 Aluno · Bolsista" — o plano so aparece quando nao e o completo.
+        function rotuloDaFuncao(member) {
+            const base = roleLabels[member.role] || member.role;
+            if (member.role !== 'aluno') return base;
+            const plano = member.plano || 'mentoria';
+            return plano === 'mentoria' ? base
+                : base + ' <span style="font-size: 0.75rem; font-weight: 700; color: #5b21b6;">· ' + (ROTULO_PLANO[plano] || plano) + '</span>';
+        }
 
         // Ordem de prioridade para agrupamento
         const roleOrder = ['mentor_marcos', 'mentor_iria', 'mentor_guilherme', 'mentor_fernando', 'parceiro_donato', 'aluno', 'assessoria', 'externo'];
@@ -441,15 +451,23 @@
             let filtered = [...allMembers];
 
             if (search) {
+                // So compara CPF quando a busca tem digitos: com "bruno",
+                // search.replace(/\D/g, '') vira '' e todo CPF .includes('')
+                // e verdadeiro — a busca por nome devolvia a lista inteira.
+                const digitos = search.replace(/\D/g, '');
                 filtered = filtered.filter(m =>
                     (_dn(m.full_name) || '').toLowerCase().includes(search) ||
-                    m.email?.toLowerCase().includes(search) ||
-                    (_dn(m.cpf) || '').includes(search.replace(/\D/g, ''))
+                    (m.email || '').toLowerCase().includes(search) ||
+                    (digitos.length > 0 && String(_dn(m.cpf) || '').replace(/\D/g, '').includes(digitos))
                 );
             }
 
             if (role) {
-                filtered = filtered.filter(m => m.role === role);
+                // "aluno:bolsista" filtra papel E plano; "aluno" sozinho pega
+                // os tres planos.
+                const f = separaFuncao(role);
+                filtered = filtered.filter(m => m.role === f.role
+                    && (!f.plano || (m.plano || 'mentoria') === f.plano));
             }
 
             if (status) {
@@ -527,7 +545,7 @@
                     </td>
                     <td>${formatCPF(_dn(member.cpf))}</td>
                     <td>${member.email || '-'}</td>
-                    <td>${roleLabels[member.role] || member.role}</td>
+                    <td>${rotuloDaFuncao(member)}</td>
                     <td>
                         <span class="badge ${status === 'active' ? 'badge-success' : 'badge-secondary'}">
                             ${status === 'active' ? 'Ativo' : 'Inativo'}
