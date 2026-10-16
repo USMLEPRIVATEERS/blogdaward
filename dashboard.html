@@ -82,6 +82,25 @@
             margin-bottom: 0.2rem;
         }
         .prep-focus-value { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+        .opcao-agendar {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            padding: 0.8rem 0.9rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            color: var(--text);
+            text-decoration: none;
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+        .opcao-agendar:hover { border-color: var(--brand); box-shadow: var(--shadow-sm); }
+        .opcao-agendar.is-bloqueada { opacity: 0.65; cursor: not-allowed; }
+        .opcao-agendar-icone { font-size: 1.3rem; line-height: 1; }
+        .opcao-agendar-texto { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+        .opcao-agendar-texto small { color: var(--text-muted); font-size: 0.8rem; }
+        .opcao-agendar-seta { color: var(--brand); font-weight: 700; font-size: 0.85rem; white-space: nowrap; }
         .kanban-frame {
             width: 100%;
             height: 900px;
@@ -379,18 +398,6 @@
             </div>
         </div>
 
-        <!-- Scheduled Video Calls -->
-        <div class="card mt-4">
-            <div class="card-header">
-                📞 Chamadas de Vídeo Agendadas
-            </div>
-            <div class="card-body">
-                <div id="scheduled-calls-list">
-                    <p class="text-muted">Carregando chamadas...</p>
-                </div>
-            </div>
-        </div>
-
         <!-- Fellow e Alternate: so aparece para quem o Marcos liberou -->
         <div class="feature-card mt-4" id="card-fellow-alternate" style="display: none;">
             <div class="feature-card-main">
@@ -540,6 +547,21 @@
     </div>
 
     <!-- Password Change Modal -->
+    <!-- Agendar uma chamada: as vagas "sempre disponíveis" do roteiro -->
+    <div id="agendar-rapido-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">📅 Agendar uma chamada</h3>
+                <button class="modal-close" onclick="closeModal('agendar-rapido-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted" style="margin: 0 0 1rem;">Estas chamadas ficam sempre disponíveis. Escolha uma e marque o horário.</p>
+                <div id="agendar-rapido-opcoes"></div>
+                <p style="margin: 1rem 0 0; font-size: 0.85rem;"><a href="/landmarks">Ver todas as chamadas do seu roteiro →</a></p>
+            </div>
+        </div>
+    </div>
+
     <div id="password-modal" class="modal-overlay">
         <div class="modal">
             <div class="modal-header">
@@ -790,6 +812,7 @@
     </div>
 
     <script src="js/timezone-detect.js"></script>
+    <script src="js/roteiro-chamadas.js"></script>
     <script src="js/aniversarios.js"></script>
     <script src="js/app.js"></script>
     <script>
@@ -1012,9 +1035,6 @@
             // Load landmarks preview
             await loadLandmarksPreview();
 
-            // Load scheduled calls
-            await loadScheduledCalls();
-
             // Load preparation status
             await loadPrepStatus();
         }
@@ -1064,108 +1084,147 @@
             WardApp.showToast('Mensagem marcada como lida');
         }
 
-        async function loadLandmarksPreview() {
-            // First check if user has any landmarks at all
-            const { data: allLandmarks } = await WardApp.db
-                .from('landmarks')
-                .select('id')
-                .eq('user_id', userData.id);
+        // ---- Próximas chamadas: só o que está agendado. Sem nada marcado, o aluno
+        // ganha um botão para agendar uma das vagas "sempre disponíveis" do roteiro.
+        const TIPOS_SEMPRE_DISPONIVEIS = ['call_marcos_ajuste_cronograma', 'call_iria_orientacoes', 'call_iria_system'];
+        const DICA_DA_VAGA = {
+            call_marcos_ajuste_cronograma: 'Para reorganizar a rotina e o cronograma de estudos',
+            call_iria_orientacoes: 'Sobre o que você quer conversar?',
+            call_iria_system: 'Qual system você concluiu?'
+        };
+        let vagasRapidas = [];
 
+        function escapeHtml(texto) {
+            return String(texto == null ? '' : texto)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function hojeEmSaoPaulo() {
+            return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+        }
+
+        async function loadLandmarksPreview() {
             const container = document.getElementById('landmarks-preview');
 
-            // If no landmarks exist at all, user needs to visit landmarks page first
-            if (!allLandmarks || allLandmarks.length === 0) {
-                container.innerHTML = `
-                    <div style="padding: 1.5rem; background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%); border-radius: 8px; border-left: 4px solid #d97706; text-align: center;">
-                        <div style="font-size: 3rem; margin-bottom: 0.5rem;">📞</div>
-                        <div style="font-size: 1.1rem; font-weight: 700; color: #92400e; margin-bottom: 0.5rem;">
-                            Configure suas chamadas
-                        </div>
-                        <div style="font-size: 0.9rem; color: #9a3412; margin-bottom: 1rem;">
-                            Acesse a página de Chamadas para visualizar e agendar suas reuniões com os mentores
-                        </div>
-                        <a href="/landmarks" style="display: inline-block; padding: 0.5rem 1rem; background: #d97706; color: white; border-radius: 6px; text-decoration: none; font-weight: 600;">
-                            Ir para Chamadas →
-                        </a>
-                    </div>
-                `;
-                return;
-            }
-
-            // Now load only uncompleted landmarks
-            const { data: landmarks } = await WardApp.db
-                .from('landmarks')
-                .select('*')
-                .eq('user_id', userData.id)
-                .eq('completed', false)
-                .order('order_position', { ascending: true })
-                .limit(5);
-
-            // If no uncompleted landmarks, all are done
-            if (!landmarks || landmarks.length === 0) {
-                container.innerHTML = `
-                    <div style="padding: 1.5rem; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 8px; border-left: 4px solid #22c55e; text-align: center;">
-                        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎉</div>
-                        <div style="font-size: 1.1rem; font-weight: 700; color: #166534; margin-bottom: 0.5rem;">
-                            Todas as chamadas concluídas!
-                        </div>
-                        <div style="font-size: 0.9rem; color: #15803d;">
-                            Você pode agendar novas chamadas com os mentores a qualquer momento
-                        </div>
-                    </div>
-                `;
-                return;
-            }
-
-            // Load scheduled calls for these landmarks
-            const landmarkIds = landmarks.map(lm => lm.id);
-            const { data: scheduledCalls } = await WardApp.db
+            const { data: calls, error } = await WardApp.db
                 .from('scheduled_calls')
-                .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, name)')
-                .in('landmark_id', landmarkIds)
-                .eq('status', 'scheduled');
+                .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, name, email, timezone), landmark:landmarks(title)')
+                .eq('student_id', targetUserId)
+                .in('status', ['scheduled', 'pending'])
+                .order('scheduled_date', { ascending: true })
+                .order('scheduled_time', { ascending: true });
 
-            // Map scheduled calls to landmarks
-            const callsMap = {};
-            if (scheduledCalls) {
-                scheduledCalls.forEach(call => {
-                    if (!callsMap[call.landmark_id]) {
-                        callsMap[call.landmark_id] = [];
-                    }
-                    callsMap[call.landmark_id].push(call);
-                });
+            if (error) {
+                console.error('Error loading scheduled calls:', error);
+                container.innerHTML = '<p class="text-muted">Erro ao carregar chamadas</p>';
+                return;
             }
 
-            container.innerHTML = landmarks.map(lm => {
-                const hasScheduledCall = callsMap[lm.id] && callsMap[lm.id].length > 0;
-                const scheduledCall = hasScheduledCall ? callsMap[lm.id][0] : null;
+            const hoje = hojeEmSaoPaulo();
+            const proximas = (calls || []).filter(c => !c.scheduled_date || c.scheduled_date >= hoje);
+            await carregarVagasRapidas();
 
-                let scheduledInfo = '';
-                if (scheduledCall) {
-                    const callDate = new Date(scheduledCall.scheduled_date + 'T' + scheduledCall.scheduled_time);
-                    const dateStr = callDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-                    const timeStr = callDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                    const mentorName = _dn(scheduledCall.mentor?.full_name) || _dn(scheduledCall.mentor?.name) || 'Mentor';
-                    scheduledInfo = `📹 ${dateStr} às ${timeStr} - ${mentorName}`;
-                }
+            if (proximas.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="padding: 1.5rem 1rem;">
+                        <div class="empty-state-icon">📞</div>
+                        <p class="text-muted" style="margin: 0 0 1rem;">Nenhuma chamada agendada. Precisa reorganizar a rotina ou tirar uma dúvida? Marque com um mentor.</p>
+                        <button class="btn btn-primary btn-sm" id="btn-agendar-rapido" onclick="abrirAgendarRapido()">📅 Agendar uma chamada</button>
+                    </div>
+                `;
+                return;
+            }
 
+            container.innerHTML = proximas.map(call => {
+                const titulo = call.landmark?.title || 'Chamada com mentor';
+                const mentor = _dn(call.mentor?.full_name) || _dn(call.mentor?.name) || 'Mentor';
+                const pendente = call.status === 'pending';
+                const gcal = buildCallGcalUrl(call, titulo);
                 return `
-                    <div class="landmark-item ${lm.is_urgent ? 'landmark-urgent' : ''}" style="cursor: pointer;" onclick="window.location.href='/landmarks'">
-                        <span class="landmark-status" style="font-size: 1.5rem;">
-                            ${hasScheduledCall ? '📹' : (lm.is_urgent ? '⚠️' : '📞')}
-                        </span>
+                    <div class="landmark-item" style="cursor: pointer;" onclick="viewCallDetails(${call.id})">
+                        <span class="landmark-status" style="font-size: 1.5rem;">📹</span>
                         <div class="landmark-content">
                             <div class="landmark-title" style="font-weight: 600;">
-                                ${lm.title}
-                                ${hasScheduledCall ? '<span style="color: #10b981; font-size: 0.7rem; margin-left: 0.5rem; background: #d1fae5; padding: 0.15rem 0.4rem; border-radius: 3px;">✓ AGENDADA</span>' : ''}
+                                ${escapeHtml(titulo)}
+                                <span class="badge ${pendente ? 'badge-warning' : 'badge-success'}" style="margin-left: 0.4rem;">${pendente ? 'pendente' : 'agendada'}</span>
                             </div>
                             <div class="landmark-meta" style="font-size: 0.85rem; margin-top: 0.25rem;">
-                                ${scheduledInfo ? scheduledInfo : '⏳ Aguardando agendamento'}
+                                📅 ${getCallTimeDisplay(call)} &nbsp;·&nbsp; 👤 ${escapeHtml(mentor)}
                             </div>
+                            ${gcal ? `<a href="${gcal}" target="_blank" rel="noopener noreferrer" class="gcal-btn" style="margin-top: 0.5rem;" onclick="event.stopPropagation();">📆 Google Agenda</a>` : ''}
                         </div>
                     </div>
-                `
-            }).join('');
+                `;
+            }).join('') + `
+                <div style="margin-top: 0.75rem;">
+                    <button class="btn btn-outline btn-sm" id="btn-agendar-rapido" onclick="abrirAgendarRapido()">📅 Agendar outra chamada</button>
+                </div>
+            `;
+        }
+
+        // As telas de reagendar/cancelar chamam isto para atualizar a lista.
+        async function loadScheduledCalls() {
+            return loadLandmarksPreview();
+        }
+
+        // As vagas "sempre disponíveis" que o aluno tem no roteiro, com a regra do
+        // plano (bolsista só fala com a Iria depois que o Marcos libera).
+        async function carregarVagasRapidas() {
+            vagasRapidas = [];
+            const { data: vagas } = await WardApp.db
+                .from('landmarks')
+                .select('id, title, landmark_type, completed')
+                .eq('user_id', targetUserId)
+                .in('landmark_type', TIPOS_SEMPRE_DISPONIVEIS);
+
+            // Consulta separada: a página sobrevive se as colunas de plano ainda não existirem.
+            let plano = 'mentoria', liberadas = 0;
+            const { data: perfil, error } = await WardApp.db
+                .from('users').select('plano, iria_liberadas').eq('id', targetUserId).maybeSingle();
+            if (!error && perfil) { plano = perfil.plano || 'mentoria'; liberadas = Number(perfil.iria_liberadas) || 0; }
+
+            vagasRapidas = (vagas || [])
+                .filter(v => !v.completed && TIPOS_SEMPRE_DISPONIVEIS.includes(v.landmark_type))
+                .sort((a, b) => TIPOS_SEMPRE_DISPONIVEIS.indexOf(a.landmark_type) - TIPOS_SEMPRE_DISPONIVEIS.indexOf(b.landmark_type))
+                .filter((v, i, arr) => arr.findIndex(x => x.landmark_type === v.landmark_type) === i)
+                .map(v => {
+                    const permissao = window.WardRoteiro ? WardRoteiro.podeAgendar(v.landmark_type, plano, liberadas) : { pode: true };
+                    return {
+                        tipo: v.landmark_type,
+                        titulo: v.title,
+                        dica: DICA_DA_VAGA[v.landmark_type] || '',
+                        bloqueada: !permissao.pode && permissao.motivo === 'iria_precisa_liberacao'
+                    };
+                });
+        }
+
+        function abrirAgendarRapido() {
+            const box = document.getElementById('agendar-rapido-opcoes');
+            if (!vagasRapidas.length) {
+                box.innerHTML = `
+                    <div class="empty-state" style="padding: 1rem;">
+                        <p class="text-muted" style="margin: 0 0 0.75rem;">As chamadas do seu plano estão na página de Chamadas.</p>
+                        <a href="/landmarks" class="btn btn-primary btn-sm">Abrir Chamadas →</a>
+                    </div>
+                `;
+            } else {
+                box.innerHTML = vagasRapidas.map(v => v.bloqueada ? `
+                    <a href="javascript:void(0)" class="opcao-agendar is-bloqueada" data-tipo="${escapeHtml(v.tipo)}" onclick="avisarAgendaDaIria()">
+                        <span class="opcao-agendar-icone">🔁</span>
+                        <span class="opcao-agendar-texto"><strong>${escapeHtml(v.titulo)}</strong><small>Dra. Iria está com a agenda cheia — agende com o Marcos</small></span>
+                        <span class="opcao-agendar-seta">🔒</span>
+                    </a>` : `
+                    <a href="/landmarks?agendar=1&tipo=${encodeURIComponent(v.tipo)}" class="opcao-agendar" data-tipo="${escapeHtml(v.tipo)}">
+                        <span class="opcao-agendar-icone">🔁</span>
+                        <span class="opcao-agendar-texto"><strong>${escapeHtml(v.titulo)}</strong><small>${escapeHtml(v.dica)}</small></span>
+                        <span class="opcao-agendar-seta">📅 Agendar</span>
+                    </a>`).join('');
+            }
+            openModal('agendar-rapido-modal');
+        }
+
+        function avisarAgendaDaIria() {
+            WardApp.showToast('Dra. Iria está com a agenda cheia. Agende "Marcos: ajustando o seu cronograma de estudos".', 'warning');
         }
 
         async function loadPrepStatus() {
@@ -1758,80 +1817,6 @@
         }
 
         // Scheduled Calls Functions
-        async function loadScheduledCalls() {
-            const container = document.getElementById('scheduled-calls-list');
-
-            try {
-                const { data: calls, error } = await WardApp.db
-                    .from('scheduled_calls')
-                    .select('*, mentor:users!scheduled_calls_mentor_id_fkey(full_name, email, timezone), landmark:landmarks(title)')
-                    .eq('student_id', targetUserId)
-                    .in('status', ['scheduled', 'pending'])
-                    .order('scheduled_date', { ascending: true })
-                    .order('scheduled_time', { ascending: true });
-
-                if (error) {
-                    console.error('Error loading scheduled calls:', error);
-                    container.innerHTML = '<p class="text-muted">Erro ao carregar chamadas</p>';
-                    return;
-                }
-
-                if (!calls || calls.length === 0) {
-                    container.innerHTML = '<div class="empty-state"><p class="text-muted">Nenhuma chamada agendada no momento</p></div>';
-                    return;
-                }
-
-                container.innerHTML = calls.map(call => {
-                    const datetime = getCallTimeDisplay(call);
-                    const statusColors = {
-                        scheduled: '#10b981',
-                        pending: '#f59e0b',
-                        completed: '#6b7280',
-                        cancelled: '#ef4444'
-                    };
-                    const statusLabels = {
-                        scheduled: 'Agendada',
-                        pending: 'Pendente',
-                        completed: 'Concluída',
-                        cancelled: 'Cancelada'
-                    };
-
-                    const gcalUrl = (call.status === 'scheduled' || call.status === 'pending')
-                        ? buildCallGcalUrl(call, call.landmark?.title || 'Chamada com mentor')
-                        : null;
-
-                    return `
-                        <div class="call-card" style="border-left: 4px solid ${statusColors[call.status] || '#6b7280'}; margin-bottom: 1rem; padding: 1rem; background: #f9fafb; border-radius: 8px; cursor: pointer;" onclick="viewCallDetails(${call.id})">
-                            <div style="display: flex; justify-content: space-between; align-items: start;">
-                                <div>
-                                    <div style="font-weight: 600; color: #111827; margin-bottom: 0.25rem;">
-                                        ${call.landmark?.title || 'Chamada com mentor'}
-                                    </div>
-                                    <div style="color: #6b7280; font-size: 0.875rem;">
-                                        👤 ${_dn(call.mentor?.full_name) || 'Mentor'}<br>
-                                        📅 ${datetime}<br>
-                                        ${call.notes ? '📝 ' + (call.notes.length > 60 ? call.notes.substring(0, 60) + '...' : call.notes) : ''}
-                                    </div>
-                                </div>
-                                <div>
-                                    <span style="background: ${statusColors[call.status] || '#6b7280'}; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
-                                        ${statusLabels[call.status] || call.status}
-                                    </span>
-                                </div>
-                            </div>
-                            ${gcalUrl ? `<div style="margin-top: 0.75rem;"><a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="gcal-btn" onclick="event.stopPropagation();">📆 Adicionar ao Google Agenda</a></div>` : ''}
-                        </div>
-                    `;
-                }).join('');
-
-            } catch (err) {
-                console.error('Error loading scheduled calls:', err);
-                container.innerHTML = '<p class="text-muted">Erro ao carregar chamadas</p>';
-            }
-        }
-
-        let currentCallData = null; // Store current call for adding observations
-
         async function viewCallDetails(callId) {
             try {
                 const { data: call, error } = await WardApp.db

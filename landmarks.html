@@ -3609,14 +3609,36 @@
             if (select.value) loadMentorSlots();
         }
 
-        // Detecta o link de agendamento (?agendar=1&titulo=...&mentor=...) e abre o modal
+        // Detecta o link de agendamento e abre o modal:
+        //   ?agendar=1&titulo=...&mentor=...  (link que o mentor manda ao aluno)
+        //   ?agendar=1&tipo=call_iria_system   (botão "Agendar uma chamada" do dashboard:
+        //                                      abre a vaga que o aluno já tem desse tipo)
         function checkScheduleLink() {
             const params = new URLSearchParams(window.location.search);
             if (params.get('agendar') !== '1') return;
+            const tipo = params.get('tipo') || '';
             const title = params.get('titulo') || 'Chamada com mentor';
             const mentorId = params.get('mentor') || '';
             // Limpa a URL para que um reload não reabra o modal
             try { history.replaceState({}, '', window.location.pathname); } catch (e) {}
+
+            if (tipo) {
+                const todas = Object.values(landmarksPorId);
+                const vaga = todas.find(l => l.landmark_type === tipo && !l.completed) || todas.find(l => l.landmark_type === tipo);
+                if (vaga) {
+                    const permissao = WardRoteiro.podeAgendar(vaga.landmark_type, planoDoAluno, iriaLiberadas);
+                    if (!permissao.pode) {
+                        if (permissao.motivo === 'iria_precisa_liberacao') avisarAgendaDaIria();
+                        return;
+                    }
+                    openScheduleModal(vaga.id, vaga.title, WardRoteiro.mentorDoTitulo(vaga.title));
+                    return;
+                }
+                // O aluno não tem essa vaga no roteiro: cai no agendamento por título.
+                const def = (WardRoteiro.TODAS || []).find(d => d.tipo === tipo);
+                openScheduleModalFromLink(def ? def.titulo : title, mentorId);
+                return;
+            }
             openScheduleModalFromLink(title, mentorId);
         }
 
