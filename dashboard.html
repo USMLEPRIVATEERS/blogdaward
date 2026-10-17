@@ -770,25 +770,25 @@
         <div class="loading-spinner"></div>
     </div>
 
-    <!-- Pedido da data de nascimento: aparece enquanto o aluno nao preencher -->
-    <div id="nascimento-modal" class="modal-overlay">
+    <!-- Pedido da data de nascimento: obrigatorio. Nao tem como fechar sem
+         preencher: sem botao de fechar, sem "agora nao", e o clique fora nao
+         chega ao fechador generico do app.js (stopPropagation). -->
+    <div id="nascimento-modal" class="modal-overlay" onclick="event.stopPropagation()">
         <div class="modal" style="max-width: 440px;">
             <div class="modal-header">
                 <h3 class="modal-title">🎂 Falta a sua data de nascimento</h3>
-                <button class="modal-close" onclick="fecharNascimento()">&times;</button>
             </div>
             <div class="modal-body">
                 <p style="margin: 0 0 1rem; line-height: 1.6; font-size: 0.92rem;">
-                    Quando você entrou, o cadastro ainda não pedia isso. É rápido:
-                    a Ward usa a data para lembrar do seu aniversário e para os
-                    documentos do processo.
+                    Quando você entrou, o cadastro ainda não pedia isso. A Ward usa a
+                    data para lembrar do seu aniversário e para os documentos do
+                    processo, então ela é obrigatória: preencha para continuar.
                 </p>
                 <input type="date" id="nascimento-input" class="form-input" style="width: 100%;">
                 <p id="nascimento-erro" style="display: none; color: #991b1b; font-size: 0.82rem; margin: 0.5rem 0 0;"></p>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="fecharNascimento()">Agora não</button>
-                <button class="btn btn-primary" id="nascimento-salvar" onclick="salvarNascimento()">Salvar</button>
+                <button class="btn btn-primary" id="nascimento-salvar" onclick="salvarNascimento()">Salvar e continuar</button>
             </div>
         </div>
     </div>
@@ -1338,11 +1338,11 @@
             if (error) return;
 
             if (!perfil || !perfil.birth_date) {
-                // Pedido adiado nesta sessão: não insiste de novo agora.
-                try { if (sessionStorage.getItem('nascimento_adiado')) return; } catch (e) {}
+                // Obrigatório: a janela fica até a data ser salva.
                 document.getElementById('nascimento-modal').classList.add('active');
                 return;
             }
+            try { sessionStorage.setItem('ward_nasc_ok', '1'); } catch (e) {}
 
             const A = window.WardAniversarios;
             if (!A) return;
@@ -1370,11 +1370,6 @@
             document.getElementById('aniversario-modal').classList.remove('active');
         }
 
-        function fecharNascimento() {
-            document.getElementById('nascimento-modal').classList.remove('active');
-            try { sessionStorage.setItem('nascimento_adiado', '1'); } catch (e) {}
-        }
-
         async function salvarNascimento() {
             const input = document.getElementById('nascimento-input');
             const erro = document.getElementById('nascimento-erro');
@@ -1400,6 +1395,7 @@
             if (error) return mostraErro('Não consegui salvar: ' + (error.message || 'tente de novo.'));
 
             document.getElementById('nascimento-modal').classList.remove('active');
+            try { sessionStorage.setItem('ward_nasc_ok', '1'); } catch (e) {}
             WardApp.showToast('Obrigado! Data salva.');
 
             // Se hoje já for o dia, os parabéns vêm na sequência.

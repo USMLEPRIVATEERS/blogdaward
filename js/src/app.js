@@ -432,7 +432,26 @@ async function checkAuth() {
         }
         return null;
     }
+    exigirDataDeNascimento(user);
     return user;
+}
+
+// A data de nascimento e obrigatoria para alunos. O dashboard tem a janela que
+// pede (e nao fecha sem preencher); em qualquer outra pagina, quem ainda nao
+// preencheu volta para la. Uma consulta por sessao: confirmada, fica em
+// sessionStorage. Nao bloqueia o carregamento da pagina (nao e aguardada).
+async function exigirDataDeNascimento(user) {
+    try {
+        if (!user || user.role !== 'aluno') return;
+        if (sessionStorage.getItem('ward_nasc_ok')) return;
+        const pagina = window.location.pathname.replace(/\.html$/, '');
+        if (pagina === '/' || pagina === '/index' || pagina === '/register' || pagina === '/dashboard' || pagina.indexOf('/questionnaire') === 0) return;
+        const { data, error } = await window.WardApp.db
+            .from('users').select('birth_date').eq('id', user.id).maybeSingle();
+        if (error) return; // coluna ainda nao existe (sql/83): nao bloqueia ninguem
+        if (data && data.birth_date) { sessionStorage.setItem('ward_nasc_ok', '1'); return; }
+        window.location.href = '/dashboard';
+    } catch (e) { /* nunca derruba a pagina por causa disto */ }
 }
 
 // Login function - supports both old system and Supabase Auth
