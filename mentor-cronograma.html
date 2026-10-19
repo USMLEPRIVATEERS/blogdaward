@@ -360,6 +360,39 @@ CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
                         <span style="background: rgba(59, 130, 246, 0.15); padding: 0.5rem; border-radius: 8px;">📋</span>
                         <span id="gen-title-label">Categorias</span> e Questões
                     </h4>
+                    <!-- Modo "Atualizar": o que o aluno ja fez fica no cronograma, fora da divisao de datas -->
+                    <div id="gen-atualizar-bloco" style="display: none;">
+                        <p class="gen-upd-intro">
+                            Marque o que o aluno <strong>já fez</strong>. Os tópicos marcados continuam no cronograma
+                            dele (riscados, com as datas antigas) para ele ver o que já percorreu, mas ficam
+                            <strong>fora da nova divisão de datas</strong>. O que foi marcado da última vez — por você
+                            ou pelo aluno — já aparece marcado.
+                        </p>
+                        <div class="gen-upd-toolbar">
+                            <span id="gen-upd-contagem"></span>
+                        </div>
+                        <div class="gen-upd-wrap">
+                            <table class="gen-upd-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 6.5rem;">✓ já fez</th>
+                                        <th>System</th>
+                                        <th id="gen-upd-category-header">Category</th>
+                                        <th style="text-align: center;">Questões</th>
+                                        <th>Datas atuais</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="gen-upd-body"></tbody>
+                            </table>
+                        </div>
+                        <details class="gen-upd-novos">
+                            <summary>➕ Adicionar tópicos novos (opcional)</summary>
+                            <p>Mesmo formato da planilha (separado por TAB): System → Category → Questions → Data de Início → Data de Fim → Aulas Recomendadas → ✓. Entram no fim, depois dos pendentes.</p>
+                            <textarea id="gen-upd-extra" class="form-textarea generator-input" rows="4" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;"></textarea>
+                        </details>
+                    </div>
+
+                    <div id="gen-novo-bloco">
                     <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.85rem;">
                         <button type="button" class="btn btn-primary btn-sm" onclick="carregarCronogramaPadrao()">
                             📋 Usar o cronograma padrão da Ward
@@ -376,6 +409,7 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
                     <p style="color: #64748b; font-size: 0.8rem; margin-top: 0.5rem;">
                         💡 As colunas "Data de Início" e "Data de Fim" serão preenchidas automaticamente. Itens com ✓=TRUE serão ignorados.
                     </p>
+                    </div>
                 </div>
 
                 <!-- Generate Button & Stats -->
@@ -962,6 +996,11 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
             if (genResultsHeader) {
                 genResultsHeader.textContent = label;
             }
+
+            const genUpdHeader = document.getElementById('gen-upd-category-header');
+            if (genUpdHeader) {
+                genUpdHeader.textContent = label;
+            }
         }
 
         function copyScheduleToClipboard() {
@@ -1073,6 +1112,9 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
         let genBlockedDays = new Set();
         let genScheduleData = [];
         let generatorMode = 'new'; // 'new' or 'update'
+        // Modo "Atualizar": todos os topicos do cronograma atual, cada um com a
+        // marcacao "ja fez". Os feitos ficam no cronograma e saem da divisao.
+        let genAtualizar = [];
 
         // Initialize generator weekday buttons
         function initGeneratorWeekdays() {
@@ -1112,6 +1154,13 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
             document.getElementById('gen-results-section').style.display = 'none';
             document.getElementById('gen-copy-btn').style.display = 'none';
             document.getElementById('gen-import-btn').style.display = 'none';
+
+            const atualizando = mode === 'update';
+            genAtualizar = [];
+            document.getElementById('gen-atualizar-bloco').style.display = atualizando ? '' : 'none';
+            document.getElementById('gen-novo-bloco').style.display = atualizando ? 'none' : '';
+            document.getElementById('gen-upd-extra').value = '';
+            document.getElementById('gen-import-btn').textContent = atualizando ? '🔄 Atualizar programação' : '✅ Importar para o Cronograma';
 
             // Initialize weekday buttons
             initGeneratorWeekdays();
@@ -1245,37 +1294,95 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
             }
         }
 
-        // Load existing schedule for update mode
+        // Modo "Atualizar": monta a lista de todos os topicos do cronograma atual,
+        // na ordem em que o aluno os ve, com o "ja fez" vindo do banco.
         function loadExistingScheduleForGenerator() {
             if (scheduleData.length === 0) {
                 WardApp.showToast('Não há cronograma existente para atualizar', 'warning');
                 return;
             }
 
-            // Filter out completed items and format for generator
-            const pendingItems = scheduleData.filter(item => !item.completed);
+            genAtualizar = scheduleData.map(item => ({
+                id: item.id,
+                system: item.system || '',
+                category: item.category || '',
+                questions: Number(item.questions) || 0,
+                start_date: item.start_date || null,
+                end_date: item.end_date || null,
+                recommended_lessons: item.recommended_lessons || '',
+                sort_order: item.sort_order,
+                completedOriginal: !!item.completed,
+                feito: !!item.completed
+            }));
+            renderListaAtualizar();
 
-            if (pendingItems.length === 0) {
-                WardApp.showToast('Todas as categorias já estão concluídas!', 'info');
-                return;
+            // A nova divisao comeca hoje (ou no inicio do estudo, se ainda nao chegou);
+            // sem data de prova no questionario, termina onde o cronograma atual termina.
+            const hoje = hojeISO();
+            const inicio = document.getElementById('gen-start-date');
+            if (!inicio.value || inicio.value < hoje) inicio.value = hoje;
+            const fim = document.getElementById('gen-end-date');
+            const ultimoFim = scheduleData.map(i => i.end_date).filter(Boolean).sort().pop();
+            if ((!fim.value || fim.value <= inicio.value) && ultimoFim && ultimoFim > inicio.value) fim.value = ultimoFim;
+        }
+
+        function hojeISO() {
+            return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+        }
+
+        function escGen(t) {
+            return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function renderListaAtualizar() {
+            const tbody = document.getElementById('gen-upd-body');
+            tbody.innerHTML = genAtualizar.map((item, i) => {
+                const datas = item.start_date
+                    ? formatDateForExport(item.start_date) + (item.end_date ? ' → ' + formatDateForExport(item.end_date) : '')
+                    : '—';
+                return `
+                    <tr class="${item.feito ? 'is-feito' : ''}" data-i="${i}" onclick="if (event.target.tagName !== 'INPUT') alternarFeito(${i})">
+                        <td>
+                            <label class="gen-upd-check" onclick="event.stopPropagation()">
+                                <input type="checkbox" ${item.feito ? 'checked' : ''} onchange="marcarFeito(${i}, this.checked)">
+                                ${item.feito ? '<span class="gen-upd-selo">feito</span>' : ''}
+                            </label>
+                        </td>
+                        <td class="gen-upd-nome">${escGen(item.system) || '-'}</td>
+                        <td class="gen-upd-nome">${escGen(item.category) || '-'}</td>
+                        <td style="text-align: center; font-family: monospace;">${item.questions || '-'}</td>
+                        <td style="font-family: monospace; white-space: nowrap;">${datas}</td>
+                    </tr>
+                `;
+            }).join('');
+            atualizarContagem();
+        }
+
+        function atualizarContagem() {
+            const feitos = genAtualizar.filter(i => i.feito);
+            const pendentes = genAtualizar.filter(i => !i.feito);
+            const questoes = pendentes.reduce((n, i) => n + (Number(i.questions) || 0), 0);
+            document.getElementById('gen-upd-contagem').innerHTML =
+                `<strong>${feitos.length}</strong> já feitos (ficam fora da divisão) · `
+                + `<strong>${pendentes.length}</strong> a programar · ${questoes.toLocaleString('pt-BR')} questões`;
+        }
+
+        function alternarFeito(i) {
+            marcarFeito(i, !genAtualizar[i].feito);
+        }
+
+        function marcarFeito(i, feito) {
+            if (!genAtualizar[i]) return;
+            genAtualizar[i].feito = !!feito;
+            renderListaAtualizar();
+            // As datas geradas antes desta mudanca nao valem mais: pede para gerar de novo.
+            if (genScheduleData.length || document.getElementById('gen-import-btn').style.display !== 'none') {
+                genScheduleData = [];
+                document.getElementById('gen-stats-bar').style.display = 'none';
+                document.getElementById('gen-results-section').style.display = 'none';
+                document.getElementById('gen-copy-btn').style.display = 'none';
+                document.getElementById('gen-import-btn').style.display = 'none';
             }
-
-            // Format as tab-separated data
-            const lines = pendingItems.map(item => {
-                const startDate = item.start_date ? formatDateForExport(item.start_date) : '';
-                const endDate = item.end_date ? formatDateForExport(item.end_date) : '';
-                return [
-                    item.system || '',
-                    item.category || '',
-                    item.questions || '',
-                    startDate,
-                    endDate,
-                    item.recommended_lessons || '',
-                    'FALSE'
-                ].join('\t');
-            });
-
-            document.getElementById('gen-data-input').value = lines.join('\n');
         }
 
         // Add break period to generator
@@ -1426,13 +1533,14 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
             const startDateStr = document.getElementById('gen-start-date').value;
             const endDateStr = document.getElementById('gen-end-date').value;
             const inputData = document.getElementById('gen-data-input').value;
+            const atualizando = generatorMode === 'update';
 
             if (!startDateStr || !endDateStr) {
                 WardApp.showToast('Defina as datas de início e término', 'warning');
                 return;
             }
 
-            if (!inputData.trim()) {
+            if (!atualizando && !inputData.trim()) {
                 WardApp.showToast('Cole os dados das categorias', 'warning');
                 return;
             }
@@ -1445,7 +1553,34 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
                 return;
             }
 
-            const categories = parseGenInputData(inputData);
+            // Atualizando: entram na divisao so os topicos NAO marcados como feitos
+            // (na ordem atual) e os novos colados no campo opcional.
+            let categories;
+            if (atualizando) {
+                const pendentes = genAtualizar.filter(i => !i.feito).map(i => ({
+                    id: i.id, system: i.system, category: i.category,
+                    questions: Number(i.questions) || 0, recommendedLessons: i.recommended_lessons || ''
+                }));
+                const novos = parseGenInputData(document.getElementById('gen-upd-extra').value || '');
+                categories = pendentes.concat(novos);
+                if (categories.length === 0) {
+                    // Tudo feito: nao ha o que dividir, mas as marcacoes ainda podem ser salvas.
+                    genScheduleData = [];
+                    ['gen-stat-questions', 'gen-stat-days', 'gen-stat-avg', 'gen-stat-categories'].forEach(id => { document.getElementById(id).textContent = '0'; });
+                    renderGenResults();
+                    document.getElementById('gen-stats-bar').style.display = 'grid';
+                    document.getElementById('gen-results-section').style.display = 'block';
+                    document.getElementById('gen-import-btn').style.display = 'inline-flex';
+                    WardApp.showToast('Tudo marcado como feito — nada para redistribuir. Salve para gravar as marcações.', 'info');
+                    return;
+                }
+                if (categories.reduce((n, c) => n + (c.questions || 0), 0) === 0) {
+                    WardApp.showToast('Os tópicos a programar estão sem número de questões', 'warning');
+                    return;
+                }
+            } else {
+                categories = parseGenInputData(inputData);
+            }
             if (categories.length === 0) {
                 WardApp.showToast('Nenhuma categoria válida encontrada', 'warning');
                 return;
@@ -1471,6 +1606,7 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
                 const endIdx = Math.min(Math.max(Math.floor(currentPosition - 0.01), startIdx), studyDays.length - 1);
 
                 genScheduleData.push({
+                    id: cat.id,
                     system: cat.system,
                     category: cat.category,
                     questions: cat.questions,
@@ -1503,7 +1639,17 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
         function renderGenResults() {
             const tbody = document.getElementById('gen-results-body');
 
-            tbody.innerHTML = genScheduleData.map(item => `
+            const feitos = generatorMode === 'update' ? genAtualizar.filter(i => i.feito) : [];
+            const linhasFeitas = feitos.map(item => `
+                <tr class="gen-row-feito" style="border-bottom: 1px solid #2d3a4f;">
+                    <td style="padding: 0.5rem 0.75rem;">✓ ${escGen(item.system)}</td>
+                    <td style="padding: 0.5rem 0.75rem; text-decoration: line-through;">${escGen(item.category)}</td>
+                    <td style="padding: 0.5rem 0.75rem; text-align: center; font-family: monospace;">${item.questions || '-'}</td>
+                    <td colspan="2" style="padding: 0.5rem 0.75rem; font-family: monospace;">feito — fica com ${item.start_date ? formatDateForExport(item.start_date) + (item.end_date ? ' → ' + formatDateForExport(item.end_date) : '') : 'as datas de antes'}</td>
+                </tr>
+            `).join('');
+
+            tbody.innerHTML = linhasFeitas + genScheduleData.map(item => `
                 <tr style="border-bottom: 1px solid #2d3a4f;">
                     <td style="padding: 0.5rem 0.75rem; color: #60a5fa; font-weight: 500;">${item.system}</td>
                     <td style="padding: 0.5rem 0.75rem; color: #f1f5f9;">${item.category}</td>
@@ -1517,9 +1663,12 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
         // Copy generated schedule to clipboard
         function copyGeneratedSchedule() {
             const header = 'System\tCategory\tQuestions\tData de Início\tData de Fim\tAulas Recomendadas\t✓\n';
-            const rows = genScheduleData.map(item =>
+            const feitos = generatorMode === 'update' ? genAtualizar.filter(i => i.feito) : [];
+            const rows = feitos.map(item =>
+                `${item.system}\t${item.category}\t${item.questions}\t${formatDateForExport(item.start_date)}\t${formatDateForExport(item.end_date)}\t${item.recommended_lessons || ''}\tTRUE`
+            ).concat(genScheduleData.map(item =>
                 `${item.system}\t${item.category}\t${item.questions}\t${formatDateForExport(item.startDate)}\t${formatDateForExport(item.endDate)}\t${item.recommendedLessons || ''}\tFALSE`
-            ).join('\n');
+            )).join('\n');
 
             navigator.clipboard.writeText(header + rows);
             WardApp.showToast('Tabela copiada para o clipboard!');
@@ -1527,25 +1676,14 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
 
         // Import generated schedule to student
         async function importGeneratedSchedule() {
+            if (generatorMode === 'update') return salvarAtualizacao();
+
             if (genScheduleData.length === 0) {
                 WardApp.showToast('Gere o cronograma primeiro', 'warning');
                 return;
             }
 
-            const confirmMsg = generatorMode === 'update'
-                ? 'Isso irá SUBSTITUIR o cronograma existente. Continuar?'
-                : 'Isso irá adicionar as categorias ao cronograma. Continuar?';
-
-            if (!confirm(confirmMsg)) return;
-
-            // If update mode, delete existing non-completed items
-            if (generatorMode === 'update') {
-                // Delete all existing schedule items
-                await WardApp.db
-                    .from('schedules')
-                    .delete()
-                    .eq('user_id', selectedStudentId);
-            }
+            if (!confirm('Isso irá adicionar as categorias ao cronograma. Continuar?')) return;
 
             // Prepare items for insert (sort_order preserves spreadsheet ordering)
             const items = genScheduleData.map((item, idx) => ({
@@ -1572,6 +1710,108 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
 
             closeModal('schedule-generator-modal');
             WardApp.showToast(`${items.length} itens importados com sucesso!`);
+            await loadStudentSchedule();
+        }
+
+        // "Atualizar programação": grava no lugar, sem apagar nada. Antes a
+        // atualizacao apagava o cronograma inteiro e recriava so os pendentes:
+        // os topicos feitos sumiam da tela do aluno e, por ON DELETE CASCADE,
+        // as aulas assistidas (watched_lessons) ligadas a eles iam junto.
+        //   - feitos: completed = true, mantem as datas de antes
+        //   - pendentes: completed = false, datas novas da divisao
+        //   - novos (campo opcional): inseridos no fim
+        async function salvarAtualizacao() {
+            const feitos = genAtualizar.filter(i => i.feito);
+            const programados = genScheduleData.filter(i => i.id != null);
+            const novos = genScheduleData.filter(i => i.id == null);
+            const student = allStudents.find(s => s.id == selectedStudentId);
+            const nome = _dn(student?.full_name) || student?.email || 'o aluno';
+
+            let msg = `Atualizar a programação de ${nome}?\n\n`
+                + `✓ ${feitos.length} tópico(s) feito(s): ficam no cronograma, fora da divisão de datas.\n`
+                + `📅 ${programados.length} tópico(s) ganham datas novas.`;
+            if (novos.length) msg += `\n➕ ${novos.length} tópico(s) novo(s) entram no fim.`;
+            if (!confirm(msg)) return;
+
+            const porId = {};
+            genAtualizar.forEach(i => { porId[i.id] = i; });
+            const agora = new Date().toISOString();
+            const mudancas = [];
+            let ordem = 0;
+
+            feitos.forEach(item => {
+                ordem++;
+                const patch = {};
+                if (!item.completedOriginal) patch.completed = true;
+                if (item.sort_order !== ordem) patch.sort_order = ordem;
+                if (Object.keys(patch).length) mudancas.push({ id: item.id, patch });
+            });
+            programados.forEach(item => {
+                ordem++;
+                const orig = porId[item.id] || {};
+                const inicio = formatDateISO(item.startDate);
+                const fim = formatDateISO(item.endDate);
+                const patch = {};
+                if (orig.completedOriginal) patch.completed = false;
+                if (orig.start_date !== inicio) patch.start_date = inicio;
+                if (orig.end_date !== fim) patch.end_date = fim;
+                if (orig.sort_order !== ordem) patch.sort_order = ordem;
+                if (Object.keys(patch).length) mudancas.push({ id: item.id, patch });
+            });
+            const inserir = novos.map(item => ({
+                user_id: selectedStudentId,
+                system: item.system,
+                category: item.category,
+                questions: item.questions,
+                start_date: formatDateISO(item.startDate),
+                end_date: formatDateISO(item.endDate),
+                recommended_lessons: item.recommendedLessons || null,
+                completed: false,
+                sort_order: ++ordem
+            }));
+
+            const btn = document.getElementById('gen-import-btn');
+            const rotulo = btn.textContent;
+            btn.disabled = true;
+            let feitas = 0;
+            const falhas = [];
+            const total = mudancas.length + (inserir.length ? 1 : 0);
+            const progresso = () => { btn.textContent = `Salvando ${feitas}/${total}…`; };
+            progresso();
+
+            // Poucas requisicoes por vez: cada linha que mudou e um UPDATE.
+            const fila = mudancas.slice();
+            async function trabalhador() {
+                while (fila.length) {
+                    const m = fila.shift();
+                    const { error } = await WardApp.db.from('schedules')
+                        .update({ ...m.patch, updated_at: agora })
+                        .eq('id', m.id)
+                        .eq('user_id', selectedStudentId);
+                    if (error) falhas.push(m.id);
+                    feitas++; progresso();
+                }
+            }
+            await Promise.all(Array.from({ length: Math.min(6, fila.length) }, trabalhador));
+
+            if (inserir.length) {
+                const { error } = await WardApp.db.from('schedules').insert(inserir);
+                if (error) falhas.push('novos');
+                feitas++; progresso();
+            }
+
+            btn.disabled = false;
+            btn.textContent = rotulo;
+
+            if (falhas.length) {
+                console.error('Falha ao atualizar itens do cronograma:', falhas);
+                WardApp.showToast(`Atualizei quase tudo, mas ${falhas.length} item(ns) falharam. Recarreguei o cronograma: confira e tente de novo.`, 'error');
+                await loadStudentSchedule();
+                return;
+            }
+
+            closeModal('schedule-generator-modal');
+            WardApp.showToast(`Programação atualizada: ${feitos.length} feito(s) mantido(s), ${programados.length + novos.length} com datas novas.`);
             await loadStudentSchedule();
         }
     </script>
@@ -1645,6 +1885,27 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
             padding: 0.25rem 0;
             font-size: 0.875rem;
         }
+
+        /* Gerador, modo "Atualizar": lista do que o aluno ja fez */
+        .gen-upd-intro { color: #94a3b8; font-size: 0.88rem; line-height: 1.55; margin: 0 0 0.85rem; }
+        .gen-upd-intro strong { color: #f1f5f9; }
+        .gen-upd-toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.6rem; font-size: 0.85rem; color: #94a3b8; }
+        .gen-upd-toolbar strong { color: #f1f5f9; }
+        .gen-upd-wrap { max-height: 420px; overflow-y: auto; border: 1px solid #2d3a4f; border-radius: 8px; }
+        .gen-upd-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .gen-upd-table th { position: sticky; top: 0; z-index: 1; background: #111827; color: #94a3b8; text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid #2d3a4f; font-weight: 600; }
+        .gen-upd-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #1f2a3c; color: #f1f5f9; }
+        .gen-upd-table tbody tr { cursor: pointer; }
+        .gen-upd-table tbody tr:hover td { background: #141d2c; }
+        .gen-upd-table tr.is-feito td { color: #64748b; }
+        .gen-upd-table tr.is-feito td.gen-upd-nome { text-decoration: line-through; }
+        .gen-upd-check { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; }
+        .gen-upd-check input { width: 18px; height: 18px; accent-color: #22c55e; cursor: pointer; }
+        .gen-upd-selo { font-size: 0.72rem; font-weight: 700; color: #22c55e; }
+        .gen-upd-novos { margin-top: 1rem; color: #94a3b8; font-size: 0.85rem; }
+        .gen-upd-novos summary { cursor: pointer; color: #f1f5f9; font-weight: 600; }
+        .gen-upd-novos p { margin: 0.5rem 0; }
+        .gen-row-feito td { color: #64748b !important; }
 
         /* Schedule Generator Styles */
         .modal-fullscreen {
