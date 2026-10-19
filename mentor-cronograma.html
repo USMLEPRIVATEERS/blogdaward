@@ -365,11 +365,13 @@ CARDIOVASCULAR	Aortic diseases	38	12/22/2025	12/24/2025	FALSE
                         <p class="gen-upd-intro">
                             Marque o que o aluno <strong>já fez</strong>. Os tópicos marcados continuam no cronograma
                             dele (riscados, com as datas antigas) para ele ver o que já percorreu, mas ficam
-                            <strong>fora da nova divisão de datas</strong>. O que foi marcado da última vez — por você
-                            ou pelo aluno — já aparece marcado.
+                            <strong>fora da nova divisão de datas</strong>. O que está salvo como feito — por você
+                            ou pelo aluno — já aparece marcado, mas é só o ponto de partida: confira e ajuste
+                            (aluno que esqueceu de marcar, ou marcou errado). Vale o que você deixar marcado.
                         </p>
                         <div class="gen-upd-toolbar">
                             <span id="gen-upd-contagem"></span>
+                            <span class="gen-upd-dica">💡 Para marcar vários de uma vez: clique num tópico, segure <kbd>Shift</kbd> e clique em outro — todos no meio ficam iguais.</span>
                         </div>
                         <div class="gen-upd-wrap">
                             <table class="gen-upd-table">
@@ -1115,6 +1117,7 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
         // Modo "Atualizar": todos os topicos do cronograma atual, cada um com a
         // marcacao "ja fez". Os feitos ficam no cronograma e saem da divisao.
         let genAtualizar = [];
+        let genUltimoClique = null;   // ancora do Shift+clique na lista
 
         // Initialize generator weekday buttons
         function initGeneratorWeekdays() {
@@ -1157,6 +1160,7 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
 
             const atualizando = mode === 'update';
             genAtualizar = [];
+            genUltimoClique = null;
             document.getElementById('gen-atualizar-bloco').style.display = atualizando ? '' : 'none';
             document.getElementById('gen-novo-bloco').style.display = atualizando ? 'none' : '';
             document.getElementById('gen-upd-extra').value = '';
@@ -1341,12 +1345,12 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
                     ? formatDateForExport(item.start_date) + (item.end_date ? ' → ' + formatDateForExport(item.end_date) : '')
                     : '—';
                 return `
-                    <tr class="${item.feito ? 'is-feito' : ''}" data-i="${i}" onclick="if (event.target.tagName !== 'INPUT') alternarFeito(${i})">
+                    <tr class="${item.feito ? 'is-feito' : ''}${genUltimoClique === i ? ' is-ancora' : ''}" data-i="${i}" onclick="cliqueFeito(event, ${i})">
                         <td>
-                            <label class="gen-upd-check" onclick="event.stopPropagation()">
-                                <input type="checkbox" ${item.feito ? 'checked' : ''} onchange="marcarFeito(${i}, this.checked)">
+                            <span class="gen-upd-check">
+                                <input type="checkbox" ${item.feito ? 'checked' : ''} aria-label="Já fez: ${escGen(item.system)} / ${escGen(item.category)}">
                                 ${item.feito ? '<span class="gen-upd-selo">feito</span>' : ''}
-                            </label>
+                            </span>
                         </td>
                         <td class="gen-upd-nome">${escGen(item.system) || '-'}</td>
                         <td class="gen-upd-nome">${escGen(item.category) || '-'}</td>
@@ -1367,6 +1371,25 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
                 + `<strong>${pendentes.length}</strong> a programar · ${questoes.toLocaleString('pt-BR')} questões`;
         }
 
+        // Clique na linha ou na caixinha. Com Shift, aplica a mesma marcacao a
+        // todos os topicos entre o ultimo clicado e este (para cima ou para baixo).
+        function cliqueFeito(ev, i) {
+            if (!genAtualizar[i]) return;
+            // Na caixinha o navegador ja trocou o estado; na linha, a gente troca.
+            const novo = (ev.target && ev.target.tagName === 'INPUT') ? ev.target.checked : !genAtualizar[i].feito;
+            if (ev.shiftKey && genUltimoClique !== null && genUltimoClique !== i && genAtualizar[genUltimoClique]) {
+                const de = Math.min(genUltimoClique, i), ate = Math.max(genUltimoClique, i);
+                for (let k = de; k <= ate; k++) genAtualizar[k].feito = novo;
+                // Shift+clique costuma selecionar o texto da tabela; desfaz.
+                try { window.getSelection().removeAllRanges(); } catch (e) {}
+                genUltimoClique = i;
+                aposMudarMarcacao();
+                return;
+            }
+            genUltimoClique = i;
+            marcarFeito(i, novo);
+        }
+
         function alternarFeito(i) {
             marcarFeito(i, !genAtualizar[i].feito);
         }
@@ -1374,6 +1397,10 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
         function marcarFeito(i, feito) {
             if (!genAtualizar[i]) return;
             genAtualizar[i].feito = !!feito;
+            aposMudarMarcacao();
+        }
+
+        function aposMudarMarcacao() {
             renderListaAtualizar();
             // As datas geradas antes desta mudanca nao valem mais: pede para gerar de novo.
             if (genScheduleData.length || document.getElementById('gen-import-btn').style.display !== 'none') {
@@ -1895,7 +1922,11 @@ CARDIOVASCULAR	Aortic diseases	38			B&B: Atherosclerosis	FALSE
         .gen-upd-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
         .gen-upd-table th { position: sticky; top: 0; z-index: 1; background: #111827; color: #94a3b8; text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid #2d3a4f; font-weight: 600; }
         .gen-upd-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #1f2a3c; color: #f1f5f9; }
-        .gen-upd-table tbody tr { cursor: pointer; }
+        .gen-upd-table tbody tr { cursor: pointer; user-select: none; -webkit-user-select: none; }
+        .gen-upd-table tbody tr.is-ancora td:first-child { box-shadow: inset 3px 0 0 #3b82f6; }
+        .gen-upd-toolbar { justify-content: space-between; }
+        .gen-upd-dica { font-size: 0.8rem; color: #64748b; }
+        .gen-upd-dica kbd { font-family: inherit; font-size: 0.75rem; padding: 0.05rem 0.35rem; border: 1px solid #2d3a4f; border-bottom-width: 2px; border-radius: 4px; color: #f1f5f9; background: #0d1421; }
         .gen-upd-table tbody tr:hover td { background: #141d2c; }
         .gen-upd-table tr.is-feito td { color: #64748b; }
         .gen-upd-table tr.is-feito td.gen-upd-nome { text-decoration: line-through; }
