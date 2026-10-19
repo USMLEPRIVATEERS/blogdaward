@@ -1,9 +1,12 @@
 /*
- * WardAniversarios — aniversários dos alunos.
+ * WardAniversarios — aniversários dos alunos e dos mentores.
  *
  * A data de nascimento vive em `users.birth_date` (DATE). Daqui saem três
  * coisas: quem faz aniversário hoje, o calendário que os mentores veem, e a
- * janela de parabéns que o aluno vê quando entra na plataforma.
+ * janela de parabéns que a pessoa vê quando entra na plataforma.
+ *
+ * O dashboard do aluno tem a própria janela de pedido; os dashboards dos
+ * mentores usam pedirNascimento(), que monta a janela sozinha.
  *
  * Fuso: a data de nascimento é uma data de calendário, sem hora. Ela é lida
  * literalmente ('1990-03-15' é 15 de março em qualquer lugar do mundo), e
@@ -190,7 +193,14 @@
 
     function nomeDe(p, formatar) {
         var n = formatar ? formatar(p.full_name) : p.full_name;
-        return n || p.email || 'Aluno';
+        return n || p.email || (p.ehMentor ? 'Mentor' : 'Aluno');
+    }
+
+    // Nome ja escapado, com a etiqueta "mentor" quando for o caso.
+    function rotuloDe(p, formatar) {
+        return escapar(nomeDe(p, formatar))
+            + (p.ehMentor ? ' <span style="font-size: 0.68rem; font-weight: 700; color: #C45700; '
+                + 'background: #fff4ec; border-radius: 999px; padding: 0.05rem 0.4rem; margin-left: 0.2rem;">mentor</span>' : '');
     }
 
     /**
@@ -202,8 +212,8 @@
         var fmt = op.nome;
         var comDataLista = comData(pessoas);
         if (!comDataLista.length) {
-            return '<p class="text-muted">Nenhum aluno preencheu a data de nascimento ainda. '
-                 + 'Eles veem o pedido no dashboard assim que entram.</p>';
+            return '<p class="text-muted">Ninguém preencheu a data de nascimento ainda. '
+                 + 'O pedido aparece no dashboard de cada um assim que entra.</p>';
         }
 
         var hojeD = hoje();
@@ -217,7 +227,7 @@
                  + doDia.map(function (p) {
                        var idade = idadeEm(p.birth_date);
                        return '<div style="font-size: 0.92rem; color: #78350f;">'
-                            + escapar(nomeDe(p, fmt))
+                            + rotuloDe(p, fmt)
                             + (idade != null ? ' <span style="opacity: 0.75;">— ' + idade + ' anos</span>' : '')
                             + '</div>';
                    }).join('')
@@ -234,7 +244,7 @@
                  + proximosSete.map(function (x) {
                        return '<div style="display: flex; justify-content: space-between; gap: 1rem; '
                             + 'padding: 0.35rem 0; border-bottom: 1px solid #f3f4f6; font-size: 0.88rem;">'
-                            + '<span>' + escapar(nomeDe(x.pessoa, fmt)) + '</span>'
+                            + '<span>' + rotuloDe(x.pessoa, fmt) + '</span>'
                             + '<span style="color: #6b7280; white-space: nowrap;">'
                             + formataDia(x.pessoa.birth_date) + ' · em ' + x.dias + ' dia' + (x.dias === 1 ? '' : 's')
                             + '</span></div>';
@@ -262,26 +272,165 @@
                                        + (hojeEh ? ' font-weight: 700; color: #92400e;' : '') + '">'
                                        + '<span style="display: inline-block; min-width: 2.6rem; color: #9ca3af;">'
                                        + formataDia(p.birth_date) + '</span>'
-                                       + escapar(nomeDe(p, fmt)) + (hojeEh ? ' 🎉' : '') + '</div>';
+                                       + rotuloDe(p, fmt) + (hojeEh ? ' 🎉' : '') + '</div>';
                               }).join('')
                             : '<div style="font-size: 0.8rem; color: #d1d5db;">—</div>')
                         + '</div>';
                }).join('')
              + '</div>';
 
-        var sem = (pessoas || []).filter(function (p) { return p && !p.birth_date; }).length;
-        if (sem) {
+        var semAlunos = (pessoas || []).filter(function (p) { return p && !p.birth_date && !p.ehMentor; }).length;
+        var semMentores = (pessoas || []).filter(function (p) { return p && !p.birth_date && p.ehMentor; }).length;
+        var faltam = [];
+        if (semAlunos) faltam.push(semAlunos === 1 ? '1 aluno' : semAlunos + ' alunos');
+        if (semMentores) faltam.push(semMentores === 1 ? '1 mentor' : semMentores + ' mentores');
+        if (faltam.length) {
             html += '<p class="text-muted" style="margin: 1rem 0 0; font-size: 0.8rem;">'
-                 + (sem === 1
-                     ? '1 aluno ainda não preencheu a data. O pedido aparece no dashboard dele.'
-                     : sem + ' alunos ainda não preencheram a data. O pedido aparece no dashboard deles.')
-                 + '</p>';
+                 + faltam.join(' e ') + ((semAlunos + semMentores) === 1 ? ' ainda não preencheu' : ' ainda não preencheram')
+                 + ' a data. O pedido aparece no dashboard de cada um.</p>';
         }
         return html;
     }
 
+    // Os mentores tambem entram no calendario. Consulta a parte: se a coluna
+    // birth_date ainda nao existir, o calendario segue so com os alunos.
+    var PAPEIS_MENTOR = ['mentor_marcos', 'mentor_iria', 'mentor_guilherme', 'mentor_fernando'];
+    function carregarMentores() {
+        try {
+            if (!window.WardApp || !window.WardApp.db) return Promise.resolve([]);
+            return Promise.resolve(window.WardApp.db.from('users')
+                .select('id, full_name, email, role, birth_date')
+                .in('role', PAPEIS_MENTOR))
+                .then(function (r) {
+                    if (!r || r.error) return [];
+                    return (r.data || []).filter(function (m) {
+                        return m && PAPEIS_MENTOR.indexOf(m.role) !== -1;   // so mentores, mesmo que o servidor devolva mais
+                    }).map(function (m) {
+                        var c = {}; for (var k in m) c[k] = m[k];
+                        c.ehMentor = true; return c;
+                    });
+                })
+                .catch(function () { return []; });
+        } catch (e) { return Promise.resolve([]); }
+    }
+
+    // ------------------------------------------------------------------
+    // Pedido da data (obrigatorio) e parabens, para quem nao e aluno: os
+    // dashboards dos mentores chamam pedirNascimento(userData). A janela nao
+    // fecha sem a data: sem botao de fechar e o clique fora nao chega ao
+    // fechador generico de modais do app.js.
+    // ------------------------------------------------------------------
+    function el(html) {
+        var d = document.createElement('div');
+        d.innerHTML = html.trim();
+        return d.firstChild;
+    }
+
+    function pedirNascimento(usuario, opcoes) {
+        var op = opcoes || {};
+        if (!usuario || !usuario.id || !window.WardApp || !window.WardApp.db) return Promise.resolve();
+        return Promise.resolve(window.WardApp.db.from('users').select('birth_date').eq('id', usuario.id).maybeSingle())
+            .then(function (r) {
+                if (!r || r.error) return;               // coluna ainda nao existe: nao pede nada
+                var nascimento = r.data && r.data.birth_date;
+                if (!nascimento) { mostrarPedido(usuario, op); return; }
+                try { sessionStorage.setItem('ward_nasc_ok', '1'); } catch (e) {}
+                if (posicaoNaJanela(nascimento) !== null && !jaViu(usuario.id)) mostrarParabens(usuario, nascimento);
+            })
+            .catch(function () {});
+    }
+
+    function mostrarPedido(usuario, op) {
+        if (document.getElementById('nascimento-modal')) return;
+        var modal = el(
+            '<div id="nascimento-modal" class="modal-overlay active">'
+          + '  <div class="modal" style="max-width: 440px;">'
+          + '    <div class="modal-header"><h3 class="modal-title">🎂 Falta a sua data de nascimento</h3></div>'
+          + '    <div class="modal-body">'
+          + '      <p style="margin: 0 0 1rem; line-height: 1.6; font-size: 0.92rem;">'
+          + '        A Ward agora guarda o aniversário de alunos e mentores: o seu entra no calendário'
+          + '        do time. A data é obrigatória — preencha para continuar.'
+          + '      </p>'
+          + '      <input type="date" id="nascimento-input" class="form-input" style="width: 100%;">'
+          + '      <p id="nascimento-erro" style="display: none; color: #991b1b; font-size: 0.82rem; margin: 0.5rem 0 0;"></p>'
+          + '    </div>'
+          + '    <div class="modal-footer">'
+          + '      <button class="btn btn-primary" id="nascimento-salvar">Salvar e continuar</button>'
+          + '    </div>'
+          + '  </div>'
+          + '</div>');
+        // O app.js fecha qualquer .modal-overlay clicado: este nao.
+        modal.addEventListener('click', function (e) { e.stopPropagation(); });
+        document.body.appendChild(modal);
+
+        var input = modal.querySelector('#nascimento-input');
+        var erro = modal.querySelector('#nascimento-erro');
+        var btn = modal.querySelector('#nascimento-salvar');
+        function mostraErro(t) { erro.textContent = t; erro.style.display = ''; }
+
+        btn.addEventListener('click', function () {
+            erro.style.display = 'none';
+            var valor = input.value;
+            if (!valor) return mostraErro('Escolha a data.');
+            var d = paraData(valor), h = hoje();
+            if (!d || d >= h) return mostraErro('A data precisa ser no passado.');
+            if (h.getFullYear() - d.getFullYear() > 120) return mostraErro('Confira o ano.');
+            btn.disabled = true; btn.textContent = 'Salvando...';
+            Promise.resolve(window.WardApp.db.from('users').update({ birth_date: valor }).eq('id', usuario.id))
+                .then(function (r) {
+                    btn.disabled = false; btn.textContent = 'Salvar e continuar';
+                    if (r && r.error) return mostraErro('Não consegui salvar: ' + (r.error.message || 'tente de novo.'));
+                    modal.parentNode && modal.parentNode.removeChild(modal);
+                    try { sessionStorage.setItem('ward_nasc_ok', '1'); } catch (e) {}
+                    if (window.WardApp.showToast) window.WardApp.showToast('Obrigado! Data salva.');
+                    if (typeof op.aoSalvar === 'function') { try { op.aoSalvar(valor); } catch (e) {} }
+                    if (posicaoNaJanela(valor) !== null && !jaViu(usuario.id)) {
+                        setTimeout(function () { mostrarParabens(usuario, valor); }, 400);
+                    }
+                })
+                .catch(function () {
+                    btn.disabled = false; btn.textContent = 'Salvar e continuar';
+                    mostraErro('Não consegui salvar. Tente de novo.');
+                });
+        });
+    }
+
+    function mostrarParabens(usuario, nascimento) {
+        if (document.getElementById('aniversario-modal')) return;
+        var msg = mensagemDoAno(hoje().getFullYear());
+        var idade = idadeEm(nascimento);
+        var modal = el(
+            '<div id="aniversario-modal" class="modal-overlay active">'
+          + '  <div class="modal" style="max-width: 420px; overflow: hidden;">'
+          + '    <div style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; padding: 2rem 1.5rem; text-align: center; position: relative;">'
+          + '      <button class="modal-close" data-fechar style="position: absolute; top: 0.6rem; right: 0.8rem; color: white;">&times;</button>'
+          + '      <div style="font-size: 3.5rem; line-height: 1;">🎉</div>'
+          + '      <h3 id="aniversario-titulo" style="margin: 0.6rem 0 0; font-size: 1.4rem;">' + escapar(msg.titulo) + '</h3>'
+          + '      <div id="aniversario-idade" style="font-size: 0.85rem; opacity: 0.9; margin-top: 0.2rem;">'
+          +          ((idade != null && idade > 0 && idade < 120) ? idade + ' anos' : '') + '</div>'
+          + '    </div>'
+          + '    <div class="modal-body" style="text-align: center;">'
+          + '      <p id="aniversario-texto" style="margin: 0; line-height: 1.65; font-size: 0.95rem;">' + escapar(msg.texto) + '</p>'
+          + '    </div>'
+          + '    <div class="modal-footer" style="justify-content: center;">'
+          + '      <button class="btn btn-primary" data-fechar>Obrigado!</button>'
+          + '    </div>'
+          + '  </div>'
+          + '</div>');
+        function fechar() { modal.parentNode && modal.parentNode.removeChild(modal); }
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal || (e.target.hasAttribute && e.target.hasAttribute('data-fechar'))) fechar();
+        });
+        document.body.appendChild(modal);
+        // Marca ao mostrar: fechar, clicar fora ou sair da pagina, nao volta.
+        marcarVisto(usuario.id);
+    }
+
     window.WardAniversarios = {
         cartaoHTML: cartaoHTML,
+        carregarMentores: carregarMentores,
+        pedirNascimento: pedirNascimento,
+        PAPEIS_MENTOR: PAPEIS_MENTOR,
         FUSO_WARD: FUSO_WARD,
         JANELA_DIAS: JANELA_DIAS,
         MESES: MESES,
