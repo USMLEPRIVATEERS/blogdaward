@@ -639,6 +639,9 @@
                 return;
             }
 
+            // Data de nascimento do proprio mentor: obrigatoria (js/aniversarios.js).
+            WardAniversarios.pedirNascimento(userData, { aoSalvar: () => renderAniversarios(allStudents) });
+
             // A lista de alunos e pre-requisito de quase tudo; o resto nao
             // depende um do outro, entao vai junto em vez de um de cada vez.
             await loadStudents();
@@ -873,19 +876,21 @@
 
         // Calendario de aniversarios. A regra (quem faz hoje, 29/02, ordem dos
         // meses) mora em js/aniversarios.js, compartilhado pelos dashboards.
-        function renderAniversarios(pessoas) {
+        async function renderAniversarios(pessoas) {
             const alvo = document.getElementById('aniversarios-card');
             if (!alvo || !window.WardAniversarios) return;
-            // So aluno de mentoria: a propria linha do mentor e a assessoria
-            // avulsa entravam na conta de "quem ainda nao preencheu".
-            const lista = (pessoas || []).filter(p => p && p.role === 'aluno');
+            // Alunos (a assessoria avulsa fica de fora) e os mentores, que vem
+            // de uma consulta propria com a etiqueta "mentor".
+            const alunos = (pessoas || []).filter(p => p && p.role === 'aluno');
+            const mentores = await WardAniversarios.carregarMentores();
+            const lista = alunos.concat(mentores);
             alvo.innerHTML = WardAniversarios.cartaoHTML(lista, { nome: _dn });
 
             const doDia = WardAniversarios.aniversariantesDoDia(lista);
             const selo = document.getElementById('aniv-hoje-selo');
             if (selo && doDia.length) {
                 selo.textContent = '🎉 ' + (doDia.length === 1
-                    ? (_dn(doDia[0].full_name) || 'um aluno') + ' faz aniversário hoje'
+                    ? (_dn(doDia[0].full_name) || (doDia[0].ehMentor ? 'um mentor' : 'um aluno')) + ' faz aniversário hoje'
                     : doDia.length + ' aniversariantes hoje');
                 selo.style.display = '';
             }
