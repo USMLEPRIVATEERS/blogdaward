@@ -831,7 +831,7 @@
 
         .ward-system-card.overdue::before {
             background: linear-gradient(90deg, #ef4444, #dc2626, #b91c1c);
-            animation: ward-pulse-glow 2s infinite;
+            animation: ward-pulse-glow 2s 3;
         }
 
         @keyframes shimmer {
@@ -1912,16 +1912,21 @@
             }
 
             // Load schedule_type BEFORE loading schedule so Register button works correctly
-            await loadUserScheduleType();
-
-            await loadStudentStudyConfig();
-            await loadWatchedLessons();
+            // Tudo o que a lista precisa vai junto (antes era uma consulta
+            // esperando a outra): tipo de cronograma, dias sem estudo, aulas
+            // assistidas e o proprio cronograma.
+            const [, , , cronograma] = await Promise.all([
+                loadUserScheduleType(),
+                loadStudentStudyConfig(),
+                loadWatchedLessons(),
+                buscarCronograma()
+            ]);
             loadWardMethodLessons(); // Merge Ward Method lessons from localStorage
-            await loadSchedule();
-            await loadDelays();
+            aplicarCronograma(cronograma);
 
-            // Load register modal data
+            // O resto nao segura a lista: atrasos e os dados do modal de registro.
             await Promise.all([
+                loadDelays(),
                 loadUserPreparation(),
                 loadAutocompleteOptions()
             ]);
@@ -2520,13 +2525,21 @@
         }
 
         async function loadSchedule() {
-            const { data: schedule, error } = await WardApp.db
+            aplicarCronograma(await buscarCronograma());
+        }
+
+        function buscarCronograma() {
+            return WardApp.db
                 .from('schedules')
                 .select('*')
                 .eq('user_id', targetUserId)
                 .order('start_date', { ascending: true })
                 .order('sort_order', { ascending: true })
                 .order('id', { ascending: true });
+        }
+
+        function aplicarCronograma(resposta) {
+            const { data: schedule, error } = resposta || {};
 
             if (error || !schedule || schedule.length === 0) {
                 document.getElementById('no-schedule').style.display = 'block';
@@ -2893,6 +2906,10 @@
                 tableBtn.style.background = 'white';
                 tableBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
             }
+
+            if ((view === 'cards' || view === 'table') && vistaDesatualizada[view] && scheduleData && scheduleData.length) {
+                renderScheduleTable(scheduleData);
+            }
         }
 
         function toggleHideCompleted() {
@@ -2904,10 +2921,19 @@
             }
         }
 
+        // Cartoes e tabela tinham os ~185 itens desenhados ao mesmo tempo, um
+        // deles escondido (mais de 4 mil elementos a toa). Agora so a vista
+        // aberta e desenhada; a outra fica marcada e e desenhada ao trocar.
+        const vistaDesatualizada = { cards: false, table: false };
+
         function renderScheduleTable(schedule) {
             const tbody = document.getElementById('schedule-body');
             const cardsContainer = document.getElementById('schedule-cards');
             let currentSystem = '';
+            const desenharTabela = currentView === 'table';
+            const desenharCartoes = currentView === 'cards';
+            vistaDesatualizada.table = !desenharTabela;
+            vistaDesatualizada.cards = !desenharCartoes;
 
             // Filter based on hideCompleted setting
             const filteredSchedule = hideCompleted ? schedule.filter(s => !s.completed) : schedule;
@@ -2935,7 +2961,7 @@
             today.setHours(0, 0, 0, 0);
 
             // Render table rows
-            tbody.innerHTML = filteredSchedule.map(item => {
+            if (desenharTabela) tbody.innerHTML = filteredSchedule.map(item => {
                 const showSystem = item.system !== currentSystem;
                 currentSystem = item.system;
 
@@ -2986,7 +3012,7 @@
             }).join('');
 
             // Render cards (now with better layout and recommended lessons)
-            cardsContainer.innerHTML = filteredSchedule.map(item => {
+            if (desenharCartoes) cardsContainer.innerHTML = filteredSchedule.map(item => {
                 // Format dates
                 const startDate = item.start_date ? formatShortDate(item.start_date) : '-';
                 const endDate = item.end_date ? formatShortDate(item.end_date) : '-';
@@ -3511,22 +3537,34 @@
         }
 
         async function toggleComplete(id, completed) {
+            const agora = new Date().toISOString();
             const { error } = await WardApp.db
                 .from('schedules')
                 .update({
                     completed,
-                    updated_at: new Date().toISOString()
+                    updated_at: agora
                 })
                 .eq('id', id);
 
+            const item = (scheduleData || []).find(s => String(s.id) === String(id));
             if (error) {
                 console.error('Error updating schedule:', error);
                 WardApp.showToast('Erro ao atualizar cronograma. Tente recarregar a página.', 'error');
+                // A caixinha volta ao estado salvo
+                if (item) aplicarCronograma({ data: scheduleData });
                 return;
             }
 
-            // Reload to update progress
-            await loadSchedule();
+            // Antes, cada clique baixava o cronograma inteiro de novo e
+            // redesenhava tudo. O item ja esta na memoria: atualiza ele e
+            // redesenha so a vista aberta (com o progresso e o "estudar agora").
+            if (item) {
+                item.completed = completed;
+                item.updated_at = agora;
+                aplicarCronograma({ data: scheduleData });
+            } else {
+                await loadSchedule();
+            }
         }
 
         async function loadDelays() {
@@ -5268,7 +5306,7 @@
             min-width: 220px;
             cursor: pointer;
             transition: all 0.3s ease;
-            animation: pulse-glow 2s infinite;
+            animation: pulse-glow 2s 3;
         }
 
         .secret-challenge-counter:hover {
