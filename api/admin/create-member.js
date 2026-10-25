@@ -98,7 +98,9 @@ module.exports = async function handler(req, res) {
         full_name: sanitize(full_name),
         role: role || 'aluno',
         ...(planoLimpo ? { plano: planoLimpo } : {}),
-        first_login_completed: false,
+        // Mentor e parceiro externo (Dr. Andre) nao preenchem o questionario
+        // de entrada: ja nascem com ele "concluido". Os demais, como antes.
+        first_login_completed: !['aluno', 'assessoria', 'externo'].includes(role || 'aluno'),
         questionnaire_step: 0,
         status: 'active'
       })

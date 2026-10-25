@@ -463,6 +463,12 @@ async function exigirDataDeNascimento(user) {
     } catch (e) { /* nunca derruba a pagina por causa disto */ }
 }
 
+// Questionario de entrada e para aluno. Mentor e parceiro externo (Dr. Andre)
+// entram direto no proprio painel, mesmo com first_login_completed falso.
+function naoPreencheQuestionario(role) {
+    return !!role && (role.indexOf('mentor_') === 0 || role === 'parceiro_donato');
+}
+
 // Login function - supports both old system and Supabase Auth
 async function login(cpf, password) {
     showLoading();
@@ -549,7 +555,7 @@ async function login(cpf, password) {
         hideLoading();
 
         // Check if first login or questionnaire not complete
-        if (!data.first_login_completed) {
+        if (!data.first_login_completed && !naoPreencheQuestionario(data.role)) {
             // Redirect to the correct questionnaire step based on progress
             const step = data.questionnaire_step || 0;
             const stepUrls = {
