@@ -147,6 +147,9 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Fim da lista: ao chegar perto, desenha o próximo lote -->
+                <div id="lista-sentinela" aria-hidden="true"></div>
             </div>
         </div>
 
@@ -2855,6 +2858,64 @@
         // aberta e desenhada; a outra fica marcada e e desenhada ao trocar.
         const vistaDesatualizada = { cards: false, table: false };
 
+        // Os ~185 itens de uma vez (quase 8 mil elementos) travavam PC fraco.
+        // Desenha um lote e o resto entra conforme o aluno desce a página.
+        const LOTE_LISTA = 20;   // cartões ou linhas da tabela (cada um tem 400+ px)
+        const LOTE_WARD = 4;     // systems da vista Ward
+        const MARGEM_LISTA = 1200; // px antes do fim em que o próximo lote já entra
+        let listaAosPoucos = { container: null, partes: [], feitos: 0, lote: LOTE_LISTA };
+        let observadorLista = null;
+
+        function desenharAosPoucos(container, partes, lote) {
+            // Redesenhar (marcar um tópico, ocultar concluídos) mantém o que já
+            // estava na tela, para a página não voltar para o começo.
+            const manter = listaAosPoucos.container === container ? listaAosPoucos.feitos : 0;
+            const n = Math.min(partes.length, Math.max(lote, manter));
+            container.innerHTML = partes.slice(0, n).join('');
+            listaAosPoucos = { container, partes, feitos: n, lote };
+            vigiarFimDaLista();
+            continuarSePerto();
+        }
+
+        function pararAosPoucos() {
+            listaAosPoucos = { container: null, partes: [], feitos: 0, lote: LOTE_LISTA };
+        }
+
+        function desenharMaisLista() {
+            const l = listaAosPoucos;
+            // Vista escondida (a pessoa trocou de vista) não recebe lote.
+            if (!l.container || l.feitos >= l.partes.length || !l.container.offsetParent) return;
+            const fim = Math.min(l.partes.length, l.feitos + l.lote);
+            l.container.insertAdjacentHTML('beforeend', l.partes.slice(l.feitos, fim).join(''));
+            l.feitos = fim;
+            continuarSePerto();
+        }
+
+        // O observador só avisa quando o fim da lista entra na margem; se depois
+        // de um lote ele continua perto (tela alta, rolagem rápida), segue.
+        function continuarSePerto() {
+            requestAnimationFrame(() => {
+                const sentinela = document.getElementById('lista-sentinela');
+                if (sentinela && sentinela.getBoundingClientRect().top < window.innerHeight + MARGEM_LISTA) {
+                    desenharMaisLista();
+                }
+            });
+        }
+
+        function vigiarFimDaLista() {
+            if (observadorLista) return;
+            const sentinela = document.getElementById('lista-sentinela');
+            if (!sentinela) return;
+            if (!('IntersectionObserver' in window)) {
+                window.addEventListener('scroll', continuarSePerto, { passive: true });
+                return;
+            }
+            observadorLista = new IntersectionObserver(entradas => {
+                if (entradas.some(e => e.isIntersecting)) desenharMaisLista();
+            }, { rootMargin: `0px 0px ${MARGEM_LISTA}px 0px` });
+            observadorLista.observe(sentinela);
+        }
+
         function renderScheduleTable(schedule) {
             const tbody = document.getElementById('schedule-body');
             const cardsContainer = document.getElementById('schedule-cards');
@@ -2882,6 +2943,7 @@
                     </tr>
                 `;
                 cardsContainer.innerHTML = emptyMessage;
+                pararAosPoucos();
                 return;
             }
 
@@ -2890,7 +2952,7 @@
             today.setHours(0, 0, 0, 0);
 
             // Render table rows
-            if (desenharTabela) tbody.innerHTML = filteredSchedule.map(item => {
+            if (desenharTabela) desenharAosPoucos(tbody, filteredSchedule.map(item => {
                 const showSystem = item.system !== currentSystem;
                 currentSystem = item.system;
 
@@ -2938,10 +3000,10 @@
                         </td>
                     </tr>
                 `;
-            }).join('');
+            }), LOTE_LISTA);
 
             // Render cards (now with better layout and recommended lessons)
-            if (desenharCartoes) cardsContainer.innerHTML = filteredSchedule.map(item => {
+            if (desenharCartoes) desenharAosPoucos(cardsContainer, filteredSchedule.map(item => {
                 // Format dates
                 const startDate = item.start_date ? formatShortDate(item.start_date) : '-';
                 const endDate = item.end_date ? formatShortDate(item.end_date) : '-';
@@ -3031,7 +3093,7 @@
                         </div>
                     </div>
                 `;
-            }).join('');
+            }), LOTE_LISTA);
         }
 
         function formatShortDate(dateString) {
@@ -3062,6 +3124,7 @@
                         <div style="margin-top: 0.5rem;">Desmarque "Ocultar concluídos" para ver.</div>
                     </div>
                 `;
+                pararAosPoucos();
                 return;
             }
 
@@ -3078,7 +3141,7 @@
             const itemLabel = userScheduleType === 'subject' ? 'Subject' : 'Category';
 
             // Render each system as a card
-            container.innerHTML = Object.keys(systemGroups).map(system => {
+            desenharAosPoucos(container, Object.keys(systemGroups).map(system => {
                 const items = systemGroups[system];
 
                 // Calculate system stats
@@ -3216,7 +3279,7 @@
                         </div>
                     </div>
                 `;
-            }).join('');
+            }), LOTE_WARD);
         }
 
         // Get icon for system based on name
