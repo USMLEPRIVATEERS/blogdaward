@@ -47,7 +47,6 @@
             <div class="page-header-actions">
                 <button class="btn btn-outline btn-sm" onclick="openModal('delay-modal')">⚠️ Sinalizar atraso</button>
                 <button class="btn btn-outline btn-sm" onclick="openModal('difficulty-modal')">🆘 Sinalizar dificuldade</button>
-                <button class="btn btn-ghost btn-sm" onclick="openTutorialModal()">🎬 Tutorial</button>
             </div>
         </div>
 
@@ -379,53 +378,6 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <!-- Tutorial Modal -->
-    <div id="tutorial-modal" class="modal-overlay" onclick="if(event.target===this){event.stopPropagation();closeTutorialModal();}">
-        <div class="modal" style="max-width: 800px;">
-            <div class="modal-header">
-                <h3 class="modal-title">🎬 Tutorial - Como usar o Cronograma</h3>
-                <button class="modal-close" onclick="closeTutorialModal()" style="color: white;">&times;</button>
-            </div>
-            <div class="modal-body" style="padding: 0;">
-                <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
-                    <iframe
-                        id="tutorial-video-iframe"
-                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
-                        src=""
-                        title="Tutorial Cronograma"
-                        frameborder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowfullscreen>
-                    </iframe>
-                </div>
-            </div>
-            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                <label class="form-check" style="margin: 0;">
-                    <input type="checkbox" id="tutorial-watched-checkbox" onchange="toggleTutorialWatched()">
-                    <span class="form-check-label" style="font-weight: 500;">
-                        Não mostrar novamente ao entrar na página
-                    </span>
-                </label>
-                <button class="btn btn-primary" onclick="closeTutorialModal()">Fechar</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tutorial Confirm Modal -->
-    <div id="tutorial-confirm-modal" class="modal-overlay" style="z-index: 2100;">
-        <div class="modal" style="max-width: 420px; border-radius: 16px;" onclick="event.stopPropagation()">
-            <div class="modal-body" style="padding: 2rem; text-align: center;">
-                <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🎬</div>
-                <h3 style="margin: 0 0 0.5rem; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.015em; color: #111827;">Deseja ver este tutorial novamente?</h3>
-                <p style="margin: 0 0 1.5rem; font-size: 0.9rem; color: var(--gray-500); line-height: 1.5;">Você pode desativar para que o tutorial não apareça automaticamente ao entrar na página.</p>
-                <div style="display: flex; gap: 0.75rem;">
-                    <button class="btn btn-secondary" style="flex: 1;" onclick="dismissTutorialConfirm(false)">Manter ativo</button>
-                    <button class="btn btn-primary" style="flex: 1;" onclick="dismissTutorialConfirm(true)">Não mostrar mais</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Ward Lessons Modal -->
     <div id="ward-lessons-modal" class="ward-lessons-modal" onclick="closeWardLessonsModal(event)">
         <div class="ward-lessons-modal-content" onclick="event.stopPropagation()">
@@ -448,15 +400,8 @@
         <button class="btn btn-sm btn-secondary" onclick="exitViewAs()">Voltar para minha conta</button>
     </div>
 
-    <!-- Floating stack (bottom-right): Criar Teste + Desafio Misterioso -->
+    <!-- Floating stack (bottom-right): Desafio Misterioso -->
     <div id="ct-fab-stack">
-        <div id="ct-fab" class="ct-fab">
-            <button type="button" class="ct-fab-main" onclick="ctFabClick()" aria-label="Abrir Criar Teste">
-                <span class="ct-fab-icon">✚</span><span class="ct-fab-text">Criar Teste</span>
-            </button>
-            <button type="button" class="ct-fab-toggle" onclick="toggleCtMin(event)" title="Minimizar" aria-label="Minimizar Criar Teste">–</button>
-        </div>
-
         <!-- Secret Challenge Counter (Floating) -->
         <div id="secret-challenge-counter" class="secret-challenge-counter" style="display: none;" onclick="expandChallengeIfMin()">
             <button type="button" class="challenge-min-btn" onclick="toggleChallengeMin(event)" title="Minimizar" aria-label="Minimizar desafio">–</button>
@@ -473,20 +418,6 @@
             <div class="challenge-progress-bar">
                 <div class="challenge-progress-fill" id="challenge-progress-fill" style="width: 0%"></div>
             </div>
-        </div>
-    </div>
-
-    <!-- Criar Teste modal (iframe direto na página) -->
-    <div id="ct-modal" onclick="ctBackdrop(event)">
-        <div class="ct-modal-box">
-            <div class="ct-modal-head">
-                <span class="ct-modal-title">✚ Criar Teste</span>
-                <span class="ct-modal-actions">
-                    <a class="ct-modal-btn" href="/toolbox/criar-teste" target="_blank" rel="noopener" title="Abrir em nova aba">↗</a>
-                    <button type="button" class="ct-modal-btn" onclick="closeCriarTeste()" title="Fechar" aria-label="Fechar">✕</button>
-                </span>
-            </div>
-            <iframe id="ct-iframe" title="Criar Teste"></iframe>
         </div>
     </div>
 
@@ -1921,6 +1852,7 @@
                 loadWatchedLessons(),
                 buscarCronograma()
             ]);
+            updateScheduleTypeLabel();
             loadWardMethodLessons(); // Merge Ward Method lessons from localStorage
             aplicarCronograma(cronograma);
 
@@ -1938,9 +1870,6 @@
 
             // Apply view preference
             switchView(currentView);
-
-            // Check if tutorial should be shown
-            await checkTutorialStatus();
         });
 
         // Load watched lessons for the target user
@@ -3738,13 +3667,8 @@
         }
 
         // ================================================
-        // TUTORIAL VIDEO SYSTEM
+        // SCHEDULE TYPE (subject ou category)
         // ================================================
-        // Tutorial videos based on schedule type
-        const TUTORIAL_VIDEO_CATEGORY = 'https://www.youtube.com/embed/nj3eA5ZEm_Y'; // Por Category
-        const TUTORIAL_VIDEO_SUBJECT = 'https://www.youtube.com/embed/s5zBIbABYAI';  // Por Subject
-        let currentTutorialVideoUrl = TUTORIAL_VIDEO_SUBJECT; // Default to subject video (for users without schedule)
-        let tutorialWatchedStatus = false;
         let userScheduleType = 'subject'; // Default schedule type
 
         // Load user's schedule type (subject or category) - called early to ensure Register button works correctly
@@ -3764,39 +3688,6 @@
             }
         }
 
-        // Determine tutorial video based on schedule type
-        async function determineTutorialVideo() {
-            try {
-                // Get user's schedule_type
-                const { data: user } = await WardApp.db
-                    .from('users')
-                    .select('schedule_type')
-                    .eq('id', targetUserId)
-                    .single();
-
-                if (user && user.schedule_type) {
-                    userScheduleType = user.schedule_type;
-                }
-
-                // Check if user has any schedule items to determine type
-                if (scheduleData && scheduleData.length > 0) {
-                    // Has schedule - use the configured type
-                    currentTutorialVideoUrl = userScheduleType === 'category'
-                        ? TUTORIAL_VIDEO_CATEGORY
-                        : TUTORIAL_VIDEO_SUBJECT;
-                } else {
-                    // No schedule yet - default to subject video
-                    currentTutorialVideoUrl = TUTORIAL_VIDEO_SUBJECT;
-                }
-
-                // Update the table header label
-                updateScheduleTypeLabel();
-            } catch (e) {
-                console.log('Using default tutorial video');
-                currentTutorialVideoUrl = TUTORIAL_VIDEO_SUBJECT;
-            }
-        }
-
         // Update the schedule table header label based on type
         function updateScheduleTypeLabel() {
             const header = document.getElementById('schedule-category-header');
@@ -3811,97 +3702,6 @@
                 return `Subject: ${category} · System: ${system}`;
             } else {
                 return `System: ${system} · Category: ${category}`;
-            }
-        }
-
-        // Check if user has watched the tutorial
-        async function checkTutorialStatus() {
-            // First determine which video to show
-            await determineTutorialVideo();
-
-            try {
-                const { data } = await WardApp.db
-                    .from('user_tutorials')
-                    .select('watched')
-                    .eq('user_id', targetUserId)
-                    .eq('tutorial_key', 'cronograma_tutorial')
-                    .maybeSingle();
-
-                if (data) {
-                    tutorialWatchedStatus = data.watched;
-                    document.getElementById('tutorial-watched-checkbox').checked = data.watched;
-                }
-
-                // If not watched, show tutorial automatically
-                if (!tutorialWatchedStatus) {
-                    setTimeout(() => {
-                        openTutorialModal();
-                    }, 1000); // Small delay to let page load
-                }
-            } catch (e) {
-                // Record doesn't exist yet, show tutorial
-                setTimeout(() => {
-                    openTutorialModal();
-                }, 1000);
-            }
-        }
-
-        // Open tutorial modal
-        function openTutorialModal() {
-            const iframe = document.getElementById('tutorial-video-iframe');
-            iframe.src = currentTutorialVideoUrl + '?autoplay=1';
-            document.getElementById('tutorial-modal').classList.add('active');
-        }
-
-        // Close tutorial modal
-        function closeTutorialModal() {
-            const iframe = document.getElementById('tutorial-video-iframe');
-            iframe.src = ''; // Stop video
-            document.getElementById('tutorial-modal').classList.remove('active');
-
-            // If user hasn't opted out yet, show confirmation modal
-            if (!tutorialWatchedStatus) {
-                setTimeout(() => {
-                    document.getElementById('tutorial-confirm-modal').classList.add('active');
-                }, 300);
-            }
-        }
-
-        // Dismiss the tutorial confirmation modal
-        async function dismissTutorialConfirm(dontShowAgain) {
-            document.getElementById('tutorial-confirm-modal').classList.remove('active');
-            if (dontShowAgain) {
-                document.getElementById('tutorial-watched-checkbox').checked = true;
-                await toggleTutorialWatched();
-            }
-        }
-
-        // Toggle tutorial watched status
-        async function toggleTutorialWatched() {
-            const checkbox = document.getElementById('tutorial-watched-checkbox');
-            const watched = checkbox.checked;
-
-            try {
-                // Upsert the record
-                const { error } = await WardApp.db
-                    .from('user_tutorials')
-                    .upsert({
-                        user_id: targetUserId,
-                        tutorial_key: 'cronograma_tutorial',
-                        watched: watched,
-                        watched_at: watched ? new Date().toISOString() : null
-                    }, {
-                        onConflict: 'user_id,tutorial_key'
-                    });
-
-                if (error) throw error;
-
-                tutorialWatchedStatus = watched;
-                WardApp.showToast(watched ? 'Tutorial marcado como assistido!' : 'Tutorial será exibido novamente ao entrar na página');
-            } catch (e) {
-                console.error('Error saving tutorial status:', e);
-                checkbox.checked = !watched; // Revert on error
-                WardApp.showToast('Erro ao salvar preferência', 'error');
             }
         }
 
@@ -4461,32 +4261,6 @@
             initChallengeCounter();
         };
 
-        // ===== Criar Teste (abre o app do toolbox num modal/iframe no cronograma) =====
-        function openCriarTeste() {
-            var m = document.getElementById('ct-modal');
-            var f = document.getElementById('ct-iframe');
-            if (!f.getAttribute('src')) { f.setAttribute('src', '/toolbox/criar-teste'); }
-            m.classList.add('open');
-            document.body.style.overflow = 'hidden';
-        }
-        function closeCriarTeste() {
-            document.getElementById('ct-modal').classList.remove('open');
-            document.body.style.overflow = '';
-        }
-        function ctBackdrop(e) { if (e.target && e.target.id === 'ct-modal') closeCriarTeste(); }
-        function toggleCtMin(e) {
-            if (e) { e.stopPropagation(); }
-            var f = document.getElementById('ct-fab');
-            var mini = f.classList.toggle('mini');
-            var t = f.querySelector('.ct-fab-toggle');
-            t.textContent = mini ? '+' : '–';
-            t.title = mini ? 'Expandir' : 'Minimizar';
-        }
-        // Clique no botão principal: minimizado -> expande; normal -> abre o app.
-        function ctFabClick() {
-            var f = document.getElementById('ct-fab');
-            if (f.classList.contains('mini')) { toggleCtMin(); } else { openCriarTeste(); }
-        }
         // Desafio Misterioso: minimizar / expandir
         function toggleChallengeMin(e) {
             if (e) { e.stopPropagation(); }
@@ -4496,17 +4270,13 @@
             var c = document.getElementById('secret-challenge-counter');
             if (c.classList.contains('minimized')) c.classList.remove('minimized');
         }
-        // No celular os dois flutuantes começam recolhidos: expandidos, cobriam os
-        // botões dos cartões. Um toque expande.
+        // No celular o Desafio começa recolhido: expandido, cobria os botões
+        // dos cartões. Um toque expande.
         (function recolherFlutuantesNoCelular() {
             if (!window.matchMedia || !window.matchMedia('(max-width: 768px)').matches) return;
-            var f = document.getElementById('ct-fab');
-            if (f && !f.classList.contains('mini')) toggleCtMin();
             var c = document.getElementById('secret-challenge-counter');
             if (c) c.classList.add('minimized');
         })();
-        // Fecha o modal do Criar Teste com ESC
-        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeCriarTeste(); });
     </script>
 
     <style>
@@ -5319,7 +5089,7 @@
             50% { box-shadow: 0 10px 50px rgba(79, 70, 229, 0.6); }
         }
 
-        /* ===== Floating stack: Criar Teste FAB + Desafio Misterioso ===== */
+        /* ===== Floating stack: Desafio Misterioso ===== */
         #ct-fab-stack {
             position: fixed;
             bottom: 20px;
@@ -5333,60 +5103,6 @@
             pointer-events: none;
         }
         #ct-fab-stack > * { pointer-events: auto; }
-        .ct-fab { position: relative; display: flex; justify-content: flex-end; }
-        /* Minimizado: some com o botão de toggle (evita ficar torto no canto do círculo) */
-        .ct-fab.mini { width: 56px; }
-        .ct-fab.mini .ct-fab-toggle { display: none; }
-        .ct-fab-main {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            background: linear-gradient(135deg, #d46312 0%, #C45700 100%);
-            color: #fff;
-            border: none;
-            padding: 12px 18px;
-            border-radius: 14px;
-            font-weight: 700;
-            font-size: 0.95rem;
-            font-family: inherit;
-            cursor: pointer;
-            box-shadow: 0 10px 30px rgba(196, 87, 0, 0.4);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            white-space: nowrap;
-        }
-        .ct-fab-main:hover { transform: translateY(-3px); box-shadow: 0 14px 42px rgba(196, 87, 0, 0.5); }
-        .ct-fab-main .ct-fab-icon { font-size: 1.15rem; line-height: 1; }
-        .ct-fab-toggle {
-            position: absolute;
-            top: -7px;
-            right: -7px;
-            width: 22px;
-            height: 22px;
-            border: none;
-            border-radius: 50%;
-            background: #fff;
-            color: #C45700;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-            font-size: 16px;
-            line-height: 1;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-            z-index: 3;
-        }
-        .ct-fab-toggle:hover { background: #fff4ec; }
-        .ct-fab.mini .ct-fab-main {
-            width: 56px;
-            height: 56px;
-            padding: 0;
-            border-radius: 50%;
-        }
-        .ct-fab.mini .ct-fab-text { display: none; }
-        .ct-fab.mini .ct-fab-main .ct-fab-icon { font-size: 1.7rem; }
-
         .challenge-min-btn {
             position: absolute;
             top: 6px;
@@ -5424,51 +5140,6 @@
         .secret-challenge-counter.minimized .challenge-counter-inner { gap: 0; width: 100%; height: 100%; margin: 0; align-items: center; justify-content: center; }
         .secret-challenge-counter.minimized .challenge-icon { font-size: 1.7rem; margin: 0; line-height: 1; animation: none; }
 
-        /* ===== Criar Teste modal (iframe) ===== */
-        #ct-modal {
-            position: fixed;
-            inset: 0;
-            z-index: 99999;
-            background: rgba(15, 23, 42, 0.6);
-            -webkit-backdrop-filter: blur(2px);
-            backdrop-filter: blur(2px);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        #ct-modal.open { display: flex; }
-        .ct-modal-box {
-            background: #fff;
-            width: min(1280px, 96vw);
-            height: min(900px, 92vh);
-            border-radius: 14px;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 25px 70px rgba(0,0,0,0.35);
-        }
-        .ct-modal-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 14px;
-            background: linear-gradient(135deg, #d46312 0%, #C45700 100%);
-            color: #fff;
-            flex: none;
-        }
-        .ct-modal-title { font-weight: 700; font-size: 1rem; }
-        .ct-modal-actions { display: flex; align-items: center; gap: 6px; }
-        .ct-modal-btn {
-            width: 32px; height: 32px;
-            display: inline-flex; align-items: center; justify-content: center;
-            border: none; border-radius: 8px;
-            background: rgba(255,255,255,0.18); color: #fff;
-            font-size: 16px; text-decoration: none; cursor: pointer;
-        }
-        .ct-modal-btn:hover { background: rgba(255,255,255,0.34); }
-        #ct-iframe { flex: 1; width: 100%; border: 0; }
-
         @media (max-width: 768px) {
             /* Compacto e encostado no canto (não ocupa a largura toda, não cobre o conteúdo) */
             #ct-fab-stack {
@@ -5479,13 +5150,8 @@
                 align-items: flex-end;
                 gap: 14px;
             }
-            .ct-fab { width: auto; }
-            .ct-fab-main { width: auto; }
             .secret-challenge-counter { min-width: 0; max-width: 82vw; }
-            .ct-fab.mini { align-self: flex-end; width: auto; }
             .secret-challenge-counter.minimized { align-self: flex-end; }
-            #ct-modal { padding: 0; }
-            .ct-modal-box { width: 100vw; height: 100vh; height: 100dvh; border-radius: 0; }
         }
 
         .challenge-counter-inner {
