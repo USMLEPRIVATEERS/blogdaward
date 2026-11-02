@@ -2589,11 +2589,13 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 .eq('completed', false)
                 .neq('group_name', 'historico')   // chamada de uma prova ja passada nao aparece
                 .like('landmark_type', 'call_iria%');
-            // O NBME pode ser com a Iria, o Guilherme ou o Marcos: a vaga (de
-            // todos) e as ocorrencias marcadas com outro mentor nao sao dela.
+            // Vaga de chamada repetivel (system, orientacoes, NBME) nunca e
+            // concluida: e uma opcao permanente do aluno, nao uma pendencia. E o
+            // NBME pode ser com a Iria, o Guilherme ou o Marcos: as ocorrencias
+            // marcadas com outro mentor nao sao dela.
             const pendingLandmarks = (pendentesIria || []).filter(l => {
                 const def = WardRoteiro.definicao(l.landmark_type);
-                if (def && def.mentores && !WardRoteiro.ehOcorrencia(l.landmark_type)) return false;
+                if (def && def.repetivel && !WardRoteiro.ehOcorrencia(l.landmark_type)) return false;
                 const mentor = WardRoteiro.mentorSugerido(l.landmark_type, l.title);
                 return !mentor || mentor === 'iria';
             });
@@ -2648,8 +2650,14 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 'research': 'Pesquisa',
                 'second-pass': 'Second Pass',
                 'dedicated': 'Dedicated',
-                'extras': 'Extra'
+                'extras': 'Extra',
+                'pesquisa': 'Pesquisa',
+                'outros': 'Outras'
             };
+            // Os grupos do roteiro atual (Imersao, Seguimento, Planejamento de
+            // prova). Antes so os nomes do roteiro antigo eram desenhados e a
+            // lista ficava sempre vazia.
+            (WardRoteiro.GRUPOS || []).forEach(g => { groupNames[g.chave] = g.titulo; });
 
             // Group by category
             const groupedLandmarks = {};
@@ -2673,7 +2681,11 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
             // Render grouped landmarks in specific order
             let html = '';
             const groupOrder = ['first-round', 'second-round', 'second-pass', 'dedicated', 'setup', 'system-calls', 'research', 'extras'];
-            const sortedGroups = groupOrder.filter(g => groupedLandmarks[g]);
+            const ordem = (WardRoteiro.GRUPOS || []).map(g => g.chave).concat(groupOrder);
+            // Primeiro o roteiro atual, depois o antigo, e qualquer outro grupo no
+            // fim: nenhuma pendencia some por estar num grupo desconhecido.
+            const sortedGroups = ordem.filter(g => groupedLandmarks[g])
+                .concat(Object.keys(groupedLandmarks).filter(g => !ordem.includes(g)).sort());
 
             sortedGroups.forEach(groupKey => {
                 const landmarks = groupedLandmarks[groupKey];
