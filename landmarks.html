@@ -439,6 +439,7 @@
                     <select id="schedule-mentor" class="form-input" onchange="loadMentorSlots()">
                         <option value="">Selecione o mentor...</option>
                     </select>
+                    <small class="text-muted" id="schedule-mentor-dica" style="display: none;"></small>
                 </div>
 
                 <div class="form-group">
@@ -719,18 +720,6 @@
             outline-offset: 2px;
         }
 
-        .availability-slot-card.slot-guilherme {
-            background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
-            border-color: #fde047;
-            cursor: not-allowed;
-            opacity: 0.8;
-        }
-
-        .availability-slot-card.slot-guilherme:hover {
-            transform: none;
-            box-shadow: none;
-        }
-
         .slot-date-icon {
             font-size: 2rem;
             min-width: 50px;
@@ -792,18 +781,6 @@
             font-size: 3rem;
             margin-bottom: 1rem;
             opacity: 0.5;
-        }
-
-        .guilherme-info-box {
-            background: #fef3c7;
-            border: 1px solid #fcd34d;
-            border-left: 4px solid #f59e0b;
-            border-radius: var(--radius-sm);
-            padding: 0.75rem 1rem;
-            margin-bottom: 1rem;
-            font-size: 0.85rem;
-            line-height: 1.5;
-            color: #92400e;
         }
     </style>
 
@@ -1749,7 +1726,7 @@
                     + 'Dra. Iria passam pelo Marcos.';
             } else if (planoDoAluno === 'intensivo') {
                 el.innerHTML = '<strong>Plano Intensivo.</strong> São seis chamadas: '
-                    + 'duas com a Dra. Iria, duas com o Marcos e duas com o Guilherme.';
+                    + 'duas com a Dra. Iria, uma com o Marcos e três com o Guilherme.';
             } else {
                 el.textContent = '';
             }
@@ -2185,7 +2162,7 @@
                     // No historico a vaga ja nao esta mais disponivel: e so registro.
                     const ehVaga = !!(def && def.repetivel && !ehOcorrencia) && !ehHistorico;
 
-                    const mentorHint = WardRoteiro.mentorDoTitulo(lm.title);
+                    const mentorHint = WardRoteiro.mentorSugerido(lm.landmark_type, lm.title);
                     const chamadas = lm.scheduled_calls || [];
                     const temAgendada = chamadas.length > 0;
                     const agendada = temAgendada ? chamadas[0] : null;
@@ -2528,6 +2505,11 @@
         // a chamada extra com o Guilherme nascia com o nome do Marcos no titulo,
         // e os paineis dos mentores liam o mentor pelo titulo.
         const NOME_DO_MENTOR = { iria: 'Dra. Iria', marcos: 'Marcos', guilherme: 'Guilherme' };
+        // Como o mentor aparece no titulo da chamada ("Iria: ...", "Guilherme: ...").
+        const NOME_NA_CHAMADA = { iria: 'Iria', marcos: 'Marcos', guilherme: 'Guilherme' };
+        function juntarNomes(nomes) {
+            return nomes.length > 1 ? nomes.slice(0, -1).join(', ') + ' ou ' + nomes[nomes.length - 1] : (nomes[0] || '');
+        }
         function nomeDoMentor(chave) { return NOME_DO_MENTOR[chave] || 'Mentor'; }
 
         async function addExtraCall(mentorKey) {
@@ -2991,7 +2973,6 @@
             const mentorSelect = document.getElementById('new-landmark-mentor');
             mentorSelect.innerHTML = '<option value="">Selecione o mentor...</option>' +
                 (mentors || []).filter(m => {
-                    if (m.role === 'mentor_guilherme') return false;
                     if (m.role === 'mentor_fernando') return canHaveFernandoCall;
                     return true;
                 }).map(m =>
@@ -3330,8 +3311,6 @@
                 return;
             }
 
-            const isGuilherme = mentorKey === 'guilherme';
-
             // Load mentor settings for minimum days ahead (default 2)
             const { data: mentorSettings } = await WardApp.db
                 .from('mentor_settings')
@@ -3444,15 +3423,6 @@
             // Build HTML
             let html = '';
 
-            if (isGuilherme) {
-                html += `
-                    <div class="guilherme-info-box">
-                        ⚠️ <strong>Atenção:</strong> As chamadas com Guilherme são apenas para os temas pré-definidos
-                        (Configurando Anki e Uso do Anki). Use o botão 📅 no landmark correspondente para agendar.
-                    </div>
-                `;
-            }
-
             if (allSlots.length === 0) {
                 html += `
                     <div class="no-availability">
@@ -3490,31 +3460,16 @@
                         ? `${convStart.time} - ${convEnd.time} <span style="font-size:0.7rem;color:var(--gray-400)">(${slot.startTime}-${slot.endTime} mentor)</span>`
                         : `${slot.startTime} - ${slot.endTime}`;
 
-                    if (isGuilherme) {
-                        html += `
-                            <div class="availability-slot-card slot-guilherme">
-                                <div class="slot-date-icon">📅</div>
-                                <div class="slot-info">
-                                    <div class="slot-date">${formattedDate} (${dayName})</div>
-                                    <div class="slot-time">${displayTime}</div>
-                                </div>
-                                <div class="slot-action-disabled">
-                                    Agende pelo<br>landmark
-                                </div>
+                    html += `
+                        <div class="availability-slot-card" onclick="scheduleFromSlot('${slot.mentorId}', '${slot.date}', '${slot.startTime}', '${slot.endTime}')">
+                            <div class="slot-date-icon">📅</div>
+                            <div class="slot-info">
+                                <div class="slot-date">${formattedDate} (${dayName})</div>
+                                <div class="slot-time">${displayTime}</div>
                             </div>
-                        `;
-                    } else {
-                        html += `
-                            <div class="availability-slot-card" onclick="scheduleFromSlot('${slot.mentorId}', '${slot.date}', '${slot.startTime}', '${slot.endTime}')">
-                                <div class="slot-date-icon">📅</div>
-                                <div class="slot-info">
-                                    <div class="slot-date">${formattedDate} (${dayName})</div>
-                                    <div class="slot-time">${displayTime}</div>
-                                </div>
-                                <div class="slot-action">→</div>
-                            </div>
-                        `;
-                    }
+                            <div class="slot-action">→</div>
+                        </div>
+                    `;
                 });
 
                 html += '</div>';
@@ -3567,14 +3522,33 @@
                 .select('id, full_name, role')
                 .ilike('role', 'mentor_%');
 
+            // Chamada que mais de um mentor atende (NBME): so eles na lista, sem
+            // ninguem pre-escolhido, para o aluno ir rodando entre os tres.
+            const lmAgenda = landmarksPorId[landmarkId];
+            const permitidos = lmAgenda && !WardRoteiro.ehOcorrencia(lmAgenda.landmark_type)
+                ? WardRoteiro.mentoresPermitidos(lmAgenda.landmark_type, planoDoAluno, iriaLiberadas)
+                : null;
+            const lista = permitidos
+                ? (mentors || []).filter(m => permitidos.includes(String(m.role || '').replace('mentor_', '')))
+                : (mentors || []);
+
             const select = document.getElementById('schedule-mentor');
             select.innerHTML = '<option value="">Selecione o mentor...</option>' +
-                (mentors || []).map(m => `<option value="${m.id}">${m.full_name || m.role}</option>`).join('');
+                lista.map(m => `<option value="${m.id}" data-role="${m.role}">${m.full_name || m.role}</option>`).join('');
 
-            // Pre-select mentor based on hint (from landmark title)
-            if (mentorHint) {
-                const mentor = mentors.find(m => m.role === 'mentor_' + mentorHint);
-                if (mentor) select.value = mentor.id;
+            const dica = document.getElementById('schedule-mentor-dica');
+            if (permitidos) {
+                dica.textContent = 'Pode ser com ' + juntarNomes(permitidos.map(nomeDoMentor))
+                    + '. Escolha quem tiver o melhor horário para você.';
+                dica.style.display = '';
+                if (lista.length === 1) select.value = lista[0].id;
+            } else {
+                dica.style.display = 'none';
+                // Pre-select mentor based on hint (from the call's type or title)
+                if (mentorHint) {
+                    const mentor = lista.find(m => m.role === 'mentor_' + mentorHint);
+                    if (mentor) select.value = mentor.id;
+                }
             }
 
             document.getElementById('schedule-date').innerHTML = '<option value="">Selecione uma data...</option>';
@@ -3599,8 +3573,9 @@
 
             const select = document.getElementById('schedule-mentor');
             select.innerHTML = '<option value="">Selecione o mentor...</option>' +
-                (mentors || []).map(m => `<option value="${m.id}">${m.full_name || m.role}</option>`).join('');
+                (mentors || []).map(m => `<option value="${m.id}" data-role="${m.role}">${m.full_name || m.role}</option>`).join('');
             if (mentorId) select.value = String(mentorId);
+            document.getElementById('schedule-mentor-dica').style.display = 'none';
 
             document.getElementById('schedule-date').innerHTML = '<option value="">Selecione uma data...</option>';
             document.getElementById('schedule-time').innerHTML = '<option value="">Selecione um horario...</option>';
@@ -3631,7 +3606,7 @@
                         if (permissao.motivo === 'iria_precisa_liberacao') avisarAgendaDaIria();
                         return;
                     }
-                    openScheduleModal(vaga.id, vaga.title, WardRoteiro.mentorDoTitulo(vaga.title));
+                    openScheduleModal(vaga.id, vaga.title, WardRoteiro.mentorSugerido(vaga.landmark_type, vaga.title));
                     return;
                 }
                 // O aluno não tem essa vaga no roteiro: cai no agendamento por título.
@@ -3869,14 +3844,21 @@
         // Uma chamada repetivel nunca e "concluida": a linha do roteiro continua
         // livre e cada agendamento vira uma ocorrencia propria, com a data (ou o
         // assunto que o aluno escreveu) no titulo.
-        async function criarOcorrencia(vaga, def, data, resposta) {
+        async function criarOcorrencia(vaga, def, data, resposta, papelDoMentor) {
             const sufixo = resposta || new Date(data + 'T12:00:00').toLocaleDateString('pt-BR');
+            // Chamada de mais de um mentor: a ocorrencia leva o nome de quem vai
+            // atender ("Guilherme: avaliando..."), e nao "Iria, Guilherme ou Marcos".
+            let base = vaga.title;
+            const chave = String(papelDoMentor || '').replace('mentor_', '');
+            if (def.mentores && def.mentores.includes(chave) && base.indexOf(': ') > 0) {
+                base = NOME_NA_CHAMADA[chave] + ': ' + base.slice(base.indexOf(': ') + 2);
+            }
             const { data: nova, error } = await WardApp.db
                 .from('landmarks')
                 .insert({
                     user_id: targetUserId,
                     landmark_type: vaga.landmark_type + WardRoteiro.SUFIXO_OCORRENCIA,
-                    title: `${vaga.title} — ${sufixo}`,
+                    title: `${base} — ${sufixo}`,
                     completed: false,
                     is_urgent: false,
                     notes: [],
@@ -3896,6 +3878,8 @@
         async function confirmSchedule() {
             const landmarkId = document.getElementById('schedule-landmark-id').value;
             const mentorId = document.getElementById('schedule-mentor').value;
+            const opcaoMentor = document.getElementById('schedule-mentor').selectedOptions[0];
+            const papelDoMentor = opcaoMentor ? (opcaoMentor.dataset.role || '') : '';
             const date = document.getElementById('schedule-date').value;
             const time = document.getElementById('schedule-time').value;
 
@@ -3950,7 +3934,7 @@
             let effectiveLandmarkId = landmarkId || null;
 
             if (ehVaga) {
-                const ocorrencia = await criarOcorrencia(vaga, defVaga, date, resposta);
+                const ocorrencia = await criarOcorrencia(vaga, defVaga, date, resposta, papelDoMentor);
                 if (!ocorrencia) {
                     WardApp.showToast('Erro ao registrar a chamada', 'error');
                     return;
@@ -3975,7 +3959,7 @@
                     // Chamada repetivel: o link agenda uma OCORRENCIA, como na pagina.
                     // Agendar a propria vaga a marcaria como ocupada e ela tem de
                     // continuar livre para o proximo agendamento.
-                    const ocorrencia = await criarOcorrencia(existingLm, defLink, date, resposta);
+                    const ocorrencia = await criarOcorrencia(existingLm, defLink, date, resposta, papelDoMentor);
                     if (!ocorrencia) {
                         WardApp.showToast('Erro ao registrar a chamada', 'error');
                         return;

@@ -1310,12 +1310,15 @@ Cardiovascular	Physiology	62	FALSE
 
         async function loadPendingCalls() {
             // Load pending landmarks for Marcos only
-            const { data: allPending, error } = await WardApp.db
+            const { data: pendentesMarcos, error } = await WardApp.db
                 .from('landmarks')
                 .select('*')
                 .eq('completed', false)
                 .neq('group_name', 'historico')   // chamada de uma prova ja passada nao aparece
                 .like('landmark_type', 'call_marcos%');
+            // Tipo do Marcos que passou para outro mentor (a conta do Myintealth,
+            // agora com o Guilherme) sai da lista dele.
+            const allPending = (pendentesMarcos || []).filter(l => WardRoteiro.mentorDoTipo(l.landmark_type) === 'marcos');
 
             if (error) {
                 console.error('Error loading pending calls:', error);
@@ -5809,8 +5812,14 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
                 const def = WardRoteiro.resolvida(lm.landmark_type);
                 if (!def) return; // tipo fora do roteiro (extra/legado) - nao mexe
                 const grupo = WardRoteiro.grupoDe(lm.landmark_type, stepDe(lm.user_id));
-                if (lm.title !== def.titulo || lm.group_name !== grupo) {
-                    toUpdate.push({ id: lm.id, newTitle: def.titulo, newGroup: grupo });
+                // Chamada ja feita nao troca de mentor no titulo: quem atendeu
+                // continua no nome (ex.: a conta do Myintealth feita com o Marcos
+                // antes de ela passar para o Guilherme).
+                const mentorAntes = WardRoteiro.mentorDoTitulo(lm.title);
+                const titulo = (lm.completed && mentorAntes && mentorAntes !== WardRoteiro.mentorDoTitulo(def.titulo))
+                    ? lm.title : def.titulo;
+                if (lm.title !== titulo || lm.group_name !== grupo) {
+                    toUpdate.push({ id: lm.id, newTitle: titulo, newGroup: grupo });
                 }
             });
 
