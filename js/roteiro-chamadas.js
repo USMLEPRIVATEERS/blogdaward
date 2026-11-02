@@ -14,7 +14,11 @@
  *     acrescido de SUFIXO_OCORRENCIA;
  *   - `pergunta` obriga o aluno a escrever algo antes de agendar (o system que
  *     concluiu, o assunto, o simulado). O texto vai para o titulo da ocorrencia
- *     e para as observacoes do agendamento, entao o mentor ve na hora.
+ *     e para as observacoes do agendamento, entao o mentor ve na hora;
+ *   - o mentor sai do prefixo do tipo (call_marcos_..., call_iria_...). Quando a
+ *     chamada troca de mentor, o tipo fica (e o historico do banco) e a
+ *     definicao ganha `mentor`. `mentores` lista quem pode atender: o aluno
+ *     escolhe na hora de agendar e a ocorrencia leva o nome de quem atendeu.
  *
  * STEPS
  *   O aluno escolhe no dashboard em que prova esta focando (Step 1, Step 2 CK
@@ -75,7 +79,7 @@
     var INTENSIVO_CHAMADAS = [
         'call_iria_uworld',              // tecnica de questao
         'call_iria_simulados',           // organizando os NBMEs
-        'call_marcos_myintealth_conta',  // cadastro no Myintealth
+        'call_marcos_myintealth_conta',  // cadastro no Myintealth (com o Guilherme)
         'call_marcos_myintealth_final',  // finalizando o Myintealth
         'call_guilherme_anki_setup',     // configurando o Anki
         'call_guilherme_anki_update'     // a rechamada do Anki
@@ -111,7 +115,9 @@
         { grupo: 'imersao', tipo: 'call_iria_caminhos', porJornada: true, titulo: 'Iria: o que é o USMLE e quais caminhos ele abre' },
         { grupo: 'imersao', tipo: 'call_guilherme_anki_setup', porJornada: true, titulo: 'Guilherme: configurando o Anki do zero' },
         { grupo: 'imersao', tipo: 'call_guilherme_anki_update', porJornada: true, titulo: 'Guilherme: revisando o seu Anki' },
-        { grupo: 'imersao', tipo: 'call_marcos_myintealth_conta', porJornada: true, titulo: 'Marcos: criando a sua conta no Myintealth' },
+        // Desde 02/11/2026 com o Guilherme. O tipo continua o do Marcos para nao
+        // soltar quem ja fez ou agendou.
+        { grupo: 'imersao', tipo: 'call_marcos_myintealth_conta', porJornada: true, mentor: 'guilherme', titulo: 'Guilherme: criando a sua conta no Myintealth' },
         { grupo: 'imersao', tipo: 'call_marcos_notarycam', porJornada: true, titulo: 'Marcos: reconhecendo os documentos no NotaryCam' },
         // O Myintealth e da ECFMG: vale para Step 1 e Step 2 CK. O Step 3 e pelo FSMB.
         { grupo: 'imersao', tipo: 'call_marcos_myintealth_final', steps: ['step1', 'step2ck'], titulo: 'Marcos: finalizando a inscrição no Myintealth para o {STEP}' },
@@ -151,9 +157,11 @@
         { grupo: 'prova', tipo: 'call_marcos_claude', titulo: 'Marcos: usando o Claude na preparação para o {STEP}' },
         { grupo: 'prova', tipo: 'call_iria_materiais_reta_final', titulo: 'Iria: escolhendo os materiais de estudo da reta final do {STEP}' },
         { grupo: 'prova', tipo: 'call_guilherme_anki_reta_final', titulo: 'Guilherme: ajustando o Anki para a reta final do {STEP}' },
+        // Qualquer um dos tres atende: o aluno vai rodando entre eles e nenhum
+        // mentor fica sobrecarregado. O tipo continua o da Iria (historico).
         {
-            grupo: 'prova', tipo: 'call_iria_self_assessment',
-            titulo: 'Iria: avaliando o seu resultado no self assessment do {STEP}', repetivel: true,
+            grupo: 'prova', tipo: 'call_iria_self_assessment', mentores: ['iria', 'guilherme', 'marcos'],
+            titulo: 'Iria, Guilherme ou Marcos: avaliando o seu resultado no self assessment do {STEP}', repetivel: true,
             pergunta: {
                 rotulo: 'Qual simulado você fez?',
                 dica: 'Ex: UWSA1, NBME 28, NBME 29...'
@@ -345,15 +353,38 @@
             : { pode: false, motivo: 'iria_precisa_liberacao' };
     }
 
-    // Mentor de uma chamada pelo TIPO (o titulo pode ser reescrito).
+    // Mentor de uma chamada pelo TIPO (o titulo pode ser reescrito). Chamada
+    // com mais de um mentor possivel devolve '' (quem atende e escolha do aluno).
     function mentorDoTipo(tipo) {
         var t = String(tipo || '');
+        var def = definicao(t);
+        if (def && def.mentores) return '';
+        if (def && def.mentor) return def.mentor;
         if (/^call_iria_/.test(t)) return 'iria';
         if (/^call_marcos_/.test(t)) return 'marcos';
         if (/^call_guilherme_/.test(t)) return 'guilherme';
         if (/^call_fernando_/.test(t)) return 'fernando';
         if (/^call_donato_/.test(t)) return 'donato';
         return mentorDoTitulo(definicao(t) && definicao(t).titulo);
+    }
+
+    // Quem pode atender esta chamada, dado o plano. So faz sentido para as que
+    // tem `mentores`; as outras devolvem null (um mentor so). O bolsista sem
+    // liberacao da Iria fica com os outros dois.
+    function mentoresPermitidos(tipo, plano, iriaLiberadas) {
+        var def = definicao(tipo);
+        if (!def || !def.mentores) return null;
+        var regra = regraDoPlano(plano);
+        var semIria = !regra.iriaLivre && !((Number(iriaLiberadas) || 0) > 0);
+        return def.mentores.filter(function (m) { return !(semIria && m === 'iria'); });
+    }
+
+    // O mentor que a tela de agendamento ja deixa escolhido. Chamada do roteiro:
+    // pelo tipo (vale mesmo antes de o titulo no banco ser atualizado). Extra,
+    // legado ou ocorrencia: pelo titulo, que leva o nome de quem atende.
+    function mentorSugerido(tipo, titulo) {
+        if (doRoteiro(tipo) && !ehOcorrencia(tipo)) return mentorDoTipo(tipo);
+        return mentorDoTitulo(titulo);
     }
 
     // A chamada se agenda pela plataforma? As do Dr. Andre nao: ele atende por
@@ -405,6 +436,8 @@
         regraDoPlano: regraDoPlano,
         podeAgendar: podeAgendar,
         mentorDoTipo: mentorDoTipo,
+        mentoresPermitidos: mentoresPermitidos,
+        mentorSugerido: mentorSugerido,
         SESSOES_DONATO: SESSOES_DONATO,
         TODAS: TODAS,
         ehAgendavel: ehAgendavel,

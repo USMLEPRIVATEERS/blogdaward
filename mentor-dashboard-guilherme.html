@@ -344,6 +344,7 @@
 
     <script src="js/timezone-detect.js"></script>
     <script src="js/aniversarios.js"></script>
+    <script src="js/roteiro-chamadas.js"></script>
     <script src="js/kanban-embed.js"></script>
     <script src="js/app.js"></script>
     <script>
@@ -602,11 +603,17 @@ Dica: Use as tags do AnKing em vez de decks separados!`
 
         async function loadPendingCalls() {
             // Load pending landmarks for Guilherme only
-            const { data: allPending, error } = await WardApp.db
+            const { data: pendentesGuilherme, error } = await WardApp.db
                 .from('landmarks')
                 .select('*')
                 .eq('completed', false)
                 .like('landmark_type', 'call_guilherme%');
+            // Chamadas de outro tipo que passaram para ele (a conta do Myintealth).
+            const tiposHerdados = (WardRoteiro.TODAS || []).filter(d => d.mentor === 'guilherme').map(d => d.tipo);
+            const { data: herdadas } = tiposHerdados.length
+                ? await WardApp.db.from('landmarks').select('*').eq('completed', false).in('landmark_type', tiposHerdados)
+                : { data: [] };
+            const allPending = (pendentesGuilherme || []).concat(herdadas || []);
 
             if (error) {
                 console.error('Error loading pending calls:', error);

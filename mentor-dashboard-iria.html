@@ -2583,12 +2583,20 @@ Me avise o que decidir. E mais importante: quero saber o que aconteceu e como vo
 
         async function loadPendingLandmarks() {
             // Load pending landmarks for Iria that are NOT yet scheduled
-            const { data: pendingLandmarks, error } = await WardApp.db
+            const { data: pendentesIria, error } = await WardApp.db
                 .from('landmarks')
                 .select('*')
                 .eq('completed', false)
                 .neq('group_name', 'historico')   // chamada de uma prova ja passada nao aparece
                 .like('landmark_type', 'call_iria%');
+            // O NBME pode ser com a Iria, o Guilherme ou o Marcos: a vaga (de
+            // todos) e as ocorrencias marcadas com outro mentor nao sao dela.
+            const pendingLandmarks = (pendentesIria || []).filter(l => {
+                const def = WardRoteiro.definicao(l.landmark_type);
+                if (def && def.mentores && !WardRoteiro.ehOcorrencia(l.landmark_type)) return false;
+                const mentor = WardRoteiro.mentorSugerido(l.landmark_type, l.title);
+                return !mentor || mentor === 'iria';
+            });
 
             const container = document.getElementById('pending-landmarks-list');
 
