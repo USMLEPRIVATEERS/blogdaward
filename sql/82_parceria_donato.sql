@@ -119,6 +119,11 @@ CREATE TRIGGER update_donato_intake_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 ALTER TABLE donato_intake ENABLE ROW LEVEL SECURITY;
+-- Sem politica o banco recusa tudo que vem da API (era o erro "new row
+-- violates row-level security policy"). O acesso por aluno e feito na API.
+DROP POLICY IF EXISTS donato_intake_api ON donato_intake;
+CREATE POLICY donato_intake_api ON donato_intake
+    FOR ALL USING (true) WITH CHECK (true);
 
 -- ---------------------------------------------------------------------------
 -- 4. A conta do Dr. Andre
