@@ -312,7 +312,7 @@
                         <label class="form-label">Modo</label>
                         <div class="mode-toggles">
                             <label class="mode-toggle">
-                                <input type="checkbox" id="register-tutor" checked>
+                                <input type="checkbox" id="register-tutor">
                                 <span class="mode-toggle-track"><span class="mode-toggle-thumb"></span></span>
                                 <span class="mode-toggle-text">
                                     <strong>Tutor</strong>
@@ -1795,6 +1795,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
+            lembrarModoAoMudar('register-tutor', 'register-timed');
             userData = await WardApp.checkAuth();
             if (!userData) return;
 
@@ -2083,11 +2084,11 @@
             document.getElementById('register-total').value = lastSession ? '' : '';
             document.getElementById('register-correct').value = lastSession ? '' : '';
             document.getElementById('register-time').value = lastSession?.time_minutes || '';
-            // Padrao do UWorld na Ward: tutor ligado, sem cronometro
-            document.getElementById('register-tutor').checked = lastSession
-                ? readTutor(lastSession) : true;
-            document.getElementById('register-timed').checked = lastSession
-                ? readTimed(lastSession) : false;
+            // Tutor e timed: o que o aluno escolheu da ultima vez, ou o
+            // padrao da Ward (tutor desligado, untimed).
+            const modo = modoUworldPreferido();
+            document.getElementById('register-tutor').checked = modo.tutor;
+            document.getElementById('register-timed').checked = modo.timed;
             document.getElementById('register-notes').value = '';
 
             // Show indicator if pre-filled from last session
@@ -2118,12 +2119,29 @@
            sql/uworld-modo-tutor-timed.sql; ate la gravamos no formato antigo. */
         let tutorColumnMissing = false;
 
-        function readTutor(s) {
-            return s.tutor_mode != null ? !!s.tutor_mode : s.mode === 'tutor';
+        /* Modo do UWorld ao registrar uma sessao: a Iria recomenda tutor
+           DESLIGADO e untimed, entao esse e o padrao. Se o aluno liga (ou
+           desliga) um dos dois, a escolha fica guardada neste navegador e vale
+           tambem na outra pagina (Diario UWorld e Cronograma usam a mesma
+           chave), para ele nao ter de mexer toda vez. */
+        const MODO_UWORLD_CHAVE = 'ward_uworld_modo';
+        function modoUworldPreferido() {
+            try {
+                const m = JSON.parse(localStorage.getItem(MODO_UWORLD_CHAVE) || 'null');
+                if (m && typeof m === 'object') return { tutor: !!m.tutor, timed: !!m.timed };
+            } catch (e) { /* sem localStorage: fica o padrao */ }
+            return { tutor: false, timed: false };
         }
-
-        function readTimed(s) {
-            return s.mode === 'timed';
+        function lembrarModoUworld(tutor, timed) {
+            try { localStorage.setItem(MODO_UWORLD_CHAVE, JSON.stringify({ tutor: !!tutor, timed: !!timed })); } catch (e) {}
+        }
+        // Liga a memoria nos dois interruptores de uma sessao nova.
+        function lembrarModoAoMudar(idTutor, idTimed) {
+            const t = document.getElementById(idTutor), c = document.getElementById(idTimed);
+            if (!t || !c) return;
+            const salvar = () => lembrarModoUworld(t.checked, c.checked);
+            t.addEventListener('change', salvar);
+            c.addEventListener('change', salvar);
         }
 
         function isMissingTutorColumn(error) {
@@ -2132,8 +2150,8 @@
         }
 
         /* Formato antigo: cabe um valor so, entao alguma informacao se perde.
-           'timed' e o dado que vale a pena guardar, ja que tutor ligado e o
-           padrao e quase nao distingue uma sessao da outra.                 */
+           'timed' e o dado que vale a pena guardar; o tutor so entra quando a
+           sessao e untimed.                                                 */
         function legacyMode(mode, tutorMode) {
             if (mode === 'timed') return 'timed';
             return tutorMode ? 'tutor' : 'untimed';
