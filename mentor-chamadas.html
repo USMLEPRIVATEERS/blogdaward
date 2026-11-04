@@ -232,6 +232,36 @@
             border-color: #fca5a5;
         }
 
+        /* Datas especificas agrupadas por semana, com "Duplicar semana" */
+        .semana-bloco { margin-bottom: 1.25rem; }
+        .semana-header {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 0.75rem; flex-wrap: wrap;
+            margin: 0 0 0.5rem; padding-bottom: 0.4rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        .semana-header strong { font-size: 0.9rem; color: var(--gray-700); }
+        .specific-date-card.passada { opacity: 0.6; }
+        .tag-passada {
+            display: inline-block; margin-left: 0.35rem; padding: 0.05rem 0.45rem;
+            border-radius: 999px; background: var(--gray-100); color: var(--gray-500);
+            font-size: 0.7rem; font-weight: 600;
+        }
+
+        /* Previa do que a duplicacao vai criar */
+        .dup-previa { max-height: 45vh; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: 8px; }
+        .dup-item {
+            display: flex; align-items: center; gap: 0.6rem;
+            padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--gray-100); font-size: 0.875rem;
+        }
+        .dup-item:last-child { border-bottom: none; }
+        .dup-item.conflito { color: var(--gray-400); }
+        .dup-item small { color: var(--gray-500); }
+        .dup-semana-sep {
+            padding: 0.35rem 0.75rem; background: var(--gray-50); font-size: 0.75rem;
+            font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em;
+        }
+
         .tabs {
             display: flex;
             gap: 0.25rem;
@@ -606,7 +636,7 @@
                     </div>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted mb-3">Adicione datas específicas de disponibilidade ou indisponibilidade que sobrescrevem sua agenda regular.</p>
+                    <p class="text-muted mb-3">Adicione datas específicas de disponibilidade ou indisponibilidade que sobrescrevem sua agenda regular. Se a semana seguinte for igual, use <strong>📋 Duplicar semana</strong> (ou o 📋 de uma data só).</p>
 
                     <div id="specific-dates-list">
                         <!-- Filled by JS -->
@@ -729,6 +759,37 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('add-specific-modal')">Cancelar</button>
                 <button class="btn btn-primary" onclick="saveSpecificDate()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Duplicar datas especificas (uma data ou a semana inteira) -->
+    <div id="duplicate-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 560px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="dup-titulo">📋 Duplicar</h3>
+                <button class="modal-close" onclick="closeModal('duplicate-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted" id="dup-origem" style="margin-top: 0;"></p>
+                <div class="form-group">
+                    <label class="form-label" for="dup-semanas">Repetir nas próximas</label>
+                    <select id="dup-semanas" class="form-input" onchange="montarPreviaDuplicar()">
+                        <option value="1" selected>1 semana (só a seguinte)</option>
+                        <option value="2">2 semanas</option>
+                        <option value="3">3 semanas</option>
+                        <option value="4">4 semanas</option>
+                        <option value="6">6 semanas</option>
+                        <option value="8">8 semanas</option>
+                    </select>
+                </div>
+                <div class="form-label">O que vai ser criado</div>
+                <div id="dup-previa" class="dup-previa"></div>
+                <small class="text-muted">Desmarque o que não quiser repetir. Data que já tem horário nesse período fica de fora.</small>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('duplicate-modal')">Cancelar</button>
+                <button class="btn btn-primary" id="dup-confirmar" onclick="confirmarDuplicar()">📋 Duplicar</button>
             </div>
         </div>
     </div>
@@ -1265,7 +1326,8 @@
         }
 
         function editRegularSlot(slotId) {
-            const slot = regularAvailability.find(s => s.id === slotId);
+            // O id chega como texto (onclick) e no banco e numero.
+            const slot = regularAvailability.find(s => String(s.id) === String(slotId));
             if (!slot) return;
             document.getElementById('slot-edit-id').value = slotId;
             document.getElementById('slot-modal-title').textContent = '✏️ Editar Horario';
@@ -1427,18 +1489,74 @@
 
         // ===== Specific Dates =====
         async function loadSpecificDates() {
-            const today = WardApp.getTodayString();
+            // Desde a segunda-feira desta semana (e nao so de hoje): o mentor que
+            // monta a semana na segunda e duplica na quarta precisa ver - e
+            // copiar - os dias que ja passaram.
+            const desde = inicioDaSemana(WardApp.getTodayString());
 
             const { data } = await WardApp.db
                 .from('mentor_availability_specific')
                 .select('*')
                 .eq('mentor_id', userData.id)
-                .gte('available_date', today)
+                .gte('available_date', desde)
                 .order('available_date')
                 .order('start_time');
 
             specificDates = data || [];
             renderSpecificDates();
+        }
+
+        // ----- datas (YYYY-MM-DD, sem fuso: e o horario de parede do mentor)
+        function isoLocal(d) {
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+        function somarDias(iso, n) {
+            const d = WardApp.parseLocalDate(iso);
+            d.setDate(d.getDate() + n);
+            return isoLocal(d);
+        }
+        // Segunda-feira da semana da data.
+        function inicioDaSemana(iso) {
+            const d = WardApp.parseLocalDate(iso);
+            d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+            return isoLocal(d);
+        }
+        const diaMes = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+
+        function cartaoDataEspecifica(item, hoje) {
+            const dateObj = WardApp.parseLocalDate(item.available_date);
+            const dayName = dayNames[dateObj.getDay()];
+            const passada = item.available_date < hoje;
+
+            let slotsHtml = '';
+            if (!item.is_unavailable) {
+                const duration = item.duration_minutes || 60;
+                const breakMinutes = item.break_minutes || 0;
+                const meetingSlots = generateTimeSlots(item.start_time, item.end_time, duration, breakMinutes);
+                slotsHtml = meetingSlots.map(s =>
+                    `<span style="display: inline-block; margin: 2px; padding: 2px 6px; background: var(--primary-light); color: var(--primary-color); border-radius: 4px; font-size: 0.7rem;">${s.start}-${s.end}</span>`
+                ).join('');
+            }
+
+            return `
+                <div class="specific-date-card ${item.is_unavailable ? 'unavailable' : ''} ${passada ? 'passada' : ''}">
+                    <div style="flex: 1;">
+                        <strong>${WardApp.formatDate(item.available_date)}</strong> (${dayName})
+                        ${passada ? '<span class="tag-passada">já passou</span>' : ''}
+                        ${item.notes ? `<span class="text-muted"> - ${item.notes}</span>` : ''}
+                        <br>
+                        ${item.is_unavailable ? '<span class="text-danger">❌ Indisponivel o dia todo</span>' : `
+                            <span class="text-muted" style="font-size: 0.8rem;">🕐 ${formatTime(item.start_time)} - ${formatTime(item.end_time)} (${item.duration_minutes || 60}min)</span>
+                            <div style="margin-top: 0.25rem;">${slotsHtml}</div>
+                        `}
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-sm btn-outline" onclick="abrirDuplicar('data', '${item.id}')" title="Duplicar para as próximas semanas">📋</button>
+                        <button class="btn btn-sm btn-outline" onclick="editSpecificDate('${item.id}')" title="Editar">✏️</button>
+                        <button class="btn btn-sm btn-outline" onclick="removeSpecificDate('${item.id}')" title="Remover">🗑️</button>
+                    </div>
+                </div>
+            `;
         }
 
         function renderSpecificDates() {
@@ -1452,39 +1570,127 @@
             }
 
             noSpecific.style.display = 'none';
+            const hoje = WardApp.getTodayString();
 
-            container.innerHTML = specificDates.map(item => {
-                const dateObj = WardApp.parseLocalDate(item.available_date);
-                const dayName = dayNames[dateObj.getDay()];
+            // Uma secao por semana (segunda a domingo), cada uma com "Duplicar semana".
+            const semanas = {};
+            specificDates.forEach(item => {
+                const seg = inicioDaSemana(item.available_date);
+                (semanas[seg] = semanas[seg] || []).push(item);
+            });
 
-                let slotsHtml = '';
-                if (!item.is_unavailable) {
-                    const duration = item.duration_minutes || 60;
-                    const breakMinutes = item.break_minutes || 0;
-                    const meetingSlots = generateTimeSlots(item.start_time, item.end_time, duration, breakMinutes);
-                    slotsHtml = meetingSlots.map(s =>
-                        `<span style="display: inline-block; margin: 2px; padding: 2px 6px; background: var(--primary-light); color: var(--primary-color); border-radius: 4px; font-size: 0.7rem;">${s.start}-${s.end}</span>`
-                    ).join('');
-                }
-
-                return `
-                    <div class="specific-date-card ${item.is_unavailable ? 'unavailable' : ''}">
-                        <div style="flex: 1;">
-                            <strong>${WardApp.formatDate(item.available_date)}</strong> (${dayName})
-                            ${item.notes ? `<span class="text-muted"> - ${item.notes}</span>` : ''}
-                            <br>
-                            ${item.is_unavailable ? '<span class="text-danger">❌ Indisponivel o dia todo</span>' : `
-                                <span class="text-muted" style="font-size: 0.8rem;">🕐 ${formatTime(item.start_time)} - ${formatTime(item.end_time)} (${item.duration_minutes || 60}min)</span>
-                                <div style="margin-top: 0.25rem;">${slotsHtml}</div>
-                            `}
-                        </div>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn btn-sm btn-outline" onclick="editSpecificDate('${item.id}')">✏️</button>
-                            <button class="btn btn-sm btn-outline" onclick="removeSpecificDate('${item.id}')">🗑️</button>
-                        </div>
+            container.innerHTML = Object.keys(semanas).sort().map(seg => `
+                <div class="semana-bloco">
+                    <div class="semana-header">
+                        <strong>Semana de ${diaMes(seg)} a ${diaMes(somarDias(seg, 6))}</strong>
+                        <button class="btn btn-sm btn-outline" onclick="abrirDuplicar('semana', '${seg}')">📋 Duplicar semana</button>
                     </div>
-                `;
-            }).join('');
+                    ${semanas[seg].map(item => cartaoDataEspecifica(item, hoje)).join('')}
+                </div>
+            `).join('');
+        }
+
+        // ----- duplicar (uma data ou a semana inteira) para as semanas seguintes
+        let duplicarOrigem = [];
+        let duplicarPrevia = [];
+
+        function abrirDuplicar(tipo, chave) {
+            if (tipo === 'semana') {
+                duplicarOrigem = specificDates.filter(d => inicioDaSemana(d.available_date) === chave);
+                document.getElementById('dup-titulo').textContent = '📋 Duplicar semana';
+                document.getElementById('dup-origem').textContent =
+                    `Copia ${duplicarOrigem.length === 1 ? 'a data' : `as ${duplicarOrigem.length} datas`} da semana de ${diaMes(chave)} a ${diaMes(somarDias(chave, 6))}, no mesmo dia da semana e no mesmo horário.`;
+            } else {
+                duplicarOrigem = specificDates.filter(d => String(d.id) === String(chave));
+                const d = duplicarOrigem[0];
+                if (!d) return;
+                const dia = dayNames[WardApp.parseLocalDate(d.available_date).getDay()];
+                document.getElementById('dup-titulo').textContent = '📋 Duplicar data';
+                document.getElementById('dup-origem').textContent =
+                    `Copia ${dia} ${diaMes(d.available_date)} (${d.is_unavailable ? 'indisponível' : formatTime(d.start_time) + ' - ' + formatTime(d.end_time)}) para o mesmo dia das semanas seguintes.`;
+            }
+            document.getElementById('dup-semanas').value = '1';
+            montarPreviaDuplicar();
+            openModal('duplicate-modal');
+        }
+
+        // Dois horarios no mesmo dia se cruzam? (indisponivel = 00:00-23:59)
+        function horariosSeCruzam(a, b) {
+            return timeToMinutes(formatTime(a.start_time)) < timeToMinutes(formatTime(b.end_time))
+                && timeToMinutes(formatTime(b.start_time)) < timeToMinutes(formatTime(a.end_time));
+        }
+
+        function montarPreviaDuplicar() {
+            const semanas = parseInt(document.getElementById('dup-semanas').value) || 1;
+            duplicarPrevia = [];
+            for (let k = 1; k <= semanas; k++) {
+                duplicarOrigem.forEach(orig => {
+                    const nova = Object.assign({}, orig, { available_date: somarDias(orig.available_date, 7 * k) });
+                    const choca = specificDates.concat(duplicarPrevia.filter(p => !p.conflito))
+                        .some(e => e.available_date === nova.available_date && horariosSeCruzam(e, nova));
+                    duplicarPrevia.push({ semana: k, linha: nova, conflito: choca, available_date: nova.available_date,
+                        start_time: nova.start_time, end_time: nova.end_time });
+                });
+            }
+            duplicarPrevia.sort((a, b) => a.available_date.localeCompare(b.available_date)
+                || formatTime(a.start_time).localeCompare(formatTime(b.start_time)));
+
+            let semanaAtual = null;
+            document.getElementById('dup-previa').innerHTML = duplicarPrevia.map((p, i) => {
+                const l = p.linha;
+                const seg = inicioDaSemana(l.available_date);
+                const sep = seg !== semanaAtual
+                    ? `<div class="dup-semana-sep">Semana de ${diaMes(seg)} a ${diaMes(somarDias(seg, 6))}</div>` : '';
+                semanaAtual = seg;
+                const dia = dayNames[WardApp.parseLocalDate(l.available_date).getDay()];
+                const oque = l.is_unavailable ? '❌ indisponível o dia todo'
+                    : `${formatTime(l.start_time)} - ${formatTime(l.end_time)} (${l.duration_minutes || 60}min)`;
+                return `${sep}
+                    <label class="dup-item ${p.conflito ? 'conflito' : ''}">
+                        <input type="checkbox" data-i="${i}" ${p.conflito ? 'disabled' : 'checked'} onchange="contarDuplicar()">
+                        <span><strong>${dia} ${diaMes(l.available_date)}</strong> · ${oque}
+                        ${p.conflito ? '<br><small>já tem horário nesse período</small>' : ''}</span>
+                    </label>`;
+            }).join('') || '<p class="text-muted" style="padding: 0.75rem; margin: 0;">Nada para duplicar.</p>';
+            contarDuplicar();
+        }
+
+        function contarDuplicar() {
+            const n = document.querySelectorAll('#dup-previa input[type=checkbox]:checked').length;
+            const btn = document.getElementById('dup-confirmar');
+            btn.disabled = n === 0;
+            btn.textContent = n === 1 ? '📋 Criar 1 data' : `📋 Criar ${n} datas`;
+        }
+
+        async function confirmarDuplicar() {
+            const marcados = [...document.querySelectorAll('#dup-previa input[type=checkbox]:checked')]
+                .map(cb => duplicarPrevia[Number(cb.dataset.i)]).filter(Boolean);
+            if (!marcados.length) return;
+
+            const linhas = marcados.map(p => ({
+                mentor_id: userData.id,
+                available_date: p.linha.available_date,
+                is_unavailable: !!p.linha.is_unavailable,
+                start_time: formatTime(p.linha.start_time),
+                end_time: formatTime(p.linha.end_time),
+                duration_minutes: p.linha.duration_minutes || 60,
+                break_minutes: p.linha.break_minutes || 0,
+                notes: p.linha.notes || null
+            }));
+
+            const btn = document.getElementById('dup-confirmar');
+            btn.disabled = true;
+            btn.textContent = 'Duplicando...';
+            const { error } = await WardApp.db.from('mentor_availability_specific').insert(linhas);
+            if (error) {
+                console.error('Erro ao duplicar:', error);
+                WardApp.showToast('Erro ao duplicar', 'error');
+                contarDuplicar();
+                return;
+            }
+            closeModal('duplicate-modal');
+            WardApp.showToast(linhas.length === 1 ? '1 data criada!' : `${linhas.length} datas criadas!`);
+            await loadSpecificDates();
         }
 
         function openAddSpecificModal(isUnavailable) {
@@ -1508,7 +1714,8 @@
         }
 
         function editSpecificDate(id) {
-            const item = specificDates.find(d => d.id === id);
+            // O id chega como texto (onclick) e no banco e numero.
+            const item = specificDates.find(d => String(d.id) === String(id));
             if (!item) {
                 WardApp.showToast('Data não encontrada', 'error');
                 return;
