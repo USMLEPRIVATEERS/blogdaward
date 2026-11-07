@@ -1224,6 +1224,7 @@
 
     <script src="js/timezone-detect.js"></script>
     <script src="js/roteiro-chamadas.js"></script>
+    <script src="js/horarios-livres.js"></script>
     <script>
         let userData = null;
         let currentLandmarkId = null;
@@ -2622,51 +2623,7 @@
             const mentor = mentorsData[mentorKey];
             if (!mentor) return;
 
-            const dayOfWeek = new Date(date + 'T12:00:00').getDay();
-
-            // Load slots
-            const { data: regularSlots } = await WardApp.db
-                .from('mentor_availability_regular')
-                .select('*')
-                .eq('mentor_id', mentor.id)
-                .eq('day_of_week', dayOfWeek)
-                .eq('is_active', true);
-
-            const { data: specificSlots } = await WardApp.db
-                .from('mentor_availability_specific')
-                .select('*')
-                .eq('mentor_id', mentor.id)
-                .eq('available_date', date)
-                .eq('is_unavailable', false);
-
-            // Load booked
-            const { data: booked } = await WardApp.db
-                .from('scheduled_calls')
-                .select('scheduled_time')
-                .eq('mentor_id', mentor.id)
-                .eq('scheduled_date', date)
-                .eq('status', 'scheduled');
-
-            const bookedTimes = (booked || []).map(c => c.scheduled_time.substring(0, 5));
-
-            // Generate slots
-            const slots = [];
-            [...(regularSlots || []), ...(specificSlots || [])].forEach(slot => {
-                const duration = slot.duration_minutes || 60;
-                const breakMinutes = slot.break_minutes || 0;
-                let current = timeToMinutes(slot.start_time);
-                const end = timeToMinutes(slot.end_time);
-
-                while (current + duration <= end) {
-                    const timeStr = minutesToTime(current);
-                    if (!bookedTimes.includes(timeStr)) {
-                        slots.push(timeStr);
-                    }
-                    current += duration + breakMinutes;
-                }
-            });
-
-            const uniqueSlots = [...new Set(slots)].sort();
+            const uniqueSlots = (await horariosLivresDoMentor(mentor.id, date)).map(h => h.hora);
             const timeSelect = document.getElementById('extra-call-time');
             const studentTz = document.getElementById('extra-call-timezone')?.value || getStudentTimezone();
             const mentorTz = await getMentorTimezone(mentor.id);
@@ -2730,17 +2687,10 @@
                 const time = document.getElementById('extra-call-time').value;
 
                 if (date && time) {
-                    // Check availability
-                    const { data: existing } = await WardApp.db
-                        .from('scheduled_calls')
-                        .select('id')
-                        .eq('mentor_id', mentor.id)
-                        .eq('scheduled_date', date)
-                        .eq('scheduled_time', time)
-                        .eq('status', 'scheduled')
-                        .maybeSingle();
+                    // Ainda livre? (confere a chamada inteira, nao so o horario de inicio)
+                    const duracao = await conferirHorarioLivre(mentor.id, date, time);
 
-                    if (!existing) {
+                    if (duracao) {
                         await WardApp.db
                             .from('scheduled_calls')
                             .insert({
@@ -2749,6 +2699,7 @@
                                 mentor_id: mentor.id,
                                 scheduled_date: date,
                                 scheduled_time: time,
+                                duration_minutes: duracao,
                                 status: 'scheduled',
                                 student_timezone: getStudentTimezone()
                             });
@@ -3080,48 +3031,7 @@
             const date = document.getElementById('new-landmark-schedule-date').value;
             if (!mentorId || !date) return;
 
-            const dayOfWeek = new Date(date + 'T12:00:00').getDay();
-
-            const { data: regularSlots } = await WardApp.db
-                .from('mentor_availability_regular')
-                .select('*')
-                .eq('mentor_id', mentorId)
-                .eq('day_of_week', dayOfWeek)
-                .eq('is_active', true);
-
-            const { data: specificSlots } = await WardApp.db
-                .from('mentor_availability_specific')
-                .select('*')
-                .eq('mentor_id', mentorId)
-                .eq('available_date', date)
-                .eq('is_unavailable', false);
-
-            const { data: booked } = await WardApp.db
-                .from('scheduled_calls')
-                .select('scheduled_time')
-                .eq('mentor_id', mentorId)
-                .eq('scheduled_date', date)
-                .eq('status', 'scheduled');
-
-            const bookedTimes = (booked || []).map(c => c.scheduled_time.substring(0, 5));
-
-            const slots = [];
-            [...(regularSlots || []), ...(specificSlots || [])].forEach(slot => {
-                const duration = slot.duration_minutes || 60;
-                const breakMinutes = slot.break_minutes || 0;
-                let current = timeToMinutes(slot.start_time);
-                const end = timeToMinutes(slot.end_time);
-
-                while (current + duration <= end) {
-                    const timeStr = minutesToTime(current);
-                    if (!bookedTimes.includes(timeStr)) {
-                        slots.push(timeStr);
-                    }
-                    current += duration + breakMinutes;
-                }
-            });
-
-            const uniqueSlots = [...new Set(slots)].sort();
+            const uniqueSlots = (await horariosLivresDoMentor(mentorId, date)).map(h => h.hora);
             const timeSelect = document.getElementById('new-landmark-schedule-time');
             const studentTz = document.getElementById('new-landmark-timezone')?.value || getStudentTimezone();
             const mentorTz = await getMentorTimezone(mentorId);
@@ -3229,17 +3139,10 @@
 
             // Schedule call if requested
             if (wantsSchedule && createdLandmark) {
-                // Check if slot is still available
-                const { data: existing } = await WardApp.db
-                    .from('scheduled_calls')
-                    .select('id')
-                    .eq('mentor_id', mentorId)
-                    .eq('scheduled_date', scheduleDate)
-                    .eq('scheduled_time', scheduleTime)
-                    .eq('status', 'scheduled')
-                    .maybeSingle();
+                // Ainda livre? (confere a chamada inteira, nao so o horario de inicio)
+                const duracao = await conferirHorarioLivre(mentorId, scheduleDate, scheduleTime);
 
-                if (existing) {
+                if (!duracao) {
                     WardApp.showToast('Evento criado! (Horário já reservado, agende depois)', 'warning');
                 } else {
                     await WardApp.db
@@ -3250,6 +3153,7 @@
                             mentor_id: mentorId,
                             scheduled_date: scheduleDate,
                             scheduled_time: scheduleTime,
+                            duration_minutes: duracao,
                             status: 'scheduled',
                             student_timezone: getStudentTimezone()
                         });
@@ -3311,14 +3215,15 @@
                 return;
             }
 
-            // Load mentor settings for minimum days ahead (default 2)
+            // Load mentor settings for minimum days ahead (default 2) e inicio livre
             const { data: mentorSettings } = await WardApp.db
                 .from('mentor_settings')
-                .select('min_days_ahead')
+                .select('*')
                 .eq('mentor_id', mentor.id)
                 .maybeSingle();
 
             const minDaysAhead = mentorSettings?.min_days_ahead ?? 2;
+            const passoLivre = passoLivreDoMentor(mentorSettings);
 
             // Load regular availability
             const { data: regularSlots } = await WardApp.db
@@ -3355,19 +3260,10 @@
             // Load already scheduled calls
             const { data: scheduledCalls } = await WardApp.db
                 .from('scheduled_calls')
-                .select('scheduled_date, scheduled_time')
+                .select('scheduled_date, scheduled_time, duration_minutes')
                 .eq('mentor_id', mentor.id)
                 .eq('status', 'scheduled')
                 .gte('scheduled_date', minDateStr);
-
-            const bookedSlots = (scheduledCalls || []).map(c =>
-                c.scheduled_date + '_' + c.scheduled_time.substring(0, 5)
-            );
-
-            // Build unavailable dates set
-            const unavailableDates = new Set(
-                (specificDates || []).filter(d => d.is_unavailable).map(d => d.available_date)
-            );
 
             // Generate all available slots for the next 30 days
             const allSlots = [];
@@ -3379,37 +3275,17 @@
                 const dateStr = `${year}-${month}-${day}`;
                 const dayOfWeek = d.getDay();
 
-                // Skip unavailable specific dates
-                if (unavailableDates.has(dateStr)) continue;
+                const janelas = janelasDoDia(dateStr, regularSlots, specificDates);
+                const reservas = (scheduledCalls || []).filter(c => c.scheduled_date === dateStr);
 
-                // Get regular slots for this day of week
-                const dayRegularSlots = (regularSlots || []).filter(s => s.day_of_week === dayOfWeek);
-
-                // Get specific availability for this date
-                const daySpecificSlots = (specificDates || []).filter(s =>
-                    s.available_date === dateStr && !s.is_unavailable
-                );
-
-                // Combine slots
-                const combinedSlots = [...dayRegularSlots, ...daySpecificSlots];
-
-                combinedSlots.forEach(slot => {
-                    const duration = slot.duration_minutes || 60;
-                    const breakMinutes = slot.break_minutes || 0;
-                    const meetingSlots = generateMeetingSlots(slot.start_time, slot.end_time, duration, breakMinutes);
-
-                    meetingSlots.forEach(ms => {
-                        const slotKey = dateStr + '_' + ms.start;
-                        if (!bookedSlots.includes(slotKey)) {
-                            allSlots.push({
-                                date: dateStr,
-                                dayOfWeek: dayOfWeek,
-                                startTime: ms.start,
-                                endTime: ms.end,
-                                mentorId: mentor.id,
-                                mentorKey: mentorKey
-                            });
-                        }
+                horariosLivres(janelas, reservas, passoLivre).forEach(h => {
+                    allSlots.push({
+                        date: dateStr,
+                        dayOfWeek: dayOfWeek,
+                        startTime: h.hora,
+                        endTime: minutesToTimeLocal(timeToMinutesLocal(h.hora) + h.duracao),
+                        mentorId: mentor.id,
+                        mentorKey: mentorKey
                     });
                 });
             }
@@ -3483,21 +3359,6 @@
             return time.substring(0, 5);
         }
 
-        function generateMeetingSlots(startTime, endTime, durationMinutes, breakMinutes = 0) {
-            const slots = [];
-            let current = timeToMinutesLocal(startTime);
-            const end = timeToMinutesLocal(endTime);
-
-            while (current + durationMinutes <= end) {
-                const slotStart = minutesToTimeLocal(current);
-                const slotEnd = minutesToTimeLocal(current + durationMinutes);
-                slots.push({ start: slotStart, end: slotEnd });
-                current += durationMinutes + breakMinutes;
-            }
-
-            return slots;
-        }
-
         function timeToMinutesLocal(time) {
             const [h, m] = time.split(':').map(Number);
             return h * 60 + m;
@@ -3507,6 +3368,46 @@
             const h = Math.floor(mins / 60).toString().padStart(2, '0');
             const m = (mins % 60).toString().padStart(2, '0');
             return h + ':' + m;
+        }
+
+        // ================================================
+        // HORARIOS LIVRES DE UM MENTOR (regra em js/horarios-livres.js,
+        // a mesma que a pagina do mentor usa)
+        // ================================================
+        // Antes cada tela gerava os horarios do seu jeito e so considerava
+        // ocupado o horario de inicio IGUAL ao de uma chamada marcada. Agora:
+        // blocos fixos por padrao, "inicio livre" para o mentor que ligou, e
+        // ocupado = a chamada inteira se cruza com uma ja marcada.
+        const passoLivreDoMentor = WardHorarios.passoLivre;
+        const janelasDoDia = WardHorarios.janelasDoDia;
+        const horariosLivres = WardHorarios.horariosLivres;
+
+        // Consulta o banco e devolve os horarios livres do mentor naquele dia.
+        // Serve para montar a lista e para conferir de novo na hora de gravar.
+        // ignorarLandmarkId: ao reagendar, a chamada antiga do aluno sera apagada,
+        // entao ela nao conta como ocupada.
+        async function horariosLivresDoMentor(mentorId, dateStr, ignorarLandmarkId) {
+            const dow = new Date(dateStr + 'T12:00:00').getDay();
+            const [cfg, regulares, especificas, reservas] = await Promise.all([
+                // '*' e nao a coluna: antes do sql/87 a coluna do inicio livre nao existe
+                WardApp.db.from('mentor_settings').select('*').eq('mentor_id', mentorId).maybeSingle(),
+                WardApp.db.from('mentor_availability_regular').select('*')
+                    .eq('mentor_id', mentorId).eq('day_of_week', dow).eq('is_active', true),
+                WardApp.db.from('mentor_availability_specific').select('*')
+                    .eq('mentor_id', mentorId).eq('available_date', dateStr),
+                WardApp.db.from('scheduled_calls').select('landmark_id, scheduled_time, duration_minutes')
+                    .eq('mentor_id', mentorId).eq('scheduled_date', dateStr).eq('status', 'scheduled')
+            ]);
+            const janelas = janelasDoDia(dateStr, regulares.data, especificas.data);
+            const outras = (reservas.data || []).filter(r => !ignorarLandmarkId || String(r.landmark_id) !== String(ignorarLandmarkId));
+            return horariosLivres(janelas, outras, passoLivreDoMentor(cfg.data));
+        }
+
+        // Na hora de gravar: o horario ainda esta livre? Devolve a duracao, ou null.
+        async function conferirHorarioLivre(mentorId, dateStr, hora, ignorarLandmarkId) {
+            const livres = await horariosLivresDoMentor(mentorId, dateStr, ignorarLandmarkId);
+            const h = livres.find(x => x.hora === String(hora).slice(0, 5));
+            return h ? h.duracao : null;
         }
 
         // Called when clicking schedule button on a landmark
@@ -3623,14 +3524,15 @@
 
             currentScheduleMentor = mentorId;
 
-            // Load mentor settings for min_days_ahead
+            // Load mentor settings for min_days_ahead (e o inicio livre, se houver)
             const { data: mentorSettings } = await WardApp.db
                 .from('mentor_settings')
-                .select('min_days_ahead')
+                .select('*')
                 .eq('mentor_id', mentorId)
                 .maybeSingle();
 
             const minDaysAhead = mentorSettings?.min_days_ahead ?? 2;
+            const passoLivre = passoLivreDoMentor(mentorSettings);
 
             // Load next 30 days of availability (respecting min_days_ahead)
             const today = new Date();
@@ -3669,59 +3571,20 @@
             // Load all scheduled calls in this range to detect fully booked days
             const { data: bookedCalls } = await WardApp.db
                 .from('scheduled_calls')
-                .select('scheduled_date, scheduled_time')
+                .select('landmark_id, scheduled_date, scheduled_time, duration_minutes')
                 .eq('mentor_id', mentorId)
                 .eq('status', 'scheduled')
                 .gte('scheduled_date', firstDateStr)
                 .lte('scheduled_date', lastDateStr);
+            const trocando = chamadaSendoReagendada();
 
-            // Build a map of booked times per date
-            const bookedByDate = {};
-            (bookedCalls || []).forEach(c => {
-                if (!bookedByDate[c.scheduled_date]) bookedByDate[c.scheduled_date] = [];
-                bookedByDate[c.scheduled_date].push(c.scheduled_time.substring(0, 5));
-            });
-
-            // Helper to count total slots for a date
-            function countTotalSlots(dateStr, dayOfWeek) {
-                const dayRegular = (regularSlots || []).filter(s => s.day_of_week === dayOfWeek);
-                const daySpecific = (specificDates || []).filter(s => s.available_date === dateStr && !s.is_unavailable);
-                let total = 0;
-                [...dayRegular, ...daySpecific].forEach(slot => {
-                    const duration = slot.duration_minutes || 60;
-                    const breakMins = slot.break_minutes || 0;
-                    let current = timeToMinutesLocal(slot.start_time);
-                    const end = timeToMinutesLocal(slot.end_time);
-                    while (current + duration <= end) {
-                        total++;
-                        current += duration + breakMins;
-                    }
-                });
-                return total;
-            }
-
-            // Filter dates where mentor is available AND has at least 1 free slot
+            // So entram as datas com pelo menos um horario livre
             const availableDates = dates.filter(d => {
-                // Check if there's an unavailability specific date
-                const specificUnavailable = (specificDates || []).find(s =>
-                    s.available_date === d.date && s.is_unavailable
-                );
-                if (specificUnavailable) return false;
-
-                // Check if there's regular availability for this day
-                const hasRegular = (regularSlots || []).some(s => s.day_of_week === d.dayOfWeek);
-
-                // Check if there's specific availability for this date
-                const hasSpecific = (specificDates || []).find(s =>
-                    s.available_date === d.date && !s.is_unavailable
-                );
-
-                if (!hasRegular && !hasSpecific) return false;
-
-                // Check if all slots are booked
-                const totalSlots = countTotalSlots(d.date, d.dayOfWeek);
-                const bookedCount = (bookedByDate[d.date] || []).length;
-                return bookedCount < totalSlots;
+                const janelas = janelasDoDia(d.date, regularSlots, specificDates);
+                if (!janelas.length) return false;
+                const reservas = (bookedCalls || []).filter(c => c.scheduled_date === d.date
+                    && (!trocando || String(c.landmark_id) !== String(trocando)));
+                return horariosLivres(janelas, reservas, passoLivre).length > 0;
             });
 
             const dateSelect = document.getElementById('schedule-date');
@@ -3731,60 +3594,23 @@
             document.getElementById('schedule-time').innerHTML = '<option value="">Selecione um horario...</option>';
         }
 
+        // No modal de agendamento: qual chamada o aluno esta reagendando (a antiga
+        // sera apagada ao confirmar). Chamada repetivel nao substitui a anterior.
+        function chamadaSendoReagendada() {
+            const id = document.getElementById('schedule-landmark-id').value;
+            const vaga = id ? landmarksPorId[id] : null;
+            if (!vaga) return null;
+            const def = WardRoteiro.definicao(vaga.landmark_type);
+            const repetivel = !!(def && def.repetivel && !WardRoteiro.ehOcorrencia(vaga.landmark_type));
+            return repetivel ? null : id;
+        }
+
         async function loadTimeSlots() {
             const mentorId = currentScheduleMentor;
             const date = document.getElementById('schedule-date').value;
             if (!mentorId || !date) return;
 
-            const dayOfWeek = new Date(date + 'T12:00:00').getDay();
-
-            // Load regular slots for this day
-            const { data: regularSlots } = await WardApp.db
-                .from('mentor_availability_regular')
-                .select('*')
-                .eq('mentor_id', mentorId)
-                .eq('day_of_week', dayOfWeek)
-                .eq('is_active', true);
-
-            // Load specific slots for this date
-            const { data: specificSlots } = await WardApp.db
-                .from('mentor_availability_specific')
-                .select('*')
-                .eq('mentor_id', mentorId)
-                .eq('available_date', date)
-                .eq('is_unavailable', false);
-
-            // Load already scheduled calls for this date
-            const { data: scheduledCalls } = await WardApp.db
-                .from('scheduled_calls')
-                .select('scheduled_time')
-                .eq('mentor_id', mentorId)
-                .eq('scheduled_date', date)
-                .eq('status', 'scheduled');
-
-            const bookedTimes = (scheduledCalls || []).map(c => c.scheduled_time.substring(0, 5));
-
-            // Generate time slots
-            const slots = [];
-            const allSlots = [...(regularSlots || []), ...(specificSlots || [])];
-
-            allSlots.forEach(slot => {
-                const duration = slot.duration_minutes || 30;
-                const breakMinutes = slot.break_minutes || 0;
-                let current = timeToMinutes(slot.start_time);
-                const end = timeToMinutes(slot.end_time);
-
-                while (current + duration <= end) {
-                    const timeStr = minutesToTime(current);
-                    if (!bookedTimes.includes(timeStr)) {
-                        slots.push(timeStr);
-                    }
-                    current += duration + breakMinutes;
-                }
-            });
-
-            // Remove duplicates and sort
-            const uniqueSlots = [...new Set(slots)].sort();
+            const uniqueSlots = (await horariosLivresDoMentor(mentorId, date, chamadaSendoReagendada())).map(h => h.hora);
 
             const timeSelect = document.getElementById('schedule-time');
             const studentTz = document.getElementById('schedule-timezone')?.value || getStudentTimezone();
@@ -3899,17 +3725,11 @@
                 return;
             }
 
-            // Check if slot is still available (double booking prevention)
-            const { data: existing } = await WardApp.db
-                .from('scheduled_calls')
-                .select('id')
-                .eq('mentor_id', mentorId)
-                .eq('scheduled_date', date)
-                .eq('scheduled_time', time)
-                .eq('status', 'scheduled')
-                .maybeSingle();
+            // O horario ainda esta livre? (alguem pode ter marcado enquanto o
+            // modal estava aberto; confere a chamada inteira, nao so o inicio)
+            const duracao = await conferirHorarioLivre(mentorId, date, time, (landmarkId && !ehVaga) ? landmarkId : null);
 
-            if (existing) {
+            if (!duracao) {
                 WardApp.showToast('Este horario ja foi reservado. Escolha outro.', 'error');
                 loadTimeSlots();
                 return;
@@ -4008,6 +3828,7 @@
                     mentor_id: mentorId,
                     scheduled_date: date,
                     scheduled_time: time,
+                    duration_minutes: duracao,
                     status: 'scheduled',
                     notes: resposta || null,
                     student_timezone: document.getElementById('schedule-timezone')?.value || getStudentTimezone()

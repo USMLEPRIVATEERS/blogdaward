@@ -509,6 +509,15 @@
                             <div id="mentor-tz-travel-hint" style="display:none;margin-top:0.6rem;padding:0.6rem 0.8rem;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;font-size:0.88rem;color:#9A3412;"></div>
                         </div>
                     </div>
+                    <div class="form-group" style="max-width: 600px; margin-top: 1rem;">
+                        <label class="form-label">Horário de início das chamadas</label>
+                        <select id="inicio-livre" class="form-input" onchange="saveInicioLivre()">
+                            <option value="">Fixo: blocos seguidos (padrão)</option>
+                            <option value="30">Livre: o aluno escolhe o início, a cada 30 min</option>
+                            <option value="15">Livre: o aluno escolhe o início, a cada 15 min</option>
+                        </select>
+                        <small class="text-muted">Ex.: das 13:00 às 17:00, chamadas de 90 min. <strong>Fixo:</strong> o aluno vê 13:00 e 14:30. <strong>Livre:</strong> o aluno pode começar 13:00, 13:30, 14:00... até 15:30; quando alguém marca, somem os horários que se cruzam com essa chamada.</small>
+                    </div>
                 </div>
             </div>
 
@@ -871,6 +880,26 @@
                     <!-- Filled by JS -->
                 </div>
 
+                <!-- Alterar data/horario (sem precisar cancelar e marcar de novo) -->
+                <div id="reschedule-section" style="display: none; margin-top: 1.25rem; padding: 1rem; background: #FFF7ED; border: 1px solid #FED7AA; border-radius: 8px;">
+                    <h4 style="margin: 0 0 0.75rem; font-size: 0.95rem; color: #9A3412;">📅 Alterar data/horário</h4>
+                    <div class="input-group" style="gap: 0.75rem; flex-wrap: wrap;">
+                        <div class="form-group" style="flex: 1; min-width: 150px; margin: 0;">
+                            <label class="form-label">Nova data</label>
+                            <input type="date" id="reschedule-date" class="form-input" onchange="atualizarDicaRemarcar()">
+                        </div>
+                        <div class="form-group" style="flex: 1; min-width: 120px; margin: 0;">
+                            <label class="form-label">Novo horário <span id="reschedule-tz" class="text-muted" style="font-weight: normal;"></span></label>
+                            <input type="time" id="reschedule-time" class="form-input" step="300" onchange="atualizarDicaRemarcar()">
+                        </div>
+                    </div>
+                    <div id="reschedule-hint" style="margin-top: 0.6rem; font-size: 0.85rem;"></div>
+                    <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap;">
+                        <button class="btn btn-primary btn-sm" id="reschedule-save-btn" onclick="salvarRemarcacao()">💾 Salvar nova data</button>
+                        <button class="btn btn-secondary btn-sm" onclick="fecharRemarcar()">Voltar</button>
+                    </div>
+                </div>
+
                 <!-- Add Note Section -->
                 <div id="add-landmark-note-section" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--gray-200);">
                     <h4 style="margin: 0 0 0.75rem; font-size: 0.95rem; color: var(--gray-700);">➕ Adicionar Observação</h4>
@@ -878,8 +907,9 @@
                     <button class="btn btn-primary btn-sm" onclick="addLandmarkNote()" style="margin-top: 0.5rem;">💾 Salvar Observação</button>
                 </div>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer" style="flex-wrap: wrap;">
                 <button class="btn btn-danger" onclick="cancelCall()">Cancelar Chamada</button>
+                <button class="btn btn-outline" id="reschedule-open-btn" onclick="abrirRemarcar()">📅 Alterar data/horário</button>
                 <button class="btn btn-success" onclick="completeCall()">Marcar Concluída</button>
             </div>
         </div>
@@ -891,11 +921,15 @@
     <script src="js/app.js"></script>
     <script src="js/timezone-detect.js"></script>
     <script src="js/roteiro-chamadas.js"></script>
+    <script src="js/horarios-livres.js"></script>
     <script>
         let userData = null;
         let regularAvailability = [];
         let specificDates = [];
         let scheduledCalls = [];
+        // Inicio livre (opcao do mentor em Configuracoes): o aluno escolhe qualquer
+        // inicio dentro da janela, a cada N minutos. null = blocos fixos (padrao).
+        let passoInicioLivre = null;
         let currentCall = null; // Current call being viewed in modal
         let editingSpecificId = null; // ID of specific date being edited (null = new)
 
@@ -1075,14 +1109,20 @@
         }
 
         async function loadMentorSettings() {
+            // '*' e nao a lista de colunas: antes do sql/87 a coluna do inicio livre nao existe
             const { data: settings } = await WardApp.db
                 .from('mentor_settings')
-                .select('min_days_ahead')
+                .select('*')
                 .eq('mentor_id', userData.id)
                 .maybeSingle();
 
             const minDays = settings?.min_days_ahead ?? 2;
             document.getElementById('min-days-ahead').value = minDays;
+            passoInicioLivre = WardHorarios.passoLivre(settings);
+            document.getElementById('inicio-livre').value = passoInicioLivre ? String(passoInicioLivre) : '';
+            // as listas podem ter sido desenhadas antes de a opcao chegar
+            renderAvailabilityGrid();
+            renderSpecificDates();
 
             // Load mentor timezone from users table
             const { data: userRow } = await WardApp.db
@@ -1174,6 +1214,36 @@
             WardApp.showToast('Configuracao salva!');
         }
 
+        async function saveInicioLivre() {
+            const sel = document.getElementById('inicio-livre');
+            const passo = sel.value ? parseInt(sel.value) : null;
+
+            const { error } = await WardApp.db
+                .from('mentor_settings')
+                .upsert({
+                    mentor_id: userData.id,
+                    start_step_minutes: passo,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'mentor_id' });
+
+            if (error) {
+                console.error('Error saving start step:', error);
+                sel.value = passoInicioLivre ? String(passoInicioLivre) : '';
+                const semColuna = /start_step_minutes/.test(error.message || '');
+                WardApp.showToast(semColuna
+                    ? 'Esta opção ainda não foi ativada no banco (falta rodar o sql/87).'
+                    : 'Erro ao salvar', 'error');
+                return;
+            }
+
+            passoInicioLivre = passo;
+            renderAvailabilityGrid();
+            renderSpecificDates();
+            WardApp.showToast(passo
+                ? `Início livre: os alunos escolhem o horário, a cada ${passo} min`
+                : 'Horário fixo: os alunos escolhem entre os blocos');
+        }
+
         async function saveMentorTimezone() {
             const tz = document.getElementById('mentor-timezone').value;
 
@@ -1238,7 +1308,9 @@
                 availabilitySlots.forEach(avail => {
                     const duration = avail.duration_minutes || 60;
                     const breakMinutes = avail.break_minutes || 0;
-                    const meetingSlots = generateTimeSlots(avail.start_time, avail.end_time, duration, breakMinutes);
+                    const meetingSlots = passoInicioLivre
+                        ? (() => { const ini = iniciosLivres(avail.start_time, avail.end_time, duration); return ini.length ? [{ texto: textoInicioLivre(ini) }] : []; })()
+                        : generateTimeSlots(avail.start_time, avail.end_time, duration, breakMinutes);
 
                     slotsHtml += `
                         <div class="availability-block" style="margin-bottom: 0.5rem; padding: 0.25rem; background: var(--gray-50); border-radius: 4px;">
@@ -1251,7 +1323,7 @@
                             </div>
                             ${meetingSlots.map(slot => `
                                 <div class="time-slot" style="font-size: 0.7rem; padding: 0.2rem 0.35rem;">
-                                    <span>${slot.start} - ${slot.end}</span>
+                                    <span>${slot.texto || `${slot.start} - ${slot.end}`}</span>
                                 </div>
                             `).join('')}
                         </div>
@@ -1353,15 +1425,41 @@
                 return;
             }
 
-            const slots = generateTimeSlots(start, end, duration, breakMinutes);
-            if (slots.length === 0) {
-                preview.innerHTML = '<span class="text-danger">Intervalo muito curto para a duracao selecionada</span>';
-            } else {
-                preview.innerHTML = `
-                    <strong>Chamadas disponiveis (${slots.length}):</strong><br>
-                    ${slots.map(s => `<span class="badge badge-primary" style="margin: 2px; display: inline-block; padding: 2px 6px; background: var(--primary-light); color: var(--primary-color); border-radius: 4px; font-size: 0.75rem;">${s.start} - ${s.end}</span>`).join('')}
+            preview.innerHTML = previaDaJanela(start, end, duration, breakMinutes);
+        }
+
+        // Inicios que o aluno vai ver numa janela com o inicio livre ligado
+        function iniciosLivres(startTime, endTime, durationMinutes) {
+            return WardHorarios.horariosDaJanela(
+                { start_time: startTime, end_time: endTime, duration_minutes: durationMinutes },
+                passoInicioLivre
+            ).map(h => minutesToTime(h.inicio));
+        }
+
+        function textoInicioLivre(inicios) {
+            if (inicios.length === 1) return `início às ${inicios[0]}`;
+            return `início livre: ${inicios[0]} até ${inicios[inicios.length - 1]}, a cada ${passoInicioLivre} min`;
+        }
+
+        // Previa do modal (horario fixo ou data especifica)
+        function previaDaJanela(start, end, duration, breakMinutes) {
+            const chip = t => `<span style="margin: 2px; display: inline-block; padding: 2px 6px; background: var(--primary-light); color: var(--primary-color); border-radius: 4px; font-size: 0.75rem;">${t}</span>`;
+            const curto = '<span class="text-danger">Intervalo muito curto para a duracao selecionada</span>';
+            if (passoInicioLivre) {
+                const inicios = iniciosLivres(start, end, duration);
+                if (!inicios.length) return curto;
+                return `
+                    <strong>Início livre (${inicios.length} opções de horário):</strong><br>
+                    ${chip(textoInicioLivre(inicios))}<br>
+                    <small class="text-muted">O aluno escolhe o início; quando alguém marca, somem os horários que se cruzam com a chamada.</small>
                 `;
             }
+            const slots = generateTimeSlots(start, end, duration, breakMinutes);
+            if (!slots.length) return curto;
+            return `
+                <strong>Chamadas disponiveis (${slots.length}):</strong><br>
+                ${slots.map(s => chip(`${s.start} - ${s.end}`)).join('')}
+            `;
         }
 
         function generateTimeSlots(startTime, endTime, durationMinutes, breakMinutes = 0) {
@@ -1414,15 +1512,7 @@
                 return;
             }
 
-            const slots = generateTimeSlots(start, end, duration, breakMinutes);
-            if (slots.length === 0) {
-                preview.innerHTML = '<span class="text-danger">Intervalo muito curto para a duracao selecionada</span>';
-            } else {
-                preview.innerHTML = `
-                    <strong>Chamadas disponiveis (${slots.length}):</strong><br>
-                    ${slots.map(s => `<span style="margin: 2px; display: inline-block; padding: 2px 6px; background: var(--primary-light); color: var(--primary-color); border-radius: 4px; font-size: 0.75rem;">${s.start} - ${s.end}</span>`).join('')}
-                `;
-            }
+            preview.innerHTML = previaDaJanela(start, end, duration, breakMinutes);
         }
 
         async function saveRegularSlot() {
@@ -1532,10 +1622,14 @@
             if (!item.is_unavailable) {
                 const duration = item.duration_minutes || 60;
                 const breakMinutes = item.break_minutes || 0;
-                const meetingSlots = generateTimeSlots(item.start_time, item.end_time, duration, breakMinutes);
-                slotsHtml = meetingSlots.map(s =>
-                    `<span style="display: inline-block; margin: 2px; padding: 2px 6px; background: var(--primary-light); color: var(--primary-color); border-radius: 4px; font-size: 0.7rem;">${s.start}-${s.end}</span>`
-                ).join('');
+                const chip = t => `<span style="display: inline-block; margin: 2px; padding: 2px 6px; background: var(--primary-light); color: var(--primary-color); border-radius: 4px; font-size: 0.7rem;">${t}</span>`;
+                if (passoInicioLivre) {
+                    const inicios = iniciosLivres(item.start_time, item.end_time, duration);
+                    slotsHtml = inicios.length ? chip(textoInicioLivre(inicios)) : '';
+                } else {
+                    slotsHtml = generateTimeSlots(item.start_time, item.end_time, duration, breakMinutes)
+                        .map(s => chip(`${s.start}-${s.end}`)).join('');
+                }
             }
 
             return `
@@ -1959,6 +2053,7 @@
                             </div>
                         </div>
                         <div class="call-actions">
+                            ${call.status === 'scheduled' ? `<button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openCallModal('${call.id}', true)" title="Alterar data ou horário">📅 Remarcar</button>` : ''}
                             <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openCallModal('${call.id}')">👁️ Ver</button>
                         </div>
                     </div>
@@ -1966,9 +2061,9 @@
             }).join('');
         }
 
-        async function openCallModal(callId) {
-            // First try to find in current scheduled calls
-            let call = scheduledCalls.find(c => c.id === callId);
+        async function openCallModal(callId, remarcar) {
+            // First try to find in current scheduled calls (id vem como texto do onclick)
+            let call = scheduledCalls.find(c => String(c.id) === String(callId));
 
             // If not found, fetch from database (e.g., previous calls)
             if (!call) {
@@ -2031,7 +2126,150 @@
                 addNoteSection.style.display = 'none';
             }
 
+            fecharRemarcar();
             openModal('call-modal');
+            if (remarcar && call.status === 'scheduled') abrirRemarcar();
+        }
+
+        // ===== Alterar data/horario de uma chamada marcada =====
+        // Antes o mentor precisava cancelar e pedir ao aluno para marcar de novo.
+        // Aqui ele escolhe qualquer data/hora (a agenda e dele): a tela mostra os
+        // horarios livres daquele dia e avisa se cruzar com outra chamada.
+        function abrirRemarcar() {
+            const call = currentCall;
+            if (!call || call.status !== 'scheduled') return;
+            const data = document.getElementById('reschedule-date');
+            data.min = WardApp.getTodayString();
+            data.value = call.scheduled_date;
+            document.getElementById('reschedule-time').value = formatTime(call.scheduled_time);
+            document.getElementById('reschedule-tz').textContent = '(seu fuso: ' + friendlyTzName(document.getElementById('mentor-timezone').value || 'America/Sao_Paulo') + ')';
+            document.getElementById('reschedule-section').style.display = 'block';
+            document.getElementById('reschedule-open-btn').style.display = 'none';
+            atualizarDicaRemarcar();
+        }
+
+        function fecharRemarcar() {
+            document.getElementById('reschedule-section').style.display = 'none';
+            document.getElementById('reschedule-hint').innerHTML = '';
+            document.getElementById('reschedule-open-btn').style.display =
+                (currentCall && currentCall.status === 'scheduled') ? '' : 'none';
+        }
+
+        // Duracao desta chamada: a da janela em que ela estava (o banco grava 30 por padrao)
+        function duracaoDaChamadaAtual() {
+            const call = currentCall;
+            const janelas = WardHorarios.janelasDoDia(call.scheduled_date, regularAvailability, specificDates);
+            return WardHorarios.duracaoNaHora(janelas, call.scheduled_time, call.duration_minutes || 60);
+        }
+
+        // O que muda se a chamada for para essa data/hora
+        async function analisarRemarcacao(dateStr, hora) {
+            const { data } = await WardApp.db
+                .from('scheduled_calls')
+                .select('id, scheduled_time, duration_minutes, student:student_id(full_name, email)')
+                .eq('mentor_id', userData.id)
+                .eq('scheduled_date', dateStr)
+                .eq('status', 'scheduled');
+            const outras = (data || []).filter(c => String(c.id) !== String(currentCall.id));
+            const janelas = WardHorarios.janelasDoDia(dateStr, regularAvailability, specificDates);
+            const duracao = hora ? WardHorarios.duracaoNaHora(janelas, hora, duracaoDaChamadaAtual()) : null;
+            return {
+                duracao,
+                janelas,
+                livres: WardHorarios.horariosLivres(janelas, outras, passoInicioLivre),
+                cruzam: hora ? WardHorarios.conflitos(janelas, outras, hora, duracao) : []
+            };
+        }
+
+        let dicaRemarcarVez = 0;
+        async function atualizarDicaRemarcar() {
+            const dateStr = document.getElementById('reschedule-date').value;
+            const hora = document.getElementById('reschedule-time').value;
+            const dica = document.getElementById('reschedule-hint');
+            if (!dateStr || !currentCall) { dica.innerHTML = ''; return; }
+
+            const vez = ++dicaRemarcarVez;
+            const { janelas, livres, cruzam } = await analisarRemarcacao(dateStr, hora);
+            if (vez !== dicaRemarcarVez) return; // o mentor ja mudou de novo
+
+            const linhas = [];
+            if (livres.length) {
+                linhas.push('Seus horários livres neste dia: ' + livres.map(h =>
+                    `<button type="button" class="btn btn-sm btn-outline" style="padding: 1px 7px; margin: 2px; font-size: 0.78rem;" onclick="escolherHoraRemarcar('${h.hora}')">${h.hora}</button>`
+                ).join(''));
+            } else {
+                linhas.push('<span class="text-muted">Nenhum horário livre da sua disponibilidade neste dia (pode marcar mesmo assim).</span>');
+            }
+            if (hora) {
+                const dentro = janelas.some(j => {
+                    const t = WardHorarios.min(hora);
+                    return t >= WardHorarios.min(j.start_time) && t < WardHorarios.min(j.end_time);
+                });
+                if (!dentro) linhas.push('<span style="color: #b45309;">⚠️ Fora da sua disponibilidade cadastrada.</span>');
+                if (cruzam.length) {
+                    linhas.push('<span style="color: #b91c1c;">⚠️ Cruza com: ' + cruzam.map(c =>
+                        `${_dn(c.student?.full_name) || c.student?.email || 'outra chamada'} às ${formatTime(c.scheduled_time)}`
+                    ).join('; ') + '</span>');
+                }
+                const tz = getStudentTimezoneLabel({ ...currentCall, scheduled_date: dateStr, scheduled_time: hora });
+                if (tz) linhas.push(tz.replace(/^<br>/, ''));
+            }
+            dica.innerHTML = linhas.map(l => `<div style="margin-top: 0.3rem;">${l}</div>`).join('');
+        }
+
+        function escolherHoraRemarcar(hora) {
+            document.getElementById('reschedule-time').value = hora;
+            atualizarDicaRemarcar();
+        }
+
+        async function salvarRemarcacao() {
+            const call = currentCall;
+            if (!call) return;
+            const dateStr = document.getElementById('reschedule-date').value;
+            const hora = document.getElementById('reschedule-time').value;
+            if (!dateStr || !hora) {
+                WardApp.showToast('Escolha a nova data e o horário', 'warning');
+                return;
+            }
+            if (dateStr === call.scheduled_date && hora === formatTime(call.scheduled_time)) {
+                WardApp.showToast('Esse já é o horário da chamada', 'warning');
+                return;
+            }
+
+            const btn = document.getElementById('reschedule-save-btn');
+            btn.disabled = true;
+            try {
+                const { duracao, cruzam } = await analisarRemarcacao(dateStr, hora);
+                if (cruzam.length) {
+                    const quem = cruzam.map(c => `${_dn(c.student?.full_name) || c.student?.email || 'outra chamada'} às ${formatTime(c.scheduled_time)}`).join(', ');
+                    if (!confirm(`Esse horário cruza com: ${quem}.\n\nMarcar mesmo assim?`)) return;
+                }
+
+                const { error } = await WardApp.db
+                    .from('scheduled_calls')
+                    .update({
+                        scheduled_date: dateStr,
+                        scheduled_time: hora,
+                        duration_minutes: duracao,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', call.id);
+
+                if (error) {
+                    console.error('Error rescheduling:', error);
+                    const mesmoInicio = error.code === '23505' || /unique|duplicate/i.test(error.message || '');
+                    WardApp.showToast(mesmoInicio
+                        ? 'Você já tem outra chamada começando exatamente nesse horário.'
+                        : 'Erro ao remarcar: ' + (error.message || 'tente novamente'), 'error');
+                    return;
+                }
+
+                closeModal('call-modal');
+                WardApp.showToast(`Chamada remarcada para ${WardApp.formatDate(dateStr)} às ${hora}. O aluno já vê a nova data na página dele.`, 'success');
+                await loadScheduledCalls();
+            } finally {
+                btn.disabled = false;
+            }
         }
 
         async function completeCall() {
@@ -2211,39 +2449,17 @@
             today.setHours(0, 0, 0, 0);
             const dates = [];
 
-            // Generate next 60 days of available dates from regularAvailability
+            // Proximos 60 dias com disponibilidade (fixa ou data especifica,
+            // tirando os dias marcados como indisponiveis) - mesma regra do aluno
             for (let d = 0; d < 60; d++) {
                 const date = new Date(today);
                 date.setDate(today.getDate() + d);
-                const dow = date.getDay(); // 0=Dom, 1=Seg...
-
-                const slotsForDay = regularAvailability.filter(s => s.day_of_week === dow);
-                if (slotsForDay.length > 0) {
-                    const yyyy = date.getFullYear();
-                    const mm = String(date.getMonth() + 1).padStart(2, '0');
-                    const dd = String(date.getDate()).padStart(2, '0');
-                    const dateStr = `${yyyy}-${mm}-${dd}`;
-                    const dayName = dayNames[dow];
-                    const label = `${dayName}, ${dd}/${mm}`;
-                    dates.push({ value: dateStr, label });
-                }
+                const dateStr = isoLocal(date);
+                if (!WardHorarios.janelasDoDia(dateStr, regularAvailability, specificDates).length) continue;
+                const especial = specificDates.some(sp => sp.available_date === dateStr && !sp.is_unavailable);
+                const [, mm, dd] = dateStr.split('-');
+                dates.push({ value: dateStr, label: `${dayNames[date.getDay()]}, ${dd}/${mm}${especial ? ' (especial)' : ''}` });
             }
-
-            // Also add specific available dates
-            for (const sp of specificDates) {
-                if (sp.date_type === 'available' && sp.specific_date >= today.toISOString().split('T')[0]) {
-                    const parts = sp.specific_date.split('-');
-                    const spDate = new Date(parts[0], parts[1] - 1, parts[2]);
-                    const dayName = dayNames[spDate.getDay()];
-                    const label = `${dayName}, ${parts[2]}/${parts[1]} (especial)`;
-                    if (!dates.find(d => d.value === sp.specific_date)) {
-                        dates.push({ value: sp.specific_date, label });
-                    }
-                }
-            }
-
-            // Sort by date
-            dates.sort((a, b) => a.value.localeCompare(b.value));
 
             dates.forEach(d => {
                 dateSelect.innerHTML += `<option value="${d.value}">${d.label}</option>`;
@@ -2260,50 +2476,17 @@
                 return;
             }
 
-            const parts = dateStr.split('-');
-            const selectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
-            const dow = selectedDate.getDay();
-
-            // Get time slots from regular availability for this day of week
-            let allSlots = [];
-            const slotsForDay = regularAvailability.filter(s => s.day_of_week === dow);
-            slotsForDay.forEach(avail => {
-                const duration = avail.duration_minutes || 60;
-                const breakMin = avail.break_minutes || 0;
-                const slots = generateTimeSlots(avail.start_time, avail.end_time, duration, breakMin);
-                slots.forEach(s => allSlots.push(s.start));
-            });
-
-            // Also check specific dates for this date
-            const specificForDate = specificDates.filter(sp => sp.specific_date === dateStr && sp.date_type === 'available');
-            specificForDate.forEach(sp => {
-                if (sp.start_time && sp.end_time) {
-                    const duration = sp.duration_minutes || 60;
-                    const breakMin = sp.break_minutes || 0;
-                    const slots = generateTimeSlots(sp.start_time, sp.end_time, duration, breakMin);
-                    slots.forEach(s => { if (!allSlots.includes(s.start)) allSlots.push(s.start); });
-                }
-            });
-
-            // Remove already booked times
+            // Mesma regra da pagina do aluno (js/horarios-livres.js): blocos fixos
+            // ou inicio livre, e some o que cruza com uma chamada ja marcada
             const { data: booked } = await WardApp.db
                 .from('scheduled_calls')
-                .select('scheduled_time')
+                .select('scheduled_time, duration_minutes')
                 .eq('mentor_id', userData.id)
                 .eq('scheduled_date', dateStr)
                 .eq('status', 'scheduled');
 
-            const bookedTimes = (booked || []).map(b => b.scheduled_time.substring(0, 5));
-            allSlots = allSlots.filter(t => !bookedTimes.includes(t));
-
-            // Remove blocked dates
-            const blockedForDate = specificDates.filter(sp => sp.specific_date === dateStr && sp.date_type === 'blocked');
-            if (blockedForDate.length > 0) {
-                // If whole day is blocked, no slots
-                allSlots = [];
-            }
-
-            allSlots.sort();
+            const janelas = WardHorarios.janelasDoDia(dateStr, regularAvailability, specificDates);
+            const allSlots = WardHorarios.horariosLivres(janelas, booked || [], passoInicioLivre).map(h => h.hora);
 
             if (allSlots.length === 0) {
                 timeSelect.innerHTML = '<option value="">Nenhum horario disponivel</option>';
@@ -2424,6 +2607,8 @@
                         mentor_id: userData.id,
                         scheduled_date: dateStr,
                         scheduled_time: time,
+                        duration_minutes: WardHorarios.duracaoNaHora(
+                            WardHorarios.janelasDoDia(dateStr, regularAvailability, specificDates), time, 30),
                         status: 'scheduled',
                         notes: notes || null,
                         student_timezone: studentTz
