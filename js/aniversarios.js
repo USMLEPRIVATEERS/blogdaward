@@ -17,9 +17,12 @@
     'use strict';
 
     var FUSO_WARD = 'America/Sao_Paulo';
-    // Quantos dias antes e depois ainda contam como "aniversário" para a
-    // janela de parabéns. Quem entra no fim de semana não fica sem.
-    var JANELA_DIAS = 1;
+    // A janela de parabéns abre NO DIA do aniversário (nunca antes: aparecia
+    // na véspera, com a idade antiga, e no dia de verdade já não voltava).
+    // Quem só entra depois ainda recebe, como "parabéns atrasado", por até
+    // estes dias — quem faz aniversário no sábado e entra na segunda não fica sem.
+    var DIAS_DE_ATRASO = 2;
+    var JANELA_DIAS = DIAS_DE_ATRASO;
 
     var MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
                  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -95,16 +98,17 @@
         return diasEntre(q, aniversarioNoAno(n, q.getFullYear() + 1));
     }
 
-    // Dentro da janela de parabéns? Devolve -1 (ontem), 0 (hoje) ou 1 (amanhã),
-    // e null fora dela.
+    // Dentro da janela de parabéns? Devolve 0 (é hoje) ou quantos dias já se
+    // passaram desde o aniversário (1 = foi ontem, até DIAS_DE_ATRASO), e null
+    // fora dela. Antes do dia, sempre null.
     function posicaoNaJanela(nascimento, referencia) {
         var q = referencia ? paraData(referencia) : hoje();
         var n = paraData(nascimento);
         if (!n || !q) return null;
-        for (var delta = -JANELA_DIAS; delta <= JANELA_DIAS; delta++) {
-            var dia = new Date(q.getFullYear(), q.getMonth(), q.getDate() + delta);
+        for (var atraso = 0; atraso <= DIAS_DE_ATRASO; atraso++) {
+            var dia = new Date(q.getFullYear(), q.getMonth(), q.getDate() - atraso);
             var aniv = aniversarioNoAno(n, dia.getFullYear());
-            if (aniv && aniv.getTime() === dia.getTime()) return delta;
+            if (aniv && aniv.getTime() === dia.getTime()) return atraso;
         }
         return null;
     }
@@ -166,11 +170,29 @@
         return MENSAGENS[Math.abs(Number(ano) || 0) % MENSAGENS.length];
     }
 
+    // O que a janela diz: no dia, a mensagem do ano; depois, a versão atrasada
+    // (as do dia falam em "hoje").
+    function mensagemPara(nascimento, referencia) {
+        var q = referencia ? paraData(referencia) : hoje();
+        var atraso = posicaoNaJanela(nascimento, q);
+        var idade = idadeEm(nascimento, q);
+        if (!atraso) return { titulo: mensagemDoAno(q.getFullYear()).titulo, texto: mensagemDoAno(q.getFullYear()).texto, idade: idade };
+        var quando = atraso === 1 ? 'ontem' : 'no dia ' + formataDia(nascimento);
+        return {
+            titulo: 'Parabéns atrasado!',
+            texto: 'Seu aniversário foi ' + quando + ' — a Ward inteira te deseja um ano incrível, '
+                 + 'e que ele termine com a vaga que você está construindo.',
+            idade: idade
+        };
+    }
+
     // A janela aparece UMA vez por aniversário. A chave leva o ano, então no
     // ano seguinte ela volta.
+    // (prefixo novo: a janela que abriu na véspera, pelo erro antigo, nao
+    // impede a do dia de verdade)
     function chaveDaJanela(userId, referencia) {
         var q = referencia ? paraData(referencia) : hoje();
-        return 'aniv_visto_' + userId + '_' + q.getFullYear();
+        return 'aniv_parabens_' + userId + '_' + q.getFullYear();
     }
 
     function jaViu(userId, referencia) {
@@ -397,8 +419,8 @@
 
     function mostrarParabens(usuario, nascimento) {
         if (document.getElementById('aniversario-modal')) return;
-        var msg = mensagemDoAno(hoje().getFullYear());
-        var idade = idadeEm(nascimento);
+        var msg = mensagemPara(nascimento);
+        var idade = msg.idade;
         var modal = el(
             '<div id="aniversario-modal" class="modal-overlay active">'
           + '  <div class="modal" style="max-width: 420px; overflow: hidden;">'
@@ -446,6 +468,8 @@
         proximos: proximos,
         porMes: porMes,
         mensagemDoAno: mensagemDoAno,
+        mensagemPara: mensagemPara,
+        DIAS_DE_ATRASO: DIAS_DE_ATRASO,
         jaViu: jaViu,
         marcarVisto: marcarVisto
     };
